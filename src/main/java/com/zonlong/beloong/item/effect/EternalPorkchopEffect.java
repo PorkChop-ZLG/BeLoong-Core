@@ -51,7 +51,7 @@ public class EternalPorkchopEffect extends Item {
 
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        // 1. 应用食物效果（恢复饥饿值/饱和度）
+        // 1. 应用食物效果（仅一次）
         if (entity instanceof Player player) {
             player.getFoodData().eat(
                     COOKED_PORKCHOP_FOOD.nutrition(),
@@ -64,19 +64,13 @@ public class EternalPorkchopEffect extends Item {
             player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
         }
 
-        // 3. 伤害耐久（同时通过 hurtAndBreak 的最后一击自动破坏物品）
+        // 3. 伤害耐久，如果耐久耗尽物品会自动消失
         InteractionHand hand = entity.getUsedItemHand();
         EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ?
                 EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
         stack.hurtAndBreak(DURABILITY_DAMAGE, entity, slot);
 
-        // 4. 防止物品数量被扣除 —— 无限消耗
-        //    当 hurtAndBreak 导致物品损坏时，物品本身就会消失，无需额外处理；
-        //    未损坏时，我们将数量加回来，抵消父类默认的减一操作。
-        if (!stack.isEmpty()) {
-            stack.setCount(stack.getCount() + 1);
-        }
-
-        return stack; // 返回处理后的物品栈，此时数量永远为 1（未坏）或 0（已坏）
+        // 4. 直接返回，物品数量不变（不增加也不减少）
+        return stack;
     }
 }
