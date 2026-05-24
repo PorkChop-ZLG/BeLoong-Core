@@ -1,9 +1,5 @@
 package com.zonlong.beloong.item.effect;
 
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodProperties;
@@ -14,63 +10,49 @@ import net.minecraft.world.level.Level;
 
 public class EternalPorkchopEffect extends Item {
 
-    // 直接使用原版猪排的饥饿值与饱和度
     private static final FoodProperties COOKED_PORKCHOP_FOOD = new FoodProperties.Builder()
-            .nutrition(8)          // 饥饿值
-            .saturationModifier(0.8f) // 饱和度系数 (12.8 = 0.8 * 2 * 8)
+            .nutrition(8)
+            .saturationModifier(0.8F)
             .build();
 
-    private static final int EAT_DURATION_TICKS = 32; // 1.6 秒
-    private static final int COOLDOWN_TICKS = 600;    // 30 秒
-    private static final int DURABILITY_DAMAGE = 1;
+    private static final int COOLDOWN_TICKS = 30 * 20;
 
     public EternalPorkchopEffect() {
         super(new Properties()
                 .food(COOKED_PORKCHOP_FOOD)
-                .durability(256)  // 可食用 256 次
-        );
+                .stacksTo(1));
     }
 
-    // 食用动画
     @Override
     public UseAnim getUseAnimation(ItemStack stack) {
         return UseAnim.EAT;
     }
 
-    // 食用时长
     @Override
     public int getUseDuration(ItemStack stack, LivingEntity entity) {
-        return EAT_DURATION_TICKS;
-    }
-
-    // 食用音效
-    @Override
-    public SoundEvent getEatingSound() {
-        return SoundEvents.GENERIC_EAT;
+        return COOKED_PORKCHOP_FOOD.eatDurationTicks();
     }
 
     @Override
     public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
-        // 1. 应用食物效果（仅一次）
-        if (entity instanceof Player player) {
-            player.getFoodData().eat(
-                    COOKED_PORKCHOP_FOOD.nutrition(),
-                    COOKED_PORKCHOP_FOOD.saturation()
-            );
-        }
+        /*
+         * Run vanilla food handling on a temporary one-item copy. The real stack is
+         * an infinite-use item, so it must never be consumed or damaged here.
+         */
+        super.finishUsingItem(stack.copyWithCount(1), level, entity);
 
-        // 2. 设置冷却
-        if (entity instanceof Player player) {
+        if (!level.isClientSide && entity instanceof Player player) {
+            repairInvalidStackSize(stack);
             player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
         }
 
-        // 3. 伤害耐久，如果耐久耗尽物品会自动消失
-        InteractionHand hand = entity.getUsedItemHand();
-        EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ?
-                EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-        stack.hurtAndBreak(DURABILITY_DAMAGE, entity, slot);
-
-        // 4. 直接返回，物品数量不变（不增加也不减少）
         return stack;
+    }
+
+    private static void repairInvalidStackSize(ItemStack stack) {
+        // Older builds could create stacked durable porkchops; keep the artifact singular.
+        if (stack.getCount() > 1) {
+            stack.setCount(1);
+        }
     }
 }
