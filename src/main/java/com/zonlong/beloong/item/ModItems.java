@@ -1,6 +1,7 @@
 package com.zonlong.beloong.item;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -11,7 +12,9 @@ public class ModItems {
             DeferredRegister.createItems(BeLoongCore.MODID);
 
     public static final DeferredItem<Item> ETERNAL_PORKCHOP =
-            Items.register("eternal_porkchop", () -> new Item(new Item.Properties()));
+            Items.register("eternal_porkchop",
+                    EternalPorkchopEffect::new
+            );
 
     public static void register(IEventBus eventBus) {
         Items.register(eventBus);
