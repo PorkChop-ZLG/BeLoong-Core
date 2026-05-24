@@ -64,13 +64,6 @@ public class EternalPorkchopEffect extends Item {
         }
 
         // ✅ 直接返回原物品，永远不消耗！
-        // 3. 伤害耐久，如果耐久耗尽物品会自动消失
-        InteractionHand hand = entity.getUsedItemHand();
-        EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ?
-                EquipmentSlot.MAINHAND : EquipmentSlot.OFFHAND;
-        stack.hurtAndBreak(DURABILITY_DAMAGE, entity, slot);
-
-        // 4. 直接返回，物品数量不变（不增加也不减少）
         return stack;
     }
 }
