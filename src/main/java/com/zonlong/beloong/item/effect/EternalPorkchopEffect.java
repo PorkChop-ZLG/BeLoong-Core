@@ -22,12 +22,11 @@ public class EternalPorkchopEffect extends Item {
 
     private static final int EAT_DURATION_TICKS = 32; // 1.6 秒
     private static final int COOLDOWN_TICKS = 600;    // 30 秒
-    private static final int DURABILITY_DAMAGE = 1;
 
     public EternalPorkchopEffect() {
         super(new Properties()
                 .food(COOKED_PORKCHOP_FOOD)
-                .durability(256)  // 可食用 256 次
+                // 不设置耐久度：物品永远不会消失！
         );
     }
 
@@ -59,11 +58,12 @@ public class EternalPorkchopEffect extends Item {
             );
         }
 
-        // 2. 设置冷却
+        // 2. 设置冷却（游戏平衡）
         if (entity instanceof Player player) {
             player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
         }
 
+        // ✅ 直接返回原物品，永远不消耗！
         // 3. 伤害耐久，如果耐久耗尽物品会自动消失
         InteractionHand hand = entity.getUsedItemHand();
         EquipmentSlot slot = hand == InteractionHand.MAIN_HAND ?
