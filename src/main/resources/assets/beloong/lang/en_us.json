@@ -1,13 +1,4 @@
 {
   "itemGroup.beloong": "Example Mod Tab",
-  "block.beloong.example_block": "Example Block",
-  "item.beloong.example_item": "Example Item",
-
-  "beloong.configuration.title": "BeLoong Core Configs",
-  "beloong.configuration.section.beloong.common.toml": "BeLoong Core Configs",
-  "beloong.configuration.section.beloong.common.toml.title": "BeLoong Core Configs",
-  "beloong.configuration.items": "Item List",
-  "beloong.configuration.logDirtBlock": "Log Dirt Block",
-  "beloong.configuration.magicNumberIntroduction": "Magic Number Text",
-  "beloong.configuration.magicNumber": "Magic Number"
+  "item.beloong.eternal_porkchop": "Eternal Porkchop"
 }
