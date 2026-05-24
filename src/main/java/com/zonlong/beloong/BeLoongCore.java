@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Blocks;
@@ -30,6 +31,7 @@ public class BeLoongCore {
         modEventBus.addListener(this::commonSetup);
 
         ModItems.register(modEventBus);
+        ModCreativeModeTabs.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (BeLoongCore) to respond directly to events.
