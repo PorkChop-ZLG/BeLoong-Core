@@ -1,38 +1,38 @@
-# Port DS Bug Fix Mixins into BeLoong-Core
+# 将 DS Bug Fix 的 Mixin 移植到 BeLoong-Core
 
-## Summary
+## 概述
 
-Port 3 mixin classes from the DS_bug_fix mod into BeLoong-Core, fixing two Dragon Survival bugs: stable hover drift and glowing-outline dragon invisibility.
+将 DS_bug_fix 模组中的 3 个 mixin 类移植到 BeLoong-Core，修复龙之生存的两个 bug：稳定悬停漂移和发光效果导致龙身体隐形。
 
-## Files to create
+## 新建文件
 
 ```
 src/main/java/com/zonlong/beloong/mixin/
-├── ClientFlightHandlerMixin.java       # Fix stable hover drift
-├── DragonItemRenderLayerMixin.java     # Fix glowing outline on held items
-└── OutlineBufferSourceAccessor.java    # Accessor for OutlineBufferSource internals
+├── ClientFlightHandlerMixin.java       # 修复稳定悬停漂移
+├── DragonItemRenderLayerMixin.java     # 修复手持物品发光导致龙身体隐形
+└── OutlineBufferSourceAccessor.java    # OutlineBufferSource 内部字段的访问器
 
 src/main/resources/
-└── beloong.mixins.json                 # Mixin config (client-only)
+└── beloong.mixins.json                 # Mixin 配置（仅客户端）
 ```
 
-## Files to modify
+## 修改文件
 
-- **Config.java** — clear example entries (logDirtBlock, magicNumber, etc.), add `FIX_GLOWING_OUTLINE` and `FIX_STABLE_HOVER` boolean toggles (both default true). Use existing `ModConfigSpec.Builder` pattern with no INSTANCE field needed (mixins reference the static fields directly).
-- **build.gradle** — no changes needed; NeoForge MDG 2.x auto-discovers and applies mixin configs.
+- **Config.java** — 清空示例条目（logDirtBlock、magicNumber 等），添加 `FIX_GLOWING_OUTLINE` 和 `FIX_STABLE_HOVER` 两个布尔开关（默认均为 true）。沿用现有的 `ModConfigSpec.Builder` 模式，无需 INSTANCE 字段（mixin 直接引用静态字段）。
+- **build.gradle** — 无需修改；NeoForge MDG 2.x 会自动发现并应用 mixin 配置。
 
-## Mixin port changes
+## Mixin 移植变更
 
-Package: `com.tangwenjun.ds_bug_fix.Mixin` → `com.zonlong.beloong.mixin`
-Config reference: `DSBugFixConfig.INSTANCE.fixXxx` → `Config.FIX_XXX`
+包名：`com.tangwenjun.ds_bug_fix.Mixin` → `com.zonlong.beloong.mixin`
+配置引用：`DSBugFixConfig.INSTANCE.fixXxx` → `Config.FIX_XXX`
 
-All other logic is copied verbatim including the accessor method names with `ds_bug_fix$` prefix (avoids collision with other mods' accessors).
+其余逻辑原样复制，包括带 `ds_bug_fix$` 前缀的访问器方法名（避免与其他模组的访问器冲突）。
 
-The custom config screen (`DSBugFixConfigScreen`) and language files are not ported — NeoForge's built-in `ConfigurationScreen` handles config display automatically.
+不移植自定义配置界面（`DSBugFixConfigScreen`）和语言文件 —— NeoForge 内置的 `ConfigurationScreen` 会自动处理配置显示。
 
-## Dependencies
+## 依赖
 
-None new. Dragon Survival and GeckoLib are already declared in `build.gradle` and `neoforge.mods.toml`.
+无新增依赖。Dragon Survival 和 GeckoLib 已在 `build.gradle` 和 `neoforge.mods.toml` 中声明。
 
 ## beloong.mixins.json
 
@@ -52,4 +52,4 @@ None new. Dragon Survival and GeckoLib are already declared in `build.gradle` an
 }
 ```
 
-All three are client-only since they target rendering and flight control — neither runs on dedicated servers.
+三个 mixin 均为仅客户端，因为它们只涉及渲染和飞行控制 —— 专用服务器上不会运行。
