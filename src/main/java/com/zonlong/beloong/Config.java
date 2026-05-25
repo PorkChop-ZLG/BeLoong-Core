@@ -33,7 +33,11 @@ public class Config {
 
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
 
-    // 暂无服务端配置项，保留空配置用于未来拓展
+    /** 修复 FTB Chunks 领地保护兼容（默认启用） */
+    public static final ModConfigSpec.BooleanValue FIX_FTB_CHUNKS_COMPAT = SERVER_BUILDER
+            .comment("修复 FTB Chunks 领地保护兼容 — 阻止龙之生存破坏其他玩家认领的区块")
+            .translation("config.beloong.fixFTBChunksCompat")
+            .define("fixFTBChunksCompat", true);
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 }
