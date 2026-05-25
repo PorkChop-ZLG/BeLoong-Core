@@ -27,7 +27,12 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    maven {
+        url = "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
 }
 
 base {
@@ -118,6 +123,10 @@ configurations {
 }
 
 dependencies {
+    // Dragon Survival - required dependency
+    implementation "curse.maven:dragons-survival-420799:7422257"
+    // GeckoLib - required by Dragon Survival
+    implementation "curse.maven:geckolib-388172:7023453"
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
