@@ -1,6 +1,7 @@
 package com.zonlong.beloong.item.effect;
 
 import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -11,8 +12,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.level.Level;
+
+import java.util.List;
 
 public class EternalPorkchopEffect extends Item {
 
@@ -25,7 +30,11 @@ public class EternalPorkchopEffect extends Item {
     private static final int COOLDOWN_TICKS = 600;
 
     public EternalPorkchopEffect() {
-        super(new Properties().food(COOKED_PORKCHOP_FOOD));
+        super(new Properties()
+                .food(COOKED_PORKCHOP_FOOD)
+                .rarity(Rarity.UNCOMMON)
+                .stacksTo(1)
+        );
     }
 
     @Override
@@ -41,6 +50,12 @@ public class EternalPorkchopEffect extends Item {
     @Override
     public SoundEvent getEatingSound() {
         return SoundEvents.GENERIC_EAT;
+    }
+
+    @Override
+    public void appendHoverText(ItemStack stack, TooltipContext context,
+                                List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
+        tooltipComponents.add(Component.translatable("tooltip.item.beloong.eternal_porkchop"));
     }
 
     @Override

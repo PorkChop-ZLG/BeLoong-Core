@@ -1,4 +1,5 @@
 {
   "itemGroup.beloong_tab": "BeLoong",
-  "item.beloong.eternal_porkchop": "Eternal Porkchop"
+  "item.beloong.eternal_porkchop": "Eternal Porkchop",
+  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."
 }
