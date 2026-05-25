@@ -6,6 +6,9 @@
     "DragonItemRenderLayerMixin",
     "OutlineBufferSourceAccessor"
   ],
+  "server": [
+    "DragonDestructionHandlerMixin"
+  ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
     "defaultRequire": 1
