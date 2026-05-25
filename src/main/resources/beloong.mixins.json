@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.zonlong.beloong.mixin",
+  "client": [
+    "ClientFlightHandlerMixin",
+    "DragonItemRenderLayerMixin",
+    "OutlineBufferSourceAccessor"
+  ],
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
