@@ -1,8 +1,8 @@
-# DS Bug Fix Mixin 移植技术文档
+# DS Bug Fix Mixin 技术文档
 
 ## 概述
 
-从 DS_bug_fix 模组移植了两个 bug 修复到 BeLoong-Core：
+修复了两个 龙之生存 本体的BUG：
 1. 稳定悬停漂移修复（ClientFlightHandlerMixin）
 2. 发光效果龙身体隐形修复（DragonItemRenderLayerMixin + OutlineBufferSourceAccessor）
 
