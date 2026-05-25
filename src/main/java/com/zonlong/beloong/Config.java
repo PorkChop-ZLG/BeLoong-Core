@@ -15,9 +15,9 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复发光物品导致龙身体隐形（默认启用） */
+    /** 修复龙口含物品且自身带发光效果时身体变透明（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_GLOWING_OUTLINE = CLIENT_BUILDER
-            .comment("修复口持发光物品时龙身体隐形的BUG")
+            .comment("修复龙口含物品且自身带发光效果时身体变透明的BUG")
             .translation("config.beloong.fixGlowingItemInvisibility")
             .define("fixGlowingItemInvisibility", true);
 

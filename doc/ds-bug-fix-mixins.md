@@ -73,8 +73,7 @@ Mixin 会因方法名冲突而错误合并或报错。使用 `ds_bug_fix$` 前�
 
 ### 问题描述
 
-当龙手持带有 Glowing 发光效果的物品（附魔物品、光灵箭等）时，龙的身体模型会完全透明化，
-只留下手持物品可见。
+当龙口中含有物品，且龙自身带有 Glowing 发光效果时，龙的身体模型会完全透明化。
 
 ### 根因分析：OutlineBufferSource 的机制
 
@@ -85,7 +84,7 @@ Minecraft 使用 `OutlineBufferSource` 来渲染发光效果：
    - **发光通道**：渲染实体的发光轮廓 → 写入 `outlineBufferSource`
 2. 两个通道的数据分别收集完毕后，在后处理阶段合成最终画面
 
-问题出在龙手持物品的渲染环节：
+问题出在龙口含物品的渲染环节——当龙自身带有 Glowing 效果时，Minecraft 会将龙的渲染包装在OutlineBufferSource 中：
 
 1. 物品在龙手上的渲染是通过 `DragonItemRenderLayer.renderStackForBone()` 完成的
 2. 此方法调用 GeckoLib 的 `BlockAndItemGeoLayer.renderStackForBone()` 来实际绘制物品
@@ -141,7 +140,7 @@ Minecraft 使用 `OutlineBufferSource` 来渲染发光效果：
 
 | 键名 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `fixGlowingOutline` | 布尔 | `true` | 修复手持发光物品时龙身体变隐形 |
+| `fixGlowingItemInvisibility` | 布尔 | `true` | 修复龙口含物品且自身带发光效果时身体变透明 |
 | `fixStableHover` | 布尔 | `true` | 修复稳定悬停漂移 |
 
 ---
@@ -167,7 +166,7 @@ NeoForge MDG 2.x 不会自动发现 mixin 配置——必须在 mod 元数据中
 | `src/main/resources/beloong.mixins.json` | 新建 | Mixin 配置，注册三个仅客户端 mixin |
 | `src/main/java/.../mixin/OutlineBufferSourceAccessor.java` | 新建 | 访问 OutlineBufferSource 的 6 个私有字段 |
 | `src/main/java/.../mixin/ClientFlightHandlerMixin.java` | 新建 | 修复稳定悬停漂移 |
-| `src/main/java/.../mixin/DragonItemRenderLayerMixin.java` | 新建 | 修复发光效果龙身体隐形 |
+| `src/main/java/.../mixin/DragonItemRenderLayerMixin.java` | 新建 | 修复龙口含物品且带发光效果时身体变透明 |
 | `src/main/java/.../Config.java` | 修改 | 移除示例条目，添加两个修复开关 |
 | `src/main/java/.../BeLoongCore.java` | 修改 | 清理旧配置引用 |
 | `src/main/templates/META-INF/neoforge.mods.toml` | 修改 | 注册 mixin 配置 |

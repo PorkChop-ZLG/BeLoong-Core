@@ -3,6 +3,6 @@
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
   "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out.",
 
-  "config.beloong.fixGlowingItemInvisibility": "Fix Dragon Body Invisibility From Glowing Items",
+  "config.beloong.fixGlowingItemInvisibility": "Fix Body Turning Transparent When Glowing While Holding Item",
   "config.beloong.fixStableHoverDrift": "Fix Stable Hover Drift"
 }
