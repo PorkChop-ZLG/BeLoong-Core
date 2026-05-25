@@ -15,15 +15,15 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复龙口含物品且自身带发光效果时身体变透明（默认启用） */
+    /** 修复发光效果导致身体透明（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_GLOWING_OUTLINE = CLIENT_BUILDER
-            .comment("修复龙口含物品且自身带发光效果时身体变透明的BUG")
+            .comment("修复发光效果导致身体透明")
             .translation("config.beloong.fixGlowingItemInvisibility")
             .define("fixGlowingItemInvisibility", true);
 
     /** 修复稳定悬停漂移（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
-            .comment("修复稳定悬停时的漂移：生存模式水平漂移，创造模式向上漂移")
+            .comment("修复稳定悬停漂移")
             .translation("config.beloong.fixStableHoverDrift")
             .define("fixStableHoverDrift", true);
 
