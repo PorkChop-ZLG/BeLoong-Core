@@ -1,5 +1,8 @@
 {
   "itemGroup.beloong_tab": "BeLoong",
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
-  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."
+  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out.",
+
+  "config.beloong.fixGlowingItemInvisibility": "Fix Dragon Body Invisibility From Glowing Items",
+  "config.beloong.fixStableHoverDrift": "Fix Stable Hover Drift"
 }

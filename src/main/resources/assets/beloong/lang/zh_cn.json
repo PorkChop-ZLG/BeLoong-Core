@@ -1,5 +1,8 @@
 {
   "itemGroup.beloong_tab": "化龙",
   "item.beloong.eternal_porkchop": "永恒猪排",
-  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。"
+  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。",
+
+  "config.beloong.fixGlowingItemInvisibility": "修复发光物品导致龙身体隐形",
+  "config.beloong.fixStableHoverDrift": "修复稳定悬停漂移"
 }
