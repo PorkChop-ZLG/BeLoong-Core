@@ -2,7 +2,6 @@ package com.zonlong.beloong.mixin;
 
 import by.dragonsurvivalteam.dragonsurvival.common.codecs.MiscCodecs;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.DragonDestructionHandler;
-import com.zonlong.beloong.Config;
 import com.zonlong.beloong.util.ClaimProtectionHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
