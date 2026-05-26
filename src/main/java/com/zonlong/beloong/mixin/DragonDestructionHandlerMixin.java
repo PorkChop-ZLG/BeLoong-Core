@@ -1,14 +1,17 @@
 package com.zonlong.beloong.mixin;
 
+import by.dragonsurvivalteam.dragonsurvival.common.codecs.MiscCodecs;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.DragonDestructionHandler;
 import com.zonlong.beloong.Config;
 import dev.ftb.mods.ftbchunks.api.FTBChunksAPI;
 import dev.ftb.mods.ftbchunks.api.Protection;
+import dev.ftb.mods.ftbchunks.api.ProtectionPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,7 +32,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(DragonDestructionHandler.class)
 public abstract class DragonDestructionHandlerMixin {
 
-    private static boolean isProtected(Entity actor, BlockPos pos) {
+    /** 始终返回 CHECK 的保护策略：无视玩家团队身份，只要区块被认领就阻止 */
+    private static final Protection ALWAYS_BLOCK = (player, pos, hand, chunk, entity) -> ProtectionPolicy.CHECK;
+
+    private static boolean isClaimed(Entity actor, BlockPos pos) {
         if (actor == null || pos == null) {
             return false;
         }
@@ -47,7 +53,7 @@ public abstract class DragonDestructionHandlerMixin {
             return false;
         }
 
-        return manager.shouldPreventInteraction(actor, InteractionHand.MAIN_HAND, pos, Protection.EDIT_BLOCK, null);
+        return manager.shouldPreventInteraction(actor, InteractionHand.MAIN_HAND, pos, ALWAYS_BLOCK, null);
     }
 
     // ========== 连锁挖掘 ==========
@@ -64,8 +70,8 @@ public abstract class DragonDestructionHandlerMixin {
             cancellable = true,
             remap = false
     )
-    private static void beforeMultiMiningDestroyBlock(ServerPlayer player, BlockPos pos, CallbackInfo ci) {
-        if (isProtected(player, pos)) {
+    private static void beforeMultiMiningDestroyBlock(BlockEvent.BreakEvent event, float centerSpeed, ServerPlayer player, BlockPos pos, CallbackInfo ci) {
+        if (isClaimed(player, pos)) {
             ci.cancel();
         }
     }
@@ -81,8 +87,8 @@ public abstract class DragonDestructionHandlerMixin {
             cancellable = true,
             remap = false
     )
-    private static void beforeTrampleDestroyBlock(PlayerTickEvent event, BlockPos pos, CallbackInfo ci) {
-        if (isProtected(event.getEntity(), pos)) {
+    private static void beforeTrampleDestroyBlock(MiscCodecs.DestructionData destructionData, PlayerTickEvent event, BlockPos pos, CallbackInfo ci) {
+        if (isClaimed(event.getEntity(), pos)) {
             ci.cancel();
         }
     }
@@ -96,8 +102,8 @@ public abstract class DragonDestructionHandlerMixin {
             cancellable = true,
             remap = false
     )
-    private static void beforeTrampleRemoveBlock(PlayerTickEvent event, BlockPos pos, CallbackInfo ci) {
-        if (isProtected(event.getEntity(), pos)) {
+    private static void beforeTrampleRemoveBlock(MiscCodecs.DestructionData destructionData, PlayerTickEvent event, BlockPos pos, CallbackInfo ci) {
+        if (isClaimed(event.getEntity(), pos)) {
             ci.cancel();
         }
     }
