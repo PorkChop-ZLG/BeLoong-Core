@@ -11,6 +11,8 @@ import net.neoforged.fml.ModList;
 
 public class ClaimProtectionHelper {
 
+    private ClaimProtectionHelper() {}
+
     private static final Protection ALWAYS_BLOCK =
             (player, pos, hand, chunk, entity) -> ProtectionPolicy.CHECK;
 
