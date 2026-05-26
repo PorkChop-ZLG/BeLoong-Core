@@ -127,6 +127,9 @@ dependencies {
     implementation "curse.maven:dragons-survival-420799:7422257"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:7023453"
+    // Mixin Annotation Processor - generates refmap for @Inject resolution
+    annotationProcessor "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
+
     // FTB Chunks - optional compatibility for claim protection
     compileOnly "curse.maven:ftb-chunks-forge-314906:6295696"
     localRuntime "curse.maven:ftb-chunks-forge-314906:6295696"
