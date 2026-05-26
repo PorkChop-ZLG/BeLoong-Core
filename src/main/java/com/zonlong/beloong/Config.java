@@ -18,13 +18,13 @@ public class Config {
 
     /** 修复发光效果导致身体透明（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_GLOWING_OUTLINE = CLIENT_BUILDER
-            .comment("修复：在龙之生存配置文件中开启 渲染口中持有物品 后，当口持物品并且身上有 发光 效果时，龙的身体部分会变成半透明")
+            .comment("修复发光效果导致身体透明")
             .translation("config.beloong.fixGlowingItemInvisibility")
             .define("fixGlowingItemInvisibility", true);
 
-    /** 修复稳定悬停漂移（默认启用） */
+    /** 修复稳定悬浮漂移（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
-            .comment("修复：在龙之生存配置文件中开启 稳定悬浮 后，当使用俯冲结束后，龙依旧会向前缓慢滑翔；当开启创造模式飞行后，龙会自动向上或向下移动")
+            .comment("修复稳定悬浮漂移")
             .translation("config.beloong.fixStableHoverDrift")
             .define("fixStableHoverDrift", true);
 
@@ -36,7 +36,7 @@ public class Config {
 
     /** 龙之生存FTB区块兼容（默认启用） */
     public static final ModConfigSpec.BooleanValue DS_FTBCHUNKS_COMPAT = COMMON_BUILDER
-            .comment("兼容：在安装 FTB Chunks模组后，阻止龙之生存的技能效果（方块破坏、方块转化、作物收割、骨粉催熟、爆炸、放火）和远古龙的碾压、连锁破坏等行为破坏已认领区块（无视权限）")
+            .comment("龙之生存FTB区块兼容")
             .translation("config.beloong.dsFTBChunksCompat")
             .define("ds_ftbchunks_compat", true);
 
