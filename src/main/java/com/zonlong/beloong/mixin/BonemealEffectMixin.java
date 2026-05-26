@@ -11,6 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * FTB Chunks 兼容：拦截 {@code BonemealEffect.apply()}，阻止在已认领区块内催熟作物。
+ */
 @Mixin(BonemealEffect.class)
 public abstract class BonemealEffectMixin {
 

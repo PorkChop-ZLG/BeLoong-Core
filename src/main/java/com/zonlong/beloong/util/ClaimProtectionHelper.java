@@ -9,6 +9,11 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.fml.ModList;
 
+/**
+ * FTB Chunks 领地保护的统一入口。
+ * 通过 {@link dev.ftb.mods.ftbchunks.api.FTBChunksAPI} 判断指定位置是否处于已认领区块，
+ * 无论玩家是否有团队权限，已认领区块一律拦截破坏行为。
+ */
 public class ClaimProtectionHelper {
 
     private ClaimProtectionHelper() {}

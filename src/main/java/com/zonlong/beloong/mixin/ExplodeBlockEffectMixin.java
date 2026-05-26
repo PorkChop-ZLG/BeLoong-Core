@@ -11,6 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * FTB Chunks 兼容：拦截 {@code ExplodeBlockEffect.apply()}，阻止在已认领区块内爆炸破坏方块。
+ */
 @Mixin(ExplodeBlockEffect.class)
 public abstract class ExplodeBlockEffectMixin {
 

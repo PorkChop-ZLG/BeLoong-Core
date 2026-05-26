@@ -2,6 +2,10 @@
   "itemGroup.beloong_tab": "化龙",
   "item.beloong.eternal_porkchop": "永恒猪排",
   "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。",
+  "beloong.configuration.title": "化龙核心 - 配置选项",
+  "beloong.configuration.section.beloong.common.toml": "化龙核心 - 通用设置",
+  "beloong.configuration.section.beloong.client.toml": "化龙核心 - 客户端设置",
+  "beloong.configuration.section.beloong.server.toml": "化龙核心 - 服务端设置",
 
   "config.beloong.fixGlowingItemInvisibility": "修复发光效果导致身体透明",
   "config.beloong.fixStableHoverDrift": "修复稳定悬停漂移",

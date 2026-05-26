@@ -11,6 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * FTB Chunks 兼容：拦截 {@code FireEffect.apply()}，阻止在已认领区块内点燃方块。
+ */
 @Mixin(FireEffect.class)
 public abstract class FireEffectMixin {
 

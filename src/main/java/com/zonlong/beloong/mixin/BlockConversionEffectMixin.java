@@ -11,6 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/**
+ * FTB Chunks 兼容：拦截 {@code BlockConversionEffect.apply()}，阻止在已认领区块内转换方块。
+ */
 @Mixin(BlockConversionEffect.class)
 public abstract class BlockConversionEffectMixin {
 
