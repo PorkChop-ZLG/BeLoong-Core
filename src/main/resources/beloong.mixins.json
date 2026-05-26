@@ -7,7 +7,7 @@
     "DragonItemRenderLayerMixin",
     "OutlineBufferSourceAccessor"
   ],
-  "server": [
+  "mixins": [
     "DragonDestructionHandlerMixin",
     "BlockBreakEffectMixin",
     "BlockConversionEffectMixin",
