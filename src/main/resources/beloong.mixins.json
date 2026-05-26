@@ -7,7 +7,13 @@
     "OutlineBufferSourceAccessor"
   ],
   "server": [
-    "DragonDestructionHandlerMixin"
+    "DragonDestructionHandlerMixin",
+    "BlockBreakEffectMixin",
+    "BlockConversionEffectMixin",
+    "ExplodeBlockEffectMixin",
+    "FireEffectMixin",
+    "BlockHarvestEffectMixin",
+    "BonemealEffectMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

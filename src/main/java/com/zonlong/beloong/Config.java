@@ -33,11 +33,11 @@ public class Config {
 
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复 FTB Chunks 领地保护兼容（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_FTB_CHUNKS_COMPAT = SERVER_BUILDER
-            .comment("修复 FTB Chunks 领地保护兼容 — 阻止龙之生存破坏其他玩家认领的区块")
-            .translation("config.beloong.fixFTBChunksCompat")
-            .define("fixFTBChunksCompat", true);
+    /** 龙之生存FTB区块兼容 — 阻止龙之生存的技能effect破坏已认领区块（默认启用） */
+    public static final ModConfigSpec.BooleanValue DS_FTBCHUNKS_COMPAT = SERVER_BUILDER
+            .comment("龙之生存FTB区块兼容 — 阻止龙之生存的技能effect破坏已认领区块")
+            .translation("config.beloong.dsFTBChunksCompat")
+            .define("ds_ftbchunks_compat", true);
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 }

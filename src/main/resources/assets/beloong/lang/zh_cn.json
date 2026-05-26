@@ -4,5 +4,7 @@
   "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。",
 
   "config.beloong.fixGlowingItemInvisibility": "修复发光效果导致身体透明",
-  "config.beloong.fixStableHoverDrift": "修复稳定悬停漂移"
+  "config.beloong.fixStableHoverDrift": "修复稳定悬停漂移",
+
+  "config.beloong.dsFTBChunksCompat": "龙之生存FTB区块兼容"
 }
