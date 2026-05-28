@@ -38,11 +38,6 @@ public class DimensionTransportHandler {
             return;
         }
 
-        // 创造或旁观模式跳过
-        if (player.isCreative() || player.isSpectator()) {
-            return;
-        }
-
         // 死亡或已移除的玩家跳过
         if (!player.isAlive() || player.isRemoved()) {
             return;
