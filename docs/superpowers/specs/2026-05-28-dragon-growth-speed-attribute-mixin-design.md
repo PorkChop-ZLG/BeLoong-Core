@@ -1,42 +1,41 @@
-# Dragon Growth Speed Attribute — Mixin Design
+# 龙成长速度属性 — Mixin 设计
 
-## Goal
+## 目标
 
-Add a `growth_speed` attribute that acts as a multiplier on the dragon's natural (passive) growth rate.  
-Example: value 2.0 means the dragon grows 2× faster — 1 minute of real time counts as 2 minutes of growth.
+添加一个 `growth_speed` 属性（attribute），作为龙自然（被动）成长速度的倍率。
+例如：值 2.0 表示龙成长速度翻倍 — 现实 1 分钟等于 2 分钟的成长进度。
 
-## Scope
+## 作用范围
 
-- Only affects **natural passive growth** (`DragonGrowthHandler.onPlayerUpdate`)
-- Does **NOT** affect growth from items (dragon hearts, star bones, etc.)
-- The attribute is registered from an **external companion mod** using Mixin to inject into DragonSurvival
+- 仅影响**自然被动成长**（`DragonGrowthHandler.onPlayerUpdate`）
+- **不**影响物品带来的成长（龙心、星骨等）
+- 属性注册在 **BeLoong-Core** 中，通过 Mixin 注入到 DragonSurvival
 
 ---
 
-## Implementation Plan
+## 实现方案
 
-### 1. Register the Attribute (no Mixin needed)
+### 1. 注册属性
 
-In the external mod, create an attributes class with a `DeferredRegister<Attribute>`:
+新建 `ModAttributes.java`：
 
 ```java
-// Example: ModAttributes.java
 public class ModAttributes {
     public static final DeferredRegister<Attribute> REGISTRY =
-        DeferredRegister.create(Registries.ATTRIBUTE, "your_mod_id");
+        DeferredRegister.create(Registries.ATTRIBUTE, "beloong");
 
     public static final Holder<Attribute> GROWTH_SPEED = REGISTRY.register("growth_speed",
         () -> new RangedAttribute(
-            "attribute.your_mod_id.growth_speed",  // translation key
-            1.0,   // default: normal growth speed
-            0.0,   // min: no natural growth
-            1024.0 // max
+            "attribute.beloong.growth_speed",
+            1.0,      // 默认值：正常成长速度
+            -1024.0,  // 最小值：允许反向成长
+            1024.0    // 最大值
         ).setSyncable(true)
     );
 }
 ```
 
-Subscribe to `EntityAttributeModificationEvent` to attach the attribute to players:
+通过 `EntityAttributeModificationEvent` 附加到所有玩家：
 
 ```java
 @SubscribeEvent
@@ -45,29 +44,35 @@ public static void attachAttributes(EntityAttributeModificationEvent event) {
 }
 ```
 
-### 2. Mixin: Multiply Natural Growth Rate
+在 `BeLoongCore` 主类中注册：
 
-**Target class:**
+```java
+ModAttributes.REGISTRY.register(modEventBus);
+modEventBus.addListener(ModAttributes::attachAttributes);
+```
+
+### 2. Mixin：倍乘自然成长速率
+
+**目标类：**
 `by.dragonsurvivalteam.dragonsurvival.common.handlers.DragonGrowthHandler`
 
-**Target method:**
-`onPlayerUpdate(PlayerTickEvent.Pre event)` — specifically line 133:
+**目标方法：**
+`onPlayerUpdate(PlayerTickEvent.Pre event)` — 具体为第 133 行：
 
 ```java
 double desiredGrowth = handler.getDesiredGrowth() + dragonStage.ticksToGrowth(INTERVAL);
 ```
 
-**Mixin strategy:** `@Redirect` the `DragonStage.ticksToGrowth(int)` call.
+**Mixin 策略：** 对 `DragonStage.ticksToGrowth(int)` 调用进行 `@Redirect`，限定在 `onPlayerUpdate` 方法内。
 
-`DragonStage.ticksToGrowth` is defined as:
+`DragonStage.ticksToGrowth` 的定义：
 ```java
-// DragonStage.java:153-155
 public double ticksToGrowth(int ticks) {
     return (growthRange().max() - growthRange().min()) / ticksUntilGrown() * ticks;
 }
 ```
 
-**Mixin class:**
+**Mixin 类：**
 
 ```java
 @Mixin(DragonGrowthHandler.class)
@@ -83,9 +88,9 @@ public class MixinDragonGrowthHandler {
     private static double redirectTicksToGrowth(
         DragonStage stage,
         int ticks,
-        PlayerTickEvent.Pre event  // captured from enclosing method
+        PlayerTickEvent.Pre event
     ) {
-        double baseGrowth = stage.ticksToGrowth(ticks); // call original
+        double baseGrowth = stage.ticksToGrowth(ticks);
 
         if (event.getEntity() instanceof ServerPlayer player) {
             AttributeInstance attr = player.getAttribute(ModAttributes.GROWTH_SPEED);
@@ -99,64 +104,93 @@ public class MixinDragonGrowthHandler {
 }
 ```
 
-**Mixin config JSON** (`your_mod_id.mixins.json`):
+**关键点：**
+
+- `method = "onPlayerUpdate"` 将重定向限定在自然成长内——`getGrowth()`（物品成长）也会调用 `ticksToGrowth`，但不受影响
+- `PlayerTickEvent.Pre event` 从包围方法的参数中捕获，用于获取 player 实例
+- `instanceof ServerPlayer` 是防御性安全检查（包围方法已做了相同检查，此处二次确认）
+- 对 `attr` 的 null 检查确保属性缺失时优雅回退到 `baseGrowth`（1.0× 速度）
+
+**Mixin 配置**（`beloong.mixins.json`）：
 
 ```json
 {
   "required": true,
-  "package": "com.yourmod.mixin",
-  "compatibilityLevel": "JAVA_21",
-  "refmap": "your_mod_id.refmap.json",
+  "package": "com.zonlong.beloong.mixin",
+  "refmap": "beloong.refmap.json",
+  "client": [
+    "ClientFlightHandlerMixin",
+    "DragonItemRenderLayerMixin",
+    "OutlineBufferSourceAccessor"
+  ],
   "mixins": [
+    "DragonDestructionHandlerMixin",
+    "BlockBreakEffectMixin",
+    "BlockConversionEffectMixin",
+    "ExplodeBlockEffectMixin",
+    "FireEffectMixin",
+    "BlockHarvestEffectMixin",
+    "BonemealEffectMixin",
     "MixinDragonGrowthHandler"
-  ]
+  ],
+  "compatibilityLevel": "JAVA_21",
+  "injectors": {
+    "defaultRequire": 1
+  }
 }
 ```
 
-### 3. (Optional) Display Attribute Value
-
-If you want the attribute to show up in-game:
-
-- The DragonSurvival inventory screen reads attributes from the player and displays modifiers
-- Since `GROWTH_SPEED` is attached to the player, it will appear automatically if the screen shows all player attributes
-- For a custom display slot, an additional mixin targeting the dragon GUI may be needed
-
 ---
 
-## Data Flow
+## 数据流
 
 ```
-PlayerTickEvent.Pre (each tick, every 20 ticks / 1 second)
+PlayerTickEvent.Pre（每 tick，每 20 tick / 1 秒触发一次）
     │
     ▼
 DragonGrowthHandler.onPlayerUpdate()
+    │  !(event.getEntity() instanceof ServerPlayer)? → 返回
+    │  !handler.isDragon()? → 返回
+    │  tickCount % 20 != 0? → 返回
+    │  isGrowthStopped / isNaturalGrowthStopped? → 返回
     │
-    ├─ (original)  desiredGrowth = oldGrowth + dragonStage.ticksToGrowth(INTERVAL)
-    │
-    ├─ (redirect)  desiredGrowth = oldGrowth + dragonStage.ticksToGrowth(INTERVAL) × growth_speed
+    ▼
+desiredGrowth = handler.getDesiredGrowth() + dragonStage.ticksToGrowth(INTERVAL)
+                                                      │
+                                                      │  ← @Redirect 注入点
+                                                      │  = ticksToGrowth(INTERVAL) × growth_speed
+                                                      │
+    ▼
+isGrowthAllowed(player, handler, desiredGrowth)? → false 则返回
     │
     ▼
 handler.setDesiredGrowth(player, desiredGrowth)
-    │
+    │  clampGrowth() 确保成长值不会跌破全局最小值
     ▼
-handler.lerpGrowth(player)  — smooth interpolation each tick
+handler.lerpGrowth(player)  — 每 tick 平滑插值
 ```
-
-## Edge Cases
-
-| Scenario | Behavior |
-|---|---|
-| `growth_speed = 0.0` | Natural growth stops entirely (same as `isGrowthStopped = true`, but through attribute) |
-| `growth_speed = -1.0` | Growth reverses over time |
-| Attribute not present / null | Falls back to `baseGrowth` (1× speed) |
-| Player is not a dragon | Attribute has no effect (growth handler exits early) |
-| Player in enclosed space | `isGrowthAllowed` returns false, so no growth happens regardless of growth_speed |
 
 ---
 
-## Target Mod Versions
+## 边界情况
 
-- **Minecraft:** 1.21.1
-- **DragonSurvival:** current `1.21.1` branch
-- **NeoForge:** matching DragonSurvival's dependency
-- **Mixin:** 0.8.x (via NeoForge's built-in Mixin support)
+| 场景 | 行为 |
+|---|---|
+| `growth_speed = 0.0` | 自然成长完全停止（独立于 `isGrowthStopped`） |
+| `growth_speed = -1.0` | 成长随时间反退——自然缩小 |
+| `growth_speed = 1.0`（默认） | 正常成长，与原版 DragonSurvival 行为一致 |
+| 负值导致过度缩小 | `setDesiredGrowth` 中的 `clampGrowth()` 确保成长值不会跌破全局最小值 |
+| 属性不存在 / null | 回退到 `baseGrowth`（1× 速度） |
+| 玩家不是龙 | `onPlayerUpdate` 在到达重定向之前已返回 |
+| `isGrowthStopped = true` | `onPlayerUpdate` 在到达重定向之前已返回 |
+| 封闭空间内 | `isGrowthAllowed` 返回 false，无论属性值如何成长均被阻止 |
+| 多人/服务器 | 属性通过 `setSyncable(true)` 同步，服务端权威 |
+
+---
+
+## 目标模组版本
+
+- **Minecraft：** 1.21.1
+- **DragonSurvival：** 当前 `1.21.1` 分支
+- **NeoForge：** 21.1.219
+- **Mixin：** 通过 NeoForge 内置 Mixin 支持
