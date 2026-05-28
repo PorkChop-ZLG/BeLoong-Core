@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.registry.ModAttributes;
+import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
 
 import net.neoforged.bus.api.IEventBus;
@@ -34,6 +35,7 @@ public class BeLoongCore {
         ModItems.register(modEventBus);
         ModCreativeModeTabs.register(modEventBus);
         ModAttributes.REGISTRY.register(modEventBus);
+        ModMobEffects.REGISTRY.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (BeLoongCore) to respond directly to events.
