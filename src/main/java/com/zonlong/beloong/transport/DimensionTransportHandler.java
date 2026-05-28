@@ -10,7 +10,7 @@ import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.slf4j.Logger;
 
@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-@EventBusSubscriber(modid = BeLoongCore.MODID, bus = EventBusSubscriber.Bus.GAME)
 public class DimensionTransportHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -30,10 +29,10 @@ public class DimensionTransportHandler {
     /** 每个玩家的检查间隔计数器 */
     private static final Map<UUID, Integer> TICK_COUNTERS = new HashMap<>();
 
-    private DimensionTransportHandler() {}
+    public DimensionTransportHandler() {}
 
     @SubscribeEvent
-    public static void onPlayerTick(PlayerTickEvent.Post event) {
+    public void onPlayerTick(PlayerTickEvent.Post event) {
         // 仅服务端处理
         if (!(event.getEntity() instanceof ServerPlayer player)) {
             return;
@@ -76,7 +75,7 @@ public class DimensionTransportHandler {
 
         tryTransport(player,
                 player.level().dimension().location().toString(),
-                ResourceLocation.fromNamespaceAndPath("beloong", "loong_palace").toString(),
+                ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace").toString(),
                 Config.DimensionTransport.lpToOw_enabled.get(),
                 Config.DimensionTransport.lpToOw_triggerY.get(),
                 Config.DimensionTransport.lpToOw_targetDimension.get(),
@@ -86,7 +85,7 @@ public class DimensionTransportHandler {
                 false); // loong palace rule: trigger when Y < threshold
     }
 
-    private static void tryTransport(ServerPlayer player,
+    private void tryTransport(ServerPlayer player,
             String currentDim, String sourceDim,
             boolean enabled, int triggerY,
             String targetDimStr, double targetX, double targetZ, double fallbackY,
@@ -149,7 +148,7 @@ public class DimensionTransportHandler {
     }
 
     @SubscribeEvent
-    public static void onPlayerLogout(net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+    public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         UUID uuid = event.getEntity().getUUID();
         COOLDOWNS.remove(uuid);
         TICK_COUNTERS.remove(uuid);

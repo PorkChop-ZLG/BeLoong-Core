@@ -3,6 +3,7 @@ package com.zonlong.beloong;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
+import com.zonlong.beloong.transport.DimensionTransportHandler;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -36,7 +37,7 @@ public class BeLoongCore {
         // Note that this is necessary if and only if we want *this* class (BeLoongCore) to respond directly to events.
         // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
-
+        NeoForge.EVENT_BUS.register(new DimensionTransportHandler());
 
         // 注册模组配置
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
