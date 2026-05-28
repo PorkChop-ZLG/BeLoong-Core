@@ -86,7 +86,7 @@ public class Config {
 
         SERVER_BUILDER.push("overworldToLoongPalace");
         DimensionTransport.owToLP_enabled = SERVER_BUILDER
-                .comment("是否启用主世界 → 龙宫传送")
+                .comment("是否启用 主世界 → 龙宫 的传送")
                 .define("enabled", true);
         DimensionTransport.owToLP_triggerY = SERVER_BUILDER
                 .comment("触发传送的 Y 轴高度（玩家 Y > 此值时传送）")
@@ -107,7 +107,7 @@ public class Config {
 
         SERVER_BUILDER.push("loongPalaceToOverworld");
         DimensionTransport.lpToOw_enabled = SERVER_BUILDER
-                .comment("是否启用龙宫 → 主世界传送")
+                .comment("是否启用 龙宫 → 主世界 的传送")
                 .define("enabled", true);
         DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
                 .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
