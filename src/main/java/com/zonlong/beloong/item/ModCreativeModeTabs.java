@@ -16,9 +16,10 @@ public class ModCreativeModeTabs {
 
     public static final Supplier<CreativeModeTab> BELOONG_TAB =
             CREATIVE_MODE_TABS.register("beloong_tab", () -> CreativeModeTab.builder()
-                    .icon(() -> new ItemStack(ModItems.ETERNAL_PORKCHOP.get()))
+                    .icon(() -> new ItemStack(ModItems.BELOONG_LOGO.get()))
                     .title(Component.translatable("itemGroup.beloong_tab"))
                     .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModItems.BELOONG_LOGO);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
                     }).build());
 

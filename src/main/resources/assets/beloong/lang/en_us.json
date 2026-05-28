@@ -16,6 +16,7 @@
   "config.beloong.fixStableHoverDrift": "Fix Stable Hover Drift",
   "config.beloong.fixStableHoverDrift.tooltip": "Fix: When \"Stable Hover\" is enabled in Dragon Survival config,\nafter a dive ends, the dragon drifts forward;\nwhen creative flight is enabled, the dragon drifts up.",
 
+  "item.beloong.beloong_logo": "BeLoong Logo",
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
   "itemGroup.beloong_tab": "BeLoong",
   "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."

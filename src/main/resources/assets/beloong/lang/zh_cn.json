@@ -16,6 +16,7 @@
   "config.beloong.fixStableHoverDrift": "修复稳定悬浮漂移",
   "config.beloong.fixStableHoverDrift.tooltip": "修复：在龙之生存配置文件中开启“稳定悬浮”后，\n当使用俯冲结束后，龙会向前漂移；\n当开启创造模式飞行后，龙会向上漂移。",
 
+  "item.beloong.beloong_logo": "化龙图标",
   "item.beloong.eternal_porkchop": "永恒猪排",
   "itemGroup.beloong_tab": "化龙",
   "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。"

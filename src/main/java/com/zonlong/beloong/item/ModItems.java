@@ -11,6 +11,8 @@ public class ModItems {
     public static final DeferredRegister.Items Items =
             DeferredRegister.createItems(BeLoongCore.MODID);
 
+    public static final DeferredItem<Item> BELOONG_LOGO =
+            Items.register("beloong_logo", () -> new Item(new Item.Properties()));
     public static final DeferredItem<Item> ETERNAL_PORKCHOP =
             Items.register("eternal_porkchop",
                     EternalPorkchopEffect::new
