@@ -14,7 +14,8 @@
     "ExplodeBlockEffectMixin",
     "FireEffectMixin",
     "BlockHarvestEffectMixin",
-    "BonemealEffectMixin"
+    "BonemealEffectMixin",
+    "MixinDragonGrowthHandler"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
