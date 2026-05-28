@@ -38,6 +38,11 @@ public class DimensionTransportHandler {
             return;
         }
 
+        // 创造或旁观模式跳过
+        if (player.isCreative() || player.isSpectator()) {
+            return;
+        }
+
         // 死亡或已移除的玩家跳过
         if (!player.isAlive() || player.isRemoved()) {
             return;
@@ -122,9 +127,9 @@ public class DimensionTransportHandler {
             player.stopRiding();
         }
 
-        // 高度图查找安全落脚点
+        // 高度图查找安全落脚点（用 floor 而非直接截断，保证负坐标正确处理）
         int topBlockY = targetLevel.getHeight(
-                Heightmap.Types.MOTION_BLOCKING, (int) targetX, (int) targetZ);
+                Heightmap.Types.MOTION_BLOCKING, (int) Math.floor(targetX), (int) Math.floor(targetZ));
         double safeY;
         if (topBlockY > targetLevel.getMinBuildHeight()) {
             safeY = topBlockY + 1.0;
