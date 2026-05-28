@@ -46,5 +46,88 @@ public class Config {
 
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
 
+    // ==================== dimension_transport ====================
+
+    /** dimension_transport 配置字段聚合 */
+    public static final class DimensionTransport {
+        private DimensionTransport() {}
+
+        // 共享配置
+        public static ModConfigSpec.IntValue checkIntervalTicks;
+        public static ModConfigSpec.IntValue cooldownTicks;
+
+        // overworld → loong_palace
+        public static ModConfigSpec.BooleanValue owToLP_enabled;
+        public static ModConfigSpec.IntValue owToLP_triggerY;
+        public static ModConfigSpec.ConfigValue<String> owToLP_targetDimension;
+        public static ModConfigSpec.DoubleValue owToLP_targetX;
+        public static ModConfigSpec.DoubleValue owToLP_targetZ;
+        public static ModConfigSpec.DoubleValue owToLP_fallbackY;
+
+        // loong_palace → overworld
+        public static ModConfigSpec.BooleanValue lpToOw_enabled;
+        public static ModConfigSpec.IntValue lpToOw_triggerY;
+        public static ModConfigSpec.ConfigValue<String> lpToOw_targetDimension;
+        public static ModConfigSpec.DoubleValue lpToOw_targetX;
+        public static ModConfigSpec.DoubleValue lpToOw_targetZ;
+        public static ModConfigSpec.DoubleValue lpToOw_fallbackY;
+    }
+
+    static {
+        SERVER_BUILDER.push("dimension_transport");
+
+        DimensionTransport.checkIntervalTicks = SERVER_BUILDER
+                .comment("玩家 Y 坐标检查间隔（ticks），默认 20 = 每秒一次")
+                .defineInRange("checkIntervalTicks", 20, 1, 1200);
+
+        DimensionTransport.cooldownTicks = SERVER_BUILDER
+                .comment("传送后冷却时间（ticks），防止循环传送")
+                .defineInRange("cooldownTicks", 100, 0, 72000);
+
+        SERVER_BUILDER.push("overworldToLoongPalace");
+        DimensionTransport.owToLP_enabled = SERVER_BUILDER
+                .comment("是否启用主世界 → 龙宫传送")
+                .define("enabled", true);
+        DimensionTransport.owToLP_triggerY = SERVER_BUILDER
+                .comment("触发传送的 Y 轴高度（玩家 Y > 此值时传送）")
+                .defineInRange("triggerY", 8848, -4064, 100000);
+        DimensionTransport.owToLP_targetDimension = SERVER_BUILDER
+                .comment("目标维度 ID")
+                .define("targetDimension", "beloong:loong_palace");
+        DimensionTransport.owToLP_targetX = SERVER_BUILDER
+                .comment("目标固定 X 坐标")
+                .defineInRange("targetX", 0.0, -3.0E7, 3.0E7);
+        DimensionTransport.owToLP_targetZ = SERVER_BUILDER
+                .comment("目标固定 Z 坐标")
+                .defineInRange("targetZ", 0.0, -3.0E7, 3.0E7);
+        DimensionTransport.owToLP_fallbackY = SERVER_BUILDER
+                .comment("高度图查找失败时的回退 Y 坐标")
+                .defineInRange("fallbackY", 64.0, -2032.0, 2032.0);
+        SERVER_BUILDER.pop();
+
+        SERVER_BUILDER.push("loongPalaceToOverworld");
+        DimensionTransport.lpToOw_enabled = SERVER_BUILDER
+                .comment("是否启用龙宫 → 主世界传送")
+                .define("enabled", true);
+        DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
+                .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
+                .defineInRange("triggerY", 0, -2032, 2032);
+        DimensionTransport.lpToOw_targetDimension = SERVER_BUILDER
+                .comment("目标维度 ID")
+                .define("targetDimension", "minecraft:overworld");
+        DimensionTransport.lpToOw_targetX = SERVER_BUILDER
+                .comment("目标固定 X 坐标")
+                .defineInRange("targetX", 0.0, -3.0E7, 3.0E7);
+        DimensionTransport.lpToOw_targetZ = SERVER_BUILDER
+                .comment("目标固定 Z 坐标")
+                .defineInRange("targetZ", 0.0, -3.0E7, 3.0E7);
+        DimensionTransport.lpToOw_fallbackY = SERVER_BUILDER
+                .comment("高度图查找失败时的回退 Y 坐标")
+                .defineInRange("fallbackY", 64.0, -2032.0, 2032.0);
+        SERVER_BUILDER.pop();
+
+        SERVER_BUILDER.pop(); // dimension_transport
+    }
+
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 }
