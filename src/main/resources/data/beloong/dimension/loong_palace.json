@@ -4,7 +4,7 @@
     "type": "minecraft:flat",
     "settings": {
       "layers": [],
-      "biome": "minecraft:the_void",
+      "biome": "beloong:loong_palace",
       "lakes": false,
       "features": false,
       "structure_overrides": []
