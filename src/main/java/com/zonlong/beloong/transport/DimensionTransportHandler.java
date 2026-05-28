@@ -3,6 +3,7 @@ package com.zonlong.beloong.transport;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -101,7 +102,9 @@ public class DimensionTransportHandler {
         // 解析目标维度
         ResourceLocation targetDimId = ResourceLocation.tryParse(targetDimStr);
         if (targetDimId == null) {
-            LOGGER.warn("[DimensionTransport] 无效的目标维度 ID: {}", targetDimStr);
+            LOGGER.warn("[BeLoongCore] Invalid target dimension ID: {}", targetDimStr);
+            player.sendSystemMessage(Component.translatable(
+                    "message.beloong.dimension_transport.invalid_dimension", targetDimStr));
             return;
         }
 
@@ -113,7 +116,9 @@ public class DimensionTransportHandler {
                 net.minecraft.resources.ResourceKey.create(
                         net.minecraft.core.registries.Registries.DIMENSION, targetDimId));
         if (targetLevel == null) {
-            LOGGER.warn("[DimensionTransport] 找不到目标维度: {}", targetDimId);
+            LOGGER.warn("[BeLoongCore] Target dimension not found: {}", targetDimId);
+            player.sendSystemMessage(Component.translatable(
+                    "message.beloong.dimension_transport.dimension_not_found", targetDimId.toString()));
             return;
         }
 
@@ -142,7 +147,7 @@ public class DimensionTransportHandler {
         COOLDOWNS.put(uuid, Config.DimensionTransport.cooldownTicks.get());
         TICK_COUNTERS.remove(uuid); // 传送后重置检查计数器
 
-        LOGGER.debug("[DimensionTransport] {} 从 {} 传送到 {} ({}, {}, {})",
+        LOGGER.debug("[BeLoongCore] {} 从 {} 传送到 {} ({}, {}, {})",
                 player.getName().getString(), sourceDim, targetDimId,
                 targetX, safeY, targetZ);
     }

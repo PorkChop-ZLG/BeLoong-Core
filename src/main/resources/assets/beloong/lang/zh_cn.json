@@ -21,5 +21,8 @@
   "item.beloong.beloong_logo": "化龙图标",
   "item.beloong.eternal_porkchop": "永恒猪排",
   "itemGroup.beloong_tab": "化龙",
-  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。"
+  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。",
+
+  "message.beloong.dimension_transport.invalid_dimension": "§c无效的目标维度 ID：%s",
+  "message.beloong.dimension_transport.dimension_not_found": "§c找不到目标维度：%s"
 }

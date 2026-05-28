@@ -21,5 +21,8 @@
   "item.beloong.beloong_logo": "BeLoong Logo",
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
   "itemGroup.beloong_tab": "BeLoong",
-  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."
+  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out.",
+
+  "message.beloong.dimension_transport.invalid_dimension": "§cInvalid target dimension ID: %s",
+  "message.beloong.dimension_transport.dimension_not_found": "§cTarget dimension not found: %s"
 }
