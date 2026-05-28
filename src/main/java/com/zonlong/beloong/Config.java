@@ -96,13 +96,13 @@ public class Config {
                 .define("targetDimension", "beloong:loong_palace");
         DimensionTransport.owToLP_targetX = SERVER_BUILDER
                 .comment("目标固定 X 坐标")
-                .defineInRange("targetX", 0.0, -3.0E7, 3.0E7);
+                .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.owToLP_targetZ = SERVER_BUILDER
                 .comment("目标固定 Z 坐标")
-                .defineInRange("targetZ", 0.0, -3.0E7, 3.0E7);
+                .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.owToLP_fallbackY = SERVER_BUILDER
                 .comment("高度图查找失败时的回退 Y 坐标")
-                .defineInRange("fallbackY", 64.0, -2032.0, 2032.0);
+                .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
         SERVER_BUILDER.push("loongPalaceToOverworld");
@@ -117,13 +117,13 @@ public class Config {
                 .define("targetDimension", "minecraft:overworld");
         DimensionTransport.lpToOw_targetX = SERVER_BUILDER
                 .comment("目标固定 X 坐标")
-                .defineInRange("targetX", 0.0, -3.0E7, 3.0E7);
+                .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.lpToOw_targetZ = SERVER_BUILDER
                 .comment("目标固定 Z 坐标")
-                .defineInRange("targetZ", 0.0, -3.0E7, 3.0E7);
+                .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.lpToOw_fallbackY = SERVER_BUILDER
                 .comment("高度图查找失败时的回退 Y 坐标")
-                .defineInRange("fallbackY", 64.0, -2032.0, 2032.0);
+                .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
         SERVER_BUILDER.pop(); // dimension_transport
