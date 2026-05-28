@@ -34,6 +34,8 @@
 
   "biome.beloong.loong_palace": "龙宫",
 
+  "attribute.beloong.growth_speed": "成长速度",
+
   "config.beloong.dsFTBChunksCompat": "龙之生存FTB区块兼容",
   "config.beloong.dsFTBChunksCompat.tooltip": "兼容：在安装FTB Chunks模组后，\n阻止龙之生存的技能效果（方块破坏、方块转化、作物收割、骨粉催熟、爆炸、放火）；\n远古龙的碾压、连锁破坏等行为破坏已认领区块（无视权限）。",
   "config.beloong.fixGlowingItemInvisibility": "修复发光效果导致身体透明",
