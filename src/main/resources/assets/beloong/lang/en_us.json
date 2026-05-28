@@ -36,6 +36,8 @@
 
   "attribute.beloong.growth_speed": "Growth Speed",
 
+  "effect.beloong.growth_acceleration": "Growth Acceleration",
+
   "config.beloong.dsFTBChunksCompat": "Dragon Survival FTB Chunks Compatibility",
   "config.beloong.dsFTBChunksCompat.tooltip": "Compatibility: When FTB Chunks is installed,\nprevents Dragon Survival ability effects (block breaking, block conversion, crop harvesting, bonemeal, explosion, fire setting),\nas well as elder dragon trampling and chain destruction from damaging claimed chunks (ignores permissions).",
 
