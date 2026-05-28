@@ -6,7 +6,21 @@
   "beloong.configuration.section.beloong.server.toml": "BeLoong Core - Server Settings",
   "beloong.configuration.section.beloong.server.toml.title": "Server Settings",
   "beloong.configuration.title": "BeLoong Core - Configuration",
-  
+  "beloong.configuration.dimension_transport.button": "Dimension Transport",
+  "beloong.configuration.dimension_transport.tooltip": "Configure travel conditions and coordinates between the Overworld and Loong Palace",
+  "beloong.configuration.overworldToLoongPalace.button": "Overworld → Loong Palace",
+  "beloong.configuration.overworldToLoongPalace.tooltip": "Overworld → Loong Palace transport configuration",
+  "beloong.configuration.loongPalaceToOverworld.button": "Loong Palace → Overworld",
+  "beloong.configuration.loongPalaceToOverworld.tooltip": "Loong Palace → Overworld transport configuration",
+  "beloong.configuration.enabled.tooltip": "Enable or disable this transport direction",
+  "beloong.configuration.triggerY.tooltip": "Y-axis height threshold that triggers the transport",
+  "beloong.configuration.targetDimension.tooltip": "Target dimension ID",
+  "beloong.configuration.targetX.tooltip": "Fixed target X coordinate",
+  "beloong.configuration.targetZ.tooltip": "Fixed target Z coordinate",
+  "beloong.configuration.fallbackY.tooltip": "Fallback Y coordinate when heightmap lookup fails",
+  "beloong.configuration.checkIntervalTicks.tooltip": "Player Y coordinate check interval in ticks (default 20 = once per second)",
+  "beloong.configuration.cooldownTicks.tooltip": "Post-teleport cooldown in ticks, prevents teleport loops",
+
   "biome.beloong.loong_palace": "Loong Palace",
 
   "config.beloong.dsFTBChunksCompat": "Dragon Survival FTB Chunks Compatibility",
