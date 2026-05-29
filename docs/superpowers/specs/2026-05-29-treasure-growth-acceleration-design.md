@@ -1,0 +1,445 @@
+# 财宝堆成长加速机制 技术文档
+
+## 1. 概述
+
+财宝堆成长加速是 BeLoong-Core 模组的一项跨模组集成功能。当龙玩家（DragonSurvival）在财宝堆（TreasureBlock）上休息时，系统根据周围财宝的类型和数量自动计算"财宝价值"，并依此给予 `growth_acceleration` 药水效果，从而加速龙玩家的自然成长速度。财宝价值和当前成长倍率通过 actionbar 实时显示。
+
+**依赖关系：**
+
+```
+BeLoong-Core  (附属模组，只读 DragonSurvival 公开 API)
+     ↓ 依赖
+DragonSurvival  (主体模组，提供龙族系统、财宝方块、成长机制)
+```
+
+**关键约束：** BeLoong-Core 只能单向读取 DragonSurvival 的公开 API，不能修改 DragonSurvival 的任何代码。
+
+---
+
+## 2. 财宝堆判定
+
+### 2.1 TreasureBlock 方块特性
+
+DragonSurvival 的 `TreasureBlock`（`by.dragonsurvivalteam.dragonsurvival.common.blocks.TreasureBlock`）是一种类似雪层的**可堆叠重力方块**：
+
+| 属性 | 说明 |
+|------|------|
+| `LAYERS` | `BlockStateProperties.LAYERS`，整数 1-8，每层高 2 像素 |
+| `WATERLOGGED` | 可含水 |
+| 继承 | `FallingBlock`，受重力影响，掉落后同类型层数合并 |
+| `isBed()` | 仅对龙玩家返回 `true` |
+| `isPossibleToRespawnInThis()` | 恒为 `true` |
+
+**已注册的财宝类型（DSBlocks.java）：**
+
+| 类型 | 注册名 | 粒子颜色 |
+|------|--------|----------|
+| 残骸 | `debris_dragon_treasure` | 棕灰 |
+| 钻石 | `diamond_dragon_treasure` | 青白 |
+| 绿宝石 | `emerald_dragon_treasure` | 绿色 |
+| 金 | `gold_dragon_treasure` | 金色 |
+| 铜 | `copper_dragon_treasure` | 铜色 |
+| 铁 | `iron_dragon_treasure` | 浅灰 |
+| 巧克力 | `chocolate_dragon_treasure` | (Create 联动，可选) |
+| 蜂蜜 | `bee_honey_treasure` | (Productive Bees 联动，可选) |
+| 红宝石等 16 种 | `ruby_dragon_treasure` ... | (Silent Gems 联动，可选) |
+
+### 2.2 休息状态检测
+
+DragonSurvival 通过 NeoForge Attachment 系统存储玩家休息状态：
+
+```
+TreasureRestData (per-player, 不持久化)
+├── isResting: boolean    — 是否正在财宝上休息
+├── sleepingTicks: int    — 已休息 tick 数（仅夜晚递增）
+├── restingTicks: int     — 回血计时器
+└── nearbyTreasure: int   — DragonSurvival 扫描的附近财宝层数
+```
+
+**访问方式：** `TreasureRestData.getData(player)` → 通过 `player.getData(DSDataAttachments.TREASURE_REST)` 获取。
+
+**休息触发的完整流程（DragonSurvival 侧）：**
+1. 龙玩家右键财宝方块 → `TreasureBlock.useWithoutItem()` 设 `isResting = true`
+2. 每 tick `DragonTreasureHandler.update()` 检查：玩家移动/潜行/挖掘/下方非财宝 → 设 `isResting = false`
+3. 受伤 → `LivingIncomingDamageEvent` → 设 `isResting = false`
+4. 重登 → 数据不持久化，`isResting` 自动为 `false`
+
+### 2.3 扫描范围
+
+DragonSurvival 的 `DragonTreasureHandler.handleResting()` 和 BeLoong-Core 的 `TreasureValueCalculator.calculateWeightedValue()` 使用相同的扫描范围：
+
+```
+以玩家坐标为中心，AABB.ofSize(player.position(), 16, 9, 16)
+即 XZ 方向 ±8 格，Y 方向 ±4.5 格
+最多遍历约 32×18×32 ≈ 18,432 个方块位置
+```
+
+BeLoong-Core **独立扫描**此范围，不依赖 DragonSurvival 的 `nearbyTreasure` 字段。原因：
+- 需要类型权重（DragonSurvival 只计层数，不区分类型）
+- 避免事件顺序依赖（两个 `PlayerTickEvent.Post` 处理器执行顺序不确定）
+
+---
+
+## 3. 财宝价值计算
+
+### 3.1 计算公式
+
+```
+财宝价值 = Σ ( 财宝层数 × 类型权重 )，遍历 16×9×16 范围内的所有财宝方块
+
+具体步骤：
+  for each BlockPos in AABB(16, 9, 16):
+      if block instanceof TreasureBlock:
+          layers = state.getValue(TreasureBlock.LAYERS)   // 1~8
+          weight = weightMap.getOrDefault(block, 1.0)      // 配置中的权重
+          total += layers × weight
+```
+
+然后应用封顶：
+
+```
+财宝价值 = min(财宝价值, maxTreasureValue)    // 默认 maxTreasureValue = 10000
+```
+
+### 3.2 默认类型权重
+
+| 财宝类型 | 权重 | 说明 |
+|----------|------|------|
+| 残骸 (Debris) | 5.0 | 最高级，下界合金残骸 |
+| 钻石 (Diamond) | 4.0 | |
+| 绿宝石 (Emerald) | 3.0 | |
+| 金 (Gold) | 2.0 | |
+| 铁 (Iron) | 1.0 | 基准 |
+| 铜 (Copper) | 0.5 | 低级 |
+| 未配置 / 联动类型 | 1.0 | 默认兜底 |
+
+权重通过配置文件 `treasureWeights` 定义，格式 `modid:block_id=weight`。解析失败的条目（对应模组未安装）静默跳过。
+
+### 3.3 计算示例
+
+假设玩家周围有：
+- 3 个 8 层金财宝
+- 2 个 4 层钻石财宝
+
+```
+财宝价值 = 3 × 8 × 2.0 + 2 × 4 × 4.0
+       = 48 + 32
+       = 80
+```
+
+---
+
+## 4. 成长加速公式
+
+### 4.1 效果等级换算
+
+```
+amplifier = clamp( ⌊财宝价值 / amplifierStep⌋ , 0 , maxAmplifier )
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `amplifierStep` | 100 | 每 100 财宝价值提升 1 级 |
+| `maxAmplifier` | 255 | 与原版药水最大等级一致 |
+
+### 4.2 成长倍率计算
+
+`growth_acceleration` 药水效果的定义：
+
+```java
+new MobEffect(BENEFICIAL, 0xFFD700)
+    .addAttributeModifier(
+        GROWTH_SPEED,                          // 目标属性
+        "beloong:growth_acceleration",         // 修饰符 ID
+        1.0,                                   // 基础 amount
+        AttributeModifier.Operation.ADD_VALUE  // 加法操作
+    )
+```
+
+Minecraft 原版机制：amplifier 为 `a` 时，**实际修饰符值 = 基础 amount × (a + 1)**。
+
+```
+growth_speed = 1.0                    // 属性默认值
+             + 1.0 × (amplifier + 1)  // 药水效果修饰符 (ADD_VALUE)
+             = amplifier + 2
+```
+
+**成长倍率 = growth_speed = amplifier + 2**
+
+### 4.3 完整计算链
+
+```
+财宝价值 80 → amplifier = floor(80 / 100) = 0
+         → growth_speed = 0 + 2 = 2.0
+         → 成长倍率 = 2x（正常速度的 2 倍）
+```
+
+```
+财宝价值 500 → amplifier = min(floor(500 / 100), 255) = 5
+           → growth_speed = 5 + 2 = 7.0
+           → 成长倍率 = 7x
+```
+
+```
+财宝价值 25600（封顶后 10000）
+         → amplifier = min(floor(10000 / 100), 255) = 100
+         → growth_speed = 100 + 2 = 102.0
+         → 成长倍率 = 102x
+```
+
+### 4.4 最终成长公式
+
+DragonSurvival 的原始成长计算（`DragonStage.ticksToGrowth`）：
+
+```
+每 tick 成长量 = (growthRange.max - growthRange.min) / ticksUntilGrown × ticks
+```
+
+BeLoong-Core 的 Mixin 拦截后：
+
+```
+实际每 tick 成长量 = 原始成长量 × growth_speed
+                   = 原始成长量 × (amplifier + 2)
+```
+
+**示例：** 某阶段的原始成长量为每 tick 0.000278，在 amplifier=5 时：
+```
+实际成长量 = 0.000278 × 7.0 = 0.001946  （7 倍速）
+```
+
+---
+
+## 5. 代码实现
+
+### 5.1 文件清单
+
+```
+src/main/java/com/zonlong/beloong/
+├── Config.java                          [修改] 新增 TreasureGrowth 配置内部类
+├── treasure/
+│   ├── TreasureGrowthHandler.java       [新增] 服务端每 tick 检测 + 效果给予 + actionbar 显示
+│   └── TreasureValueCalculator.java    [新增] 财宝价值计算 + 等级换算 + 倍率换算
+├── registry/
+│   ├── ModAttributes.java              [已有] growth_speed 属性注册
+│   └── ModMobEffects.java              [已有] growth_acceleration 效果注册
+└── mixin/
+    └── MixinDragonGrowthHandler.java   [已有] 拦截成长计算，乘以 growth_speed
+
+src/main/resources/assets/beloong/lang/
+├── zh_cn.json                          [修改] 中文翻译
+└── en_us.json                          [修改] 英文翻译
+```
+
+### 5.2 TreasureGrowthHandler.java
+
+```
+@EventBusSubscriber（FORGE 总线）
+核心方法：onPlayerTick(PlayerTickEvent.Post)
+
+执行流程：
+1. 非 ServerPlayer / 非存活 / 配置关闭 → return
+2. tickCounter 未达 checkIntervalTicks(默认20) → counter++ 并 return
+3. 非龙玩家 (DragonStateProvider.isDragon) → return
+4. TreasureRestData.getData(player).isResting() 判断：
+
+   YES（正在休息）:
+     a. 如配置变更，重建权重表（hash 判等）
+     b. 调用 calculateWeightedValue() 计算财宝价值
+     c. 财宝价值封顶 maxTreasureValue
+     d. valueToAmplifier() 换效果等级
+     e. amplifierToMultiplier() 换算倍率
+     f. player.addEffect(growth_acceleration, duration=40, amplifier)
+     g. displayClientMessage(actionbar):
+        "宝藏价值: 80.0"（金色） + "  " + "成长速度: 2.0x"（绿色）
+
+   NO（不在休息）:
+     → 不主动清理，effect 自然过期，actionbar 自然刷新
+
+优先级：@SubscribeEvent(priority = EventPriority.LOW)
+  → 确保在 DragonSurvival 的 DragonTreasureHandler（默认优先级）之后执行
+  → 读取到的 isResting 是当前 tick 的最终状态
+```
+
+### 5.3 TreasureValueCalculator.java
+
+```
+纯工具类（无事件订阅），四个静态方法：
+
+buildWeightMap()
+  → 解析 Config 的 treasureWeights 列表
+  → "modid:block=weight" → Block → Double 的 HashMap
+  → 解析失败（模组未装）静默跳过
+
+calculateWeightedValue(ServerPlayer, Map<Block,Double>)
+  → AABB.ofSize(player.position(), 16, 9, 16)
+  → 遍历 BlockPos.betweenClosed
+  → instanceof TreasureBlock → layers × weight
+
+valueToAmplifier(value, step, maxAmplifier)
+  → (int)(value / step)，Math.clamp 到 [0, maxAmplifier]
+
+amplifierToMultiplier(amplifier)
+  → amplifier + 2.0
+  → 推导：growth_speed = 1.0 + 1.0×(amplifier+1) = amplifier + 2
+```
+
+### 5.4 MixinDragonGrowthHandler.java
+
+```
+@Mixin(DragonGrowthHandler.class)
+@Redirect 拦截 DragonStage.ticksToGrowth(int) 的调用
+
+原始调用：
+  double growth = stage.ticksToGrowth(ticks);
+
+Redirect 后：
+  double baseGrowth = stage.ticksToGrowth(ticks);  // 仍然调用原方法
+  if (player has GROWTH_SPEED attribute) {
+      return baseGrowth * attr.getValue();          // 乘以属性值
+  }
+  return baseGrowth;                                // fallback
+
+影响范围：
+  → DragonGrowthHandler.onPlayerUpdate() — 自然成长（每 20 ticks）
+  → DragonGrowthHandler.getGrowth() — 物品使用成长
+
+Mixin 目标方法 remap = false（DragonSurvival 未使用 SRG 命名）
+```
+
+---
+
+## 6. 与 DragonSurvival 的集成点
+
+### 6.1 读入的 DragonSurvival 公开 API
+
+| 调用 | 用途 |
+|------|------|
+| `DragonStateProvider.isDragon(player)` | 判断玩家是否为龙，非龙跳过处理 |
+| `TreasureRestData.getData(player)` | 获取休息状态附件 |
+| `restData.isResting()` | 判断是否正在财宝上休息 |
+| `TreasureBlock` (instanceof 检查) | 扫描范围内识别财宝方块 |
+| `TreasureBlock.LAYERS` | 读取每块财宝的层数 |
+| `DragonStage.ticksToGrowth(int)` | 获取原始成长量（通过 Mixin 拦截） |
+
+### 6.2 事件时序
+
+```
+每个 tick 的 PlayerTickEvent.Post 执行顺序：
+
+  [默认优先级] DragonSurvival.DragonTreasureHandler.update()
+    → 检查移动/潜行/下方方块 → 可能将 isResting 设为 false
+    → 如果仍在休息 → 计算 nearbyTreasure → 回血逻辑
+
+  [LOW 优先级]  BeLoong-Core.TreasureGrowthHandler.onPlayerTick()
+    → 读取最终的 isResting 状态
+    → 独立扫描财宝价值（不依赖 DragonSurvival 的 nearbyTreasure）
+    → 给予/刷新 growth_acceleration 效果
+    → 发送 actionbar 信息
+```
+
+### 6.3 效果生命周期
+
+```
+玩家右键财宝 → isResting = true (DragonSurvival)
+  → 每 1 秒刷新 growth_acceleration (持续 2 秒)
+  → 玩家起身 → isResting = false (DragonSurvival)
+  → BeLoong-Core 不再刷新效果
+  → 2 秒后效果自然过期
+  → actionbar 被后续游戏消息自然替换
+```
+
+---
+
+## 7. 配置项
+
+所有配置位于服务端配置文件 `beloong-server.toml` 的 `[treasure_growth]` 节：
+
+| 配置键 | 类型 | 默认值 | 范围 | 说明 |
+|--------|------|--------|------|------|
+| `enabled` | boolean | `true` | — | 总开关 |
+| `treasureWeights` | string[] | 见下 | — | 方块权重列表，格式 `modid:block=weight` |
+| `maxTreasureValue` | int | `10000` | `1 ~ 2147483647` | 财宝价值封顶上限 |
+| `amplifierStep` | int | `100` | `1 ~ 10000` | 每多少财宝价值升 1 级效果 |
+| `maxAmplifier` | int | `255` | `0 ~ 255` | 最大效果等级，与原版一致 |
+| `effectDurationTicks` | int | `40` | `20 ~ 6000` | 效果刷新持续时间 (ticks) |
+| `checkIntervalTicks` | int | `20` | `1 ~ 1200` | 财宝价值检查间隔 (ticks) |
+
+**默认权重列表：**
+
+```toml
+treasureWeights = [
+    "dragonsurvival:copper_dragon_treasure=0.5",
+    "dragonsurvival:iron_dragon_treasure=1.0",
+    "dragonsurvival:gold_dragon_treasure=2.0",
+    "dragonsurvival:emerald_dragon_treasure=3.0",
+    "dragonsurvival:diamond_dragon_treasure=4.0",
+    "dragonsurvival:debris_dragon_treasure=5.0"
+]
+```
+
+---
+
+## 8. 数据流全貌
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ DragonSurvival (主体模组)                                    │
+│                                                             │
+│  玩家右键财宝 ──→ TreasureBlock.useWithoutItem()            │
+│                      └→ TreasureRestData.isResting = true   │
+│                                                             │
+│  DragonGrowthHandler.onPlayerUpdate()  [每 20 ticks]        │
+│      └→ stage.ticksToGrowth(20) ──→ 原始成长量             │
+│                                        │                    │
+│  ╔══════════════════════════════════════╪═══════════════════╗
+│  ║ BeLoong-Core (附属模组)             │                    ║
+│  ║                                     ↓                    ║
+│  ║  MixinDragonGrowthHandler.redirectTicksToGrowth()       ║
+│  ║      └→ 原始成长量 × growth_speed ──→ 实际成长量        ║
+│  ║                                                          ║
+│  ║  TreasureGrowthHandler.onPlayerTick()  [每 20 ticks]    ║
+│  ║      │                                                   ║
+│  ║      ├→ isResting() ?                                   ║
+│  ║      │   YES:                                            ║
+│  ║      │   ├→ TreasureValueCalculator 扫描 16×9×16       ║
+│  ║      │   │   └→ 财宝价值 = Σ(层数 × 权重)               ║
+│  ║      │   ├→ amplifier = clamp(值/100, 0, 255)          ║
+│  ║      │   ├→ player.addEffect(growth_acceleration, a)    ║
+│  ║      │   │   └→ growth_speed = a + 2                   ║
+│  ║      │   └→ actionbar: "宝藏价值: X  成长速度: Nx"      ║
+│  ║      │   NO: 不做清理（效果自然消失）                    ║
+│  ╚══════╧══════════════════════════════════════════════════╝
+│                                                             │
+│  最终效果：龙玩家成长速度 = 原始速度 × (amplifier + 2)      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 9. 性能考量
+
+| 项目 | 数值 | 说明 |
+|------|------|------|
+| 每玩家扫描方块数 | ~18,432 | 16×18×16 ≈ 4608 格，每个含最多 4 个子层方块仍在此数量级内 |
+| 检查间隔 | 1 秒 (20 ticks) | 可配置延长 |
+| 仅限龙玩家 | 是 | 过滤掉非龙实体 |
+| 仅限休息中 | 是 | 进一步缩小范围 |
+| 权重表缓存 | hash 判等 | 配置未变则复用，避免重复解析 |
+
+对于拥有少量休息中龙玩家的服务器，性能开销可忽略不计。如需优化，可增大 `checkIntervalTicks`。
+
+---
+
+## 10. 边界情况
+
+| 场景 | 处理方式 |
+|------|----------|
+| 玩家传送离开财宝 | 下一 tick DragonSurvival 设 isResting=false，效果 2 秒后过期 |
+| 玩家死亡 | TreasureRestData 不持久化，重生后 isResting=false |
+| 重登 | TreasureRestData 序列化为空 NBT，重登后 isResting=false |
+| 跨维度 | DragonSurvival 的 tick handler 检测到下方非财宝，设 false |
+| 配置热修改 | 权重表通过 hash 检测变化，自动重建 |
+| 联动财宝未安装 | buildWeightMap() 解析失败静默跳过，不影响已安装的 |
+| amplifier 超上限 | clamp 到 maxAmplifier (默认 255) |
+| 财宝价值超上限 | min(value, maxTreasureValue)，默认封顶 10000 |
+| 非龙玩家右键财宝 | DragonSurvival 的 useWithoutItem 返回 PASS，不会触发 |
