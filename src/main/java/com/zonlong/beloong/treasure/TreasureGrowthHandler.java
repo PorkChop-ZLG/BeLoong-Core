@@ -3,8 +3,12 @@ package com.zonlong.beloong.treasure;
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.TreasureRestData;
 import com.zonlong.beloong.Config;
-import com.zonlong.beloong.network.SyncTreasureGrowthPacket;
 import com.zonlong.beloong.registry.ModMobEffects;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.level.block.Block;
@@ -13,13 +17,13 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-/** 监听龙玩家在财宝上的休息状态，给予 growth_acceleration 效果并同步到客户端 */
+/** 监听龙玩家在财宝上的休息状态，给予 growth_acceleration 效果并显示原版 title */
 @EventBusSubscriber
 public class TreasureGrowthHandler {
     /** 按玩家 UUID 记录 tick 计数，用于间隔检查 */
@@ -68,13 +72,23 @@ public class TreasureGrowthHandler {
                     false, true, true
             ));
 
-            PacketDistributor.sendToPlayer(player, new SyncTreasureGrowthPacket(
-                    treasureValue, amplifier, multiplier, true
+            // 主标题：成长速度
+            String multText = String.format(Locale.ROOT, "%.1fx", multiplier);
+            player.connection.send(new ClientboundSetTitleTextPacket(
+                    Component.translatable("title.beloong.growth_multiplier", multText)
             ));
+            // 副标题：财宝价值
+            String valueText = String.format(Locale.ROOT, "%.1f", treasureValue);
+            player.connection.send(new ClientboundSetSubtitleTextPacket(
+                    Component.translatable("title.beloong.treasure_value", valueText)
+            ));
+            // 动画：立即显示，停留 2 秒，快速淡出
+            player.connection.send(new ClientboundSetTitlesAnimationPacket(0, 40, 5));
         } else {
             if (player.hasEffect(ModMobEffects.GROWTH_ACCELERATION)) {
                 player.removeEffect(ModMobEffects.GROWTH_ACCELERATION);
-                PacketDistributor.sendToPlayer(player, new SyncTreasureGrowthPacket(0, 0, 1.0, false));
+                // 清除 title
+                player.connection.send(new ClientboundClearTitlesPacket(false));
             }
         }
     }

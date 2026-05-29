@@ -69,6 +69,6 @@
   "beloong.configuration.effectDurationTicks.tooltip": "每次刷新效果的持续时间，应大于检查间隔以避免闪烁",
   "beloong.configuration.checkIntervalTicks.tg_tooltip": "财宝值和效果刷新的间隔（ticks）",
 
-  "overlay.beloong.treasure_value": "宝藏价值: %s",
-  "overlay.beloong.growth_multiplier": "成长速度: %s"
+  "title.beloong.growth_multiplier": "成长速度: %s",
+  "title.beloong.treasure_value": "宝藏价值: %s"
 }

@@ -71,6 +71,6 @@
   "beloong.configuration.effectDurationTicks.tooltip": "Duration of each effect refresh, should exceed check interval to avoid flickering",
   "beloong.configuration.checkIntervalTicks.tg_tooltip": "How often to recalculate treasure value and refresh effect (ticks)",
 
-  "overlay.beloong.treasure_value": "Treasure Value: %s",
-  "overlay.beloong.growth_multiplier": "Growth Speed: %s"
+  "title.beloong.growth_multiplier": "Growth Speed: %s",
+  "title.beloong.treasure_value": "Treasure Value: %s"
 }
