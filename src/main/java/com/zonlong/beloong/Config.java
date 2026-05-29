@@ -38,6 +38,11 @@ public class Config {
             .comment("龙之生存FTB区块兼容")
             .define("ds_ftbchunks_compat", true);
 
+    /** 修复财宝堆复制（默认启用） */
+    public static final ModConfigSpec.BooleanValue FIX_TREASURE_DUPLICATION = COMMON_BUILDER
+            .comment("移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆")
+            .define("fixTreasureDuplication", true);
+
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
 
     // ==================== 服务端配置 ====================
@@ -105,11 +110,11 @@ public class Config {
                 ), s -> s instanceof String str && str.contains("="));
 
         TreasureGrowth.maxTreasureValue = SERVER_BUILDER
-                .comment("最大财宝值上限，超出部分不再计入")
-                .defineInRange("maxTreasureValue", 10000, 1, Integer.MAX_VALUE);
+                .comment("最大财宝价值上限，超出部分不再计入")
+                .defineInRange("maxTreasureValue", 9800, 1, Integer.MAX_VALUE);
 
         TreasureGrowth.amplifierStep = SERVER_BUILDER
-                .comment("每多少财宝值提升 1 级效果等级")
+                .comment("每多少财宝价值提升 1 级效果等级")
                 .defineInRange("amplifierStep", 100, 1, 10000);
 
         TreasureGrowth.maxAmplifier = SERVER_BUILDER
@@ -121,7 +126,7 @@ public class Config {
                 .defineInRange("effectDurationTicks", 40, 20, 6000);
 
         TreasureGrowth.checkIntervalTicks = SERVER_BUILDER
-                .comment("财宝值检查间隔（ticks），默认 20 = 每秒一次")
+                .comment("财宝价值检查间隔（ticks），默认 20 = 每秒一次")
                 .defineInRange("checkIntervalTicks", 20, 1, 1200);
 
         SERVER_BUILDER.pop(); // treasure_growth
