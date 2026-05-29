@@ -127,9 +127,13 @@ public class DimensionTransportHandler {
             player.stopRiding();
         }
 
+        // 确保目标区块已加载，否则 MOTION_BLOCKING 高度图查不到数据
+        int blockX = (int) Math.floor(targetX);
+        int blockZ = (int) Math.floor(targetZ);
+        targetLevel.getChunk(blockX >> 4, blockZ >> 4);
+
         // 高度图查找安全落脚点（用 floor 而非直接截断，保证负坐标正确处理）
-        int topBlockY = targetLevel.getHeight(
-                Heightmap.Types.MOTION_BLOCKING, (int) Math.floor(targetX), (int) Math.floor(targetZ));
+        int topBlockY = targetLevel.getHeight(Heightmap.Types.MOTION_BLOCKING, blockX, blockZ);
         double safeY;
         if (topBlockY > targetLevel.getMinBuildHeight()) {
             safeY = topBlockY + 1.0;

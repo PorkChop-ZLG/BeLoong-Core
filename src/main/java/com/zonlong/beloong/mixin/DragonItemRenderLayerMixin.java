@@ -1,5 +1,6 @@
 package com.zonlong.beloong.mixin;
 
+import by.dragonsurvivalteam.dragonsurvival.client.render.entity.dragon.DragonItemRenderLayer;
 import com.mojang.blaze3d.vertex.*;
 import com.zonlong.beloong.Config;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -24,8 +25,7 @@ import java.util.Optional;
  *
  * <p>详见 {@code doc/ds-bug-fix-mixins.md}</p>
  */
-@Mixin(targets = "by.dragonsurvivalteam.dragonsurvival.client.render.entity.dragon.DragonItemRenderLayer",
-       remap = false)
+@Mixin(value = DragonItemRenderLayer.class, remap = false)
 public abstract class DragonItemRenderLayerMixin {
 
     /** 临时隔离的 Outline 渲染缓冲区，每帧重建 */
