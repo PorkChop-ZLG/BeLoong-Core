@@ -1,5 +1,6 @@
 package com.zonlong.beloong;
 
+import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -73,7 +74,60 @@ public class Config {
         public static ModConfigSpec.DoubleValue lpToOw_fallbackY;
     }
 
+    // ==================== treasure_growth ====================
+
+    /** treasure_growth 配置字段聚合 */
+    public static final class TreasureGrowth {
+        private TreasureGrowth() {}
+
+        public static ModConfigSpec.BooleanValue enabled;
+        public static ModConfigSpec.ConfigValue<List<? extends String>> treasureWeights;
+        public static ModConfigSpec.IntValue amplifierStep;
+        public static ModConfigSpec.IntValue maxAmplifier;
+        public static ModConfigSpec.IntValue effectDurationTicks;
+        public static ModConfigSpec.IntValue checkIntervalTicks;
+    }
+
     static {
+        SERVER_BUILDER.push("treasure_growth");
+
+        TreasureGrowth.enabled = SERVER_BUILDER
+                .comment("是否启用财宝堆成长加速")
+                .define("enabled", true);
+
+        TreasureGrowth.treasureWeights = SERVER_BUILDER
+                .comment(
+                        "财宝方块权重，格式: modid:block_id=weight",
+                        "未列出的方块默认权重 1.0",
+                        "内置默认: debris=3, diamond=4, emerald=4, gold=2.5, copper=1.5, iron=1"
+                )
+                .defineList("treasureWeights", List.of(
+                        "dragonsurvival:iron_dragon_treasure=1.0",
+                        "dragonsurvival:copper_dragon_treasure=1.5",
+                        "dragonsurvival:gold_dragon_treasure=2.5",
+                        "dragonsurvival:debris_dragon_treasure=3.0",
+                        "dragonsurvival:diamond_dragon_treasure=4.0",
+                        "dragonsurvival:emerald_dragon_treasure=4.0"
+                ), s -> s instanceof String str && str.contains("="));
+
+        TreasureGrowth.amplifierStep = SERVER_BUILDER
+                .comment("每多少财宝值提升 1 级效果等级")
+                .defineInRange("amplifierStep", 50, 1, 10000);
+
+        TreasureGrowth.maxAmplifier = SERVER_BUILDER
+                .comment("最大效果等级（0-255）")
+                .defineInRange("maxAmplifier", 10, 0, 255);
+
+        TreasureGrowth.effectDurationTicks = SERVER_BUILDER
+                .comment("效果持续时间（ticks），需大于检查间隔确保不闪烁")
+                .defineInRange("effectDurationTicks", 40, 20, 6000);
+
+        TreasureGrowth.checkIntervalTicks = SERVER_BUILDER
+                .comment("财宝值检查间隔（ticks），默认 20 = 每秒一次")
+                .defineInRange("checkIntervalTicks", 20, 1, 1200);
+
+        SERVER_BUILDER.pop(); // treasure_growth
+
         SERVER_BUILDER.push("dimension_transport");
 
         DimensionTransport.checkIntervalTicks = SERVER_BUILDER

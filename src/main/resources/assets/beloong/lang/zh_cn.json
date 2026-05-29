@@ -53,5 +53,22 @@
   "message.beloong.dimension_transport.dimension_not_found": "§c找不到目标维度：%s",
   "message.beloong.dimension_transport.invalid_dimension": "§c无效的目标维度ID：%s",
 
-  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。"
+  "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。",
+
+  "beloong.configuration.treasure_growth": "财宝成长加速",
+  "beloong.configuration.treasure_growth.button": "配置",
+  "beloong.configuration.treasure_growth.tooltip": "在财宝堆上休息时的成长加速设置",
+  "beloong.configuration.enabled.tg_tooltip": "在财宝堆上休息时是否给予成长加速效果",
+  "beloong.configuration.treasureWeights": "财宝权重",
+  "beloong.configuration.treasureWeights.tooltip": "格式: 模组id:方块id=权重\n未列出的财宝方块默认权重 1.0",
+  "beloong.configuration.amplifierStep": "增幅器步长",
+  "beloong.configuration.amplifierStep.tooltip": "每级效果等级所需的财宝值",
+  "beloong.configuration.maxAmplifier": "最大效果等级",
+  "beloong.configuration.maxAmplifier.tooltip": "效果增幅器的最大等级 (0-255)",
+  "beloong.configuration.effectDurationTicks": "效果持续时间（刻）",
+  "beloong.configuration.effectDurationTicks.tooltip": "每次刷新效果的持续时间，应大于检查间隔以避免闪烁",
+  "beloong.configuration.checkIntervalTicks.tg_tooltip": "财宝值和效果刷新的间隔（ticks）",
+
+  "overlay.beloong.treasure_value": "宝藏价值: %s",
+  "overlay.beloong.growth_multiplier": "成长速度: %s"
 }

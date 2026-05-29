@@ -55,5 +55,22 @@
   "message.beloong.dimension_transport.dimension_not_found": "§cTarget dimension not found: %s",
   "message.beloong.dimension_transport.invalid_dimension": "§cInvalid target dimension ID: %s",
 
-  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."
+  "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out.",
+
+  "beloong.configuration.treasure_growth": "Treasure Growth",
+  "beloong.configuration.treasure_growth.button": "Configure",
+  "beloong.configuration.treasure_growth.tooltip": "Growth acceleration settings when resting on treasure blocks",
+  "beloong.configuration.enabled.tg_tooltip": "Whether resting on treasure applies growth acceleration",
+  "beloong.configuration.treasureWeights": "Treasure Weights",
+  "beloong.configuration.treasureWeights.tooltip": "Format: modid:block_id=weight\nUnlisted treasure blocks default to weight 1.0",
+  "beloong.configuration.amplifierStep": "Amplifier Step",
+  "beloong.configuration.amplifierStep.tooltip": "Treasure value required per amplifier level",
+  "beloong.configuration.maxAmplifier": "Max Amplifier",
+  "beloong.configuration.maxAmplifier.tooltip": "Maximum effect amplifier level (0-255)",
+  "beloong.configuration.effectDurationTicks": "Effect Duration (ticks)",
+  "beloong.configuration.effectDurationTicks.tooltip": "Duration of each effect refresh, should exceed check interval to avoid flickering",
+  "beloong.configuration.checkIntervalTicks.tg_tooltip": "How often to recalculate treasure value and refresh effect (ticks)",
+
+  "overlay.beloong.treasure_value": "Treasure Value: %s",
+  "overlay.beloong.growth_multiplier": "Growth Speed: %s"
 }
