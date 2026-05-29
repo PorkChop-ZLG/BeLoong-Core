@@ -4,11 +4,8 @@ import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvide
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.TreasureRestData;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.registry.ModMobEffects;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundClearTitlesPacket;
-import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.level.block.Block;
@@ -23,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-/** 监听龙玩家在财宝上的休息状态，给予 growth_acceleration 效果并显示原版 title */
+/** 监听龙玩家在财宝上的休息状态，给予 growth_acceleration 效果并在 actionbar 显示信息 */
 @EventBusSubscriber
 public class TreasureGrowthHandler {
     /** 按玩家 UUID 记录 tick 计数，用于间隔检查 */
@@ -61,6 +58,10 @@ public class TreasureGrowthHandler {
             }
 
             double treasureValue = TreasureValueCalculator.calculateWeightedValue(player, weightMap);
+            // 财宝值封顶
+            int maxValue = Config.TreasureGrowth.maxTreasureValue.get();
+            treasureValue = Math.min(treasureValue, maxValue);
+
             int step = Config.TreasureGrowth.amplifierStep.get();
             int maxAmp = Config.TreasureGrowth.maxAmplifier.get();
             int amplifier = TreasureValueCalculator.valueToAmplifier(treasureValue, step, maxAmp);
@@ -72,23 +73,19 @@ public class TreasureGrowthHandler {
                     false, true, true
             ));
 
-            // 主标题：成长速度
-            String multText = String.format(Locale.ROOT, "%.1fx", multiplier);
-            player.connection.send(new ClientboundSetTitleTextPacket(
-                    Component.translatable("title.beloong.growth_multiplier", multText)
-            ));
-            // 副标题：财宝价值
+            // actionbar：金色财宝值 + 绿色成长速度
             String valueText = String.format(Locale.ROOT, "%.1f", treasureValue);
-            player.connection.send(new ClientboundSetSubtitleTextPacket(
-                    Component.translatable("title.beloong.treasure_value", valueText)
-            ));
-            // 动画：立即显示，停留 2 秒，快速淡出
-            player.connection.send(new ClientboundSetTitlesAnimationPacket(0, 40, 5));
+            String multText = String.format(Locale.ROOT, "%.1fx", multiplier);
+            Component message = Component.literal("")
+                    .append(Component.translatable("title.beloong.treasure_value", valueText).withStyle(ChatFormatting.GOLD))
+                    .append(Component.literal("  "))
+                    .append(Component.translatable("title.beloong.growth_multiplier", multText).withStyle(ChatFormatting.GREEN));
+            player.displayClientMessage(message, true);
         } else {
             if (player.hasEffect(ModMobEffects.GROWTH_ACCELERATION)) {
                 player.removeEffect(ModMobEffects.GROWTH_ACCELERATION);
-                // 清除 title
-                player.connection.send(new ClientboundClearTitlesPacket(false));
+                // 清除 actionbar
+                player.displayClientMessage(Component.literal(""), true);
             }
         }
     }

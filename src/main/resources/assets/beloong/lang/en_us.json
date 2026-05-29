@@ -65,6 +65,8 @@
   "beloong.configuration.treasureWeights.tooltip": "Format: modid:block_id=weight\nUnlisted treasure blocks default to weight 1.0",
   "beloong.configuration.amplifierStep": "Amplifier Step",
   "beloong.configuration.amplifierStep.tooltip": "Treasure value required per amplifier level",
+  "beloong.configuration.maxTreasureValue": "Max Treasure Value",
+  "beloong.configuration.maxTreasureValue.tooltip": "Treasure value cap, excess is ignored",
   "beloong.configuration.maxAmplifier": "Max Amplifier",
   "beloong.configuration.maxAmplifier.tooltip": "Maximum effect amplifier level (0-255)",
   "beloong.configuration.effectDurationTicks": "Effect Duration (ticks)",

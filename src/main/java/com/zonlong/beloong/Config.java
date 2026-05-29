@@ -82,6 +82,7 @@ public class Config {
 
         public static ModConfigSpec.BooleanValue enabled;
         public static ModConfigSpec.ConfigValue<List<? extends String>> treasureWeights;
+        public static ModConfigSpec.IntValue maxTreasureValue;
         public static ModConfigSpec.IntValue amplifierStep;
         public static ModConfigSpec.IntValue maxAmplifier;
         public static ModConfigSpec.IntValue effectDurationTicks;
@@ -99,20 +100,24 @@ public class Config {
                 .comment(
                         "财宝方块权重，格式: modid:block_id=weight",
                         "未列出的方块默认权重 1.0",
-                        "内置默认: debris=3, diamond=4, emerald=4, gold=2.5, copper=1.5, iron=1"
+                        "内置默认: debris=5, diamond=4, emerald=3, gold=2, iron=1, copper=0.5"
                 )
                 .defineList("treasureWeights", List.of(
+                        "dragonsurvival:copper_dragon_treasure=0.5",
                         "dragonsurvival:iron_dragon_treasure=1.0",
-                        "dragonsurvival:copper_dragon_treasure=1.5",
-                        "dragonsurvival:gold_dragon_treasure=2.5",
-                        "dragonsurvival:debris_dragon_treasure=3.0",
+                        "dragonsurvival:gold_dragon_treasure=2.0",
+                        "dragonsurvival:emerald_dragon_treasure=3.0",
                         "dragonsurvival:diamond_dragon_treasure=4.0",
-                        "dragonsurvival:emerald_dragon_treasure=4.0"
+                        "dragonsurvival:debris_dragon_treasure=5.0"
                 ), s -> s instanceof String str && str.contains("="));
+
+        TreasureGrowth.maxTreasureValue = SERVER_BUILDER
+                .comment("最大财宝值上限，超出部分不再计入")
+                .defineInRange("maxTreasureValue", 10000, 1, Integer.MAX_VALUE);
 
         TreasureGrowth.amplifierStep = SERVER_BUILDER
                 .comment("每多少财宝值提升 1 级效果等级")
-                .defineInRange("amplifierStep", 50, 1, 10000);
+                .defineInRange("amplifierStep", 100, 1, 10000);
 
         TreasureGrowth.maxAmplifier = SERVER_BUILDER
                 .comment("最大效果等级（0-255）")

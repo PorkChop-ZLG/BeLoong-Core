@@ -63,6 +63,8 @@
   "beloong.configuration.treasureWeights.tooltip": "格式: 模组id:方块id=权重\n未列出的财宝方块默认权重 1.0",
   "beloong.configuration.amplifierStep": "增幅器步长",
   "beloong.configuration.amplifierStep.tooltip": "每级效果等级所需的财宝值",
+  "beloong.configuration.maxTreasureValue": "最大财宝值",
+  "beloong.configuration.maxTreasureValue.tooltip": "财宝值的计算上限，超出部分不再计入",
   "beloong.configuration.maxAmplifier": "最大效果等级",
   "beloong.configuration.maxAmplifier.tooltip": "效果增幅器的最大等级 (0-255)",
   "beloong.configuration.effectDurationTicks": "效果持续时间（刻）",
