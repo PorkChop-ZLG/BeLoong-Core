@@ -27,11 +27,8 @@ public abstract class TreasureBlockMixin {
         }
 
         BlockState below = level.getBlockState(pos.below());
-        boolean belowEmpty = below.isAir() && pos.getY() >= level.getMinBuildHeight();
-        boolean lowerLayer = below.getBlock() == state.getBlock()
-                && below.getValue(TreasureBlock.LAYERS) < 8;
 
-        if (belowEmpty || lowerLayer) {
+        if (below.isAir() && pos.getY() >= level.getMinBuildHeight()) {
             level.destroyBlock(pos, false); // 无掉落物
         }
         ci.cancel();
