@@ -90,10 +90,12 @@ public class Config {
     }
 
     static {
+        // ========== treasure_growth ==========
         SERVER_BUILDER.push("treasure_growth");
 
         TreasureGrowth.enabled = SERVER_BUILDER
                 .comment("是否启用财宝堆成长加速")
+                .translation("beloong.configuration.treasure_growth.enabled")
                 .define("enabled", true);
 
         TreasureGrowth.treasureWeights = SERVER_BUILDER
@@ -102,6 +104,7 @@ public class Config {
                         "未列出的方块默认权重 1.0",
                         "内置默认: debris=5, diamond=4, emerald=3, gold=2, iron=1, copper=0.5"
                 )
+                .translation("beloong.configuration.treasure_growth.treasureWeights")
                 .defineList("treasureWeights", List.of(
                         "dragonsurvival:copper_dragon_treasure=0.5",
                         "dragonsurvival:iron_dragon_treasure=1.0",
@@ -113,75 +116,95 @@ public class Config {
 
         TreasureGrowth.maxTreasureValue = SERVER_BUILDER
                 .comment("最大财宝值上限，超出部分不再计入")
+                .translation("beloong.configuration.treasure_growth.maxTreasureValue")
                 .defineInRange("maxTreasureValue", 10000, 1, Integer.MAX_VALUE);
 
         TreasureGrowth.amplifierStep = SERVER_BUILDER
                 .comment("每多少财宝值提升 1 级效果等级")
+                .translation("beloong.configuration.treasure_growth.amplifierStep")
                 .defineInRange("amplifierStep", 100, 1, 10000);
 
         TreasureGrowth.maxAmplifier = SERVER_BUILDER
                 .comment("最大效果等级（0-255）")
+                .translation("beloong.configuration.treasure_growth.maxAmplifier")
                 .defineInRange("maxAmplifier", 255, 0, 255);
 
         TreasureGrowth.effectDurationTicks = SERVER_BUILDER
                 .comment("效果持续时间（ticks），需大于检查间隔确保不闪烁")
+                .translation("beloong.configuration.treasure_growth.effectDurationTicks")
                 .defineInRange("effectDurationTicks", 40, 20, 6000);
 
         TreasureGrowth.checkIntervalTicks = SERVER_BUILDER
                 .comment("财宝值检查间隔（ticks），默认 20 = 每秒一次")
+                .translation("beloong.configuration.treasure_growth.checkIntervalTicks")
                 .defineInRange("checkIntervalTicks", 20, 1, 1200);
 
         SERVER_BUILDER.pop(); // treasure_growth
 
+        // ========== dimension_transport ==========
         SERVER_BUILDER.push("dimension_transport");
 
         DimensionTransport.checkIntervalTicks = SERVER_BUILDER
                 .comment("玩家 Y 坐标检查间隔（ticks），默认 20 = 每秒一次")
+                .translation("beloong.configuration.dimension_transport.checkIntervalTicks")
                 .defineInRange("checkIntervalTicks", 20, 1, 1200);
 
         DimensionTransport.cooldownTicks = SERVER_BUILDER
                 .comment("传送后冷却时间（ticks），防止循环传送")
+                .translation("beloong.configuration.dimension_transport.cooldownTicks")
                 .defineInRange("cooldownTicks", 100, 0, 72000);
 
         SERVER_BUILDER.push("overworldToLoongPalace");
         DimensionTransport.owToLP_enabled = SERVER_BUILDER
                 .comment("是否启用 主世界 → 龙宫 的传送")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.enabled")
                 .define("enabled", true);
         DimensionTransport.owToLP_triggerY = SERVER_BUILDER
                 .comment("触发传送的 Y 轴高度（玩家 Y > 此值时传送）")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.triggerY")
                 .defineInRange("triggerY", 8848, -4064, 100000);
         DimensionTransport.owToLP_targetDimension = SERVER_BUILDER
                 .comment("目标维度 ID")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.targetDimension")
                 .define("targetDimension", "beloong:loong_palace");
         DimensionTransport.owToLP_targetX = SERVER_BUILDER
                 .comment("目标固定 X 坐标")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.targetX")
                 .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.owToLP_targetZ = SERVER_BUILDER
                 .comment("目标固定 Z 坐标")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.targetZ")
                 .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.owToLP_fallbackY = SERVER_BUILDER
                 .comment("高度图查找失败时的回退 Y 坐标")
+                .translation("beloong.configuration.dimension_transport.overworldToLoongPalace.fallbackY")
                 .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
         SERVER_BUILDER.push("loongPalaceToOverworld");
         DimensionTransport.lpToOw_enabled = SERVER_BUILDER
                 .comment("是否启用 龙宫 → 主世界 的传送")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.enabled")
                 .define("enabled", true);
         DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
                 .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.triggerY")
                 .defineInRange("triggerY", 0, -2032, 2032);
         DimensionTransport.lpToOw_targetDimension = SERVER_BUILDER
                 .comment("目标维度 ID")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.targetDimension")
                 .define("targetDimension", "minecraft:overworld");
         DimensionTransport.lpToOw_targetX = SERVER_BUILDER
                 .comment("目标固定 X 坐标")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.targetX")
                 .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.lpToOw_targetZ = SERVER_BUILDER
                 .comment("目标固定 Z 坐标")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.targetZ")
                 .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.lpToOw_fallbackY = SERVER_BUILDER
                 .comment("高度图查找失败时的回退 Y 坐标")
+                .translation("beloong.configuration.dimension_transport.loongPalaceToOverworld.fallbackY")
                 .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
