@@ -121,7 +121,7 @@ public class Config {
 
         TreasureGrowth.maxAmplifier = SERVER_BUILDER
                 .comment("最大效果等级（0-255）")
-                .defineInRange("maxAmplifier", 10, 0, 255);
+                .defineInRange("maxAmplifier", 255, 0, 255);
 
         TreasureGrowth.effectDurationTicks = SERVER_BUILDER
                 .comment("效果持续时间（ticks），需大于检查间隔确保不闪烁")

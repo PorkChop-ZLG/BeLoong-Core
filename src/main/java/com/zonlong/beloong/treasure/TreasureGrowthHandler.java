@@ -81,13 +81,8 @@ public class TreasureGrowthHandler {
                     .append(Component.literal("  "))
                     .append(Component.translatable("title.beloong.growth_multiplier", multText).withStyle(ChatFormatting.GREEN));
             player.displayClientMessage(message, true);
-        } else {
-            if (player.hasEffect(ModMobEffects.GROWTH_ACCELERATION)) {
-                player.removeEffect(ModMobEffects.GROWTH_ACCELERATION);
-                // 清除 actionbar
-                player.displayClientMessage(Component.literal(""), true);
-            }
         }
+        // 离开休息后不做清理，effect 和 actionbar 自然消失
     }
 
     /** 玩家退出时清理 tick 计数器，防止内存泄漏 */
