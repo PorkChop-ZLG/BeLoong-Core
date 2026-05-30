@@ -1,0 +1,58 @@
+{
+  "actions": [
+    {
+      "target_selection": {
+        "applied_effects": {
+          "entity_effect": [
+            {
+              "effect_type": "beloong:tp_loong_palace"
+            }
+          ],
+          "targeting_mode": "allies_and_self"
+        },
+        "target_type": "dragonsurvival:self"
+      }
+    }
+  ],
+  "activation": {
+    "activation_type": "dragonsurvival:simple",
+    "animations": {
+      "end": {
+        "animation_key": "magic_alt",
+        "layer": "BASE",
+        "locks_neck": false,
+        "locks_tail": false
+      },
+      "start_and_charging": {
+        "animation_key": "cast_magic_alt",
+        "layer": "BASE",
+        "locks_neck": false,
+        "locks_tail": false,
+        "transition_length": 5
+      }
+    },
+    "cast_time": 20.0,
+    "cooldown": 200.0,
+    "initial_mana_cost": 1.0,
+    "sound": {
+      "end": "minecraft:entity.enderman.teleport"
+    }
+  },
+  "icon": {
+    "texture_entries": [
+      {
+        "from_level": 0,
+        "texture_resource": "dragonsurvival:test"
+      }
+    ]
+  },
+  "upgrade": {
+    "level_requirement": {
+      "type": "minecraft:linear",
+      "base": 10.0,
+      "per_level_above_first": 10.0
+    },
+    "maximum_level": 3,
+    "upgrade_type": "dragonsurvival:experience_levels"
+  }
+}
