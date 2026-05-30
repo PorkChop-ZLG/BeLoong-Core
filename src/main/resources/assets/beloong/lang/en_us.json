@@ -60,6 +60,8 @@
   "itemGroup.beloong_tab": "BeLoong",
   "message.beloong.dimension_transport.dimension_not_found": "§cTarget dimension not found: %s",
   "message.beloong.dimension_transport.invalid_dimension": "§cInvalid target dimension ID: %s",
+  "message.beloong.tp_loong_palace.dimension_not_found": "§cTarget dimension not found: %s",
+  "message.beloong.tp_loong_palace.invalid_dimension": "§cInvalid target dimension ID: %s",
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out."

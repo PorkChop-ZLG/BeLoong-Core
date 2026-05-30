@@ -60,6 +60,8 @@
   "itemGroup.beloong_tab": "化龙",
   "message.beloong.dimension_transport.dimension_not_found": "§c找不到目标维度：%s",
   "message.beloong.dimension_transport.invalid_dimension": "§c无效的目标维度ID：%s",
+  "message.beloong.tp_loong_palace.dimension_not_found": "§c找不到目标维度：%s",
+  "message.beloong.tp_loong_palace.invalid_dimension": "§c无效的目标维度ID：%s",
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.item.beloong.eternal_porkchop": "一块神奇的猪排，永远都吃不完。"
