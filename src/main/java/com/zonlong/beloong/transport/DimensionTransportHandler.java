@@ -146,6 +146,9 @@ public class DimensionTransportHandler {
                 targetX, safeY, targetZ,
                 Set.of(), player.getYRot(), player.getXRot());
 
+        // 重置摔落距离，防止传送前的坠落伤害带到传送后
+        player.fallDistance = 0;
+
         // 设置冷却
         UUID uuid = player.getUUID();
         COOLDOWNS.put(uuid, Config.DimensionTransport.cooldownTicks.get());

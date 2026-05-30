@@ -83,6 +83,7 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
 
         player.teleportTo(targetLevel, targetX, safeY, targetZ,
                 Set.of(), player.getYRot(), player.getXRot());
+        player.fallDistance = 0;
 
         LOGGER.debug("[BeLoongCore] {} teleported from overworld to {} ({}, {}, {})",
                 player.getName().getString(), targetDimId, targetX, safeY, targetZ);
@@ -118,6 +119,7 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
         player.teleportTo(overworld,
                 targetPos.getX() + 0.5, safeY, targetPos.getZ() + 0.5,
                 Set.of(), player.getYRot(), player.getXRot());
+        player.fallDistance = 0;
 
         LOGGER.debug("[BeLoongCore] {} teleported from loong_palace to overworld spawn ({}, {}, {})",
                 player.getName().getString(), targetPos.getX() + 0.5, safeY, targetPos.getZ() + 0.5);
