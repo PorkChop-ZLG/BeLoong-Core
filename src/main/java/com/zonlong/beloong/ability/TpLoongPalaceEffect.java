@@ -105,7 +105,7 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
         // Simulate end exit portal: check player respawn point first, fall back to world spawn
         BlockPos respawnPos = player.getRespawnPosition();
         BlockPos targetPos;
-        if (respawnPos != null && player.getRespawnDimension() == Level.OVERWORLD) {
+        if (respawnPos != null && Level.OVERWORLD.equals(player.getRespawnDimension())) {
             targetPos = respawnPos;
         } else {
             targetPos = overworld.getSharedSpawnPos();
