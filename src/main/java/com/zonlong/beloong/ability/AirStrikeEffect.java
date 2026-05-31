@@ -5,6 +5,7 @@ import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.entity_effects.AbilityEntityEffect;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
+import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -21,14 +22,23 @@ import java.util.List;
 
 public record AirStrikeEffect(
         LevelBasedValue baseDamage,
-        double speedFactor,
-        double minSpeed
+        LevelBasedValue speedFactor,
+        LevelBasedValue minSpeed
 ) implements AbilityEntityEffect {
 
+    /** 同时支持纯数字和 LevelBasedValue 对象格式（如 minecraft:lookup） */
+    private static final Codec<LevelBasedValue> FLEXIBLE_LBV = Codec.either(
+            LevelBasedValue.CODEC,
+            Codec.DOUBLE
+    ).xmap(
+            either -> either.map(lbv -> lbv, d -> LevelBasedValue.constant((float)(double)d)),
+            Either::left
+    );
+
     public static final MapCodec<AirStrikeEffect> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-            LevelBasedValue.CODEC.fieldOf("base_damage").forGetter(AirStrikeEffect::baseDamage),
-            Codec.DOUBLE.fieldOf("speed_factor").forGetter(AirStrikeEffect::speedFactor),
-            Codec.DOUBLE.fieldOf("min_speed").forGetter(AirStrikeEffect::minSpeed)
+            FLEXIBLE_LBV.fieldOf("base_damage").forGetter(AirStrikeEffect::baseDamage),
+            FLEXIBLE_LBV.fieldOf("speed_factor").forGetter(AirStrikeEffect::speedFactor),
+            FLEXIBLE_LBV.fieldOf("min_speed").forGetter(AirStrikeEffect::minSpeed)
     ).apply(instance, AirStrikeEffect::new));
 
     @Override
@@ -45,12 +55,12 @@ public record AirStrikeEffect(
 
         // 检查最低速度阈值
         double totalSpeed = player.getDeltaMovement().length();
-        if (totalSpeed < minSpeed) {
+        if (totalSpeed < minSpeed.calculate(ability.level())) {
             return;
         }
 
         // 计算伤害并在 actionbar 显示当前速度和伤害
-        float damage = baseDamage.calculate(ability.level()) + (float) (totalSpeed * speedFactor);
+        float damage = baseDamage.calculate(ability.level()) + (float) (totalSpeed * speedFactor.calculate(ability.level()));
         player.displayClientMessage(
                 Component.translatable("dragon_ability.beloong.air_strike.actionbar",
                         String.format("%.1f", totalSpeed * 20 * 3.6),
@@ -96,8 +106,8 @@ public record AirStrikeEffect(
         return List.of(
                 Component.translatable("dragon_ability.beloong.air_strike.dynamic_desc",
                         String.format("%.1f", base),
-                        String.format("%.1f", speedFactor),
-                        String.format("%.1f", minSpeed))
+                        String.format("%.1f", speedFactor.calculate(level)),
+                        String.format("%.1f", minSpeed.calculate(level)))
         );
     }
 }

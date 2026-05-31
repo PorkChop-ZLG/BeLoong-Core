@@ -7,11 +7,35 @@
             {
               "effect_type": "beloong:air_strike",
               "base_damage": {
-                "type": "minecraft:linear",
-                "base": 10.0,
-                "per_level_above_first": 10.0
+                "type": "minecraft:lookup",
+                "fallback": {
+                  "type": "minecraft:linear",
+                  "base": 10,
+                  "per_level_above_first": 10
+                },
+                "values": [
+                  10.0,
+                  20.0,
+                  30.0,
+                  40.0,
+                  50.0
+                ]
               },
-              "speed_factor": 5.0,
+              "speed_factor": {
+                "type": "minecraft:lookup",
+                "fallback": {
+                  "type": "minecraft:linear",
+                  "base": 20,
+                  "per_level_above_first": 10
+                },
+                "values": [
+                  20.0,
+                  40.0,
+                  60.0,
+                  80.0,
+                  100.0
+                ]
+              },
               "min_speed": 0.5
             }
           ],
@@ -55,9 +79,20 @@
   },
   "upgrade": {
     "experience_cost": {
-      "type": "minecraft:linear",
-      "base": 1000.0,
-      "per_level_above_first": 1000.0
+      "type": "minecraft:lookup",
+      "fallback": {
+        "type": "minecraft:linear",
+        "base": 1000,
+        "per_level_above_first": 1000
+      },
+      "values": [
+        1000.0,
+        2000.0,
+        4000.0,
+        8000.0,
+        16000.0,
+        32000.0
+      ]
     },
     "maximum_level": 5,
     "upgrade_type": "dragonsurvival:experience_points"
