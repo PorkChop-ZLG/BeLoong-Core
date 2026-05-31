@@ -53,7 +53,7 @@ public record AirStrikeEffect(
         float damage = baseDamage.calculate(ability.level()) + (float) (totalSpeed * speedFactor);
         player.displayClientMessage(
                 Component.translatable("dragon_ability.beloong.air_strike.actionbar",
-                        String.format("%.1f", totalSpeed),
+                        String.format("%.1f", totalSpeed * 20 * 3.6),
                         String.format("%.1f", damage)),
                 true);
 
