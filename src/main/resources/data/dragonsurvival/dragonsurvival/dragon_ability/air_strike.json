@@ -8,8 +8,8 @@
               "effect_type": "beloong:ramming_attack",
               "base_damage": {
                 "type": "minecraft:linear",
-                "base": 4.0,
-                "per_level_above_first": 2.0
+                "base": 10.0,
+                "per_level_above_first": 10.0
               },
               "speed_factor": 2.0,
               "min_speed": 0.5
@@ -29,15 +29,35 @@
     "texture_entries": [
       {
         "from_level": 0,
-        "texture_resource": "dragonsurvival:test"
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_0"
+      },
+      {
+        "from_level": 1,
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_1"
+      },
+      {
+        "from_level": 2,
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_2"
+      },
+      {
+        "from_level": 3,
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_3"
+      },
+      {
+        "from_level": 4,
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_4"
+      },
+      {
+        "from_level": 5,
+        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_5"
       }
     ]
   },
   "upgrade": {
     "experience_cost": {
       "type": "minecraft:linear",
-      "base": 1.0,
-      "per_level_above_first": 1.0
+      "base": 1000.0,
+      "per_level_above_first": 1000.0
     },
     "maximum_level": 5,
     "upgrade_type": "dragonsurvival:experience_points"

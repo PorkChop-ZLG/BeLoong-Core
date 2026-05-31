@@ -65,7 +65,7 @@
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.item.beloong.eternal_porkchop": "A magical porkchop that never runs out.",
-  "dragon_ability.dragonsurvival.ramming_attack": "Ramming Attack",
-  "dragon_ability.dragonsurvival.ramming_attack.desc": "■ Colliding with entities while gliding deals §cdamage§r§7.\n\n■ Damage scales with flight speed, §cwings fold on impact§r§7.§r",
+  "dragon_ability.dragonsurvival.air_strike": "Air Strike",
+  "dragon_ability.dragonsurvival.air_strike.desc": "■ Colliding with entities while gliding deals §cdamage§r§7.\n\n■ Damage scales with flight speed, §cwings fold on impact§r§7.§r",
   "dragon_ability.beloong.ramming_attack.dynamic_desc": "■ Base Damage: §c%s§r§7 | Speed Factor: §c%s§r§7 | Min Speed: §c%s§r\n\n■ Damage = Base + Speed×Factor, §cwings fold on impact§r§7.§r"
 }
