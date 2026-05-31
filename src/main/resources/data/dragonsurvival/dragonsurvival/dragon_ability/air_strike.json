@@ -11,7 +11,7 @@
                 "base": 10.0,
                 "per_level_above_first": 10.0
               },
-              "speed_factor": 2.0,
+              "speed_factor": 5.0,
               "min_speed": 0.5
             }
           ],

@@ -49,10 +49,18 @@ public record AirStrikeEffect(
             return;
         }
 
-        // 扫描与龙碰撞箱重叠的附近生物
+        // 计算伤害并在 actionbar 显示当前速度和伤害
+        float damage = baseDamage.calculate(ability.level()) + (float) (totalSpeed * speedFactor);
+        player.displayClientMessage(
+                Component.translatable("dragon_ability.beloong.air_strike.actionbar",
+                        String.format("%.1f", totalSpeed),
+                        String.format("%.1f", damage)),
+                true);
+
+        // 扫描碰撞箱附近的可攻击生物
         List<LivingEntity> hitEntities = player.level().getEntitiesOfClass(
                 LivingEntity.class,
-                player.getBoundingBox().inflate(0.2),
+                player.getBoundingBox().inflate(1.0),
                 e -> e != player && e.isAlive() && e.isPickable()
         );
 
@@ -60,15 +68,20 @@ public record AirStrikeEffect(
             return;
         }
 
-        // 对第一个命中的实体造成伤害
-        LivingEntity hitTarget = hitEntities.getFirst();
-        float damage = baseDamage.calculate(ability.level()) + (float) (totalSpeed * speedFactor);
-        hitTarget.hurt(player.damageSources().mobAttack(player), damage);
+        // 对所有碰撞到的实体造成伤害
+        boolean dealtDamage = false;
+        for (LivingEntity hitTarget : hitEntities) {
+            if (hitTarget.hurt(player.damageSources().mobAttack(player), damage)) {
+                dealtDamage = true;
+            }
+        }
 
-        // 收起翅膀 —— 使龙下坠
-        FlightData.getData(player).areWingsSpread = false;
-        PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
-                new SyncWingsSpread(player.getId(), false));
+        // 只有成功造成伤害后才收起翅膀
+        if (dealtDamage) {
+            FlightData.getData(player).areWingsSpread = false;
+            PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
+                    new SyncWingsSpread(player.getId(), false));
+        }
     }
 
     @Override
