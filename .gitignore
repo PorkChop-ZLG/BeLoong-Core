@@ -41,3 +41,6 @@ repo/
 
 ### Claude ###
 .claude
+
+### Spyglass ###
+spyglass.json
