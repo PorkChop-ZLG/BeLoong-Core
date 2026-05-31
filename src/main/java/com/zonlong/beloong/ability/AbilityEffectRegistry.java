@@ -19,8 +19,8 @@ public class AbilityEffectRegistry {
                     ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "tp_loong_palace"),
                     () -> TpLoongPalaceEffect.CODEC);
             event.register(AbilityEntityEffect.REGISTRY_KEY,
-                    ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "ramming_attack"),
-                    () -> RammingAttackEffect.CODEC);
+                    ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "air_strike"),
+                    () -> AirStrikeEffect.CODEC);
         }
     }
 }

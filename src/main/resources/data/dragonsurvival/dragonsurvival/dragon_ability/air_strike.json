@@ -5,7 +5,7 @@
         "applied_effects": {
           "entity_effect": [
             {
-              "effect_type": "beloong:ramming_attack",
+              "effect_type": "beloong:air_strike",
               "base_damage": {
                 "type": "minecraft:linear",
                 "base": 10.0,
