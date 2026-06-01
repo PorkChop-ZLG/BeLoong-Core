@@ -70,5 +70,7 @@
   "dragon_ability.dragonsurvival.tp_loong_palace": "龙宫传送",
   "dragon_ability.dragonsurvival.tp_loong_palace.desc": "§7■获得§e龙宫§r§7的许可后，可在§e龙宫§r§7与§a龙星§r§7之间往返。§r",
   "dragon_ability.beloong.air_strike.dynamic_desc": "基础伤害：§2%s§r§7\n速度系数：§2%s§r§7\n最低触发速度：§2%s§r§7§r\n\n伤害=基础伤害+速度×系数§r",
-  "dragon_ability.beloong.air_strike.actionbar": "§7「§e龙击长空§7」§r§b速度：%s km/h§r§7 | §r§c伤害：%s"
+  "dragon_ability.beloong.air_strike.actionbar": "§7「§e龙击长空§7」§r§b速度：%s km/h§r§7 | §r§c伤害：%s",
+  "dimension.beloong.disaster": "天灾",
+  "dimension.beloong.loong_palace": "龙宫"
 }
