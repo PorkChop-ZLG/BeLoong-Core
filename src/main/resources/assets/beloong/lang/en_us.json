@@ -70,5 +70,7 @@
   "dragon_ability.dragonsurvival.tp_loong_palace": "Loong Palace Teleport",
   "dragon_ability.dragonsurvival.tp_loong_palace.desc": "§7■ After obtaining permission from the §eLoong Palace§r§7, you can travel back and forth between §eLoong Palace§r§7 and §aLoong Star§r§7.§r",
   "dragon_ability.beloong.air_strike.dynamic_desc": "■ Base Damage: §c%s§r§7\nSpeed Factor: §c%s§r§7\nMin Speed: §c%s§r\n\n■ Damage = Base + Speed×Factor§r",
-  "dragon_ability.beloong.air_strike.actionbar": "§7「§eAir Strike§7」§r§bSpeed: %s km/h§r§7 | §r§cDamage: %s"
+  "dragon_ability.beloong.air_strike.actionbar": "§7「§eAir Strike§7」§r§bSpeed: %s km/h§r§7 | §r§cDamage: %s",
+  "dimension.beloong.disaster": "Disaster",
+  "dimension.beloong.loong_palace": "Loong Palace"
 }
