@@ -81,7 +81,17 @@ public class DisasterBiomeRegion extends Region {
     private static ResourceKey<Biome>[][] getBiomeArray(Class<?> clazz, String fieldName)
             throws NoSuchFieldException, IllegalAccessException {
         Field field = clazz.getField(fieldName);
-        return (ResourceKey<Biome>[][]) field.get(null);
+        Object value = field.get(null);
+        // BWG 的 BiomeSelectorsUtil.create() 将数组包装在 CorgiLib 的 Wrapped Record 中
+        if (value != null && !(value instanceof ResourceKey[][])) {
+            try {
+                java.lang.reflect.Method valueMethod = value.getClass().getMethod("value");
+                return (ResourceKey<Biome>[][]) valueMethod.invoke(value);
+            } catch (Exception e) {
+                throw new IllegalAccessException("Failed to unwrap CorgiLib Wrapped: " + e.getMessage());
+            }
+        }
+        return (ResourceKey<Biome>[][]) value;
     }
 
     @Override
