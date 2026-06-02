@@ -2,18 +2,18 @@
 
 ## 概述
 
-为天灾维度（disaster）和主世界之间设计一个传送门系统，模仿末地创世（End Remastered）模组的实现方式。
+为天灾维度（`beloong:disaster`）和主世界之间设计一个传送门系统，模仿末地创世（End Remastered）模组的实现方式。
 
 ## 需求摘要
 
 1. 传送门框架类似原版末地传送门框架，名为"天灾传送门框架"
-2. 激活需要来自 Cataclysm 和 FDBosses 的 12 种不同眼球（具体 ID 待提供）
-3. 12 种眼球必须全部不同，且全部放上后才激活
+2. 激活需要至少 12 种眼球，来自 Cataclysm 和 FDBosses，眼球列表可配置（>=12 项）
+3. 眼球必须全部在列表中且互不重复，全部 12 帧放上后才激活
 4. 眼球消耗性放入框架，不可取回
 5. 传送门框架仅创造模式获得
 6. 主世界 → 天灾维度：坐标 1:1 同步，传送后生成数据包结构（含返回传送门）
 7. 天灾维度 → 主世界：照搬原版末地返回逻辑，回到玩家出生点
-8. 不同眼球放置后框架纹理不同（BlockState EnumProperty 方案）
+8. 不同眼球放置后框架纹理不同（BlockState IntegerProperty 方案）
 
 ## 文件清单
 
@@ -39,7 +39,7 @@
 **BlockState 属性**：
 - `FACING`（EnumProperty<Direction>，4 个水平方向）
 - `HAS_EYE`（BooleanProperty）
-- `EYE_TYPE`（EnumProperty<String>，13 个值：`"empty"` + 12 个眼球 ID）
+- `EYE_TYPE`（IntegerProperty，0-15，0=empty，1-15=眼球在配置列表中的索引，最多支持 16 种眼球纹理）
 
 **传送门形状检测**（5×5 环形，中间 3×3 空心）：
 ```
@@ -52,24 +52,25 @@
 使用 `BlockPatternBuilder`，匹配自身 `DisasterPortalFrame` 方块。
 
 **useItemOn()**：
-- 校验手持物品是否在 Config 的 12 眼列表中
+- 获取手持物品的 `ResourceLocation` ID
+- 校验是否在 Config 眼球列表中（列表可 >=12 项）
 - 校验当前框架 `HAS_EYE == false`
-- 调用 `isFrameAbsent()` 去重检查
-- 设置 `EYE_TYPE` 为对应眼球 ID，`HAS_EYE = true`，消耗 1 个物品
-- 遍历所有框架：若全部 `HAS_EYE=true` → 中间 3×3 填充 `DisasterPortalBlock`
+- 调用 `isFrameAbsent()` 去重检查（同一眼球不可重复出现在任何框架上）
+- 设置 `EYE_TYPE` 为该眼球在列表中的索引，`HAS_EYE = true`，消耗 1 个物品，同步 BlockEntity 存储
+- 遍历 5×5 所有框架：若全部 `HAS_EYE=true` → 中间 3×3 填充 `DisasterPortalBlock`
 
 **isFrameAbsent()**：
 - 通过 `getCompletedPortalShape(false)` 定位传送门结构
-- 遍历 5×5 所有框架 BlockEntity，检查是否存在相同眼球
-- 存在则返回 false（拒绝放置），不存在则返回 true（允许放置）
+- 遍历所有框架 BlockEntity，检查是否有相同眼球 ID 已存在
+- 存在则返回 false，不存在则返回 true
 
 ### DisasterPortalFrameEntity — 框架 BlockEntity
 
 **照搬 End Remastered 的 `AncientPortalFrameEntity`**：
-- 存储字段：`String eye = "empty"`（眼球 ID）
+- 存储字段：`String eyeId = "empty"`（眼球物品 ID 字符串，用于持久化和去重校验）
 - `saveAdditional` / `loadAdditional`：NBT 持久化
 - `getUpdatePacket` / `getUpdateTag`：客户端同步
-- 辅助方法：`isEmpty()`, `getEye()`, `setEye()`
+- 辅助方法：`isEmpty()`, `getEyeId()`, `setEyeId()`
 - 材质数据注册在 `ModBlocks` 中
 
 ### DisasterPortalBlock — 传送门方块
@@ -94,7 +95,7 @@ if (当前维度 == Config.sourceDimension) {
     player.teleportTo(targetLevel, targetX, targetY, targetZ, ...)
     player.fallDistance = 0
 
-    // 放置结构模板（仅在目标位置无方块或为空气时放置，避免覆盖玩家建筑）
+    // 放置结构模板（仅在目标位置为空气时放置，避免覆盖玩家建筑）
     BlockPos structurePos = new BlockPos(floor(targetX), targetY - 1, floor(targetZ))
     if (targetLevel.getBlockState(structurePos).isAir()) {
         StructureTemplate.placeInWorld(targetLevel, structurePos, ...)
@@ -116,7 +117,6 @@ if (当前维度 == Config.sourceDimension) {
 // 设置冷却
 player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime() + cooldownTicks)
 ```
-```
 
 **结构模板放置**：
 - 使用 `StructureTemplate.placeInWorld()` 放置配置的结构模板
@@ -125,17 +125,20 @@ player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime(
 
 ### 方块模型与纹理
 
+**方案 A — IntegerProperty**：`EYE_TYPE` 为 0-15 整数，0 表示无眼球，1-15 对应 config 列表中前 15 个眼球（默认 12 个全部在范围内）。
+
 **BlockState JSON**（`disaster_portal_frame.json`）：
 ```json
 {
   "variants": {
-    "facing=north,has_eye=false,eye_type=empty": { "model": "beloong:block/disaster_portal_frame" },
-    "facing=north,has_eye=true,eye_type=cataclysm:xxx": { "model": "beloong:block/disaster_portal_frame_xxx" },
+    "facing=north,has_eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame" },
+    "facing=north,has_eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_eye_1" },
     ...
+    "facing=north,has_eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_eye_12" }
   }
 }
 ```
-每个眼球类型一个模型文件，指向不同纹理。
+每个 eye_type 值对应一个模型文件，指向不同纹理。若配置超过 16 种眼球，超出部分共用 eye_type=0 纹理（或降级为默认眼球纹理）。默认 12 种眼球全部有独立纹理。
 
 ## 配置项
 
@@ -143,12 +146,29 @@ player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime(
 
 ```java
 public static final class DisasterPortal {
-    public static ConfigValue<List<? extends String>> eyeItems;       // 12 个眼球 ID
+    public static ConfigValue<List<? extends String>> eyeItems;       // 眼球列表，默认如下
     public static ConfigValue<String> sourceDimension;                // 默认 minecraft:overworld
-    public static ConfigValue<String> disasterDimension;              // 天灾维度 ID
+    public static ConfigValue<String> disasterDimension;              // 默认 beloong:disaster
     public static ConfigValue<String> returnStructureTemplate;        // 默认 beloong:disaster/return_portal
-    public static ConfigValue<Integer> teleportCooldownTicks;        // 冷却 ticks
+    public static ConfigValue<Integer> teleportCooldownTicks;        // 冷却 ticks，默认 100
 }
+```
+
+**默认 12 种眼球 ID**：
+
+```java
+"minecraft:ender_eye",
+"cataclysm:mech_eye",
+"cataclysm:flame_eye",
+"cataclysm:void_eye",
+"cataclysm:monstrous_eye",
+"cataclysm:abyss_eye",
+"cataclysm:desert_eye",
+"cataclysm:cursed_eye",
+"cataclysm:storm_eye",
+"fdbosses:eye_of_chesed",
+"fdbosses:eye_of_malkuth",
+"fdbosses:eye_of_geburah"
 ```
 
 ## 与 End Remastered 的关键差异
