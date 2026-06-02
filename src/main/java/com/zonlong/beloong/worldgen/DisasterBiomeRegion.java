@@ -81,17 +81,42 @@ public class DisasterBiomeRegion extends Region {
     private static ResourceKey<Biome>[][] getBiomeArray(Class<?> clazz, String fieldName)
             throws NoSuchFieldException, IllegalAccessException {
         Field field = clazz.getField(fieldName);
-        Object value = field.get(null);
-        // BWG 的 BiomeSelectorsUtil.create() 将数组包装在 CorgiLib 的 Wrapped Record 中
-        if (value != null && !(value instanceof ResourceKey[][])) {
+        Object raw = field.get(null);
+        if (raw == null) {
+            throw new IllegalAccessException("Field " + fieldName + " is null");
+        }
+        Object value = raw;
+        // CorgiLib 将静态字段包装为 Wrapped Record，需解包
+        if (!(raw instanceof ResourceKey[][])) {
             try {
-                java.lang.reflect.Method valueMethod = value.getClass().getMethod("value");
-                return (ResourceKey<Biome>[][]) valueMethod.invoke(value);
+                java.lang.reflect.Method valueMethod = raw.getClass().getMethod("value");
+                value = valueMethod.invoke(raw);
             } catch (Exception e) {
-                throw new IllegalAccessException("Failed to unwrap CorgiLib Wrapped: " + e.getMessage());
+                throw new IllegalAccessException("Failed to unwrap " + fieldName + ": " + e.getMessage());
             }
         }
+        // CorgiLib codec 将数组序列化为 List，需转换回二维数组
+        if (value instanceof java.util.List<?> list) {
+            return convertListToBiomeArray(list);
+        }
         return (ResourceKey<Biome>[][]) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ResourceKey<Biome>[][] convertListToBiomeArray(java.util.List<?> list) {
+        int rows = list.size();
+        ResourceKey<Biome>[][] result = new ResourceKey[rows][];
+        for (int i = 0; i < rows; i++) {
+            Object row = list.get(i);
+            if (row instanceof java.util.List<?> innerList) {
+                result[i] = innerList.toArray(new ResourceKey[0]);
+            } else if (row instanceof ResourceKey[]) {
+                result[i] = (ResourceKey<Biome>[]) row;
+            } else {
+                result[i] = new ResourceKey[0];
+            }
+        }
+        return result;
     }
 
     @Override
