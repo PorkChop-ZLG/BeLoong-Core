@@ -158,9 +158,9 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
-    // BWG + TerraBlender — 必需依赖
-    implementation files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
-    implementation "curse.maven:oh-the-biomes-weve-gone-1070751:6368279"
+    // BWG + TerraBlender — 必需运行时依赖（无需编译引用）
+    localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:6368279"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

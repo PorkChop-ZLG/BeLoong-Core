@@ -16,8 +16,7 @@
     "BlockHarvestEffectMixin",
     "BonemealEffectMixin",
     "MixinDragonGrowthHandler",
-    "TreasureBlockMixin",
-    "TerraBlenderRegionsMixin"
+    "TreasureBlockMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
