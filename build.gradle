@@ -158,6 +158,22 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
+    // Cataclysm — 必选前置
+    compileOnly "curse.maven:lendercataclysm-551586:8095590"
+    localRuntime "curse.maven:lendercataclysm-551586:8095590"
+
+    // Curios — 可选依赖
+    compileOnly "curse.maven:curios-309927:6529130"
+    localRuntime "curse.maven:curios-309927:6529130"
+
+    // Qliphoth Awakening — 必选前置
+    compileOnly "curse.maven:qliphoth-awakening-1271707:7653113"
+    localRuntime "curse.maven:qliphoth-awakening-1271707:7653113"
+
+    // LionfishAPI — 本地运行时
+    localRuntime "curse.maven:lionfish-api-1001614:8094835"
+    localRuntime "curse.maven:fdlib-1271749:7844741"
+
     // BWG + TerraBlender — 可选依赖
     compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
     localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')

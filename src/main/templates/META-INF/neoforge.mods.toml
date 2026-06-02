@@ -88,6 +88,20 @@ config = "beloong.mixins.json"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
+    modId="cataclysm"
+    type="required"
+    versionRange="[3.26,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="fdbosses"
+    type="required"
+    versionRange="[3.1.0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
     modId="dragonsurvival"
     type="required"
     versionRange="[2.0.53,)"
@@ -115,6 +129,12 @@ config = "beloong.mixins.json"
 
 [[dependencies.${mod_id}]]
     modId="terrablender"
+    type="optional"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="curios"
     type="optional"
     ordering="AFTER"
     side="BOTH"
