@@ -154,6 +154,12 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
+    // BWG + TerraBlender — 可选依赖，仅在安装时生效
+    compileOnly "curse.maven:oh-the-biomes-weve-gone-1070780:6215671"
+    compileOnly "curse.maven:terrablender-940057:6202148"
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070780:6215671"
+    localRuntime "curse.maven:terrablender-940057:6202148"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
