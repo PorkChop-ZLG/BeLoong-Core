@@ -13,7 +13,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import terrablender.api.Region;
 import terrablender.api.RegionType;
-import terrablender.api.Regions;
 import terrablender.util.LevelUtils;
 
 import java.util.ArrayList;
@@ -42,16 +41,12 @@ public abstract class TerraBlenderRegionsMixin {
         List<Region> regions = new ArrayList<>(original.call(type));
 
         if (levelResourceKey != null && levelResourceKey.location().equals(DISASTER_STEM)) {
-            // 移除 biomeswevegone 命名空间的 Region（BWG 原生，受配置控制）
+            // 天灾维度：用我们的 Region 替代 BWG 原生的（绕过配置过滤）
             regions.removeIf(r -> r.getName().getNamespace().equals("biomeswevegone"));
-
-            // 添加 beloong 命名空间的 DisasterBiomeRegion（绕过配置过滤）
-            for (Region r : Regions.get(RegionType.OVERWORLD)) {
-                if (r.getName().getNamespace().equals("beloong")) {
-                    regions.add(r);
-                    break;
-                }
-            }
+            // beloong:* 已在注册表中，保留即可
+        } else {
+            // 其他维度：移除我们的 Region，保留 BWG 原生的（受配置控制）
+            regions.removeIf(r -> r.getName().getNamespace().equals("beloong"));
         }
 
         return regions;
