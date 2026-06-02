@@ -7,13 +7,13 @@
 ## 需求摘要
 
 1. 传送门框架类似原版末地传送门框架，名为"天灾传送门框架"
-2. 激活需要至少 12 种眼球，来自 Cataclysm 和 FDBosses，眼球列表可配置（>=12 项）
-3. 眼球必须全部在列表中且互不重复，全部 12 帧放上后才激活
+2. 激活需要来自 Cataclysm 和 FDBosses 的固定 12 种眼球（不可扩展）
+3. 12 种眼球必须全部放上且互不重复，全部 12 帧放上后才激活
 4. 眼球消耗性放入框架，不可取回
 5. 传送门框架仅创造模式获得
 6. 主世界 → 天灾维度：坐标 1:1 同步，传送后生成数据包结构（含返回传送门）
 7. 天灾维度 → 主世界：照搬原版末地返回逻辑，回到玩家出生点
-8. 不同眼球放置后框架纹理不同（BlockState IntegerProperty 方案）
+8. 不同眼球放置后框架纹理不同（BlockState EnumProperty 方案）
 
 ## 文件清单
 
@@ -39,7 +39,7 @@
 **BlockState 属性**：
 - `FACING`（EnumProperty<Direction>，4 个水平方向）
 - `HAS_EYE`（BooleanProperty）
-- `EYE_TYPE`（IntegerProperty，0-15，0=empty，1-15=眼球在配置列表中的索引，最多支持 16 种眼球纹理）
+- `EYE_TYPE`（EnumProperty<String>，13 个值：`"empty"` + 12 个眼球 ID，固定不可扩展）
 
 **传送门形状检测**（5×5 环形，中间 3×3 空心）：
 ```
@@ -53,10 +53,10 @@
 
 **useItemOn()**：
 - 获取手持物品的 `ResourceLocation` ID
-- 校验是否在 Config 眼球列表中（列表可 >=12 项）
+- 校验手持物品 ID 是否在 12 种眼球列表中
 - 校验当前框架 `HAS_EYE == false`
 - 调用 `isFrameAbsent()` 去重检查（同一眼球不可重复出现在任何框架上）
-- 设置 `EYE_TYPE` 为该眼球在列表中的索引，`HAS_EYE = true`，消耗 1 个物品，同步 BlockEntity 存储
+- 设置 `EYE_TYPE` 为该眼球对应的枚举值，`HAS_EYE = true`，消耗 1 个物品，同步 BlockEntity 存储
 - 遍历 5×5 所有框架：若全部 `HAS_EYE=true` → 中间 3×3 填充 `DisasterPortalBlock`
 
 **isFrameAbsent()**：
@@ -125,20 +125,20 @@ player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime(
 
 ### 方块模型与纹理
 
-**方案 A — IntegerProperty**：`EYE_TYPE` 为 0-15 整数，0 表示无眼球，1-15 对应 config 列表中前 15 个眼球（默认 12 个全部在范围内）。
+**方案 A — EnumProperty<String>**：`EYE_TYPE` 为固定 13 个字符串值（`"empty"` + 12 个眼球 ID）。每个值在 BlockState JSON 中对应独立的模型变体。
 
 **BlockState JSON**（`disaster_portal_frame.json`）：
 ```json
 {
   "variants": {
-    "facing=north,has_eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame" },
-    "facing=north,has_eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_eye_1" },
+    "facing=north,has_eye=false,eye_type=empty": { "model": "beloong:block/disaster_portal_frame" },
+    "facing=north,has_eye=true,eye_type=cataclysm:mech_eye": { "model": "beloong:block/disaster_portal_frame_mech_eye" },
+    "facing=north,has_eye=true,eye_type=cataclysm:flame_eye": { "model": "beloong:block/disaster_portal_frame_flame_eye" },
     ...
-    "facing=north,has_eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_eye_12" }
   }
 }
 ```
-每个 eye_type 值对应一个模型文件，指向不同纹理。若配置超过 16 种眼球，超出部分共用 eye_type=0 纹理（或降级为默认眼球纹理）。默认 12 种眼球全部有独立纹理。
+每个 eye_type 值对应一个模型文件，指向不同纹理。`has_eye=false` 时 `eye_type` 固定为 `empty`。
 
 ## 配置项
 
@@ -146,7 +146,7 @@ player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime(
 
 ```java
 public static final class DisasterPortal {
-    public static ConfigValue<List<? extends String>> eyeItems;       // 眼球列表，默认如下
+    public static ConfigValue<List<? extends String>> eyeItems;       // 固定 12 种眼球 ID，默认值见下方
     public static ConfigValue<String> sourceDimension;                // 默认 minecraft:overworld
     public static ConfigValue<String> disasterDimension;              // 默认 beloong:disaster
     public static ConfigValue<String> returnStructureTemplate;        // 默认 beloong:disaster/return_portal
