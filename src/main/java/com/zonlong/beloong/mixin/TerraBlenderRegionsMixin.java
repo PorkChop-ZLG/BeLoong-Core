@@ -1,5 +1,7 @@
 package com.zonlong.beloong.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceKey;
@@ -9,9 +11,6 @@ import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.dimension.LevelStem;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import terrablender.api.Region;
 import terrablender.api.RegionType;
 import terrablender.api.Regions;
@@ -22,7 +21,7 @@ import java.util.List;
 
 /**
  * 拦截 {@code Regions.get()} 调用，对天灾维度替换区域列表。
- * 使用 ThreadLocal 传递维度上下文（HEAD inject → Redirect 链）。
+ * 使用 {@code @WrapOperation} 直接获取 levelResourceKey，无需 ThreadLocal。
  */
 @Mixin(value = LevelUtils.class, remap = false)
 public abstract class TerraBlenderRegionsMixin {
@@ -30,30 +29,19 @@ public abstract class TerraBlenderRegionsMixin {
     private static final ResourceLocation DISASTER_STEM =
             ResourceLocation.fromNamespaceAndPath("beloong", "disaster");
 
-    private static final ThreadLocal<Boolean> IS_DISASTER_DIM = ThreadLocal.withInitial(() -> false);
-
-    /** 在方法入口记录是否为天灾维度 */
-    @Inject(method = "initializeBiomes", at = @At("HEAD"), remap = false)
-    private static void captureDimensionContext(
+    @WrapOperation(
+            method = "initializeBiomes",
+            at = @At(value = "INVOKE", target = "Lterrablender/api/Regions;get(Lterrablender/api/RegionType;)Ljava/util/List;"),
+            remap = false)
+    private static List<Region> wrapRegionsGet(RegionType type, Operation<List<Region>> original,
             RegistryAccess registryAccess,
             Holder<DimensionType> dimensionType,
             ResourceKey<LevelStem> levelResourceKey,
             ChunkGenerator chunkGenerator,
-            long seed,
-            CallbackInfo ci) {
-        IS_DISASTER_DIM.set(
-                levelResourceKey != null && levelResourceKey.location().equals(DISASTER_STEM));
-    }
+            long seed) {
+        List<Region> regions = new ArrayList<>(original.call(type));
 
-    /** 拦截 Regions.get() 调用，对天灾维度替换区域列表 */
-    @Redirect(
-            method = "initializeBiomes",
-            at = @At(value = "INVOKE", target = "Lterrablender/api/Regions;get(Lterrablender/api/RegionType;)Ljava/util/List;"),
-            remap = false)
-    private static List<Region> redirectRegionsGet(RegionType type) {
-        List<Region> regions = new ArrayList<>(Regions.get(type));
-
-        if (IS_DISASTER_DIM.get()) {
+        if (levelResourceKey != null && levelResourceKey.location().equals(DISASTER_STEM)) {
             // 移除 biomeswevegone 命名空间的 Region（BWG 原生，受配置控制）
             regions.removeIf(r -> r.getName().getNamespace().equals("biomeswevegone"));
 
