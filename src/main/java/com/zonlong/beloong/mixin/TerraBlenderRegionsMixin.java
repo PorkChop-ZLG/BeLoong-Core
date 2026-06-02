@@ -1,6 +1,5 @@
 package com.zonlong.beloong.mixin;
 
-import com.zonlong.beloong.worldgen.BWGIntegration;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceKey;
@@ -54,7 +53,7 @@ public abstract class TerraBlenderRegionsMixin {
     private static List<Region> redirectRegionsGet(RegionType type) {
         List<Region> regions = new ArrayList<>(Regions.get(type));
 
-        if (IS_DISASTER_DIM.get() && BWGIntegration.isEnabled()) {
+        if (IS_DISASTER_DIM.get()) {
             // 移除 biomeswevegone 命名空间的 Region（BWG 原生，受配置控制）
             regions.removeIf(r -> r.getName().getNamespace().equals("biomeswevegone"));
 

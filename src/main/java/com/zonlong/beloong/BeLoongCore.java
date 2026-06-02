@@ -6,7 +6,7 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
-import com.zonlong.beloong.worldgen.BWGIntegration;
+import com.zonlong.beloong.worldgen.DisasterBiomeRegion;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -35,7 +35,7 @@ public class BeLoongCore {
 
         ModItems.register(modEventBus);
         ModCreativeModeTabs.register(modEventBus);
-        BWGIntegration.init();
+        DisasterBiomeRegion.register();
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
 

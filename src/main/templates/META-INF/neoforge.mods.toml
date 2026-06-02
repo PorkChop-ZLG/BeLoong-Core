@@ -109,13 +109,13 @@ config = "beloong.mixins.json"
 
 [[dependencies.${mod_id}]]
     modId="biomeswevegone"
-    type="optional"
+    type="required"
     ordering="AFTER"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="terrablender"
-    type="optional"
+    type="required"
     ordering="AFTER"
     side="BOTH"
 
