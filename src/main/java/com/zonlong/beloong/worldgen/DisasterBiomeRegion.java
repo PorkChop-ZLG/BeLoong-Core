@@ -6,6 +6,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.Climate;
 import terrablender.api.Region;
 import terrablender.api.RegionType;
@@ -58,6 +59,19 @@ public class DisasterBiomeRegion extends Region {
             ResourceKey<Biome>[][] peakBiomesVariant = getBiomeArray(bwgSelectorsClass, "PEAK_BIOMES_VARIANT_BWG");
             ResourceKey<Biome>[][] slopeBiomes = getBiomeArray(bwgSelectorsClass, "SLOPE_BIOMES_BWG");
             ResourceKey<Biome>[][] slopeBiomesVariant = getBiomeArray(tbSelectorsClass, "SLOPE_BIOMES_VARIANT_TERRABLENDER");
+
+            // 过滤 THE_VOID — BWG 用它标记"此位置无群系"，TerraBlender 使用 null 表示回退
+            oceans = filterVoidBiomes(oceans);
+            middleBiomes = filterVoidBiomes(middleBiomes);
+            middleBiomesVariant = filterVoidBiomes(middleBiomesVariant);
+            plateauBiomes = filterVoidBiomes(plateauBiomes);
+            plateauBiomesVariant = filterVoidBiomes(plateauBiomesVariant);
+            shatteredBiomes = filterVoidBiomes(shatteredBiomes);
+            beachBiomes = filterVoidBiomes(beachBiomes);
+            peakBiomes = filterVoidBiomes(peakBiomes);
+            peakBiomesVariant = filterVoidBiomes(peakBiomesVariant);
+            slopeBiomes = filterVoidBiomes(slopeBiomes);
+            slopeBiomesVariant = filterVoidBiomes(slopeBiomesVariant);
 
             TerrablenderOverworldBiomeBuilder biomeBuilder = new TerrablenderOverworldBiomeBuilder(
                     oceans, middleBiomes, middleBiomesVariant,
@@ -117,6 +131,18 @@ public class DisasterBiomeRegion extends Region {
             }
         }
         return result;
+    }
+
+    /** 将数组中的 THE_VOID 替换为 null，与 BWG 的 BWGRegionUtils.filter() 行为一致 */
+    private static ResourceKey<Biome>[][] filterVoidBiomes(ResourceKey<Biome>[][] array) {
+        for (int i = 0; i < array.length; i++) {
+            for (int j = 0; j < array[i].length; j++) {
+                if (array[i][j] == Biomes.THE_VOID) {
+                    array[i][j] = null; // TerraBlender 用 null 表示回退到原版/常规群系
+                }
+            }
+        }
+        return array;
     }
 
     @Override
