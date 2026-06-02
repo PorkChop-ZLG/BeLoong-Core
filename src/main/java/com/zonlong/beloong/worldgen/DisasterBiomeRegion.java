@@ -86,10 +86,17 @@ public class DisasterBiomeRegion extends Region {
 
     @Override
     public void addBiomes(Registry<Biome> registry, Consumer<Pair<Climate.ParameterPoint, ResourceKey<Biome>>> mapper) {
-        this.builder.addBiomes(pair -> {
-            // 直接通过，不检查 BWGWorldGenConfig
-            // DEFERRED_PLACEHOLDER 会自动回退到 DefaultOverworldRegion（原版群系）
-            mapper.accept(pair);
-        });
+        // OverworldBiomeBuilder.addBiomes() 在 NeoForge 中是 protected，需反射调用
+        try {
+            java.lang.reflect.Method method = this.builder.getClass().getSuperclass().getDeclaredMethod("addBiomes", Consumer.class);
+            method.setAccessible(true);
+            method.invoke(this.builder, (Consumer<Pair<Climate.ParameterPoint, ResourceKey<Biome>>>) pair -> {
+                // 直接通过，不检查 BWGWorldGenConfig
+                // DEFERRED_PLACEHOLDER 会自动回退到 DefaultOverworldRegion（原版群系）
+                mapper.accept(pair);
+            });
+        } catch (Exception e) {
+            BeLoongCore.LOGGER.error("[BeLoongCore] Failed to invoke addBiomes via reflection", e);
+        }
     }
 }

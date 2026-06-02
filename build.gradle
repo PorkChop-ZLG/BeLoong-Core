@@ -33,6 +33,9 @@ repositories {
             includeGroup "curse.maven"
         }
     }
+    flatDir {
+        dirs 'libs'
+    }
 }
 
 base {
@@ -156,10 +159,10 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
     // BWG + TerraBlender — 可选依赖，仅在安装时生效
-    compileOnly "curse.maven:oh-the-biomes-weve-gone-1070780:6215671"
-    compileOnly "curse.maven:terrablender-940057:6202148"
-    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070780:6215671"
-    localRuntime "curse.maven:terrablender-940057:6202148"
+    compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
+    compileOnly "curse.maven:oh-the-biomes-weve-gone-1070751:6368279"
+    localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:6368279"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
