@@ -33,8 +33,8 @@ repositories {
             includeGroup "curse.maven"
         }
     }
-    flatDir {
-        dirs 'libs'
+    maven {
+        url = "https://jitpack.io"
     }
 }
 
