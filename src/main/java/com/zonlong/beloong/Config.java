@@ -95,8 +95,6 @@ public class Config {
     //
     // 结构模板说明：
     //   - 存储位置：data/beloong/structure/disaster/return_portal.nbt
-    //   - 使用原版结构方块在游戏中搭建后导出
-    //   - 结构内部应包含一个已激活的返回传送门（供玩家返回主世界）
     //   - structureOffsetX/Y/Z 用于微调结构相对玩家落地位置的偏移
 
     public static final class DisasterPortal {
