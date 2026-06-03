@@ -3,8 +3,8 @@
   "textures": {
     "particle": "beloong:block/disaster_portal_frame_side",
     "bottom": "beloong:block/disaster_portal_frame_bottom",
-    "top": "beloong:block/disaster_portal_frame_top_ender_eye",
+    "top": "beloong:block/disaster_portal_frame_top_12",
     "side": "beloong:block/disaster_portal_frame_side",
-    "eye": "beloong:block/disaster_portal_frame_eye_ender_eye"
+    "eye": "beloong:block/disaster_portal_frame_eye_12"
   }
 }

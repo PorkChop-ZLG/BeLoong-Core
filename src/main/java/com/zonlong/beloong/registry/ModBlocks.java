@@ -1,10 +1,12 @@
 package com.zonlong.beloong.registry;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.Config;
 import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.block.DisasterPortalBlockEntity;
 import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
@@ -13,9 +15,6 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 化龙核心模组的方块和 BlockEntity 注册中心。
@@ -33,11 +32,9 @@ import java.util.stream.Collectors;
  *   <li>{@link #DISASTER_PORTAL_FRAME_ENTITY} — 框架 BlockEntity（存储眼球 ID）</li>
  *   <li>{@link #DISASTER_PORTAL_BLOCK_ENTITY} — 传送门 BlockEntity（渲染器载体）</li>
  * </ul>
- * <b>眼球映射常量：</b>
+ * <b>眼球槽位：</b>
  * <ul>
- *   <li>{@link #EYE_KEYS} — 12 种眼球短键列表（不可含冒号，用于 BlockState 序列化）</li>
- *   <li>{@link #EYE_KEY_TO_FULL_ID} — 短键 → 完整物品 ID 的正向映射</li>
- *   <li>{@link #FULL_ID_TO_EYE_KEY} — 完整物品 ID → 短键的反向映射（用于手持物品校验）</li>
+ *   <li>{@link #getEyeSlot} — 在配置列表中查找物品对应的槽位编号 (1~12)</li>
  * </ul>
  *
  * @see BeLoongCore
@@ -55,62 +52,22 @@ public class ModBlocks {
             DeferredRegister.create(net.minecraft.core.registries.Registries.BLOCK_ENTITY_TYPE, BeLoongCore.MODID);
 
     /**
-     * 12 种眼球短键列表。
+     * 在配置 {@code eyeItems} 列表中查找物品对应的槽位编号 (1~12)。
      * <p>
-     * 短键用于 {@link com.zonlong.beloong.block.EyeType} 枚举的序列化名称
-     * 和 BlockState JSON 中的 {@code eye_type} 值。
-     * 短键不可包含冒号，因为冒号在 BlockState 属性值中可能引起解析歧义。
+     * 遍历 {@link Config.DisasterPortal#eyeItems} 列表，找到物品完整 ID（如 "cataclysm:mech_eye"）
+     * 后返回其在列表中的位置 +1（即 1-based 槽位编号）。
+     * 未找到返回 0，表示该物品不是有效的传送门眼球。
+     *
+     * @param stack 玩家手持的物品堆
+     * @return 槽位编号 1~12，无效物品返回 0
      */
-    public static final List<String> EYE_KEYS = List.of(
-            "ender_eye",
-            "mech_eye",
-            "flame_eye",
-            "void_eye",
-            "monstrous_eye",
-            "abyss_eye",
-            "desert_eye",
-            "cursed_eye",
-            "storm_eye",
-            "eye_of_chesed",
-            "eye_of_malkuth",
-            "eye_of_geburah"
-    );
-
-    /** EYE_KEYS 的不可变 Set 副本，用于快速查找。 */
-    public static final Set<String> EYE_TYPE_VALUES = Set.copyOf(EYE_KEYS);
-
-    /**
-     * 短键 → 完整物品 ID 的正向映射。
-     * <p>
-     * 当 BlockEntity 存储眼球信息时，使用短键作为 BlockState 的 EYE_TYPE 值，
-     * 但 BlockEntity 中持久化完整的物品 ID（带命名空间前缀），
-     * 以便后续查询和校验。
-     */
-    public static final Map<String, String> EYE_KEY_TO_FULL_ID = Map.ofEntries(
-            Map.entry("ender_eye", "minecraft:ender_eye"),
-            Map.entry("mech_eye", "cataclysm:mech_eye"),
-            Map.entry("flame_eye", "cataclysm:flame_eye"),
-            Map.entry("void_eye", "cataclysm:void_eye"),
-            Map.entry("monstrous_eye", "cataclysm:monstrous_eye"),
-            Map.entry("abyss_eye", "cataclysm:abyss_eye"),
-            Map.entry("desert_eye", "cataclysm:desert_eye"),
-            Map.entry("cursed_eye", "cataclysm:cursed_eye"),
-            Map.entry("storm_eye", "cataclysm:storm_eye"),
-            Map.entry("eye_of_chesed", "fdbosses:eye_of_chesed"),
-            Map.entry("eye_of_malkuth", "fdbosses:eye_of_malkuth"),
-            Map.entry("eye_of_geburah", "fdbosses:eye_of_geburah")
-    );
-
-    /**
-     * 完整物品 ID → 短键的反向映射。
-     * <p>
-     * 在 {@link com.zonlong.beloong.block.DisasterPortalFrame#useItemOn}
-     * 中使用：玩家手持物品时，通过此映射快速判断该物品是否为允许的眼球。
-     * 由 {@link #EYE_KEY_TO_FULL_ID} 自动推导。
-     */
-    public static final Map<String, String> FULL_ID_TO_EYE_KEY =
-            EYE_KEY_TO_FULL_ID.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    public static int getEyeSlot(ItemStack stack) {
+        String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getKey(stack.getItem()).toString();
+        List<? extends String> items = Config.DisasterPortal.eyeItems.get();
+        int idx = items.indexOf(id);
+        return idx >= 0 ? idx + 1 : 0;
+    }
 
     // ==================== 方块注册 ====================
 

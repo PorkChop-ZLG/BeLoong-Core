@@ -13,11 +13,11 @@ import org.jetbrains.annotations.Nullable;
  * 天灾传送门框架的 BlockEntity。
  * <p>
  * 每个 {@link DisasterPortalFrame} 方块都绑定一个该 BlockEntity 实例，
- * 用于持久化存储嵌入的眼球物品 ID（如 {@code "cataclysm:mech_eye"}）。
+ * 用于持久化存储嵌入的眼球槽位编号。
  * <p>
  * <b>存储字段：</b>
  * <ul>
- *   <li>{@code eyeId} — 嵌入的眼球完整物品 ID 字符串，默认值 {@code "empty"} 表示空框架</li>
+ *   <li>{@code eyeId} — 嵌入的眼球槽位编号（{@code "1"}~{@code "12"}），默认值 {@code "0"} 表示空框架</li>
  * </ul>
  * <p>
  * <b>数据同步：</b>
@@ -30,8 +30,8 @@ import org.jetbrains.annotations.Nullable;
  */
 public class DisasterPortalFrameEntity extends BlockEntity {
 
-    /** 嵌入的眼球完整物品 ID（如 "cataclysm:mech_eye"），默认 "empty" 表示无眼球 */
-    private String eyeId = "empty";
+    /** 嵌入的眼球槽位编号（"1"~"12"），默认 "0" 表示无眼球 */
+    private String eyeId = "0";
 
     public DisasterPortalFrameEntity(BlockPos pos, BlockState state) {
         super(ModBlocks.DISASTER_PORTAL_FRAME_ENTITY.get(), pos, state);
@@ -91,6 +91,6 @@ public class DisasterPortalFrameEntity extends BlockEntity {
 
     /** 检查该框架是否为空（未嵌入任何眼球）。 */
     public boolean isEmpty() {
-        return "empty".equals(this.eyeId);
+        return "0".equals(this.eyeId);
     }
 }

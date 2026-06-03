@@ -40,7 +40,7 @@ import java.util.function.Predicate;
  * <p>
  * 外观和行为模仿原版 {@link net.minecraft.world.level.block.EndPortalFrameBlock}（末地传送门框架）：
  * <ul>
- *   <li>玩家手持 12 种配置的眼球物品右键框架时，眼球被嵌入框架。</li>
+ *   <li>玩家手持 {@link com.zonlong.beloong.Config.DisasterPortal#eyeItems 配置列表} 中的眼球物品右键框架时，眼球被嵌入框架。</li>
  *   <li>每个眼球必须互不相同（通过 {@link #isEyeAbsent} 去重）。</li>
  *   <li>当 5×5 环形排列的 12 个框架全部嵌入眼球后，
  *       中间的 3×3 区域自动填充为 {@link DisasterPortalBlock}，激活传送门。</li>
@@ -273,18 +273,13 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        // 手持物品是否在允许的眼球列表中？
-        // 通过 BuiltInRegistries 获取物品的完整 ResourceLocation ID（如 "cataclysm:mech_eye"）
-        // 然后在 ModBlocks.FULL_ID_TO_EYE_KEY 中查找短键（如 "mech_eye"）
-        String heldItemId = net.minecraft.core.registries.BuiltInRegistries.ITEM
-                .getKey(stack.getItem()).toString();
-        String eyeKey = ModBlocks.FULL_ID_TO_EYE_KEY.get(heldItemId);
-
-        if (eyeKey == null) {
+        // 在配置 eyeItems 列表中查找手持物品对应的槽位编号 (1~12)
+        int slot = ModBlocks.getEyeSlot(stack);
+        if (slot == 0) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        EyeType eyeType = EyeType.fromKey(eyeKey);
+        EyeType eyeType = EyeType.fromKey(String.valueOf(slot));
 
         // 客户端提前返回 SUCCESS，触发交互包发送到服务端
         if (level.isClientSide) {
@@ -308,7 +303,7 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
         // 同步 BlockEntity：存储完整眼球物品 ID（如 "cataclysm:mech_eye"），用于持久化和后续查询
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof DisasterPortalFrameEntity frameEntity) {
-            frameEntity.setEyeId(ModBlocks.EYE_KEY_TO_FULL_ID.get(eyeKey));
+            frameEntity.setEyeId(String.valueOf(slot));
             frameEntity.setChanged();
         }
 
