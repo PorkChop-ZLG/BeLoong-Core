@@ -1,3 +1,6 @@
 {
-  "parent": "minecraft:block/end_portal"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "beloong:item/disaster_portal_block"
+  }
 }
