@@ -86,6 +86,18 @@ public class Config {
         public static ModConfigSpec.IntValue checkIntervalTicks;
     }
 
+    // ==================== disaster_portal ====================
+
+    public static final class DisasterPortal {
+        private DisasterPortal() {}
+
+        public static ModConfigSpec.ConfigValue<List<? extends String>> eyeItems;
+        public static ModConfigSpec.ConfigValue<String> sourceDimension;
+        public static ModConfigSpec.ConfigValue<String> disasterDimension;
+        public static ModConfigSpec.ConfigValue<String> returnStructureTemplate;
+        public static ModConfigSpec.IntValue teleportCooldownTicks;
+    }
+
     static {
         // ========== treasure_growth ==========
         SERVER_BUILDER.push("treasure_growth");
@@ -185,6 +197,46 @@ public class Config {
         SERVER_BUILDER.pop();
 
         SERVER_BUILDER.pop(); // dimension_transport
+
+        // ========== disaster_portal ==========
+        SERVER_BUILDER.push("disaster_portal");
+
+        DisasterPortal.eyeItems = SERVER_BUILDER
+                .comment("激活传送门所需的 12 种眼球物品 ID（顺序可任意）")
+                .defineList("eyeItems",
+                        List.of(
+                                "minecraft:ender_eye",
+                                "cataclysm:mech_eye",
+                                "cataclysm:flame_eye",
+                                "cataclysm:void_eye",
+                                "cataclysm:monstrous_eye",
+                                "cataclysm:abyss_eye",
+                                "cataclysm:desert_eye",
+                                "cataclysm:cursed_eye",
+                                "cataclysm:storm_eye",
+                                "fdbosses:eye_of_chesed",
+                                "fdbosses:eye_of_malkuth",
+                                "fdbosses:eye_of_geburah"
+                        ),
+                        s -> s instanceof String str && str.contains(":"));
+
+        DisasterPortal.sourceDimension = SERVER_BUILDER
+                .comment("源维度（从此维度使用传送门将传送到天灾维度）")
+                .define("sourceDimension", "minecraft:overworld");
+
+        DisasterPortal.disasterDimension = SERVER_BUILDER
+                .comment("天灾维度 ID")
+                .define("disasterDimension", "beloong:disaster");
+
+        DisasterPortal.returnStructureTemplate = SERVER_BUILDER
+                .comment("返回传送门结构模板 ID")
+                .define("returnStructureTemplate", "beloong:disaster/return_portal");
+
+        DisasterPortal.teleportCooldownTicks = SERVER_BUILDER
+                .comment("传送冷却时间（ticks），防止循环传送")
+                .defineInRange("teleportCooldownTicks", 100, 0, 72000);
+
+        SERVER_BUILDER.pop(); // disaster_portal
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
