@@ -1,0 +1,7 @@
+{
+  "parent": "block/end_portal",
+  "textures": {
+    "particle": "beloong:block/disaster_portal_frame_side",
+    "portal": "beloong:block/disaster_portal"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "beloong:block/disaster_portal_block" }
+  }
+}

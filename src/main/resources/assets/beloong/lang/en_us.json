@@ -72,5 +72,8 @@
   "dragon_ability.beloong.air_strike.dynamic_desc": "■ Base Damage: §c%s§r§7\nSpeed Factor: §c%s§r§7\nMin Speed: §c%s§r\n\n■ Damage = Base + Speed×Factor§r",
   "dragon_ability.beloong.air_strike.actionbar": "§7「§eAir Strike§7」§r§bSpeed: %s km/h§r§7 | §r§cDamage: %s",
   "dimension.beloong.disaster": "Disaster",
-  "dimension.beloong.loong_palace": "Loong Palace"
+  "dimension.beloong.loong_palace": "Loong Palace",
+  "block.beloong.disaster_portal_frame": "Disaster Portal Frame",
+  "block.beloong.disaster_portal_block": "Disaster Portal",
+  "block.beloong.disaster_portal_frame.eye_duplicate": "This eye is already placed in the portal"
 }
