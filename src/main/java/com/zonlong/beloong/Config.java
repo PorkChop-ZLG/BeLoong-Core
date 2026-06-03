@@ -107,11 +107,11 @@ public class Config {
         /** 传送后的冷却时间（ticks），防止玩家在传送门中来回弹跳 */
         public static ModConfigSpec.IntValue teleportCooldownTicks;
         /** 结构模板放置位置相对于玩家传送坐标的 X 偏移（方块坐标） */
-        public static ModConfigSpec.IntValue structureOffsetX;
+        public static ModConfigSpec.ConfigValue<Integer> structureOffsetX;
         /** 结构模板放置位置相对于地表高度的 Y 偏移（方块坐标） */
-        public static ModConfigSpec.IntValue structureOffsetY;
+        public static ModConfigSpec.ConfigValue<Integer> structureOffsetY;
         /** 结构模板放置位置相对于玩家传送坐标的 Z 偏移（方块坐标） */
-        public static ModConfigSpec.IntValue structureOffsetZ;
+        public static ModConfigSpec.ConfigValue<Integer> structureOffsetZ;
     }
 
     static {
@@ -244,26 +244,31 @@ public class Config {
                 .comment("传送冷却时间（ticks），防止循环传送")
                 .defineInRange("teleportCooldownTicks", 100, 0, 72000);
 
-        // 结构放置的 X 偏移。
-        // 正数向东偏移，负数向西偏移。
-        // 默认 0 表示结构原点对准玩家落地位置的 X 坐标。
+        // 结构放置的 X 偏移（方块坐标）。
+        // 正数向东，负数向西。
+        // 结构默认为 5×5×5 立方体，底部一层为平台。
+        // 默认值 -2 使玩家站在平台正中央（5 格宽的中心是第 3 格，即偏移 2 格）。
         DisasterPortal.structureOffsetX = SERVER_BUILDER
-                .comment("返回结构相对于玩家传送坐标的 X 偏移")
-                .defineInRange("structureOffsetX", 0, -1000, 1000);
+                .comment("返回结构相对于玩家传送坐标的 X 偏移",
+                        "结构默认为 5×5 底部平台，-2 = 玩家位于平台中央")
+                .define("structureOffsetX", -2);
 
-        // 结构放置的 Y 偏移。
-        // 正数向上偏移，负数向下偏移。
-        // 默认 1 表示结构放置在当前地形的最高方块之上 1 格处。
+        // 结构放置的 Y 偏移（方块坐标）。
+        // 正数向上，负数向下。
+        // 默认值 0 使结构底部平台刚好贴着地表，
+        // 玩家传送到地表上方 1 格处，恰好站在平台上面。
         DisasterPortal.structureOffsetY = SERVER_BUILDER
-                .comment("返回结构相对于玩家传送坐标的 Y 偏移")
-                .defineInRange("structureOffsetY", 1, -1000, 1000);
+                .comment("返回结构相对于地表高度的 Y 偏移",
+                        "默认 0 使平台底部贴着地面，玩家站在平台上")
+                .define("structureOffsetY", 0);
 
-        // 结构放置的 Z 偏移。
-        // 正数向南偏移，负数向北偏移。
-        // 默认 0 表示结构原点对准玩家落地位置的 Z 坐标。
+        // 结构放置的 Z 偏移（方块坐标）。
+        // 正数向南，负数向北。
+        // 和 X 偏移同理，-2 使玩家在平台正中央。
         DisasterPortal.structureOffsetZ = SERVER_BUILDER
-                .comment("返回结构相对于玩家传送坐标的 Z 偏移")
-                .defineInRange("structureOffsetZ", 0, -1000, 1000);
+                .comment("返回结构相对于玩家传送坐标的 Z 偏移",
+                        "结构默认为 5×5 底部平台，-2 = 玩家位于平台中央")
+                .define("structureOffsetZ", -2);
 
         SERVER_BUILDER.pop(); // disaster_portal
     }
