@@ -83,5 +83,4 @@ public static int getEyeSlot(ItemStack stack) {
 
 ## 兼容性说明
 
-- **旧存档**：EyeType 枚举值变更后，旧 BlockState 的 `eye_type` 字符串不匹配，已放置的框架会回退为 EMPTY。需要提醒用户在更新前拆除已放置的传送门框架。
-- **配置文件**：默认值保持不变（12 种眼球物品 ID），用户只需知道"第 N 个配置项对应第 N 种纹理"。
+配置文件默认值保持不变（12 种眼球物品 ID），用户只需知道"第 N 个配置项对应第 N 种纹理"。
