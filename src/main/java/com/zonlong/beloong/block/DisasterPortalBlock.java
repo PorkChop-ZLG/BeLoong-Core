@@ -7,15 +7,48 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.EndPortalBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.material.MapColor;
+import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.jetbrains.annotations.Nullable;
 
-public class DisasterPortalBlock extends EndPortalBlock {
+public class DisasterPortalBlock extends Block implements EntityBlock {
+    protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 12.0D, 16.0D);
 
     public DisasterPortalBlock() {
-        super(Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.END_PORTAL));
+        super(BlockBehaviour.Properties.of()
+                .mapColor(MapColor.COLOR_BLACK)
+                .noCollission()
+                .lightLevel(s -> 11)
+                .strength(-1.0F, 3600000.0F)
+                .noLootTable()
+                .pushReaction(PushReaction.BLOCK)
+                .sound(SoundType.GLASS));
+    }
+
+    @Override
+    protected RenderShape getRenderShape(BlockState state) {
+        return RenderShape.INVISIBLE;
+    }
+
+    @Override
+    protected VoxelShape getShape(BlockState state, net.minecraft.world.level.BlockGetter level,
+                                  BlockPos pos, net.minecraft.world.phys.shapes.CollisionContext ctx) {
+        return SHAPE;
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new DisasterPortalBlockEntity(pos, state);
     }
 
     @Override

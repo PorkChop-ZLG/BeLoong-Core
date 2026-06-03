@@ -2,6 +2,7 @@ package com.zonlong.beloong.registry;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.block.DisasterPortalBlock;
+import com.zonlong.beloong.block.DisasterPortalBlockEntity;
 import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
 import net.minecraft.world.level.block.Block;
@@ -73,6 +74,13 @@ public class ModBlocks {
                     () -> BlockEntityType.Builder.of(
                             DisasterPortalFrameEntity::new,
                             DISASTER_PORTAL_FRAME.get()
+                    ).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<DisasterPortalBlockEntity>> DISASTER_PORTAL_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("disaster_portal_block_entity",
+                    () -> BlockEntityType.Builder.of(
+                            DisasterPortalBlockEntity::new,
+                            DISASTER_PORTAL_BLOCK.get()
                     ).build(null));
 
     public static void register(IEventBus bus) {
