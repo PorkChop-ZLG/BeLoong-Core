@@ -87,15 +87,32 @@ public class Config {
     }
 
     // ==================== disaster_portal ====================
+    // 天灾传送门配置节。
+    // 传送逻辑说明：
+    //   - 在任意非天灾维度进入传送门 → 1:1 坐标传送到 beloong:disaster
+    //     + 在目标位置生成返回传送门结构模板（.nbt 文件）
+    //   - 在天灾维度进入传送门 → 传送到主世界玩家重生点（原版末地逻辑）
+    //
+    // 结构模板说明：
+    //   - 存储位置：data/beloong/structure/disaster/return_portal.nbt
+    //   - 使用原版结构方块在游戏中搭建后导出
+    //   - 结构内部应包含一个已激活的返回传送门（供玩家返回主世界）
+    //   - structureOffsetX/Y/Z 用于微调结构相对玩家落地位置的偏移
 
     public static final class DisasterPortal {
         private DisasterPortal() {}
 
+        /** 激活传送门所需的 12 种眼球物品 ID（固定列表，不可扩展） */
         public static ModConfigSpec.ConfigValue<List<? extends String>> eyeItems;
+        /** 返回传送门结构模板的资源路径（如 beloong:disaster/return_portal） */
         public static ModConfigSpec.ConfigValue<String> returnStructureTemplate;
+        /** 传送后的冷却时间（ticks），防止玩家在传送门中来回弹跳 */
         public static ModConfigSpec.IntValue teleportCooldownTicks;
+        /** 结构模板放置位置相对于玩家传送坐标的 X 偏移（方块坐标） */
         public static ModConfigSpec.IntValue structureOffsetX;
+        /** 结构模板放置位置相对于地表高度的 Y 偏移（方块坐标） */
         public static ModConfigSpec.IntValue structureOffsetY;
+        /** 结构模板放置位置相对于玩家传送坐标的 Z 偏移（方块坐标） */
         public static ModConfigSpec.IntValue structureOffsetZ;
     }
 
@@ -229,14 +246,23 @@ public class Config {
                 .comment("传送冷却时间（ticks），防止循环传送")
                 .defineInRange("teleportCooldownTicks", 100, 0, 72000);
 
+        // 结构放置的 X 偏移。
+        // 正数向东偏移，负数向西偏移。
+        // 默认 0 表示结构原点对准玩家落地位置的 X 坐标。
         DisasterPortal.structureOffsetX = SERVER_BUILDER
                 .comment("返回结构相对于玩家传送坐标的 X 偏移")
                 .defineInRange("structureOffsetX", 0, -1000, 1000);
 
+        // 结构放置的 Y 偏移。
+        // 正数向上偏移，负数向下偏移。
+        // 默认 1 表示结构放置在当前地形的最高方块之上 1 格处。
         DisasterPortal.structureOffsetY = SERVER_BUILDER
                 .comment("返回结构相对于玩家传送坐标的 Y 偏移")
                 .defineInRange("structureOffsetY", 1, -1000, 1000);
 
+        // 结构放置的 Z 偏移。
+        // 正数向南偏移，负数向北偏移。
+        // 默认 0 表示结构原点对准玩家落地位置的 Z 坐标。
         DisasterPortal.structureOffsetZ = SERVER_BUILDER
                 .comment("返回结构相对于玩家传送坐标的 Z 偏移")
                 .defineInRange("structureOffsetZ", 0, -1000, 1000);
