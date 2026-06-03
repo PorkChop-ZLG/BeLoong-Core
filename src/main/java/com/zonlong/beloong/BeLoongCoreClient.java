@@ -1,9 +1,8 @@
 package com.zonlong.beloong;
 
+import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.blockentity.TheEndPortalRenderer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -29,10 +28,9 @@ public class BeLoongCoreClient {
     }
 
     @SubscribeEvent
-    @SuppressWarnings({"rawtypes", "unchecked"})
     static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
-                (BlockEntityRendererProvider) TheEndPortalRenderer::new);
+                DisasterPortalRenderer::new);
     }
 }
