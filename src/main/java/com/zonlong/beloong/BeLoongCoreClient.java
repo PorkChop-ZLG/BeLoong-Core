@@ -13,20 +13,49 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
-// This class will not load on dedicated servers. Accessing client side code from here is safe.
+/**
+ * 化龙核心模组的客户端初始化类。
+ * <p>
+ * 仅在客户端（物理客户端或单人游戏的内置服务端客户端）加载，
+ * 专用服务器不会加载此类 —— 由 {@code dist = Dist.CLIENT} 保证。
+ * <p>
+ * <b>客户端特有注册：</b>
+ * <ul>
+ *   <li>配置文件 GUI（NeoForge 模组菜单集成）</li>
+ *   <li>{@link DisasterPortalRenderer} — 天灾传送门方块的 BlockEntity 渲染器绑定</li>
+ * </ul>
+ *
+ * @see BeLoongCore 主模组类
+ * @see DisasterPortalRenderer 传送门自定义渲染器
+ */
 @Mod(value = BeLoongCore.MODID, dist = Dist.CLIENT)
 @EventBusSubscriber(modid = BeLoongCore.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public class BeLoongCoreClient {
+
+    /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */
     public BeLoongCoreClient(ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 
+    /** FML 客户端设置事件。 */
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {
         BeLoongCore.LOGGER.info("HELLO FROM CLIENT SETUP");
         BeLoongCore.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
     }
 
+    /**
+     * 注册 BlockEntity 渲染器（BER）。
+     * <p>
+     * 将自定义的 {@link DisasterPortalRenderer} 绑定到
+     * {@link ModBlocks#DISASTER_PORTAL_BLOCK_ENTITY}，
+     * 实现天灾传送门方块的末地传送门星空旋转效果。
+     * <p>
+     * 该渲染器是原版 {@code TheEndPortalRenderer} 的重新实现，
+     * 使用相同的 {@code RenderType.endPortal()} 着色器。
+     * 由于原版渲染器内部将 BlockEntity 硬转型为 {@code TheEndPortalBlockEntity}，
+     * 无法直接复用，因此需要自定义实现。
+     */
     @SubscribeEvent
     static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(

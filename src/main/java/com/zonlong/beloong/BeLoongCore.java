@@ -18,47 +18,69 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import org.slf4j.Logger;
 
-// The value here should match an entry in the META-INF/neoforge.mods.toml file
+/**
+ * 化龙核心（BeLoong Core）模组主类。
+ * <p>
+ * 模组 ID：{@value #MODID}。
+ * 这是 NeoForge 加载该模组的入口点，构造函数按以下顺序初始化所有子系统：
+ * <ol>
+ *   <li>物品注册（{@link ModItems}）</li>
+ *   <li>方块和 BlockEntity 注册（{@link ModBlocks}）— 包含天灾传送门相关方块</li>
+ *   <li>创造模式标签页注册（{@link ModCreativeModeTabs}）</li>
+ *   <li>属性注册（{@link ModAttributes}）</li>
+ *   <li>药水效果注册（{@link ModMobEffects}）</li>
+ *   <li>事件处理器注册（{@link DimensionTransportHandler}）</li>
+ *   <li>配置文件注册（客户端/通用/服务端 三个配置）</li>
+ * </ol>
+ *
+ * @see BeLoongCoreClient 客户端初始化（渲染器注册）
+ * @see Config 配置文件
+ */
 @Mod(BeLoongCore.MODID)
 public class BeLoongCore {
-    // Define mod id in a common place for everything to reference
+
+    /** 模组 ID，全局唯一标识符。在 {@code neoforge.mods.toml} 中定义。 */
     public static final String MODID = "beloong";
-    // Directly reference a slf4j logger
+
+    /** SLF4J 日志记录器。日志输出到 {@code run/logs/latest.log}。 */
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
+    /**
+     * 模组构造函数。
+     * FML 自动注入 {@link IEventBus} 和 {@link ModContainer} 参数。
+     *
+     * @param modEventBus  Mod 事件总线，用于注册方块、物品、配置等
+     * @param modContainer 模组容器，用于注册配置文件
+     */
     public BeLoongCore(IEventBus modEventBus, ModContainer modContainer) {
-        // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
 
-        ModItems.register(modEventBus);
-        ModBlocks.register(modEventBus);
-        ModCreativeModeTabs.register(modEventBus);
+        // === 注册阶段 ===
+        ModItems.register(modEventBus);              // 物品（含天灾传送门框架和方块的 BlockItem）
+        ModBlocks.register(modEventBus);             // 方块 + BlockEntity（天灾传送门）
+        ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
 
-        // Register ourselves for server and other game events we are interested in.
-        // Note that this is necessary if and only if we want *this* class (BeLoongCore) to respond directly to events.
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
+        // === 事件处理器 ===
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new DimensionTransportHandler());
 
-        // 注册模组配置
+        // === 配置文件 ===
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        // 服务端配置包含天灾传送门配置节（disaster_portal）
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
     }
 
+    /** FML 通用设置（双端都执行）。 */
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("HELLO FROM COMMON SETUP");
     }
 
-
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
+    /** 服务端启动时触发。 */
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
         LOGGER.info("HELLO from server starting");
     }
 }
