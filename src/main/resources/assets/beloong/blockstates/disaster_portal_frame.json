@@ -1,56 +1,212 @@
 {
-  "variants": {
-    "facing=north,eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame" },
-    "facing=east,eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame", "y": 90 },
-    "facing=south,eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame", "y": 180 },
-    "facing=west,eye=false,eye_type=0": { "model": "beloong:block/disaster_portal_frame", "y": 270 },
-    "facing=north,eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_1" },
-    "facing=east,eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_1", "y": 90 },
-    "facing=south,eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_1", "y": 180 },
-    "facing=west,eye=true,eye_type=1": { "model": "beloong:block/disaster_portal_frame_1", "y": 270 },
-    "facing=north,eye=true,eye_type=2": { "model": "beloong:block/disaster_portal_frame_2" },
-    "facing=east,eye=true,eye_type=2": { "model": "beloong:block/disaster_portal_frame_2", "y": 90 },
-    "facing=south,eye=true,eye_type=2": { "model": "beloong:block/disaster_portal_frame_2", "y": 180 },
-    "facing=west,eye=true,eye_type=2": { "model": "beloong:block/disaster_portal_frame_2", "y": 270 },
-    "facing=north,eye=true,eye_type=3": { "model": "beloong:block/disaster_portal_frame_3" },
-    "facing=east,eye=true,eye_type=3": { "model": "beloong:block/disaster_portal_frame_3", "y": 90 },
-    "facing=south,eye=true,eye_type=3": { "model": "beloong:block/disaster_portal_frame_3", "y": 180 },
-    "facing=west,eye=true,eye_type=3": { "model": "beloong:block/disaster_portal_frame_3", "y": 270 },
-    "facing=north,eye=true,eye_type=4": { "model": "beloong:block/disaster_portal_frame_4" },
-    "facing=east,eye=true,eye_type=4": { "model": "beloong:block/disaster_portal_frame_4", "y": 90 },
-    "facing=south,eye=true,eye_type=4": { "model": "beloong:block/disaster_portal_frame_4", "y": 180 },
-    "facing=west,eye=true,eye_type=4": { "model": "beloong:block/disaster_portal_frame_4", "y": 270 },
-    "facing=north,eye=true,eye_type=5": { "model": "beloong:block/disaster_portal_frame_5" },
-    "facing=east,eye=true,eye_type=5": { "model": "beloong:block/disaster_portal_frame_5", "y": 90 },
-    "facing=south,eye=true,eye_type=5": { "model": "beloong:block/disaster_portal_frame_5", "y": 180 },
-    "facing=west,eye=true,eye_type=5": { "model": "beloong:block/disaster_portal_frame_5", "y": 270 },
-    "facing=north,eye=true,eye_type=6": { "model": "beloong:block/disaster_portal_frame_6" },
-    "facing=east,eye=true,eye_type=6": { "model": "beloong:block/disaster_portal_frame_6", "y": 90 },
-    "facing=south,eye=true,eye_type=6": { "model": "beloong:block/disaster_portal_frame_6", "y": 180 },
-    "facing=west,eye=true,eye_type=6": { "model": "beloong:block/disaster_portal_frame_6", "y": 270 },
-    "facing=north,eye=true,eye_type=7": { "model": "beloong:block/disaster_portal_frame_7" },
-    "facing=east,eye=true,eye_type=7": { "model": "beloong:block/disaster_portal_frame_7", "y": 90 },
-    "facing=south,eye=true,eye_type=7": { "model": "beloong:block/disaster_portal_frame_7", "y": 180 },
-    "facing=west,eye=true,eye_type=7": { "model": "beloong:block/disaster_portal_frame_7", "y": 270 },
-    "facing=north,eye=true,eye_type=8": { "model": "beloong:block/disaster_portal_frame_8" },
-    "facing=east,eye=true,eye_type=8": { "model": "beloong:block/disaster_portal_frame_8", "y": 90 },
-    "facing=south,eye=true,eye_type=8": { "model": "beloong:block/disaster_portal_frame_8", "y": 180 },
-    "facing=west,eye=true,eye_type=8": { "model": "beloong:block/disaster_portal_frame_8", "y": 270 },
-    "facing=north,eye=true,eye_type=9": { "model": "beloong:block/disaster_portal_frame_9" },
-    "facing=east,eye=true,eye_type=9": { "model": "beloong:block/disaster_portal_frame_9", "y": 90 },
-    "facing=south,eye=true,eye_type=9": { "model": "beloong:block/disaster_portal_frame_9", "y": 180 },
-    "facing=west,eye=true,eye_type=9": { "model": "beloong:block/disaster_portal_frame_9", "y": 270 },
-    "facing=north,eye=true,eye_type=10": { "model": "beloong:block/disaster_portal_frame_10" },
-    "facing=east,eye=true,eye_type=10": { "model": "beloong:block/disaster_portal_frame_10", "y": 90 },
-    "facing=south,eye=true,eye_type=10": { "model": "beloong:block/disaster_portal_frame_10", "y": 180 },
-    "facing=west,eye=true,eye_type=10": { "model": "beloong:block/disaster_portal_frame_10", "y": 270 },
-    "facing=north,eye=true,eye_type=11": { "model": "beloong:block/disaster_portal_frame_11" },
-    "facing=east,eye=true,eye_type=11": { "model": "beloong:block/disaster_portal_frame_11", "y": 90 },
-    "facing=south,eye=true,eye_type=11": { "model": "beloong:block/disaster_portal_frame_11", "y": 180 },
-    "facing=west,eye=true,eye_type=11": { "model": "beloong:block/disaster_portal_frame_11", "y": 270 },
-    "facing=north,eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_12" },
-    "facing=east,eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_12", "y": 90 },
-    "facing=south,eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_12", "y": 180 },
-    "facing=west,eye=true,eye_type=12": { "model": "beloong:block/disaster_portal_frame_12", "y": 270 }
-  }
+  "multipart": [
+    {
+      "when": { "eye": "false", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame" }
+    },
+    {
+      "when": { "eye": "false", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame", "y": 90 }
+    },
+    {
+      "when": { "eye": "false", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame", "y": 180 }
+    },
+    {
+      "when": { "eye": "false", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "1", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_1" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "1", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_1", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "1", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_1", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "1", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_1", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "2", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_2" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "2", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_2", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "2", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_2", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "2", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_2", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "3", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_3" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "3", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_3", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "3", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_3", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "3", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_3", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "4", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_4" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "4", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_4", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "4", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_4", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "4", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_4", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "5", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_5" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "5", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_5", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "5", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_5", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "5", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_5", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "6", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_6" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "6", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_6", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "6", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_6", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "6", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_6", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "7", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_7" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "7", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_7", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "7", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_7", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "7", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_7", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "8", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_8" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "8", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_8", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "8", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_8", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "8", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_8", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "9", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_9" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "9", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_9", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "9", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_9", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "9", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_9", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "10", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_10" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "10", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_10", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "10", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_10", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "10", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_10", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "11", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_11" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "11", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_11", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "11", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_11", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "11", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_11", "y": 270 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "12", "facing": "north" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_12" }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "12", "facing": "east" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_12", "y": 90 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "12", "facing": "south" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_12", "y": 180 }
+    },
+    {
+      "when": { "eye": "true", "eye_type": "12", "facing": "west" },
+      "apply": { "model": "beloong:block/disaster_portal_frame_12", "y": 270 }
+    }
+  ]
 }

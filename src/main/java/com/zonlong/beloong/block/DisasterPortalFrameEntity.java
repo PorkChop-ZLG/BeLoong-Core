@@ -54,7 +54,7 @@ public class DisasterPortalFrameEntity extends BlockEntity {
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
-        this.eyeId = tag.getString("eye_id");
+        this.eyeId = tag.contains("eye_id") ? tag.getString("eye_id") : "0";
     }
 
     /**
