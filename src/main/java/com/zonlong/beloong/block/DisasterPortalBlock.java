@@ -21,6 +21,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 public class DisasterPortalBlock extends Block implements EntityBlock {
+    private static final String DISASTER_DIM = "beloong:disaster";
     protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 12.0D, 16.0D);
 
     public DisasterPortalBlock() {
@@ -60,12 +61,10 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
         if (cooldownEnd > level.getGameTime()) return;
 
         String currentDim = level.dimension().location().toString();
-        String sourceDim = Config.DisasterPortal.sourceDimension.get();
 
-        if (currentDim.equals(sourceDim)) {
-            // 下行：主世界 → 天灾
-            ResourceLocation targetDimId = ResourceLocation.tryParse(
-                    Config.DisasterPortal.disasterDimension.get());
+        if (!currentDim.equals(DISASTER_DIM)) {
+            // 任何维度 → 天灾维度（1:1 坐标 + 结构生成）
+            ResourceLocation targetDimId = ResourceLocation.tryParse(DISASTER_DIM);
             if (targetDimId == null) return;
 
             ServerLevel targetLevel = player.server.getLevel(
@@ -88,11 +87,14 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
                     java.util.Set.of(), player.getYRot(), player.getXRot());
             player.fallDistance = 0;
 
-            // 放置返回结构：在传送目标地面之上
-            BlockPos structurePos = new BlockPos(blockX, topY + 1, blockZ);
+            // 放置返回结构，使用配置偏移
+            int offsetX = Config.DisasterPortal.structureOffsetX.get();
+            int offsetY = Config.DisasterPortal.structureOffsetY.get();
+            int offsetZ = Config.DisasterPortal.structureOffsetZ.get();
+            BlockPos structurePos = new BlockPos(blockX + offsetX, topY + offsetY, blockZ + offsetZ);
             placeReturnStructure(targetLevel, structurePos);
         } else {
-            // 上行：天灾 → 主世界（原版末地返回逻辑）
+            // 天灾维度 → 主世界（原版末地返回逻辑：出生点或世界出生点）
             BlockPos respawnPos = player.getRespawnPosition();
             net.minecraft.resources.ResourceKey<Level> respawnDim = player.getRespawnDimension();
 
