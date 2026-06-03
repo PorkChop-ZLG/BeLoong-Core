@@ -7,34 +7,15 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SoundType;
-import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.EndPortalBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
-import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
-public class DisasterPortalBlock extends Block {
-    protected static final VoxelShape SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 12.0D, 16.0D);
+public class DisasterPortalBlock extends EndPortalBlock {
 
     public DisasterPortalBlock() {
-        super(BlockBehaviour.Properties.of()
-                .mapColor(MapColor.COLOR_BLACK)
-                .noCollission()
-                .lightLevel(s -> 11)
-                .strength(-1.0F, 3600000.0F)
-                .noLootTable()
-                .pushReaction(PushReaction.BLOCK)
-                .sound(SoundType.GLASS));
-    }
-
-    @Override
-    protected net.minecraft.world.phys.shapes.VoxelShape getShape(
-            BlockState state, net.minecraft.world.level.BlockGetter level,
-            BlockPos pos, net.minecraft.world.phys.shapes.CollisionContext ctx) {
-        return SHAPE;
+        super(Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.END_PORTAL));
     }
 
     @Override
@@ -66,7 +47,7 @@ public class DisasterPortalBlock extends Block {
 
             targetLevel.getChunk(blockX >> 4, blockZ >> 4);
             int topY = targetLevel.getHeight(Heightmap.Types.MOTION_BLOCKING, blockX, blockZ);
-            double targetY = topY > targetLevel.getMinBuildHeight() ? topY + 1.0 : 64.5;
+            double targetY = topY + 1.0;
 
             if (player.isPassenger()) player.stopRiding();
 
@@ -74,11 +55,9 @@ public class DisasterPortalBlock extends Block {
                     java.util.Set.of(), player.getYRot(), player.getXRot());
             player.fallDistance = 0;
 
-            // 放置返回结构
-            BlockPos structurePos = new BlockPos(blockX, topY, blockZ);
-            if (targetLevel.getBlockState(structurePos).isAir()) {
-                placeReturnStructure(targetLevel, structurePos);
-            }
+            // 放置返回结构：在传送目标地面之上
+            BlockPos structurePos = new BlockPos(blockX, topY + 1, blockZ);
+            placeReturnStructure(targetLevel, structurePos);
         } else {
             // 上行：天灾 → 主世界（原版末地返回逻辑）
             BlockPos respawnPos = player.getRespawnPosition();
