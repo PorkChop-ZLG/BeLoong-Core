@@ -39,15 +39,15 @@ public enum EyeType implements StringRepresentable {
     // === 灾变（Cataclysm）模组眼球 ===
     /** 机械之眼 */
     MECH_EYE("mech_eye"),
-    /** 焰火之眼 */
+    /** 烈焰之眼 */
     FLAME_EYE("flame_eye"),
     /** 虚空之眼 */
     VOID_EYE("void_eye"),
-    /** 怪物之眼 */
+    /** 巨兽之眼 */
     MONSTROUS_EYE("monstrous_eye"),
     /** 深渊之眼 */
     ABYSS_EYE("abyss_eye"),
-    /** 荒漠之眼 */
+    /** 沙漠之眼 */
     DESERT_EYE("desert_eye"),
     /** 诅咒之眼 */
     CURSED_EYE("cursed_eye"),
@@ -55,11 +55,11 @@ public enum EyeType implements StringRepresentable {
     STORM_EYE("storm_eye"),
 
     // === 逆卡巴拉（FDBosses）模组眼球 ===
-    /** 慈悲之眼（Chesed 质点） */
+    /** 慈悲之眼 */
     EYE_OF_CHESED("eye_of_chesed"),
-    /** 王国之眼（Malkuth 质点） */
+    /** 王国之眼 */
     EYE_OF_MALKUTH("eye_of_malkuth"),
-    /** 严厉之眼（Geburah 质点） */
+    /** 严厉之眼 */
     EYE_OF_GEBURAH("eye_of_geburah");
 
     /** BlockState 序列化时使用的短键名称（不可包含冒号） */

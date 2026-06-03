@@ -103,7 +103,7 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
      *   <li><b>v</b> — 朝南的框架（顶边）</li>
      *   <li><b>^</b> — 朝北的框架（底边）</li>
      *   <li><b>&lt;</b> — 朝西的框架（右边）</li>
-     *   <li><b>&gt;</b> — 朝东的框架（左边）</li>
+     *   <li><b>&lt;</b> — 朝东的框架（左边）</li>
      * </ul>
      *
      * @param requireEyes true 时仅匹配已嵌入眼球（非 EMPTY）的框架，用于激活检测

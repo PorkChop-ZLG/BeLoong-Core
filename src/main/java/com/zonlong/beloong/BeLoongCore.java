@@ -56,8 +56,8 @@ public class BeLoongCore {
         modEventBus.addListener(this::commonSetup);
 
         // === 注册阶段 ===
-        ModItems.register(modEventBus);              // 物品（含天灾传送门框架和方块的 BlockItem）
-        ModBlocks.register(modEventBus);             // 方块 + BlockEntity（天灾传送门）
+        ModItems.register(modEventBus);              // 物品
+        ModBlocks.register(modEventBus);             // 方块 + BlockEntity
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
@@ -69,18 +69,17 @@ public class BeLoongCore {
         // === 配置文件 ===
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
-        // 服务端配置包含天灾传送门配置节（disaster_portal）
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
     }
 
     /** FML 通用设置（双端都执行）。 */
     private void commonSetup(FMLCommonSetupEvent event) {
-        LOGGER.info("HELLO FROM COMMON SETUP");
+        LOGGER.info("BeLoong Launch!");
     }
 
     /** 服务端启动时触发。 */
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("HELLO from server starting");
+        LOGGER.info("BeLoong Launch!");
     }
 }

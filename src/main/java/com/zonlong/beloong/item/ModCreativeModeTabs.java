@@ -14,12 +14,6 @@ import java.util.function.Supplier;
  * 化龙核心模组的创造模式物品栏标签页。
  * <p>
  * 注册了一个名为"化龙"的标签页，包含模组的所有物品：
- * <ul>
- *   <li>{@link ModItems#BELOONG_LOGO} — 模组图标</li>
- *   <li>{@link ModItems#ETERNAL_PORKCHOP} — 永恒猪排</li>
- *   <li>{@link ModItems#DISASTER_PORTAL_FRAME} — 天灾传送门框架</li>
- *   <li>{@link ModItems#DISASTER_PORTAL_BLOCK} — 天灾传送门方块</li>
- * </ul>
  * <p>
  * 玩家在创造模式下可以通过此标签页直接获取传送门方块，
  * 无需使用 {@code /give} 命令。
@@ -43,7 +37,6 @@ public class ModCreativeModeTabs {
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModItems.BELOONG_LOGO);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
-                        // 天灾传送门相关
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
                     }).build());
