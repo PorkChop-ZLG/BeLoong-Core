@@ -1,7 +1,7 @@
 {
   "parent": "block/end_portal",
   "textures": {
-    "particle": "minecraft:block/end_stone",
-    "portal": "minecraft:block/end_portal"
+    "particle": "beloong:block/disaster_portal_frame_bottom",
+    "portal": "beloong:block/disaster_portal"
   }
 }
