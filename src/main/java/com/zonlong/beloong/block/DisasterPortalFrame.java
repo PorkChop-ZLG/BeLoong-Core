@@ -7,7 +7,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -24,6 +24,7 @@ import net.minecraft.world.level.block.state.predicate.BlockStatePredicate;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.block.state.properties.NoteBlockInstrument;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.BlockHitResult;
@@ -32,28 +33,20 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Predicate;
 
 public class DisasterPortalFrame extends Block implements EntityBlock {
     public static final BooleanProperty HAS_EYE = BlockStateProperties.EYE;
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
-
-    private static final List<String> EYE_TYPE_NAMES = new ArrayList<>();
-    public static final EnumProperty<String> EYE_TYPE;
-    static {
-        EYE_TYPE_NAMES.add("empty");
-        EYE_TYPE_NAMES.addAll(ModBlocks.EYE_KEYS);
-        EYE_TYPE = EnumProperty.create("eye_type", EYE_TYPE_NAMES);
-    }
+    public static final EnumProperty<EyeType> EYE_TYPE =
+            EnumProperty.create("eye_type", EyeType.class);
 
     protected static final VoxelShape BASE_SHAPE = Block.box(0.0D, 0.0D, 0.0D, 16.0D, 13.0D, 16.0D);
     protected static final VoxelShape EYE_SHAPE = Block.box(4.0D, 13.0D, 4.0D, 12.0D, 16.0D, 12.0D);
     protected static final VoxelShape FULL_SHAPE = Shapes.or(BASE_SHAPE, EYE_SHAPE);
 
     public static BlockPattern getCompletedPortalShape(boolean requireEyes) {
-        Predicate<String> hasEyePredicate = (eyeType) -> requireEyes ? !"empty".equals(eyeType) : true;
+        Predicate<Object> hasEyePredicate = (eyeType) -> requireEyes ? eyeType != EyeType.EMPTY : true;
         return BlockPatternBuilder.start()
                 .aisle("?vvv?", ">???<", ">???<", ">???<", "?^^^?")
                 .where('?', BlockInWorld.hasState(BlockStatePredicate.ANY))
@@ -92,7 +85,7 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
         registerDefaultState(this.stateDefinition.any()
                 .setValue(FACING, Direction.NORTH)
                 .setValue(HAS_EYE, false)
-                .setValue(EYE_TYPE, "empty"));
+                .setValue(EYE_TYPE, EyeType.EMPTY));
     }
 
     @Override
@@ -115,7 +108,7 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
         return this.defaultBlockState()
                 .setValue(FACING, ctx.getHorizontalDirection().getOpposite())
                 .setValue(HAS_EYE, false)
-                .setValue(EYE_TYPE, "empty");
+                .setValue(EYE_TYPE, EyeType.EMPTY);
     }
 
     @Override
@@ -130,12 +123,12 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
     }
 
     @Override
-    protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level,
-                                          BlockPos pos, Player player,
-                                          InteractionHand hand,
-                                          BlockHitResult hitResult) {
+    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level,
+                                              BlockPos pos, Player player,
+                                              InteractionHand hand,
+                                              BlockHitResult hitResult) {
         if (state.getValue(HAS_EYE)) {
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
         String heldItemId = net.minecraft.core.registries.BuiltInRegistries.ITEM
@@ -143,23 +136,25 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
         String eyeKey = ModBlocks.FULL_ID_TO_EYE_KEY.get(heldItemId);
 
         if (eyeKey == null) {
-            return InteractionResult.PASS;
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
+        EyeType eyeType = EyeType.fromKey(eyeKey);
+
         if (level.isClientSide) {
-            return InteractionResult.SUCCESS;
+            return ItemInteractionResult.SUCCESS;
         }
 
         // 去重检查
-        if (!isEyeAbsent(level, pos, eyeKey)) {
+        if (!isEyeAbsent(level, pos, eyeType)) {
             player.displayClientMessage(
                     net.minecraft.network.chat.Component.translatable("block.beloong.disaster_portal_frame.eye_duplicate"),
                     true);
-            return InteractionResult.FAIL;
+            return ItemInteractionResult.FAIL;
         }
 
         // 设置方块状态
-        BlockState newState = state.setValue(HAS_EYE, true).setValue(EYE_TYPE, eyeKey);
+        BlockState newState = state.setValue(HAS_EYE, true).setValue(EYE_TYPE, eyeType);
         level.setBlock(pos, newState, 3);
         level.updateNeighbourForOutputSignal(pos, this);
 
@@ -186,14 +181,14 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
             level.globalLevelEvent(1038, frontTopLeft.offset(1, 0, 1), 0);
         }
 
-        return InteractionResult.CONSUME;
+        return ItemInteractionResult.CONSUME;
     }
 
     /**
      * 检查 portal 中是否已存在相同的眼球类型。
      * @return true 表示该眼球尚未被使用，可以放置
      */
-    private static boolean isEyeAbsent(Level level, BlockPos clickedPos, String eyeKeyToPlace) {
+    private static boolean isEyeAbsent(Level level, BlockPos clickedPos, EyeType eyeTypeToPlace) {
         BlockPattern.BlockPatternMatch match = getCompletedPortalShape(false).find(level, clickedPos);
         if (match == null) return true;
 
@@ -203,7 +198,7 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
                 BlockPos checkPos = frontTopLeft.offset(i, 0, j);
                 BlockState checkState = level.getBlockState(checkPos);
                 if (checkState.is(ModBlocks.DISASTER_PORTAL_FRAME.get())
-                        && eyeKeyToPlace.equals(checkState.getValue(EYE_TYPE))) {
+                        && eyeTypeToPlace == checkState.getValue(EYE_TYPE)) {
                     return false;
                 }
             }
