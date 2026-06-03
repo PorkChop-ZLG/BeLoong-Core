@@ -154,15 +154,15 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
         // 方块属性：
         // - 绿色地图色，和原版末地传送门框架一样的外观基调
         // - 玻璃音效
-        // - -1.0F / 3600000.0F 强度 = 不可破坏（基岩级别）
-        // - noLootTable = 无掉落物（仅创造模式可获得）
+        // - 黑曜石级别硬度（50F）+ 下界合金工具需求，可挖掘，掉落自身
+        // - pushReaction BLOCK 防止被活塞推动
         super(Properties.of()
                 .mapColor(MapColor.COLOR_GREEN)
                 .instrument(NoteBlockInstrument.BASEDRUM)
                 .sound(SoundType.GLASS)
                 .lightLevel(s -> 1)
-                .strength(-1.0F, 3600000.0F)
-                .noLootTable()
+                .strength(50.0F, 1200.0F)
+                .requiresCorrectToolForDrops()
                 .pushReaction(PushReaction.BLOCK));
 
         // 默认状态：朝北，无眼球
@@ -215,6 +215,30 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new DisasterPortalFrameEntity(pos, state);
+    }
+
+    /**
+     * 框架被移除（挖掘/爆炸/TNT等）时触发。
+     * <p>
+     * 扫描周围的传送门方块（5×5 范围，覆盖整个传送门结构），
+     * 将其全部移除，模拟原版下界传送门在框架破坏后破碎的行为。
+     * 传送门方块本身不掉落任何物品。
+     */
+    @Override
+    protected void onRemove(BlockState state, Level level, BlockPos pos,
+                            BlockState newState, boolean movedByPiston) {
+        if (!state.is(newState.getBlock())) {
+            // 框架被替换为不同方块 → 清除周围传送门方块
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos scanPos = pos.offset(dx, 0, dz);
+                    if (level.getBlockState(scanPos).is(ModBlocks.DISASTER_PORTAL_BLOCK.get())) {
+                        level.removeBlock(scanPos, false);
+                    }
+                }
+            }
+        }
+        super.onRemove(state, level, pos, newState, movedByPiston);
     }
 
     /**
