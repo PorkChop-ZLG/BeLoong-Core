@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.registry.ModAttributes;
+import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
 import net.neoforged.bus.api.IEventBus;
@@ -32,6 +33,7 @@ public class BeLoongCore {
         modEventBus.addListener(this::commonSetup);
 
         ModItems.register(modEventBus);
+        ModBlocks.register(modEventBus);
         ModCreativeModeTabs.register(modEventBus);
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
