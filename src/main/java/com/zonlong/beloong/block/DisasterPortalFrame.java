@@ -220,20 +220,20 @@ public class DisasterPortalFrame extends Block implements EntityBlock {
     /**
      * 框架被移除（挖掘/爆炸/TNT等）时触发。
      * <p>
-     * 扫描周围的传送门方块（5×5 范围，覆盖整个传送门结构），
-     * 将其全部移除，模拟原版下界传送门在框架破坏后破碎的行为。
+     * 扫描周围的传送门方块（7×7 水平范围，覆盖整个 5×5 传送门结构），
+     * 使用 {@link Level#destroyBlock} 移除传送门方块，
+     * 产生和原版下界传送门破碎一致的音效和粒子效果。
      * 传送门方块本身不掉落任何物品。
      */
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos,
                             BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock())) {
-            // 框架被替换为不同方块 → 清除周围传送门方块
             for (int dx = -3; dx <= 3; dx++) {
                 for (int dz = -3; dz <= 3; dz++) {
                     BlockPos scanPos = pos.offset(dx, 0, dz);
                     if (level.getBlockState(scanPos).is(ModBlocks.DISASTER_PORTAL_BLOCK.get())) {
-                        level.removeBlock(scanPos, false);
+                        level.destroyBlock(scanPos, false);
                     }
                 }
             }
