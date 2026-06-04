@@ -177,7 +177,7 @@ dependencies {
     // BWG + TerraBlender — 可选依赖
     compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
     localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
-    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:6368279"
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:7745142"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
