@@ -43,9 +43,9 @@ public class Config {
             .comment("移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆")
             .define("fixTreasureDuplication", true);
 
-    /** 修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel），默认启用 */
+    /** 修复灾变结构生成（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_CATACLYSM_STRUCTURE_HEIGHT = COMMON_BUILDER
-            .comment("修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel）")
+            .comment("修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题")
             .define("fixCataclysmStructureHeight", true);
 
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
