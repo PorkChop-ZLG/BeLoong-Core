@@ -41,15 +41,19 @@ public abstract class BurningArenaStructureMixin extends Structure {
 
     /** 解析自 JSON 的 start_height */
     @Unique
-    private HeightProvider beloong$startHeight;
+    private Optional<HeightProvider> beloong$startHeight = Optional.empty();
 
     /** 高度图投射类型 */
     @Unique
-    private Optional<Heightmap.Types> beloong$projectStartToHeightmap;
+    private Optional<Heightmap.Types> beloong$projectStartToHeightmap = Optional.empty();
 
-    /** 液体处理设置 */
+    /**
+     * 液体处理设置。
+     * <p>注意：该字段已从 JSON 解析，但尚未接入结构生成逻辑，
+     * 因为 {@code Burning_Arena_Structure.start()} 不接受液体设置参数。此为延期特性。</p>
+     */
     @Unique
-    private LiquidSettings beloong$liquidSettings;
+    private LiquidSettings beloong$liquidSettings = LiquidSettings.APPLY_WATERLOGGING;
 
     /** 目标类的原始 CODEC 字段，替换为支持 start_height 的新版本 */
     @Shadow
@@ -60,7 +64,7 @@ public abstract class BurningArenaStructureMixin extends Structure {
     static {
         CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Structure.settingsCodec(instance),
-                HeightProvider.CODEC.fieldOf("start_height").forGetter(
+                HeightProvider.CODEC.optionalFieldOf("start_height").forGetter(
                         s -> ((BurningArenaStructureMixin) (Object) s).beloong$startHeight
                 ),
                 Heightmap.Types.CODEC.optionalFieldOf("project_start_to_heightmap").forGetter(
@@ -83,7 +87,7 @@ public abstract class BurningArenaStructureMixin extends Structure {
     }
 
     @Unique
-    private void beloong$setStartHeight(HeightProvider h) {
+    private void beloong$setStartHeight(Optional<HeightProvider> h) {
         this.beloong$startHeight = h;
     }
 
@@ -110,12 +114,25 @@ public abstract class BurningArenaStructureMixin extends Structure {
         if (!Config.CataclysmFix.fixCataclysmStructureHeight.get()) {
             return;
         }
+        // 防御性检查：如果 mixin 字段未被 CODEC 路径初始化（例如通过其他构造路径创建），回退到原版行为
+        if (this.beloong$startHeight == null || this.beloong$startHeight.isEmpty()) {
+            return;
+        }
 
         ChunkPos chunkpos = context.chunkPos();
-        int y = this.beloong$startHeight.sample(
+        int y = this.beloong$startHeight.get().sample(
                 context.random(),
                 new WorldGenerationContext(context.chunkGenerator(), context.heightAccessor())
         );
+        // 如果配置了高度图投射，将 start_height 视为偏移量叠加到地形高度上
+        if (this.beloong$projectStartToHeightmap.isPresent()) {
+            Heightmap.Types heightmap = this.beloong$projectStartToHeightmap.get();
+            int projectedY = context.chunkGenerator().getFirstOccupiedHeight(
+                    chunkpos.getMiddleBlockX(), chunkpos.getMiddleBlockZ(),
+                    heightmap, context.heightAccessor(), context.randomState()
+            );
+            y = projectedY + y;
+        }
         BlockPos blockpos = new BlockPos(chunkpos.getMinBlockX(), y, chunkpos.getMinBlockZ());
 
         cir.setReturnValue(Optional.of(new GenerationStub(blockpos, piecesBuilder -> {
