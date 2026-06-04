@@ -19,7 +19,8 @@
     "TreasureBlockMixin",
     "CloneParameterListMixin",
     "BurningArenaStructureMixin",
-    "RuinedCitadelStructureMixin"
+    "RuinedCitadelStructureMixin",
+    "SunkenCityStructureMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
