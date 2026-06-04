@@ -25,6 +25,8 @@
   "beloong.configuration.fixTreasureDuplication.tooltip": "移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆\n关闭后恢复龙之生存原版下落机制",
   "beloong.configuration.fixCataclysmStructureHeight": "修复灾变结构生成",
   "beloong.configuration.fixCataclysmStructureHeight.tooltip": "修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题",
+  "beloong.configuration.fixFDBossesStructureHeight": "修复逆卡巴拉结构生成",
+  "beloong.configuration.fixFDBossesStructureHeight.tooltip": "修复逆卡巴拉结构无视数据包start_height配置，在固定Y轴生成的问题",
   "beloong.configuration.loongPalaceToOverworld": "龙宫 → 主世界",
   "beloong.configuration.loongPalaceToOverworld.button": "配置",
   "beloong.configuration.loongPalaceToOverworld.tooltip": "龙宫 → 主世界 传送配置",
