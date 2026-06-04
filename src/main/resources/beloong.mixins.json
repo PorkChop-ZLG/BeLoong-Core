@@ -20,7 +20,8 @@
     "CloneParameterListMixin",
     "BurningArenaStructureMixin",
     "RuinedCitadelStructureMixin",
-    "SunkenCityStructureMixin"
+    "SunkenCityStructureMixin",
+    "CursedPyramidStructureMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
