@@ -6,63 +6,55 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.zonlong.beloong.Config;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.heightproviders.HeightProvider;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.Structure.GenerationContext;
+import net.minecraft.world.level.levelgen.structure.Structure.GenerationStub;
 import net.minecraft.world.level.levelgen.structure.Structure.StructureSettings;
 import net.minecraft.world.level.levelgen.structure.pieces.StructurePiecesBuilder;
 import net.minecraft.world.level.levelgen.structure.templatesystem.LiquidSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.Optional;
 
 /**
  * 修复 {@link Cursed_Pyramid_Structure} 无视数据包 {@code start_height} 配置的问题。
- *
- * <p>原理：</p>
- * <ul>
- *   <li>替换原始 CODEC，增加 {@code start_height}、{@code project_start_to_heightmap}、
- *       {@code liquid_settings} 三个字段的解析和序列化</li>
- *   <li>修改 {@code generatePieces} 方法中的 {@code spawncenterPos} 变量：
- *       当配置启用时，使用 {@code startHeight.sample()} 动态计算 Y 坐标，
- *       替代 {@code posToSurface} 硬编码的地表高度计算结果</li>
- * </ul>
- *
- * <p>与 BurningArena / RuinedCitadel / SunkenCity 不同，Cursed_Pyramid 没有独立的 {@code start()} 方法，
- * 所有结构片段在 {@code generatePieces} 中内联生成，且以 {@code spawncenterPos} 为基准。
- * 因此使用 {@code @ModifyVariable} 直接替换 {@code spawncenterPos}，
- * 而非重写 {@code findGenerationPoint}。</p>
- *
- * <p>配置键：{@code Config.FIX_CATACLYSM_STRUCTURE_HEIGHT}</p>
  */
 @Mixin(value = Cursed_Pyramid_Structure.class, remap = false)
 public abstract class CursedPyramidStructureMixin extends CataclysmStructure {
 
-    /** 解析自 JSON 的 start_height */
     @Unique
     private Optional<HeightProvider> beloong$startHeight = Optional.empty();
 
-    /** 高度图投射类型 */
     @Unique
     private Optional<Heightmap.Types> beloong$projectStartToHeightmap = Optional.empty();
 
-    /**
-     * 液体处理设置。
-     * <p>注意：该字段已从 JSON 解析，但尚未接入结构生成逻辑，
-     * 因为 {@code Cursed_Pyramid_Structure.generatePieces()} 不接受液体设置参数。此为延期特性。</p>
-     */
     @Unique
     private LiquidSettings beloong$liquidSettings = LiquidSettings.APPLY_WATERLOGGING;
 
-    /** 目标类的原始 CODEC 字段，替换为支持 start_height 的新版本 */
-    @Shadow
-    @Final
-    @Mutable
+    @Shadow @Final @Mutable
     private static MapCodec<Cursed_Pyramid_Structure> CODEC;
+
+    // Shadows for private static ResourceLocations used in generatePieces
+    @Shadow private static ResourceLocation LOWER1;
+    @Shadow private static ResourceLocation LOWER2;
+    @Shadow private static ResourceLocation LOWER3;
+    @Shadow private static ResourceLocation LOWER4;
+    @Shadow private static ResourceLocation UPPER1;
+    @Shadow private static ResourceLocation UPPER2;
+    @Shadow private static ResourceLocation UPPER3;
+    @Shadow private static ResourceLocation UPPER4;
+    @Shadow private static ResourceLocation OBELISK1;
+    @Shadow private static ResourceLocation OBELISK2;
 
     static {
         CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
@@ -90,45 +82,65 @@ public abstract class CursedPyramidStructureMixin extends CataclysmStructure {
     }
 
     @Unique
-    private void beloong$setStartHeight(Optional<HeightProvider> h) {
-        this.beloong$startHeight = h;
-    }
+    private void beloong$setStartHeight(Optional<HeightProvider> h) { this.beloong$startHeight = h; }
 
     @Unique
-    private void beloong$setProjectStartToHeightmap(Optional<Heightmap.Types> p) {
-        this.beloong$projectStartToHeightmap = p;
-    }
+    private void beloong$setProjectStartToHeightmap(Optional<Heightmap.Types> p) { this.beloong$projectStartToHeightmap = p; }
 
     @Unique
-    private void beloong$setLiquidSettings(LiquidSettings l) {
-        this.beloong$liquidSettings = l;
-    }
+    private void beloong$setLiquidSettings(LiquidSettings l) { this.beloong$liquidSettings = l; }
 
     /**
-     * 当 {@code fixCataclysmStructureHeight} 启用时，
-     * 修改 {@code generatePieces} 中 {@code spawncenterPos} 的 Y 坐标，
-     * 使用数据包配置的 {@code start_height} 替代 {@code posToSurface} 的计算结果。
-     *
-     * <p>{@code spawncenterPos} 是 {@code generatePieces} 中第二个 BlockPos 本地变量
-     * （第一个是 {@code centerPos}），因此使用 {@code @At(value = "STORE", ordinal = 1)}
-     * 定位其赋值点。</p>
+     * 替换 {@code generatePieces} 方法的实现，使用数据包配置的 start_height 计算 Y。
      */
-    @ModifyVariable(method = "generatePieces", at = @At(value = "STORE", ordinal = 1))
-    private BlockPos adjustSpawnPos(BlockPos original, StructurePiecesBuilder builder, GenerationContext context) {
-        if (!Config.FIX_CATACLYSM_STRUCTURE_HEIGHT.get()) return original;
-        if (this.beloong$startHeight == null || this.beloong$startHeight.isEmpty()) return original;
+    @Inject(method = "generatePieces", at = @At("HEAD"), cancellable = true)
+    private void onGeneratePieces(StructurePiecesBuilder builder, GenerationContext context, CallbackInfo ci) {
+        if (!Config.FIX_CATACLYSM_STRUCTURE_HEIGHT.get()) return;
+        if (this.beloong$startHeight == null || this.beloong$startHeight.isEmpty()) return;
 
-        int x = original.getX();
-        int z = original.getZ();
+        ci.cancel();
+
+        StructureTemplateManager templateManager = context.structureTemplateManager();
+        Rotation rotation = Rotation.values()[context.random().nextInt(Rotation.values().length)];
+        int x = (context.chunkPos().x << 4) + 7;
+        int z = (context.chunkPos().z << 4) + 7;
+
         int y = this.beloong$startHeight.get().sample(
                 context.random(),
                 new WorldGenerationContext(context.chunkGenerator(), context.heightAccessor())
         );
         if (this.beloong$projectStartToHeightmap.isPresent()) {
             Heightmap.Types heightmap = this.beloong$projectStartToHeightmap.get();
-            int projectedY = context.chunkGenerator().getFirstOccupiedHeight(x, z, heightmap, context.heightAccessor(), context.randomState());
+            int projectedY = context.chunkGenerator().getFirstOccupiedHeight(x, z,
+                    heightmap, context.heightAccessor(), context.randomState());
             y = projectedY + y;
         }
-        return new BlockPos(x, y, z);
+        BlockPos spawncenterPos = new BlockPos(x, y, z);
+
+        BlockPos obelisk1Offset = spawncenterPos.offset(new BlockPos(20, -4, 94).rotate(rotation));
+        BlockPos obelisk2Offset = spawncenterPos.offset(new BlockPos(45, -4, 94).rotate(rotation));
+
+        BlockPos lower1Offset = spawncenterPos.offset(0, -39, 0);
+        BlockPos lower2Offset = spawncenterPos.offset(new BlockPos(0, -39, 47).rotate(rotation));
+        BlockPos lower3Offset = spawncenterPos.offset(new BlockPos(47, -39, 0).rotate(rotation));
+        BlockPos lower4Offset = spawncenterPos.offset(new BlockPos(47, -39, 47).rotate(rotation));
+
+        BlockPos upper1Offset = spawncenterPos.offset(0, 9, 0);
+        BlockPos upper2Offset = spawncenterPos.offset(new BlockPos(0, 9, 47).rotate(rotation));
+        BlockPos upper3Offset = spawncenterPos.offset(new BlockPos(47, 9, 0).rotate(rotation));
+        BlockPos upper4Offset = spawncenterPos.offset(new BlockPos(47, 9, 47).rotate(rotation));
+
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, LOWER1, lower1Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, LOWER2, lower2Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, LOWER3, lower3Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, LOWER4, lower4Offset, rotation));
+
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, UPPER1, upper1Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, UPPER2, upper2Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, UPPER3, upper3Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, UPPER4, upper4Offset, rotation));
+
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, OBELISK1, obelisk1Offset, rotation));
+        builder.addPiece(new Cursed_Pyramid_Structure.Piece(templateManager, OBELISK2, obelisk2Offset, rotation));
     }
 }
