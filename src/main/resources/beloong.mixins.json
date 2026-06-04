@@ -21,7 +21,9 @@
     "BurningArenaStructureMixin",
     "RuinedCitadelStructureMixin",
     "SunkenCityStructureMixin",
-    "CursedPyramidStructureMixin"
+    "CursedPyramidStructureMixin",
+    "GeburahArenaStructureMixin",
+    "MalkuthArenaStructureMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
