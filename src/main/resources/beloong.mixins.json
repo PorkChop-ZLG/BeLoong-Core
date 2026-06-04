@@ -5,7 +5,8 @@
   "client": [
     "ClientFlightHandlerMixin",
     "DragonItemRenderLayerMixin",
-    "OutlineBufferSourceAccessor"
+    "OutlineBufferSourceAccessor",
+    "BossClientEventsMixin"
   ],
   "mixins": [
     "DragonDestructionHandlerMixin",

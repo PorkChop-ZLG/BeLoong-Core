@@ -21,6 +21,8 @@
   "beloong.configuration.fixGlowingItemInvisibility.tooltip": "Fix: When \"Render Item in Mouth\" is enabled in Dragon Survival config,\nif the dragon is holding an item and has the Glowing effect,\nthe dragon's body becomes semi-transparent.",
   "beloong.configuration.fixStableHoverDrift": "Fix Stable Hover Drift",
   "beloong.configuration.fixStableHoverDrift.tooltip": "Fix: When \"Stable Hover\" is enabled in Dragon Survival config,\nafter a dive ends, the dragon drifts forward;\nwhen creative flight is enabled, the dragon drifts up.",
+  "beloong.configuration.disableMalkuthHellscapeSkybox": "Disable Malkuth Hellscape Skybox",
+  "beloong.configuration.disableMalkuthHellscapeSkybox.tooltip": "Disable the Malkuth arena hellscape skybox rendering layer,fixing the ice-fire filter overlay on blocks in non-Overworld high-altitude dimensions",
   "beloong.configuration.fixTreasureDuplication": "Fix Treasure Duplication",
   "beloong.configuration.fixTreasureDuplication.tooltip": "Remove treasure block gravity to prevent sand duping machines from duplicating treasure. Disable to restore vanilla Dragon Survival falling mechanics",
   "beloong.configuration.fixCataclysmStructureHeight": "Fix Cataclysm Structure Generation",
