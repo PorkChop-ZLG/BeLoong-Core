@@ -27,9 +27,9 @@ public class Config {
             .comment("修复稳定悬浮漂移")
             .define("fixStableHoverDrift", true);
 
-    /** 禁用王国场地的冰火天空盒渲染（默认禁用） */
+    /** 禁用王国场地的冰火天空特效（默认禁用） */
     public static final ModConfigSpec.BooleanValue DISABLE_MALKUTH_HELLSCAPE_SKYBOX = CLIENT_BUILDER
-            .comment("禁用王国场地的冰火天空特效，解决渲染异常的问题")
+            .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
