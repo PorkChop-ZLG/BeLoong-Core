@@ -43,6 +43,11 @@ public class Config {
             .comment("移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆")
             .define("fixTreasureDuplication", true);
 
+    /** 修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel），默认启用 */
+    public static final ModConfigSpec.BooleanValue FIX_CATACLYSM_STRUCTURE_HEIGHT = COMMON_BUILDER
+            .comment("修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel）")
+            .define("fixCataclysmStructureHeight", true);
+
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
 
     // ==================== 服务端配置 ====================
@@ -112,15 +117,6 @@ public class Config {
         public static ModConfigSpec.ConfigValue<Integer> structureOffsetY;
         /** 结构模板放置位置相对于玩家传送坐标的 Z 偏移（方块坐标） */
         public static ModConfigSpec.ConfigValue<Integer> structureOffsetZ;
-    }
-
-    // ==================== cataclysm_fix ====================
-
-    public static final class CataclysmFix {
-        private CataclysmFix() {}
-
-        /** 修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel） */
-        public static ModConfigSpec.BooleanValue fixCataclysmStructureHeight;
     }
 
     static {
@@ -280,15 +276,6 @@ public class Config {
                 .define("structureOffsetZ", -2);
 
         SERVER_BUILDER.pop(); // disaster_portal
-
-        // ========== cataclysm_fix ==========
-        SERVER_BUILDER.push("cataclysm_fix");
-
-        CataclysmFix.fixCataclysmStructureHeight = SERVER_BUILDER
-                .comment("修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel）")
-                .define("fixCataclysmStructureHeight", true);
-
-        SERVER_BUILDER.pop(); // cataclysm_fix
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();

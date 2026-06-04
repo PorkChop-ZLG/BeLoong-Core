@@ -34,7 +34,7 @@ import java.util.Optional;
  *       替代硬编码的 {@code y=21}</li>
  * </ul>
  *
- * <p>配置键：{@code Config.CataclysmFix.fixCataclysmStructureHeight}</p>
+ * <p>配置键：{@code Config.FIX_CATACLYSM_STRUCTURE_HEIGHT}</p>
  */
 @Mixin(value = Burning_Arena_Structure.class, remap = false)
 public abstract class BurningArenaStructureMixin extends Structure {
@@ -111,7 +111,7 @@ public abstract class BurningArenaStructureMixin extends Structure {
             GenerationContext context,
             CallbackInfoReturnable<Optional<GenerationStub>> cir
     ) {
-        if (!Config.CataclysmFix.fixCataclysmStructureHeight.get()) {
+        if (!Config.FIX_CATACLYSM_STRUCTURE_HEIGHT.get()) {
             return;
         }
         // 防御性检查：如果 mixin 字段未被 CODEC 路径初始化（例如通过其他构造路径创建），回退到原版行为
