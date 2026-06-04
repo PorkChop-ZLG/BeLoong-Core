@@ -17,7 +17,8 @@
     "BonemealEffectMixin",
     "MixinDragonGrowthHandler",
     "TreasureBlockMixin",
-    "CloneParameterListMixin"
+    "CloneParameterListMixin",
+    "BurningArenaStructureMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
