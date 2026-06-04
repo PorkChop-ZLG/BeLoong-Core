@@ -114,6 +114,15 @@ public class Config {
         public static ModConfigSpec.ConfigValue<Integer> structureOffsetZ;
     }
 
+    // ==================== cataclysm_fix ====================
+
+    public static final class CataclysmFix {
+        private CataclysmFix() {}
+
+        /** 修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel） */
+        public static ModConfigSpec.BooleanValue fixCataclysmStructureHeight;
+    }
+
     static {
         // ========== treasure_growth ==========
         SERVER_BUILDER.push("treasure_growth");
@@ -271,6 +280,15 @@ public class Config {
                 .define("structureOffsetZ", -2);
 
         SERVER_BUILDER.pop(); // disaster_portal
+
+        // ========== cataclysm_fix ==========
+        SERVER_BUILDER.push("cataclysm_fix");
+
+        CataclysmFix.fixCataclysmStructureHeight = SERVER_BUILDER
+                .comment("修复灾变结构无视数据包 start_height 配置的问题（Burning Arena、Ruined Citadel）")
+                .define("fixCataclysmStructureHeight", true);
+
+        SERVER_BUILDER.pop(); // cataclysm_fix
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
