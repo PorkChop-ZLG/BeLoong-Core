@@ -18,7 +18,8 @@
     "MixinDragonGrowthHandler",
     "TreasureBlockMixin",
     "CloneParameterListMixin",
-    "BurningArenaStructureMixin"
+    "BurningArenaStructureMixin",
+    "RuinedCitadelStructureMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
