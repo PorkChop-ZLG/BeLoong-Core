@@ -5,12 +5,10 @@ import com.zonlong.beloong.Config;
 import com.zonlong.beloong.util.ClaimProtectionHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.block.BucketPickup;
-import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
+import net.minecraft.world.level.material.Fluids;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -21,9 +19,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * 为超越维度的网络磁铁流体收集添加 FTB Chunks 领地保护兼容。
  *
- * <p>拦截 {@code fluidCollect()} 中的 {@code Level.setBlock()} 和
- * {@code BucketPickup.pickupBlock()} 调用，在执行前检查 FTB Chunks 领地归属，
- * 已被认领的区块内禁止移除流体。</p>
+ * <p>在 {@code fluidCollect()} 的 {@code Level.getFluidState()} 调用处注入，
+ * 认领区块内返回空流体状态，使后续的存储插入和方块修改全部跳过。</p>
  *
  * <p>若 FTB Chunks 未安装或配置开关关闭，此 Mixin 不做任何拦截。</p>
  */
@@ -49,38 +46,20 @@ public abstract class NetMagnetItemMixin {
     }
 
     /**
-     * 重定向 {@code Level.setBlock()} —— 认领区块内跳过方块修改。
+     * 重定向 {@code Level.getFluidState()} —— 认领区块内返回空流体，阻断整个收集流程。
      */
     @Redirect(
             method = "fluidCollect",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/level/Level;setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;I)Z"
+                    target = "Lnet/minecraft/world/level/Level;getFluidState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/material/FluidState;"
             ),
             remap = false
     )
-    private boolean beloong$redirectSetBlock(Level level, BlockPos pos, BlockState state, int flags) {
+    private FluidState beloong$redirectGetFluidState(Level level, BlockPos pos) {
         if (ClaimProtectionHelper.isClaimed(this.beloong$capturedHolder, pos, Config.BD_FTBCHUNKS_COMPAT::get)) {
-            return false;
+            return Fluids.EMPTY.defaultFluidState();
         }
-        return level.setBlock(pos, state, flags);
-    }
-
-    /**
-     * 重定向 {@code BucketPickup.pickupBlock()} —— 认领区块内跳过流体拾取。
-     */
-    @Redirect(
-            method = "fluidCollect",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/world/level/block/BucketPickup;pickupBlock(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Lnet/minecraft/world/item/ItemStack;"
-            ),
-            remap = false
-    )
-    private ItemStack beloong$redirectPickupBlock(BucketPickup pickup, Player player, LevelAccessor levelAccessor, BlockPos pos, BlockState state) {
-        if (ClaimProtectionHelper.isClaimed(this.beloong$capturedHolder, pos, Config.BD_FTBCHUNKS_COMPAT::get)) {
-            return ItemStack.EMPTY;
-        }
-        return pickup.pickupBlock(player, levelAccessor, pos, state);
+        return level.getFluidState(pos);
     }
 }
