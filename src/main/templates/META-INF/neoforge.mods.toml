@@ -134,6 +134,12 @@ config = "beloong.mixins.json"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
+    modId="beyonddimensions"
+    type="optional"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
     modId="curios"
     type="optional"
     ordering="AFTER"

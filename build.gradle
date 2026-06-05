@@ -174,6 +174,10 @@ dependencies {
     localRuntime "curse.maven:lionfish-api-1001614:8094835"
     localRuntime "curse.maven:fdlib-1271749:7844741"
 
+    // Beyond Dimensions — 可选依赖
+    compileOnly "curse.maven:beyonddimensions-1222890:7866935"
+    localRuntime "curse.maven:beyonddimensions-1222890:7866935"
+
     // BWG + TerraBlender — 可选依赖
     compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
     localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
