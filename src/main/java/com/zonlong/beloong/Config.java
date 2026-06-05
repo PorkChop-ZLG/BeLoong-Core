@@ -43,6 +43,11 @@ public class Config {
             .comment("龙之生存FTB区块兼容")
             .define("ds_ftbchunks_compat", true);
 
+    /** 超越维度FTB区块兼容（默认启用） */
+    public static final ModConfigSpec.BooleanValue BD_FTBCHUNKS_COMPAT = COMMON_BUILDER
+            .comment("超越维度FTB区块兼容")
+            .define("bd_ftbchunks_compat", true);
+
     /** 修复财宝堆复制（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_TREASURE_DUPLICATION = COMMON_BUILDER
             .comment("移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆")

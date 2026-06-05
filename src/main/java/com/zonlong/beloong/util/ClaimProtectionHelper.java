@@ -4,6 +4,7 @@ import com.zonlong.beloong.Config;
 import dev.ftb.mods.ftbchunks.api.FTBChunksAPI;
 import dev.ftb.mods.ftbchunks.api.Protection;
 import dev.ftb.mods.ftbchunks.api.ProtectionPolicy;
+import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -22,15 +23,22 @@ public class ClaimProtectionHelper {
             (player, pos, hand, chunk, entity) -> ProtectionPolicy.CHECK;
 
     public static boolean isClaimed(Entity actor, BlockPos pos) {
+        return isClaimed(actor, pos, Config.DS_FTBCHUNKS_COMPAT::get);
+    }
+
+    public static boolean isClaimed(Entity actor, BlockPos pos, BooleanSupplier configGate) {
+        if (!configGate.getAsBoolean()) {
+            return false;
+        }
+        return isClaimedInternal(actor, pos);
+    }
+
+    private static boolean isClaimedInternal(Entity actor, BlockPos pos) {
         if (actor == null || pos == null) {
             return false;
         }
 
         if (!ModList.get().isLoaded("ftbchunks")) {
-            return false;
-        }
-
-        if (!Config.DS_FTBCHUNKS_COMPAT.get()) {
             return false;
         }
 

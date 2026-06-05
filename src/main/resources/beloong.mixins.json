@@ -24,7 +24,8 @@
     "SunkenCityStructureMixin",
     "CursedPyramidStructureMixin",
     "GeburahArenaStructureMixin",
-    "MalkuthArenaStructureMixin"
+    "MalkuthArenaStructureMixin",
+    "NetMagnetItemMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
