@@ -5,6 +5,7 @@ import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvide
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.registry.ModAttributes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.player.LocalPlayer;
@@ -55,7 +56,8 @@ public abstract class ClientFlightHandlerMixin {
             if (!flightData.isWingsSpread() || !flightData.hasFlight()) return;
 
             Input movement = player.input;
-            boolean shouldHover = ServerFlightHandler.stableHover
+            double flightLevel = ModAttributes.getFlightLevel(player);
+            boolean shouldHover = flightLevel >= 1.0
                     && !movement.jumping
                     && !movement.shiftKeyDown
                     && !ServerFlightHandler.isSpin(player)
