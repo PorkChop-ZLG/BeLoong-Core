@@ -27,8 +27,7 @@
     "MalkuthArenaStructureMixin",
     "NetMagnetItemMixin",
     "DSAttributesMixin",
-    "ToggleFlightMixin",
-    "ServerFlightHandlerMixin"
+    "ToggleFlightMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

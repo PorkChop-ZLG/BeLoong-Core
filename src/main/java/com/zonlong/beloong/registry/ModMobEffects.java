@@ -26,7 +26,8 @@ public class ModMobEffects {
     );
 
     /**
-     * 禁空效果：每级降低 1 点飞行等级。
+     * 禁空效果：每级降低 1 点飞行等级。<br>
+     * 若有效飞行等级 &lt; 0 则调用 {@link FlightBanEffect#onEffectStarted} 强制收翅。
      * 原版自动按 (amplifier + 1) 缩放，amount = -1 时：
      *   I 级 (amp 0) → -1 × 1 = -1
      *   II 级 (amp 1) → -1 × 2 = -2
@@ -36,7 +37,7 @@ public class ModMobEffects {
             () -> {
                 Attribute flightLevelAttr = BuiltInRegistries.ATTRIBUTE.get(
                         ResourceLocation.fromNamespaceAndPath("dragonsurvival", "flight_level"));
-                MobEffect effect = new MobEffect(MobEffectCategory.HARMFUL, 0x8B0000) { };
+                FlightBanEffect effect = new FlightBanEffect();
                 if (flightLevelAttr != null) {
                     effect.addAttributeModifier(
                             BuiltInRegistries.ATTRIBUTE.wrapAsHolder(flightLevelAttr),

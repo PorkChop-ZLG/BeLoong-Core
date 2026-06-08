@@ -102,5 +102,6 @@
   "dimension.beloong.loong_palace": "龙宫",
   "block.beloong.disaster_portal_frame": "天灾传送门框架",
   "block.beloong.disaster_portal_block": "天灾传送门",
-  "block.beloong.disaster_portal_frame.eye_duplicate": "该眼球已放置在传送门中"
+  "block.beloong.disaster_portal_frame.eye_duplicate": "该眼球已放置在传送门中",
+  "message.beloong.flight_banned": "§c飞行等级不足，无法飞行！"
 }
