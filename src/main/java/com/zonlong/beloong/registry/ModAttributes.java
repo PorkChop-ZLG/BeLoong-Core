@@ -34,12 +34,12 @@ public class ModAttributes {
      * @return 有效飞行等级，若属性未注册则返回 0
      */
     public static double getFlightLevel(Player player) {
-        Holder<Attribute> attr = BuiltInRegistries.ATTRIBUTE.get(
+        Attribute attr = BuiltInRegistries.ATTRIBUTE.get(
                 ResourceLocation.fromNamespaceAndPath("dragonsurvival", "flight_level"));
         if (attr == null) {
             return 0.0;
         }
-        return player.getAttributeValue(attr);
+        return player.getAttributeValue(BuiltInRegistries.ATTRIBUTE.wrapAsHolder(attr));
     }
 
     @SubscribeEvent

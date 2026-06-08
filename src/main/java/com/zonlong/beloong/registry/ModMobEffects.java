@@ -34,12 +34,12 @@ public class ModMobEffects {
     public static final Holder<MobEffect> FLIGHT_BAN = REGISTRY.register(
             "flight_ban",
             () -> {
-                Holder<Attribute> flightLevel = BuiltInRegistries.ATTRIBUTE.get(
+                Attribute flightLevelAttr = BuiltInRegistries.ATTRIBUTE.get(
                         ResourceLocation.fromNamespaceAndPath("dragonsurvival", "flight_level"));
                 MobEffect effect = new MobEffect(MobEffectCategory.HARMFUL, 0x8B0000) { };
-                if (flightLevel != null) {
+                if (flightLevelAttr != null) {
                     effect.addAttributeModifier(
-                            flightLevel,
+                            BuiltInRegistries.ATTRIBUTE.wrapAsHolder(flightLevelAttr),
                             ResourceLocation.fromNamespaceAndPath("beloong", "flight_ban"),
                             -1.0,
                             AttributeModifier.Operation.ADD_VALUE
