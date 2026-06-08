@@ -1,0 +1,264 @@
+# 飞行等级系统 技术文档
+
+> 版本 0.3.7 | 化龙核心 (BeLoong Core) | Minecraft NeoForge 1.21.1
+
+---
+
+## 一、概述
+
+飞行等级系统将 Dragon Survival 原有的二元飞行模型（有/无飞行，开/关稳定悬停）替换为**梯级飞行能力体系**，并新增"禁空"状态效果，在龙翼技能成长与敌对 debuff 之间形成博弈玩法。
+
+### 核心数值模型
+
+```
+FLIGHT_LEVEL (dragonsurvival:flight_level)
+  ├─ < 0 → 禁止飞行（展翅被拒绝）
+  ├─ = 0 → 可飞行，不可稳定悬停（elytra 式漂移）
+  └─ ≥ 1 → 可飞行 + 稳定悬停（creative 式静止）
+```
+
+属性范围 `[-1024, 1024]`，默认 `0`，同步到客户端。
+
+---
+
+## 二、架构全景
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │           Dragon Survival 模组            │
+                    │                                         │
+  DSAttributes      │  ServerFlightHandler   ClientFlightHandler│
+  ┌─────────────┐   │  ┌──────────────────┐  ┌──────────────┐ │
+  │ flight_level │◄──┤  │ isFlying()       │  │ flightControl│ │
+  │  (attribute) │   │  │ isGliding()      │  │  (per tick)  │ │
+  └──────┬───────┘   │  │ isSpin()         │  │              │ │
+         │           │  └──────────────────┘  └──────┬───────┘ │
+         │           │                               │         │
+         │ Mixin注入 │    ToggleFlight                │ Mixin注入│
+         │           │  ┌──────────────────┐          │         │
+         │           │  │ handleServer()   │◄─────────┤         │
+         │           │  └──────────────────┘          │         │
+         └───────────┤                               ├─────────┤
+                    └─────────────────────────────────────────┘
+                                    ▲
+                                    │ 跨模组 Mixin
+                                    │
+                    ┌───────────────┴─────────────────────────┐
+                    │          化龙核心 (BeLoong Core)          │
+                    │                                         │
+                    │  DSAttributesMixin    — 注册 attribute   │
+                    │  ToggleFlightMixin    — 飞行门控         │
+                    │  ClientFlightHandlerMixin — 悬停控制     │
+                    │  FlightBanEffect      — 禁空效果         │
+                    │  ModAttributes        — 辅助方法         │
+                    │  ModMobEffects        — 效果注册         │
+                    │                                         │
+                    └─────────────────────────────────────────┘
+```
+
+---
+
+## 三、文件清单
+
+| # | 文件 | 操作 | 说明 |
+|---|------|------|------|
+| 1 | `mixin/DSAttributesMixin.java` | 新建 | 在 DS 侧注册 `dragonsurvival:flight_level` attribute |
+| 2 | `mixin/ToggleFlightMixin.java` | 新建 | FLIGHT_LEVEL < 0 时阻止展翅 |
+| 3 | `mixin/ClientFlightHandlerMixin.java` | 修改 | 用 FLIGHT_LEVEL 控制悬停/非悬停切换 |
+| 4 | `registry/ModAttributes.java` | 修改 | 添加 `getFlightLevel()` 辅助方法（带缓存） |
+| 5 | `registry/ModMobEffects.java` | 修改 | 注册 `flight_ban` 禁空效果 |
+| 6 | `registry/FlightBanEffect.java` | 新建 | 禁空效果类——强制收翅逻辑 |
+| 7 | `resources/beloong.mixins.json` | 修改 | 注册新 Mixin |
+| 8 | `resources/assets/beloong/lang/zh_cn.json` | 修改 | 中文翻译 |
+| 9 | `resources/assets/beloong/lang/en_us.json` | 修改 | 英文翻译 |
+
+---
+
+## 四、组件详解
+
+### 4.1 DSAttributesMixin — 属性注册
+
+**注入点：**
+- `<clinit>` RETURN — 在 DS 所有属性初始化后，调用 `DSAttributes.REGISTRY.register("flight_level", ...)`
+- `attachAttributes` TAIL — 将 flight_level attach 到 `EntityType.PLAYER`
+
+**加载顺序保证：** BeLoong-Core 依赖 Dragon Survival → DS 先构造 → `DSAttributes` 类加载 → `<clinit>` 中 Mixin 注入注册 → `REGISTRY.register(modEventBus)` 将属性提交到全局注册表 → BeLoong 构造时可安全查找。
+
+**属性规格：**
+
+| 属性 | 值 |
+|------|-----|
+| 注册 ID | `dragonsurvival:flight_level` |
+| 描述键 | `attribute.dragonsurvival.flight_level` |
+| 默认值 | `0.0` |
+| 范围 | `[-1024, 1024]` |
+| 同步 | `setSyncable(true)` |
+
+---
+
+### 4.2 ModAttributes.getFlightLevel() — 属性查找
+
+```java
+public static double getFlightLevel(Player player)
+```
+
+首次调用时通过 `BuiltInRegistries.ATTRIBUTE.get()` 查找并**缓存 Holder**，后续调用直接复用缓存，消除每 tick HashMap 查找。若属性未注册则返回 `0.0` 安全降级。
+
+调用方：
+- `ClientFlightHandlerMixin.fixStableHoverDrift()` — 每客户端 tick
+- `ToggleFlightMixin.flightLevelGate()` — 按 G 键时
+- `FlightBanEffect.onEffectStarted()` — 效果触发时
+
+---
+
+### 4.3 ToggleFlightMixin — 飞行门控
+
+**注入点：** `ToggleFlight.handleServer()` HEAD，`cancellable = true`
+
+**工作流：**
+1. 玩家按下 G 键 → `handleServer` 在网络线程被调用
+2. HEAD 注入检查 `!flight.areWingsSpread`（正在展翅？）且 `FLIGHT_LEVEL < 0`
+3. 若满足 → 返回 `Result.NONE`，取消原始逻辑，翅膀保持收起
+4. 若不满足 → 继续执行原始展翅/收翅逻辑
+
+**线程安全：** HEAD 注入运行在网络线程，读取 `boolean` 字段的竞态风险极低。最坏情况为读到过期值，下一 tick 的 `ServerFlightHandler.isFlying()` 会二次校验。
+
+**为何不用 enqueueWork 内注入：** `enqueueWork` 中的 lambda 编译为独立合成方法，标准 Mixin 注解无法可靠定位。HEAD 早期门控是经过验证的折中方案。
+
+---
+
+### 4.4 ClientFlightHandlerMixin — 悬停控制
+
+**注入点：** `ClientFlightHandler.flightControl()` TAIL
+
+**核心逻辑：**
+
+```
+DS 用户配置 stableHover
+        │
+        ├─ false → DS 自身使用双倍重力，Mixin 不干预 = 始终无稳定悬停
+        │
+        └─ true → DS 使用柔和重力，Mixin 根据 FLIGHT_LEVEL 分化：
+                  │
+                  ├─ FLIGHT_LEVEL ≥ 1 + 无输入 → 清零加速度 = 稳定悬停
+                  │
+                  └─ FLIGHT_LEVEL < 1 + 无输入 → 追加 -gravity
+                         总计 -(gravity×2) = 模拟 DS 原版非悬停下坠
+```
+
+**双重功能：**
+1. **原有漂移修复：** 创造模式下浮空漂移、悬停中缓慢上漂 → 清零加速度
+2. **飞行等级悬停切换：** 通过追加/不追加额外重力，在 DS 稳定悬停物理基础上实现梯度控制
+
+---
+
+### 4.5 FlightBanEffect — 禁空效果
+
+**注册 ID：** `beloong:flight_ban`  
+**类别：** `HARMFUL`，颜色 `#8B0000`（深红）  
+**修饰符：** `ADD_VALUE`，amount `-1.0`，目标属性 `dragonsurvival:flight_level`
+
+**原版自动缩放：**
+
+| 等级 | amplifier | 计算 | FLIGHT_LEVEL 变化 |
+|------|-----------|------|-------------------|
+| 禁空 I | 0 | -1.0 × 1 | -1 |
+| 禁空 II | 1 | -1.0 × 2 | -2 |
+| 禁空 III | 2 | -1.0 × 3 | -3 |
+
+**`onEffectStarted` 处理：**
+1. 仅在服务端执行，仅对龙玩家生效
+2. vanilla 先应用 attribute modifier → 此方法被调用时 `getFlightLevel()` 已包含新 modifier
+3. 若 `areWingsSpread && flightLevel < 0` → 强制收翅 + 发送 `SyncWingsSpread` + 系统消息
+
+**效果到期处理：** 不自动恢复飞行，玩家需手动按 G 键重新展翅
+
+---
+
+### 4.6 wings.json 数据包 — 翅膀技能升级
+
+**技能 3 级设计：**
+
+```
+Level 0 → 受 usage_blocked 禁用（flight_was_granted = false）
+Level 1 → 成长度 ≥ 20 → hasFlight=true, FLIGHT_LEVEL 无加成
+Level 2 → 成长度 ≥ 40（成年龙）→ hasFlight=true, FLIGHT_LEVEL +1
+```
+
+**升级类型：** `dragonsurvival:dragon_growth`
+
+**实体效果：**
+- `FlightEffect`（`level_requirement: 1`）— 授予 `hasFlight`
+- `ModifierEffect`（`lookup [0, 0, 1]`）— level 0→0, level 1→0, level 2→+1
+
+---
+
+## 五、博弈场景
+
+```
+成年龙（翅膀 Lv2）→ FLIGHT_LEVEL = 1（完整飞行 + 稳定悬停）
+  │
+  ├─ 被施加 禁空 I → FLIGHT_LEVEL = 0（仍可飞，但不能悬停）
+  │
+  └─ 被施加 禁空 II → FLIGHT_LEVEL = -1（无法飞行！翅被强制收起）
+                        │
+                        └─ 禁空效果到期 → FLIGHT_LEVEL 恢复为 1 → 需手动按 G 展翅
+
+青年龙（翅膀 Lv1）→ FLIGHT_LEVEL = 0（可飞，不能悬停）
+  │
+  └─ 被施加 禁空 I → FLIGHT_LEVEL = -1（无法飞行！）
+
+未获得飞行许可 → usage_blocked 阻止 → 无论 FLIGHT_LEVEL 多少均不可飞
+```
+
+---
+
+## 六、公开 API
+
+### 属性
+
+| 资源位置 | 说明 |
+|----------|------|
+| `dragonsurvival:flight_level` | 飞行等级，范围 [-1024, 1024]，默认 0 |
+
+### 药水效果
+
+| 效果 ID | 说明 |
+|---------|------|
+| `beloong:flight_ban` | 禁空，每级 -1 FLIGHT_LEVEL |
+
+### Java 方法
+
+```java
+// 获取玩家有效飞行等级（含所有 attribute modifier）
+double level = ModAttributes.getFlightLevel(player);
+```
+
+### 翻译键
+
+| 键 | 中文 | 英文 |
+|----|------|------|
+| `attribute.dragonsurvival.flight_level` | 飞行等级 | Flight Level |
+| `effect.beloong.flight_ban` | 禁空 | Flight Ban |
+| `message.beloong.flight_banned` | §c飞行等级不足，无法飞行！ | §cFlight level too low to fly! |
+
+---
+
+## 七、已知设计决策
+
+| 决策 | 说明 |
+|------|------|
+| stableHover 不强制覆盖 | 用户可在 DS 配置中自行控制。false=始终无悬停，true=飞行等级控制悬停 |
+| 禁空到期不自动恢复飞行 | 玩家需手动按 G；防止效果结束时的意外悬停 |
+| 禁空仅 FLIGHT_LEVEL<0 时强制收翅 | 保留梯度——低等级禁空只削弱悬停不阻止飞行 |
+| ToggleFlightMixin 用 HEAD 注入 | lambda 内注入不可行；HEAD 在 enqueueWork 前执行，线程安全风险可接受 |
+| FLIGHT_LEVEL 注册在 dragonturvival 命名空间 | 使 DS 数据包可引用该属性（用于翅膀技能的 ModifierEffect） |
+
+---
+
+## 八、扩展点
+
+1. **更多提升飞行等级的来源：** 可通过 attribute modifier（装备、药水、附魔等）为 FLIGHT_LEVEL 追加正值
+2. **更多降低飞行等级的来源：** 可注册类似 `flight_ban` 的新效果，用不同 modifier 值
+3. **翅膀技能附加效果：** 在 wings.json 的 `entity_effect` 数组中追加更多效果（粒子、音效等）
+4. **森林龙/海洋龙翅膀：** 参照 `cave_wings.json` 创建对应数据包文件
