@@ -1,0 +1,86 @@
+{
+  "actions": [
+    {
+      "target_selection": {
+        "applied_effects": {
+          "entity_effect": [
+            {
+              "effect_type": "dragonsurvival:flight",
+              "icon": "dragonsurvival:textures/ability_effect/cave_dragon_wings.png",
+              "level_requirement": 1
+            },
+            {
+              "effect_type": "dragonsurvival:modifier",
+              "modifiers": [
+                {
+                  "base": {
+                    "duration_type": "dragonsurvival:infinite"
+                  },
+                  "modifiers": [
+                    {
+                      "attribute": "dragonsurvival:flight_level",
+                      "amount": {
+                        "type": "minecraft:lookup",
+                        "values": [0, 0, 1],
+                        "fallback": {
+                          "type": "minecraft:linear",
+                          "base": 0,
+                          "per_level_above_first": 1
+                        }
+                      },
+                      "operation": "add_value"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "targeting_mode": "allies_and_self"
+        },
+        "target_type": "dragonsurvival:self"
+      }
+    }
+  ],
+  "activation": {
+    "activation_type": "dragonsurvival:passive"
+  },
+  "icon": {
+    "texture_entries": [
+      {
+        "from_level": 0,
+        "texture_resource": "dragonsurvival:abilities/cave/cave_wings_0"
+      },
+      {
+        "from_level": 1,
+        "texture_resource": "dragonsurvival:abilities/cave/cave_wings_1"
+      },
+      {
+        "from_level": 2,
+        "texture_resource": "dragonsurvival:abilities/cave/cave_wings_1"
+      }
+    ]
+  },
+  "upgrade": {
+    "upgrade_type": "dragonsurvival:dragon_growth",
+    "maximum_level": 2,
+    "growth_requirement": {
+      "type": "minecraft:lookup",
+      "values": [0, 0, 60],
+      "fallback": {
+        "type": "minecraft:linear",
+        "base": 60,
+        "per_level_above_first": 20
+      }
+    }
+  },
+  "usage_blocked": {
+    "condition": "minecraft:entity_properties",
+    "entity": "this",
+    "predicate": {
+      "type_specific": {
+        "type": "dragonsurvival:dragon_predicate",
+        "flight_was_granted": false
+      }
+    }
+  }
+}
