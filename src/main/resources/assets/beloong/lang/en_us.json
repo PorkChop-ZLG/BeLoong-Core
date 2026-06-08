@@ -80,6 +80,7 @@
   "beloong.configuration.structureOffsetZ.tooltip": "Z offset of the structure placement relative to the player's teleport coordinates",
   "biome.beloong.loong_palace": "Loong Palace",
   "effect.beloong.growth_acceleration": "Growth Acceleration",
+  "effect.beloong.flight_ban": "Flight Ban",
   "item.beloong.beloong_logo": "BeLoong Logo",
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
   "itemGroup.beloong_tab": "BeLoong",

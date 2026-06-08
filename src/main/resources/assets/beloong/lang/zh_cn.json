@@ -81,6 +81,7 @@
   "beloong.configuration.structureOffsetZ.tooltip": "结构模板放置位置相对于玩家传送坐标的Z轴偏移",
   "biome.beloong.loong_palace": "龙宫",
   "effect.beloong.growth_acceleration": "成长加速",
+  "effect.beloong.flight_ban": "禁空",
   "item.beloong.beloong_logo": "化龙图标",
   "item.beloong.eternal_porkchop": "永恒猪排",
   "itemGroup.beloong_tab": "化龙",
