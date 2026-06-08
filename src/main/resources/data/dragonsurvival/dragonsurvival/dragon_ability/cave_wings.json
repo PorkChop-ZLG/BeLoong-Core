@@ -14,18 +14,19 @@
               "modifiers": [
                 {
                   "base": {
-                    "duration_type": "dragonsurvival:infinite"
+                    "id": "dragonsurvival:cave_wings_flight_level",
+                    "is_hidden": true
                   },
                   "modifiers": [
                     {
                       "attribute": "dragonsurvival:flight_level",
                       "amount": {
                         "type": "minecraft:lookup",
-                        "values": [0, 0, 1],
+                        "values": [0.0, 0.0, 1.0],
                         "fallback": {
                           "type": "minecraft:linear",
-                          "base": 0,
-                          "per_level_above_first": 1
+                          "base": 0.0,
+                          "per_level_above_first": 1.0
                         }
                       },
                       "operation": "add_value"
@@ -65,11 +66,11 @@
     "maximum_level": 2,
     "growth_requirement": {
       "type": "minecraft:lookup",
-      "values": [0, 0, 60],
+      "values": [0.0, 0.0, 60.0],
       "fallback": {
         "type": "minecraft:linear",
-        "base": 60,
-        "per_level_above_first": 20
+        "base": 60.0,
+        "per_level_above_first": 20.0
       }
     }
   },
