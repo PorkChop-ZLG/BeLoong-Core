@@ -22,7 +22,10 @@
                       "attribute": "dragonsurvival:flight_level",
                       "amount": {
                         "type": "minecraft:lookup",
-                        "values": [0.0, 0.0, 1.0],
+                        "values": [
+                          0.0,
+                          1.0
+                        ],
                         "fallback": {
                           "type": "minecraft:linear",
                           "base": 0.0,
@@ -62,17 +65,20 @@
     ]
   },
   "upgrade": {
-    "upgrade_type": "dragonsurvival:dragon_growth",
-    "maximum_level": 2,
     "growth_requirement": {
       "type": "minecraft:lookup",
-      "values": [0.0, 0.0, 60.0],
       "fallback": {
         "type": "minecraft:linear",
-        "base": 60.0,
+        "base": 20.0,
         "per_level_above_first": 20.0
-      }
-    }
+      },
+      "values": [
+        0.0,
+        20.0
+      ]
+    },
+    "maximum_level": 2,
+    "upgrade_type": "dragonsurvival:dragon_growth"
   },
   "usage_blocked": {
     "condition": "minecraft:entity_properties",
@@ -80,7 +86,7 @@
     "predicate": {
       "type_specific": {
         "type": "dragonsurvival:dragon_predicate",
-        "flight_was_granted": false
+        "marked_by_ender_dragon": true
       }
     }
   }
