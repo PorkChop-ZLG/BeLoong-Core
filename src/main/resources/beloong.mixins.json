@@ -25,7 +25,9 @@
     "CursedPyramidStructureMixin",
     "GeburahArenaStructureMixin",
     "MalkuthArenaStructureMixin",
-    "NetMagnetItemMixin"
+    "NetMagnetItemMixin",
+    "DSAttributesMixin",
+    "ToggleFlightMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
