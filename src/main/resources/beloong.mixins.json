@@ -4,7 +4,6 @@
   "refmap": "beloong.refmap.json",
   "client": [
     "ClientFlightHandlerMixin",
-    "ClientFlightHandlerStableHoverMixin",
     "DragonItemRenderLayerMixin",
     "OutlineBufferSourceAccessor",
     "BossClientEventsMixin"
@@ -28,7 +27,8 @@
     "MalkuthArenaStructureMixin",
     "NetMagnetItemMixin",
     "DSAttributesMixin",
-    "ToggleFlightMixin"
+    "ToggleFlightMixin",
+    "ServerFlightHandlerMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

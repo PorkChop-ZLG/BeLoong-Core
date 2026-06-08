@@ -9,6 +9,7 @@ import com.zonlong.beloong.registry.ModAttributes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -75,6 +76,13 @@ public abstract class ClientFlightHandlerMixin {
                     Vec3 delta = player.getDeltaMovement();
                     player.setDeltaMovement(delta.x, 0, delta.z);
                 }
+            }
+
+            // 飞行等级不足 1 的龙追加额外重力，模拟非稳定悬停的 elytra 式下落
+            if (!shouldHover && flightLevel < 1.0 && noMoveInput) {
+                double gravity = player.getAttributeValue(Attributes.GRAVITY);
+                Vec3 delta = player.getDeltaMovement();
+                player.setDeltaMovement(delta.x, delta.y - gravity, delta.z);
             }
         });
     }
