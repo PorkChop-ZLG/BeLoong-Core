@@ -1,5 +1,6 @@
 {
   "attribute.beloong.growth_speed": "Growth Speed",
+  "attribute.dragonsurvival.flight_level": "Flight Level",
   "beloong.configuration.amplifierStep": "Value Per Level",
   "beloong.configuration.amplifierStep.tooltip": "Treasure value required per effect level",
   "beloong.configuration.checkIntervalTicks": "Check Interval",

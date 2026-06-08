@@ -24,7 +24,7 @@ public abstract class DSAttributesMixin {
         beloong$FLIGHT_LEVEL = DSAttributes.REGISTRY.register(
                 "flight_level",
                 () -> new RangedAttribute(
-                        "dragonsurvival.flight_level",
+                        "attribute.dragonsurvival.flight_level",
                         0.0,
                         -1024.0,
                         1024.0

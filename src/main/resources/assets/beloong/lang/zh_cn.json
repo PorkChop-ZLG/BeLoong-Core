@@ -1,5 +1,6 @@
 {
   "attribute.beloong.growth_speed": "成长速度",
+  "attribute.dragonsurvival.flight_level": "飞行等级",
   "beloong.configuration.amplifierStep": "每级所需财宝价值",
   "beloong.configuration.amplifierStep.tooltip": "每级效果等级所需的财宝价值",
   "beloong.configuration.checkIntervalTicks": "检查间隔",
