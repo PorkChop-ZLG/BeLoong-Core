@@ -113,7 +113,6 @@ public class StructureEffectHandler {
         this.configMap = Collections.unmodifiableMap(newConfigMap);
         this.watchedEffects = Collections.unmodifiableSet(newWatchedEffects);
         this.lastConfigHash = currentHash;
-        this.playerLastChunk.clear();
         LOGGER.debug("[BeLoong] structure_effects config loaded: {} structures, {} watched effects",
                 configMap.size(), watchedEffects.size());
     }
@@ -157,12 +156,13 @@ public class StructureEffectHandler {
                     bb.maxX() + 1, bb.maxY() + 1, bb.maxZ() + 1);
             if (player.getBoundingBox().intersects(aabb)) {
                 for (EffectEntry ee : effects) {
-                    player.addEffect(new MobEffectInstance(
+                    if (player.addEffect(new MobEffectInstance(
                             ee.effect(), ee.durationTicks(), ee.amplifier(),
                             false, true, true
-                    ));
+                    ))) {
+                        applied = true;
+                    }
                 }
-                applied = true;
             }
         }
         return applied;
