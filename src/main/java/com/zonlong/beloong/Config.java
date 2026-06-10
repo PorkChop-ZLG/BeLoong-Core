@@ -307,8 +307,8 @@ public class Config {
         SERVER_BUILDER.push("structure_effects");
 
         StructureEffects.watchedEffects = SERVER_BUILDER
-                .comment("需要监听过期事件的药水效果ID列表",
-                        "当这些效果在玩家身上过期时，触发结构重检")
+                .comment("需要监听过期/移除事件的药水效果ID列表",
+                        "当这些效果过期、被牛奶清除或被指令移除时，触发结构重检")
                 .defineList("watchedEffects",
                         List.of("beloong:flight_ban"),
                         s -> s instanceof String str && str.contains(":"));
@@ -316,9 +316,9 @@ public class Config {
         StructureEffects.entries = SERVER_BUILDER
                 .comment("结构效果配置，格式: \"结构ID|效果ID|等级|持续时间(tick)\"",
                         "等级: 0 = I级, 1 = II级, 以此类推",
-                        "示例: \"cataclysm:burning_arena|beloong:flight_ban|5|1200\"")
+                        "示例: \"cataclysm:burning_arena|beloong:flight_ban|5|100\"")
                 .defineList("entries",
-                        List.of("cataclysm:burning_arena|beloong:flight_ban|5|1200"),
+                        List.of("cataclysm:burning_arena|beloong:flight_ban|5|100"),
                         s -> s instanceof String str && str.contains("|"));
 
         SERVER_BUILDER.pop(); // structure_effects

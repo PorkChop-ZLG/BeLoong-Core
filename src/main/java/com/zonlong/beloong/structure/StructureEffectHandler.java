@@ -183,13 +183,27 @@ public class StructureEffectHandler {
 
     /**
      * 当被监视的药水效果过期时，触发结构重检。
-     * 用于处理效果过期后需要立即重新施加的场景。
      */
     @SubscribeEvent
     public void onEffectExpired(MobEffectEvent.Expired event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        var effectKey = event.getEffectInstance().getEffect().getKey();
+        ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
+        if (effectKey != null && watchedEffects.contains(effectKey)) {
+            checkAndApply(player);
+        }
+    }
+
+    /**
+     * 当被监视的药水效果被移除时触发结构重检。
+     * 覆盖自然过期（Expired 事件之后的实际移除）、喝牛奶、
+     * /effect clear 等所有移除场景。重入保护由 {@link #refreshing} 标记提供。
+     */
+    @SubscribeEvent
+    public void onEffectRemoved(MobEffectEvent.Remove event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
             checkAndApply(player);
         }
