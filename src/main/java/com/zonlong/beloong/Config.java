@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import java.util.List;
+import java.util.Set;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -132,6 +133,17 @@ public class Config {
         public static ModConfigSpec.ConfigValue<Integer> structureOffsetY;
         /** 结构模板放置位置相对于玩家传送坐标的 Z 偏移（方块坐标） */
         public static ModConfigSpec.ConfigValue<Integer> structureOffsetZ;
+    }
+
+    // ==================== structure_effects ====================
+
+    public static final class ServerStructureEffects {
+        private ServerStructureEffects() {}
+
+        /** 需要监听过期事件的药水效果 ID 列表 */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> watchedEffects;
+        /** 结构效果配置条目，格式: "结构ID|效果ID|等级|持续时间" */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> entries;
     }
 
     static {
@@ -291,6 +303,26 @@ public class Config {
                 .define("structureOffsetZ", -2);
 
         SERVER_BUILDER.pop(); // disaster_portal
+
+        // ========== structure_effects ==========
+        SERVER_BUILDER.push("structure_effects");
+
+        ServerStructureEffects.watchedEffects = SERVER_BUILDER
+                .comment("需要监听过期事件的药水效果ID列表",
+                        "当这些效果在玩家身上过期时，触发结构重检")
+                .defineList("watchedEffects",
+                        List.of("beloong:flight_ban"),
+                        s -> s instanceof String str && str.contains(":"));
+
+        ServerStructureEffects.entries = SERVER_BUILDER
+                .comment("结构效果配置，格式: \"结构ID|效果ID|等级|持续时间(tick)\"",
+                        "等级: 0 = I级, 1 = II级, 以此类推",
+                        "示例: \"cataclysm:burning_arena|beloong:flight_ban|5|1200\"")
+                .defineList("entries",
+                        List.of("cataclysm:burning_arena|beloong:flight_ban|5|1200"),
+                        s -> s instanceof String str && str.contains("|"));
+
+        SERVER_BUILDER.pop(); // structure_effects
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
