@@ -6,6 +6,7 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModMobEffects;
+import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -65,6 +66,7 @@ public class BeLoongCore {
         // === 事件处理器 ===
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new DimensionTransportHandler());
+        NeoForge.EVENT_BUS.register(new StructureEffectHandler());
 
         // === 配置文件 ===
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
