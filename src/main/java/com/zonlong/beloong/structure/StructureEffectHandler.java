@@ -121,23 +121,26 @@ public class StructureEffectHandler {
     /**
      * 检测玩家当前位置是否处于配置的结构区域内，
      * 若是则施加对应的药水效果。
+     *
+     * @return true 如果实际应用了至少一个效果
      */
-    private void checkAndApply(ServerPlayer player) {
-        if (refreshing) return;
+    private boolean checkAndApply(ServerPlayer player) {
+        if (refreshing) return false;
         refreshing = true;
         try {
-            doCheckAndApply(player);
+            return doCheckAndApply(player);
         } finally {
             refreshing = false;
         }
     }
 
-    private void doCheckAndApply(ServerPlayer player) {
+    private boolean doCheckAndApply(ServerPlayer player) {
         refreshConfig();
-        if (configMap.isEmpty()) return;
+        if (configMap.isEmpty()) return false;
 
         var structureManager = player.serverLevel().structureManager();
         var structureRegistry = player.serverLevel().registryAccess().registryOrThrow(Registries.STRUCTURE);
+        boolean applied = false;
 
         for (var configEntry : configMap.entrySet()) {
             ResourceKey<Structure> structureKey = configEntry.getKey();
@@ -159,8 +162,10 @@ public class StructureEffectHandler {
                             false, true, true
                     ));
                 }
+                applied = true;
             }
         }
+        return applied;
     }
 
     /**
@@ -184,9 +189,9 @@ public class StructureEffectHandler {
     /**
      * 当被监视的药水效果过期时，触发结构重检。
      * <p>
-     * 关键：如果 checkAndApply 成功刷新了效果（玩家仍在结构内），
+     * 若 checkAndApply 成功刷新了效果（玩家仍在结构内），
      * 必须取消 Expired 事件以防止 NeoForge 的 iterator.remove()
-     * 将刚刷新的效果也一并移除。详见设计文档。
+     * 将刚刷新的效果也一并移除。
      */
     @SubscribeEvent
     public void onEffectExpired(MobEffectEvent.Expired event) {
@@ -195,10 +200,7 @@ public class StructureEffectHandler {
         Holder<MobEffect> effectHolder = event.getEffectInstance().getEffect();
         ResourceKey<MobEffect> effectKey = effectHolder.getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
-            checkAndApply(player);
-            // 如果 checkAndApply 成功重加了效果（玩家仍在结构内），
-            // 取消 Expired 事件，防止 NeoForge 随后执行 iterator.remove()
-            if (player.hasEffect(effectHolder)) {
+            if (checkAndApply(player)) {
                 event.setCanceled(true);
             }
         }
@@ -206,16 +208,20 @@ public class StructureEffectHandler {
 
     /**
      * 当被监视的药水效果被移除时触发结构重检。
-     * 覆盖自然过期（Expired 事件之后的实际移除）、喝牛奶、
-     * /effect clear 等所有移除场景。重入保护由 {@link #refreshing} 标记提供。
+     * 覆盖喝牛奶、/effect clear 等所有移除场景。
+     * 与 {@link #onEffectExpired} 同理，若成功重加效果则取消事件
+     * 以防止 removeAllEffects 的 iterator.remove() 误删。
+     * 重入保护由 {@link #refreshing} 标记提供。
      */
     @SubscribeEvent
     public void onEffectRemoved(MobEffectEvent.Remove event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
+        ResourceKey<MobEffect> effectKey = event.getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
-            checkAndApply(player);
+            if (checkAndApply(player)) {
+                event.setCanceled(true);
+            }
         }
     }
 
