@@ -1,7 +1,6 @@
 package com.zonlong.beloong;
 
 import java.util.List;
-import java.util.Set;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -137,8 +136,8 @@ public class Config {
 
     // ==================== structure_effects ====================
 
-    public static final class ServerStructureEffects {
-        private ServerStructureEffects() {}
+    public static final class StructureEffects {
+        private StructureEffects() {}
 
         /** 需要监听过期事件的药水效果 ID 列表 */
         public static ModConfigSpec.ConfigValue<List<? extends String>> watchedEffects;
@@ -307,14 +306,14 @@ public class Config {
         // ========== structure_effects ==========
         SERVER_BUILDER.push("structure_effects");
 
-        ServerStructureEffects.watchedEffects = SERVER_BUILDER
+        StructureEffects.watchedEffects = SERVER_BUILDER
                 .comment("需要监听过期事件的药水效果ID列表",
                         "当这些效果在玩家身上过期时，触发结构重检")
                 .defineList("watchedEffects",
                         List.of("beloong:flight_ban"),
                         s -> s instanceof String str && str.contains(":"));
 
-        ServerStructureEffects.entries = SERVER_BUILDER
+        StructureEffects.entries = SERVER_BUILDER
                 .comment("结构效果配置，格式: \"结构ID|效果ID|等级|持续时间(tick)\"",
                         "等级: 0 = I级, 1 = II级, 以此类推",
                         "示例: \"cataclysm:burning_arena|beloong:flight_ban|5|1200\"")
