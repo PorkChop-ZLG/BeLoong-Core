@@ -183,14 +183,24 @@ public class StructureEffectHandler {
 
     /**
      * 当被监视的药水效果过期时，触发结构重检。
+     * <p>
+     * 关键：如果 checkAndApply 成功刷新了效果（玩家仍在结构内），
+     * 必须取消 Expired 事件以防止 NeoForge 的 iterator.remove()
+     * 将刚刷新的效果也一并移除。详见设计文档。
      */
     @SubscribeEvent
     public void onEffectExpired(MobEffectEvent.Expired event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
+        Holder<MobEffect> effectHolder = event.getEffectInstance().getEffect();
+        ResourceKey<MobEffect> effectKey = effectHolder.getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
             checkAndApply(player);
+            // 如果 checkAndApply 成功重加了效果（玩家仍在结构内），
+            // 取消 Expired 事件，防止 NeoForge 随后执行 iterator.remove()
+            if (player.hasEffect(effectHolder)) {
+                event.setCanceled(true);
+            }
         }
     }
 

@@ -58,8 +58,10 @@ record EffectEntry(Holder<MobEffect> effect, int amplifier, int durationTicks) {
 | Trigger | Action |
 |---|---|
 | `ServerTickEvent.END` | 遍历在线玩家，chunk pos 变化 → `checkAndApply` |
-| `MobEffectEvent.Expired` | effect 在 watchedEffects 中 → `checkAndApply` |
+| `MobEffectEvent.Expired` | effect 在 watchedEffects 中 → `checkAndApply` → 若效果被刷新（玩家仍在结构内）则 **取消事件** 阻止 NeoForge 的 `iterator.remove()` |
 | `MobEffectEvent.Remove` | effect 在 watchedEffects 中 → `checkAndApply`（覆盖牛奶、/effect clear 等） |
+
+**Expired 事件取消的关键性：** NeoForge 在 `LivingEntity` tick 中先触发 `Expired` 再执行 `iterator.remove()`。若 `checkAndApply` 通过 `addEffect` 原地刷新了 duration 但不取消事件，后续 `iterator.remove()` 会将刚刷新的效果也删除。取消事件可阻止此行为。
 | `PlayerEvent.PlayerChangedDimensionEvent` | clear cache + `checkAndApply` |
 | `PlayerEvent.PlayerLoggedInEvent` / `PlayerEvent.PlayerRespawnEvent` | clear cache + `checkAndApply` |
 
