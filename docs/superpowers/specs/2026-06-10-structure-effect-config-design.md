@@ -18,13 +18,13 @@ Server 配置，在 `Config.java` 中新增 `structure_effects` 节：
 ```toml
 [structure_effects]
     # 需要监听过期事件的药水效果ID列表
-    # 当这些效果在玩家身上过期时，触发结构重检
+    # 当这些效果过期、被牛奶清除或被指令移除时，触发结构重检
     watched_effects = ["beloong:flight_ban"]
 
     # "结构ID|效果ID|等级|持续时间(tick)"
     # 等级: 0 = 一级, amplifier = 0，以此类推
     entries = [
-        "cataclysm:burning_arena|beloong:flight_ban|5|1200"
+        "cataclysm:burning_arena|beloong:flight_ban|5|100"
     ]
 ```
 
@@ -53,14 +53,17 @@ record EffectEntry(Holder<MobEffect> effect, int amplifier, int durationTicks) {
 - `Set<ResourceKey<MobEffect>> watchedEffects` — 监听的效果集合
 - `Map<UUID, ChunkPos> playerLastChunk` — 区块变化去重缓存
 
-### Triggers (4 entry points)
+### Triggers (5 entry points)
 
 | Trigger | Action |
 |---|---|
 | `ServerTickEvent.END` | 遍历在线玩家，chunk pos 变化 → `checkAndApply` |
 | `MobEffectEvent.Expired` | effect 在 watchedEffects 中 → `checkAndApply` |
+| `MobEffectEvent.Remove` | effect 在 watchedEffects 中 → `checkAndApply`（覆盖牛奶、/effect clear 等） |
 | `PlayerEvent.PlayerChangedDimensionEvent` | clear cache + `checkAndApply` |
 | `PlayerEvent.PlayerLoggedInEvent` / `PlayerEvent.PlayerRespawnEvent` | clear cache + `checkAndApply` |
+
+重入保护：`checkAndApply` 使用 `refreshing` 标记防止 `Remove` 事件在 `addEffect` 更新效果时导致递归调用。
 
 ### Core Method: `checkAndApply(ServerPlayer player)`
 
