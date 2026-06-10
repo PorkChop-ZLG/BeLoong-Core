@@ -32,7 +32,7 @@ import java.util.*;
  */
 public class StructureEffectHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StructureEffectHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(StructureEffectHandler.class);
 
     private Map<ResourceKey<Structure>, List<EffectEntry>> configMap = Map.of();
     private Set<ResourceKey<MobEffect>> watchedEffects = Set.of();
@@ -54,15 +54,27 @@ public class StructureEffectHandler {
         for (String entry : Config.StructureEffects.entries.get()) {
             String[] parts = entry.split("\\|");
             if (parts.length != 4) {
-                LOG.warn("[BeLoong] structure_effects: invalid entry format (expected 4 fields): {}", entry);
+                LOGGER.warn("[BeLoong] structure_effects: invalid entry format (expected 4 fields): {}", entry);
                 continue;
             }
 
-            ResourceKey<Structure> structureKey = ResourceKey.create(
-                    Registries.STRUCTURE, ResourceLocation.parse(parts[0].trim()));
+            ResourceLocation structureLoc;
+            try {
+                structureLoc = ResourceLocation.parse(parts[0].trim());
+            } catch (Exception e) {
+                LOGGER.warn("[BeLoong] structure_effects: invalid structure ID: {}", parts[0].trim());
+                continue;
+            }
+            ResourceKey<Structure> structureKey = ResourceKey.create(Registries.STRUCTURE, structureLoc);
 
-            ResourceKey<MobEffect> effectKey = ResourceKey.create(
-                    Registries.MOB_EFFECT, ResourceLocation.parse(parts[1].trim()));
+            ResourceLocation effectLoc;
+            try {
+                effectLoc = ResourceLocation.parse(parts[1].trim());
+            } catch (Exception e) {
+                LOGGER.warn("[BeLoong] structure_effects: invalid effect ID: {}", parts[1].trim());
+                continue;
+            }
+            ResourceKey<MobEffect> effectKey = ResourceKey.create(Registries.MOB_EFFECT, effectLoc);
 
             int amplifier;
             int duration;
@@ -70,14 +82,14 @@ public class StructureEffectHandler {
                 amplifier = Integer.parseInt(parts[2].trim());
                 duration = Integer.parseInt(parts[3].trim());
             } catch (NumberFormatException e) {
-                LOG.warn("[BeLoong] structure_effects: failed to parse amplifier/duration: {}", entry);
+                LOGGER.warn("[BeLoong] structure_effects: failed to parse amplifier/duration: {}", entry);
                 continue;
             }
 
             Holder<MobEffect> effectHolder = BuiltInRegistries.MOB_EFFECT
                     .getHolder(effectKey).orElse(null);
             if (effectHolder == null) {
-                LOG.warn("[BeLoong] structure_effects: mob effect not found: {}", parts[1].trim());
+                LOGGER.warn("[BeLoong] structure_effects: mob effect not found: {}", parts[1].trim());
                 continue;
             }
 
@@ -86,8 +98,14 @@ public class StructureEffectHandler {
         }
 
         for (String effectId : Config.StructureEffects.watchedEffects.get()) {
-            ResourceKey<MobEffect> key = ResourceKey.create(
-                    Registries.MOB_EFFECT, ResourceLocation.parse(effectId.trim()));
+            ResourceLocation watchedEffectLoc;
+            try {
+                watchedEffectLoc = ResourceLocation.parse(effectId.trim());
+            } catch (Exception e) {
+                LOGGER.warn("[BeLoong] structure_effects: invalid watched effect ID: {}", effectId.trim());
+                continue;
+            }
+            ResourceKey<MobEffect> key = ResourceKey.create(Registries.MOB_EFFECT, watchedEffectLoc);
             newWatchedEffects.add(key);
         }
 
@@ -95,7 +113,7 @@ public class StructureEffectHandler {
         this.watchedEffects = Collections.unmodifiableSet(newWatchedEffects);
         this.lastConfigHash = currentHash;
         this.playerLastChunk.clear();
-        LOG.debug("[BeLoong] structure_effects config loaded: {} structures, {} watched effects",
+        LOGGER.debug("[BeLoong] structure_effects config loaded: {} structures, {} watched effects",
                 configMap.size(), watchedEffects.size());
     }
 
@@ -158,7 +176,6 @@ public class StructureEffectHandler {
      */
     @SubscribeEvent
     public void onEffectExpired(MobEffectEvent.Expired event) {
-        refreshConfig();
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         var effectKey = event.getEffectInstance().getEffect().getKey();
