@@ -38,6 +38,7 @@ public class StructureEffectHandler {
     private Set<ResourceKey<MobEffect>> watchedEffects = Set.of();
     private int lastConfigHash;
     private final Map<UUID, ChunkPos> playerLastChunk = new HashMap<>();
+    private boolean refreshing;
 
     /**
      * 刷新并解析配置文件中的结构效果配置。
@@ -122,6 +123,16 @@ public class StructureEffectHandler {
      * 若是则施加对应的药水效果。
      */
     private void checkAndApply(ServerPlayer player) {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+            doCheckAndApply(player);
+        } finally {
+            refreshing = false;
+        }
+    }
+
+    private void doCheckAndApply(ServerPlayer player) {
         refreshConfig();
         if (configMap.isEmpty()) return;
 
