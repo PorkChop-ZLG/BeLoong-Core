@@ -12,8 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 移除财宝堆重力行为，使其像雪片一样：失去底部支撑时直接破碎且无掉落物，
- * 从根源杜绝刷沙机复制。
+ * 移除财宝堆重力行为，阻止其下落，从根源杜绝刷沙机复制。
  */
 @Mixin(TreasureBlock.class)
 public abstract class TreasureBlockMixin {
@@ -23,12 +22,6 @@ public abstract class TreasureBlockMixin {
             RandomSource random, CallbackInfo ci) {
         if (!Config.FIX_TREASURE_DUPLICATION.get()) {
             return;
-        }
-
-        BlockState below = level.getBlockState(pos.below());
-
-        if (below.isAir() && pos.getY() >= level.getMinBuildHeight()) {
-            level.destroyBlock(pos, false); // 无掉落物
         }
         ci.cancel();
     }
