@@ -28,7 +28,8 @@
     "NetMagnetItemMixin",
     "DSAttributesMixin",
     "ToggleFlightMixin",
-    "DragonStateHandlerMixin"
+    "DragonStateHandlerMixin",
+    "ProjectileDamageEffectMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
