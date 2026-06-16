@@ -18,6 +18,13 @@ void main() {
         0.0, 0.0, 0.0, 1.0
     );
 
-    vec4 base = textureProj(Sampler0, texProj0 * move);
+    mat4 zoom = mat4(
+        4.0, 0.0, 0.0, 0.0,
+        0.0, 4.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+
+    vec4 base = textureProj(Sampler0, texProj0 * move * zoom);
     fragColor = vec4(base.rgb * base.a, 1.0);
 }
