@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import java.io.IOException;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -44,7 +45,7 @@ public class BeLoongCoreClient {
 
     /** 天灾传送门自定义着色器实例。由 RegisterShadersEvent 回调设置。 */
     @Nullable
-    static ShaderInstance disasterPortalShader;
+    public static ShaderInstance disasterPortalShader;
 
     /** FML 客户端设置事件。 */
     @SubscribeEvent
@@ -74,10 +75,14 @@ public class BeLoongCoreClient {
 
     @SubscribeEvent
     static void onRegisterShaders(RegisterShadersEvent event) {
-        event.registerShader(
-                new ShaderInstance(event.getResourceProvider(),
-                        ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "rendertype_disaster_portal"),
-                        DefaultVertexFormat.POSITION),
-                shader -> disasterPortalShader = shader);
+        try {
+            event.registerShader(
+                    new ShaderInstance(event.getResourceProvider(),
+                            ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "rendertype_disaster_portal"),
+                            DefaultVertexFormat.POSITION),
+                    shader -> disasterPortalShader = shader);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load disaster portal shader", e);
+        }
     }
 }
