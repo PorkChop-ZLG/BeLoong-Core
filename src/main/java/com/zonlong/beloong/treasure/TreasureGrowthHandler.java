@@ -8,7 +8,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.level.block.Block;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -25,9 +24,6 @@ import java.util.UUID;
 public class TreasureGrowthHandler {
     /** 按玩家 UUID 记录 tick 计数，用于间隔检查 */
     private static final Map<UUID, Integer> TICK_COUNTERS = new HashMap<>();
-    /** 缓存的权重表，配置变更时重建 */
-    private static Map<Block, Double> weightMap = Map.of();
-    private static long weightMapConfigHash;
 
     /** 使用 LOW 优先级，确保在 DragonSurvival 的 tick handler 更新 isResting 状态之后执行 */
     @SubscribeEvent(priority = EventPriority.LOW)
@@ -51,13 +47,7 @@ public class TreasureGrowthHandler {
         TreasureRestData restData = TreasureRestData.getData(player);
 
         if (restData.isResting()) {
-            long currentHash = Config.TreasureGrowth.treasureWeights.get().hashCode();
-            if (weightMap.isEmpty() || weightMapConfigHash != currentHash) {
-                weightMap = TreasureValueCalculator.buildWeightMap();
-                weightMapConfigHash = currentHash;
-            }
-
-            double treasureValue = TreasureValueCalculator.calculateWeightedValue(player, weightMap);
+            double treasureValue = TreasureValueCalculator.calculateWeightedValue(player);
             // 财宝值封顶
             int maxValue = Config.TreasureGrowth.maxTreasureValue.get();
             treasureValue = Math.min(treasureValue, maxValue);
