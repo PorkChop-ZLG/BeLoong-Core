@@ -54,7 +54,7 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
 
     /** 自定义贴图路径：Sampler0 和 Sampler1 共用同一贴图。 */
     private static final ResourceLocation DISASTER_PORTAL_LOCATION =
-            ResourceLocation.fromNamespaceAndPath("beloong", "textures/entity/disaster_portal.png");
+            ResourceLocation.fromNamespaceAndPath("beloong", "textures/disaster_portal.png");
 
     /**
      * 自定义 {@link RenderType}，照搬原版 {@code RenderType.endPortal()} 的结构：
