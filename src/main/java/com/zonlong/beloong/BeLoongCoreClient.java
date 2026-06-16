@@ -59,10 +59,11 @@ public class BeLoongCoreClient {
      * <p>
      * 将自定义的 {@link DisasterPortalRenderer} 绑定到
      * {@link ModBlocks#DISASTER_PORTAL_BLOCK_ENTITY}，
-     * 实现天灾传送门方块的末地传送门星空旋转效果。
+     * 实现天灾传送门方块的旋转隧道视觉效果。
      * <p>
      * 该渲染器是原版 {@code TheEndPortalRenderer} 的重新实现，
-     * 使用相同的 {@code RenderType.endPortal()} 着色器。
+     * 使用自定义着色器（{@code rendertype_disaster_portal}）和自定义贴图，
+     * 通过 {@link #onRegisterShaders(RegisterShadersEvent)} 注册。
      * 由于原版渲染器内部将 BlockEntity 硬转型为 {@code TheEndPortalBlockEntity}，
      * 无法直接复用，因此需要自定义实现。
      */
