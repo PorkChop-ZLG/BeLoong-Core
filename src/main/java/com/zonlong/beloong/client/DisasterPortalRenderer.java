@@ -12,6 +12,14 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.joml.Matrix4f;
 
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.zonlong.beloong.BeLoongCoreClient;
+import net.minecraft.client.renderer.RenderStateShard;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.function.Supplier;
+
 /**
  * 天灾传送门方块的自定义 BlockEntity 渲染器。
  * <p>
@@ -43,6 +51,42 @@ import org.joml.Matrix4f;
  */
 @OnlyIn(Dist.CLIENT)
 public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPortalBlockEntity> {
+
+    /** 自定义贴图路径：Sampler0 和 Sampler1 共用同一贴图。 */
+    private static final ResourceLocation DISASTER_PORTAL_LOCATION =
+            ResourceLocation.fromNamespaceAndPath("beloong", "textures/entity/disaster_portal");
+
+    /**
+     * 自定义 {@link RenderType}，照搬原版 {@code RenderType.endPortal()} 的结构：
+     * <ul>
+     *   <li>Shader: 自定义注册的 {@code rendertype_disaster_portal} 着色器程序</li>
+     *   <li>Texture: 自定义贴图（Sampler0 + Sampler1 指向同一张图）</li>
+     *   <li>其余渲染状态与原版 END_PORTAL 完全一致</li>
+     * </ul>
+     * <p>
+     * 使用 lazy 初始化：ShaderInstance 由 {@code RegisterShadersEvent} 回调设置，
+     * 发生在渲染首帧之前，因此首次渲染时 shader 已就绪。
+     */
+    private static final Supplier<RenderType> DISASTER_PORTAL = () -> RenderType.create(
+            "disaster_portal",
+            DefaultVertexFormat.POSITION,
+            VertexFormat.Mode.QUADS,
+            1536,
+            false,
+            false,
+            RenderType.CompositeState.builder()
+                    .setShaderState(new RenderStateShard.ShaderStateShard(
+                            () -> BeLoongCoreClient.disasterPortalShader))
+                    .setTextureState(
+                            RenderStateShard.MultiTextureStateShard.builder()
+                                    .add(DISASTER_PORTAL_LOCATION, false, false)
+                                    .add(DISASTER_PORTAL_LOCATION, false, false)
+                                    .build())
+                    .createCompositeState(false)
+    );
+
+    /** 缓存的 RenderType 实例，避免每次调用 renderType() 都重新创建。 */
+    private static RenderType disasterPortalRenderType;
 
     public DisasterPortalRenderer(BlockEntityRendererProvider.Context ctx) {
     }
@@ -119,10 +163,17 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
     /**
      * 获取渲染类型。
      * <p>
-     * {@code RenderType.endPortal()} 返回原版末地传送门的专用着色器，
-     * 会产生旋转的星空隧道效果。该着色器接受 {@code textures/entity/end_portal.png} 作为贴图。
+     * 使用自定义 {@link RenderType}，绑定天灾传送门专用着色器
+     * 和自定义贴图（{@code textures/entity/disaster_portal.png}），
+     * 产生旋转隧道视觉效果。
+     * <p>
+     * 首次调用时通过 {@link #DISASTER_PORTAL} lambda 创建 RenderType 实例并缓存，
+     * 后续调用直接返回缓存实例。
      */
     protected RenderType renderType() {
-        return RenderType.endPortal();
+        if (disasterPortalRenderType == null) {
+            disasterPortalRenderType = DISASTER_PORTAL.get();
+        }
+        return disasterPortalRenderType;
     }
 }
