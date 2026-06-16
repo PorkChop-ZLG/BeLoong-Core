@@ -1,0 +1,10 @@
+{
+  "dragon_treasure": [
+    { "block": "dragonsurvival:debris_dragon_treasure", "value": 5.0, "limit": 1000 },
+    { "block": "dragonsurvival:diamond_dragon_treasure", "value": 4.0, "limit": 1000 },
+    { "block": "dragonsurvival:emerald_dragon_treasure", "value": 3.0, "limit": 1000 },
+    { "block": "dragonsurvival:gold_dragon_treasure", "value": 2.0, "limit": 1000 },
+    { "block": "dragonsurvival:iron_dragon_treasure", "value": 1.0, "limit": 1000 },
+    { "block": "dragonsurvival:copper_dragon_treasure", "value": 0.5, "limit": 1000 }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "other_treasure": [
+    { "block": "minecraft:diamond_block", "value": 40.0, "limit": 10 }
+  ]
+}
