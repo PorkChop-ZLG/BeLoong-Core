@@ -23,26 +23,17 @@ import java.util.function.Supplier;
 /**
  * 天灾传送门方块的自定义 BlockEntity 渲染器。
  * <p>
- * 该渲染器是原版 {@code TheEndPortalRenderer} 的完全重新实现，
- * 因为原版渲染器在 {@code render()} 方法内部将 BlockEntity 硬转型为
- * {@code TheEndPortalBlockEntity}，导致普通的自定义 BlockEntity 无法直接使用。
- * <p>
- * <b>渲染效果：</b>
- * 使用原版末地传送门的 {@link RenderType#endPortal()} 着色器，
- * 产生旋转的星空隧道视觉效果。
+ * 该渲染器是原版 {@code TheEndPortalRenderer} 的重新实现，
+ * 使用自定义着色器（{@code rendertype_disaster_portal}）和自定义贴图，
+ * 通过投影纹理产生隧道透视效果，单张贴图快速滚动。
  * <p>
  * <b>渲染逻辑：</b>
  * <ol>
  *   <li>获取当前帧的变换矩阵（{@link PoseStack}）</li>
  *   <li>调用 {@link #renderCube} 渲染 6 个面的立方体</li>
  *   <li>每个面通过 {@link DisasterPortalBlockEntity#shouldRenderFace} 判断是否需要渲染</li>
- *   <li>使用 {@link #renderType()} 返回的 {@code endPortal} 着色器类型</li>
+ *   <li>仅 Y 轴方向可见（和原版末地传送门一致）</li>
  * </ol>
- * <p>
- * <b>和原版的差异：</b>
- * 原版 {@code TheEndPortalRenderer} 仅渲染 Y 轴方向的面（上/下），
- * 即只给上/下面应用传送门着色器。其余四个侧面不渲染——这使得从侧面看传送门是隐形的。
- * 本实现通过 {@link DisasterPortalBlockEntity#shouldRenderFace} 保持相同行为。
  * <p>
  * 渲染器在 {@link com.zonlong.beloong.BeLoongCoreClient#registerRenderers} 中注册。
  *
@@ -52,20 +43,12 @@ import java.util.function.Supplier;
 @OnlyIn(Dist.CLIENT)
 public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPortalBlockEntity> {
 
-    /** 自定义贴图路径：Sampler0 和 Sampler1 共用同一贴图。 */
+    /** 自定义贴图路径。 */
     private static final ResourceLocation DISASTER_PORTAL_LOCATION =
             ResourceLocation.fromNamespaceAndPath("beloong", "textures/disaster_portal.png");
 
     /**
-     * 自定义 {@link RenderType}，照搬原版 {@code RenderType.endPortal()} 的结构：
-     * <ul>
-     *   <li>Shader: 自定义注册的 {@code rendertype_disaster_portal} 着色器程序</li>
-     *   <li>Texture: 自定义贴图（Sampler0 + Sampler1 指向同一张图）</li>
-     *   <li>其余渲染状态与原版 END_PORTAL 完全一致</li>
-     * </ul>
-     * <p>
-     * 使用 lazy 初始化：ShaderInstance 由 {@code RegisterShadersEvent} 回调设置，
-     * 发生在渲染首帧之前，因此首次渲染时 shader 已就绪。
+     * 自定义 {@link RenderType}，使用单张贴图 + 快速滚动投影纹理。
      */
     private static final Supplier<RenderType> DISASTER_PORTAL = () -> RenderType.create(
             "disaster_portal",
@@ -79,7 +62,6 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
                             () -> BeLoongCoreClient.disasterPortalShader))
                     .setTextureState(
                             RenderStateShard.MultiTextureStateShard.builder()
-                                    .add(DISASTER_PORTAL_LOCATION, false, false)
                                     .add(DISASTER_PORTAL_LOCATION, false, false)
                                     .build())
                     .createCompositeState(false)
@@ -161,14 +143,7 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
     }
 
     /**
-     * 获取渲染类型。
-     * <p>
-     * 使用自定义 {@link RenderType}，绑定天灾传送门专用着色器
-     * 和自定义贴图（{@code textures/entity/disaster_portal.png}），
-     * 产生旋转隧道视觉效果。
-     * <p>
-     * 首次调用时通过 {@link #DISASTER_PORTAL} lambda 创建 RenderType 实例并缓存，
-     * 后续调用直接返回缓存实例。
+     * 获取自定义 {@link RenderType}，使用单张贴图 + 投影纹理着色器。
      */
     protected RenderType renderType() {
         if (disasterPortalRenderType == null) {
