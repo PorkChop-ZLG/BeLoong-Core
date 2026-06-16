@@ -1,6 +1,6 @@
 {
-    "vertex": "rendertype_disaster_portal",
-    "fragment": "rendertype_disaster_portal",
+    "vertex": "beloong:rendertype_disaster_portal",
+    "fragment": "beloong:rendertype_disaster_portal",
     "samplers": [
         { "name": "Sampler0" },
         { "name": "Sampler1" }
