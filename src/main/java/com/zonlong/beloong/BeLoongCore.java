@@ -16,7 +16,10 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+
+import com.zonlong.beloong.treasure.TreasureGrowthLoader;
 import org.slf4j.Logger;
 
 /**
@@ -77,6 +80,12 @@ public class BeLoongCore {
     /** FML 通用设置（双端都执行）。 */
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("BeLoong Launch!");
+    }
+
+    /** 注册服务器资源重载监听器。 */
+    @SubscribeEvent
+    public void addServerReloadListeners(AddReloadListenerEvent event) {
+        event.addListener(TreasureGrowthLoader.INSTANCE);
     }
 
     /** 服务端启动时触发。 */
