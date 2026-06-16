@@ -25,8 +25,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>
  * 当玩家接触到该方块时（{@link #entityInside}），执行双向传送：
  * <ul>
- *   <li><b>下行（任意维度 → 天灾维度）</b>：1:1 坐标传送，
- *       并在目标位置生成一个可配置的结构模板（通常包含一个返回传送门）。</li>
+ *   <li><b>下行（任意维度 → 天灾维度）</b>：1:1 坐标传送。</li>
  *   <li><b>上行（天灾维度 → 主世界）</b>：照搬原版末地返回逻辑，
  *       传送到玩家的重生点（床/重生锚），无重生点时使用世界出生点。</li>
  * </ul>
@@ -91,8 +90,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
      *   <li>判断当前维度：
      *     <ul>
      *       <li><b>非天灾维度</b> → 传送到 {@code beloong:disaster}，
-     *           保持 X/Z 坐标不变（1:1），Y 使用目标维度的高度图查找安全落脚点。
-     *           传送完成后在目标位置放置"返回传送门"结构模板。</li>
+     *           保持 X/Z 坐标不变（1:1），Y 使用目标维度的高度图查找安全落脚点。</li>
      *       <li><b>天灾维度</b> → 传送到主世界的玩家重生点（床/重生锚），
      *           无重生点时回退到世界出生点（和原版末地返回传送门行为一致）。</li>
      *     </ul>
@@ -115,7 +113,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
         if (!currentDim.equals(DISASTER_DIM)) {
             // ==========================================
             // 下行：任意维度 → 天灾维度（beloong:disaster）
-            // 坐标 1:1 同步，并在目标位置生成结构模板
+            // 坐标 1:1 同步
             // ==========================================
             ResourceLocation targetDimId = ResourceLocation.tryParse(DISASTER_DIM);
             if (targetDimId == null) return;
@@ -146,14 +144,6 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
             player.teleportTo(targetLevel, targetX, targetY, targetZ,
                     java.util.Set.of(), player.getYRot(), player.getXRot());
             player.fallDistance = 0; // 重置摔落距离，防止传送前的坠落伤害带到目标维度
-
-            // 在目标位置放置返回传送门结构模板
-            // 结构放置位置 = 玩家落地坐标 + 配置偏移
-            int offsetX = Config.DisasterPortal.structureOffsetX.get();
-            int offsetY = Config.DisasterPortal.structureOffsetY.get();
-            int offsetZ = Config.DisasterPortal.structureOffsetZ.get();
-            BlockPos structurePos = new BlockPos(blockX + offsetX, topY + offsetY, blockZ + offsetZ);
-            placeReturnStructure(targetLevel, structurePos);
         } else {
             // ==========================================
             // 上行：天灾维度 → 主世界
@@ -192,37 +182,4 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
         player.getPersistentData().putLong("beloong_portal_cooldown", level.getGameTime() + cooldown);
     }
 
-    /**
-     * 在指定位置放置返回传送门结构模板。
-     * <p>
-     * 结构模板是使用原版结构方块导出并保存为 {@code .nbt} 文件的预制建筑。
-     * 模板路径由配置文件 {@code disaster_portal.returnStructureTemplate} 指定，
-     * 默认值为 {@code beloong:disaster/return_portal}，
-     * 对应资源文件 {@code data/beloong/structure/disaster/return_portal.nbt}。
-     * <p>
-     * 放置使用 {@link net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings}
-     * 的默认设置（不对结构进行旋转或镜像），使用 {@code level.getRandom()} 作为随机源。
-     *
-     * @param level 目标维度（天灾维度）的 ServerLevel
-     * @param pos   结构模板的放置原点（对应结构方块的锚点位置）
-     */
-    private void placeReturnStructure(ServerLevel level, BlockPos pos) {
-        // 从配置读取结构模板资源路径，如 "beloong:disaster/return_portal"
-        String templatePath = Config.DisasterPortal.returnStructureTemplate.get();
-        ResourceLocation templateId = ResourceLocation.tryParse(templatePath);
-        if (templateId == null) return;
-
-        // 通过 StructureTemplateManager 加载 .nbt 结构文件
-        net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager
-                templateManager = level.getStructureManager();
-        var template = templateManager.get(templateId);
-
-        // 如果模板存在，将其放置到世界中
-        // placeInWorld 的参数：目标World, 放置位置, 锚点位置, 放置设置, 随机源, 更新标志(2=发送方块更新)
-        if (template.isPresent()) {
-            template.get().placeInWorld(level, pos, pos,
-                    new net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings(),
-                    level.getRandom(), 2);
-        }
-    }
 }

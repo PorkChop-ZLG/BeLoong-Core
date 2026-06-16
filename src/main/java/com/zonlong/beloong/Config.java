@@ -115,28 +115,15 @@ public class Config {
     // 天灾传送门配置节。
     // 传送逻辑说明：
     //   - 在任意非天灾维度进入传送门 → 1:1 坐标传送到 beloong:disaster
-    //     + 在目标位置生成返回传送门结构模板（.nbt 文件）
     //   - 在天灾维度进入传送门 → 传送到主世界玩家重生点（原版末地逻辑）
-    //
-    // 结构模板说明：
-    //   - 存储位置：data/beloong/structure/disaster/return_portal.nbt
-    //   - structureOffsetX/Y/Z 用于微调结构相对玩家落地位置的偏移
 
     public static final class DisasterPortal {
         private DisasterPortal() {}
 
         /** 激活传送门所需的 12 种眼球物品 ID（固定列表，不可扩展） */
         public static ModConfigSpec.ConfigValue<List<? extends String>> eyeItems;
-        /** 返回传送门结构模板的资源路径（如 beloong:disaster/return_portal） */
-        public static ModConfigSpec.ConfigValue<String> returnStructureTemplate;
         /** 传送后的冷却时间（ticks），防止玩家在传送门中来回弹跳 */
         public static ModConfigSpec.IntValue teleportCooldownTicks;
-        /** 结构模板放置位置相对于玩家传送坐标的 X 偏移（方块坐标） */
-        public static ModConfigSpec.ConfigValue<Integer> structureOffsetX;
-        /** 结构模板放置位置相对于地表高度的 Y 偏移（方块坐标） */
-        public static ModConfigSpec.ConfigValue<Integer> structureOffsetY;
-        /** 结构模板放置位置相对于玩家传送坐标的 Z 偏移（方块坐标） */
-        public static ModConfigSpec.ConfigValue<Integer> structureOffsetZ;
     }
 
     // ==================== structure_effects ====================
@@ -272,39 +259,9 @@ public class Config {
                         ),
                         s -> s instanceof String str && str.contains(":"));
 
-        DisasterPortal.returnStructureTemplate = SERVER_BUILDER
-                .comment("返回传送门结构模板 ID")
-                .define("returnStructureTemplate", "beloong:disaster/return_portal");
-
         DisasterPortal.teleportCooldownTicks = SERVER_BUILDER
                 .comment("传送冷却时间（ticks），防止循环传送")
                 .defineInRange("teleportCooldownTicks", 100, 0, 72000);
-
-        // 结构放置的 X 偏移（方块坐标）。
-        // 正数向东，负数向西。
-        // 结构默认为 5×5×5 立方体，底部一层为平台。
-        // 默认值 -2 使玩家站在平台正中央（5 格宽的中心是第 3 格，即偏移 2 格）。
-        DisasterPortal.structureOffsetX = SERVER_BUILDER
-                .comment("返回结构相对于玩家传送坐标的 X 偏移",
-                        "结构默认为 5×5 底部平台，-2 = 玩家位于平台中央")
-                .define("structureOffsetX", -2);
-
-        // 结构放置的 Y 偏移（方块坐标）。
-        // 正数向上，负数向下。
-        // 默认值 0 使结构底部平台刚好贴着地表，
-        // 玩家传送到地表上方 1 格处，恰好站在平台上面。
-        DisasterPortal.structureOffsetY = SERVER_BUILDER
-                .comment("返回结构相对于地表高度的 Y 偏移",
-                        "默认 0 使平台底部贴着地面，玩家站在平台上")
-                .define("structureOffsetY", 0);
-
-        // 结构放置的 Z 偏移（方块坐标）。
-        // 正数向南，负数向北。
-        // 和 X 偏移同理，-2 使玩家在平台正中央。
-        DisasterPortal.structureOffsetZ = SERVER_BUILDER
-                .comment("返回结构相对于玩家传送坐标的 Z 偏移",
-                        "结构默认为 5×5 底部平台，-2 = 玩家位于平台中央")
-                .define("structureOffsetZ", -2);
 
         SERVER_BUILDER.pop(); // disaster_portal
 
