@@ -57,8 +57,6 @@
   "beloong.configuration.targetZ": "Z Coordinate",
   "beloong.configuration.targetZ.tooltip": "Fixed target Z coordinate",
   "beloong.configuration.title": "BeLoong Core - Configuration",
-  "beloong.configuration.treasureWeights": "Treasure Weights",
-  "beloong.configuration.treasureWeights.tooltip": "Format:\nmodid:block_id=weight\nUnlisted treasure blocks default to weight 1.0",
   "beloong.configuration.treasure_growth": "Treasure Growth",
   "beloong.configuration.treasure_growth.button": "Configure",
   "beloong.configuration.treasure_growth.tooltip": "Growth acceleration settings when resting on treasure blocks",
