@@ -1,8 +1,11 @@
 package com.zonlong.beloong;
 
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -10,8 +13,10 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * 化龙核心模组的客户端初始化类。
@@ -37,6 +42,10 @@ public class BeLoongCoreClient {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
 
+    /** 天灾传送门自定义着色器实例。由 RegisterShadersEvent 回调设置。 */
+    @Nullable
+    static ShaderInstance disasterPortalShader;
+
     /** FML 客户端设置事件。 */
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {
@@ -61,5 +70,14 @@ public class BeLoongCoreClient {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
+    }
+
+    @SubscribeEvent
+    static void onRegisterShaders(RegisterShadersEvent event) {
+        event.registerShader(
+                new ShaderInstance(event.getResourceProvider(),
+                        ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "rendertype_disaster_portal"),
+                        DefaultVertexFormat.POSITION),
+                shader -> disasterPortalShader = shader);
     }
 }
