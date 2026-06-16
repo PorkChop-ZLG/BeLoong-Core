@@ -103,7 +103,6 @@ public class Config {
         private TreasureGrowth() {}
 
         public static ModConfigSpec.BooleanValue enabled;
-        public static ModConfigSpec.ConfigValue<List<? extends String>> treasureWeights;
         public static ModConfigSpec.IntValue maxTreasureValue;
         public static ModConfigSpec.IntValue amplifierStep;
         public static ModConfigSpec.IntValue maxAmplifier;
@@ -144,21 +143,6 @@ public class Config {
         TreasureGrowth.enabled = SERVER_BUILDER
                 .comment("是否启用财宝堆成长加速")
                 .define("enabled", true);
-
-        TreasureGrowth.treasureWeights = SERVER_BUILDER
-                .comment(
-                        "财宝方块权重，格式: modid:block_id=weight",
-                        "未列出的方块默认权重 1.0",
-                        "内置默认: debris=5, diamond=4, emerald=3, gold=2, iron=1, copper=0.5"
-                )
-                .defineList("treasureWeights", List.of(
-                        "dragonsurvival:copper_dragon_treasure=0.5",
-                        "dragonsurvival:iron_dragon_treasure=1.0",
-                        "dragonsurvival:gold_dragon_treasure=2.0",
-                        "dragonsurvival:emerald_dragon_treasure=3.0",
-                        "dragonsurvival:diamond_dragon_treasure=4.0",
-                        "dragonsurvival:debris_dragon_treasure=5.0"
-                ), s -> s instanceof String str && str.contains("="));
 
         TreasureGrowth.maxTreasureValue = SERVER_BUILDER
                 .comment("最大财宝价值上限，超出部分不再计入")
