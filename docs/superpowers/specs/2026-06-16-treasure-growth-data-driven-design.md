@@ -9,17 +9,16 @@
 ### 2.1 TreasureGrowthEntry
 
 ```java
-public record TreasureGrowthEntry(String treasureType, Block block, double value, int limit)
+public record TreasureGrowthEntry(Block block, double value, int limit)
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `type` | `String` | `"dragon_treasure"`（龙之财宝）或 `"other_treasure"`（其他财宝） |
 | `block` | `Block` | 方块实例，由 `ResourceLocation` 解析 |
 | `value` | `double` | 每单位财宝价值 |
 | `limit` | `int` | 检测上限，`Integer.MAX_VALUE` 时无上限 |
 
-Codec 用 `RecordCodecBuilder` 构建，`block` 字段通过 `ResourceLocation.CODEC.comapFlatMap` 从字符串转为 `Block`，解析失败则跳过该条目。
+Codec 用 `RecordCodecBuilder` 构建，`block` 字段通过 `ResourceLocation.CODEC.comapFlatMap` 从字符串转为 `Block`，解析失败则跳过该条目。Entry 不包含 `type` 字段——`type` 由 JSON 顶层 key 决定。
 
 ### 2.2 两种财宝类型
 
@@ -32,30 +31,34 @@ Codec 用 `RecordCodecBuilder` 构建，`block` 字段通过 `ResourceLocation.C
 
 **目录：** `src/main/resources/data/beloong/beloong/treasure_growth/`
 
-每个文件为 `TreasureGrowthEntry` 的 JSON 数组。默认包含两个文件：
+每个文件为 `Map<String, List<TreasureGrowthEntry>>` 结构，顶层 key 即类型标识。默认包含两个文件：
 
 ### dragon_treasure.json
 
 ```json
-[
-  { "type": "dragon_treasure", "block": "dragonsurvival:debris_dragon_treasure", "value": 5.0, "limit": 1000 },
-  { "type": "dragon_treasure", "block": "dragonsurvival:diamond_dragon_treasure", "value": 4.0, "limit": 1000 },
-  { "type": "dragon_treasure", "block": "dragonsurvival:emerald_dragon_treasure", "value": 3.0, "limit": 1000 },
-  { "type": "dragon_treasure", "block": "dragonsurvival:gold_dragon_treasure", "value": 2.0, "limit": 1000 },
-  { "type": "dragon_treasure", "block": "dragonsurvival:iron_dragon_treasure", "value": 1.0, "limit": 1000 },
-  { "type": "dragon_treasure", "block": "dragonsurvival:copper_dragon_treasure", "value": 0.5, "limit": 1000 }
-]
+{
+  "dragon_treasure": [
+    { "block": "dragonsurvival:debris_dragon_treasure", "value": 5.0, "limit": 1000 },
+    { "block": "dragonsurvival:diamond_dragon_treasure", "value": 4.0, "limit": 1000 },
+    { "block": "dragonsurvival:emerald_dragon_treasure", "value": 3.0, "limit": 1000 },
+    { "block": "dragonsurvival:gold_dragon_treasure", "value": 2.0, "limit": 1000 },
+    { "block": "dragonsurvival:iron_dragon_treasure", "value": 1.0, "limit": 1000 },
+    { "block": "dragonsurvival:copper_dragon_treasure", "value": 0.5, "limit": 1000 }
+  ]
+}
 ```
 
 ### other_treasure.json
 
 ```json
-[
-  { "type": "other_treasure", "block": "minecraft:diamond_block", "value": 40.0, "limit": 10 }
-]
+{
+  "other_treasure": [
+    { "block": "minecraft:diamond_block", "value": 40.0, "limit": 10 }
+  ]
+}
 ```
 
-`type` 字段保留（即使文件名暗示类型），允许未来合并为单文件或混写不同类型。
+顶层 key 决定条目归类（`dragon_treasure` → 龙之财宝缓存，`other_treasure` → 其他财宝缓存）。同一文件内可包含多种 key 的数组，但默认文件各自只使用一种。
 
 ## 4. 架构
 
@@ -64,10 +67,10 @@ Codec 用 `RecordCodecBuilder` 构建，`block` 字段通过 `ResourceLocation.C
 ```
 TreasureGrowthLoader (extends SimpleJsonResourceReloadListener)
 ├── 目录: "beloong/treasure_growth"
-├── 解析: Codec.list(TreasureGrowthEntry.CODEC)
-├── 缓存两个 Map<Block, TreasureGrowthEntry>:
-│   ├── dragonTreasureEntries
-│   └── otherTreasureEntries
+├── 解析: Codec.unboundedMap(Codec.STRING, Codec.list(TreasureGrowthEntry.CODEC))
+├── 每个 Entry 根据顶层 key 分入对应缓存:
+│   ├── "dragon_treasure" → dragonTreasureEntries: Map<Block, TreasureGrowthEntry>
+│   └── "other_treasure"  → otherTreasureEntries:  Map<Block, TreasureGrowthEntry>
 └── 静态查询方法:
     ├── getDragonEntry(Block) → @Nullable TreasureGrowthEntry
     └── getOtherEntry(Block) → @Nullable TreasureGrowthEntry
