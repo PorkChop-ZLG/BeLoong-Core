@@ -121,9 +121,9 @@ public class StructureEffectHandler {
     public void onEffectExpired(MobEffectEvent.Expired event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
+        refreshWatchedEffects();
         ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
-            refreshWatchedEffects();
             if (checkAndApply(player)) {
                 event.setCanceled(true);
             }
@@ -134,9 +134,9 @@ public class StructureEffectHandler {
     public void onEffectRemoved(MobEffectEvent.Remove event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
+        refreshWatchedEffects();
         ResourceKey<MobEffect> effectKey = event.getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
-            refreshWatchedEffects();
             if (checkAndApply(player)) {
                 event.setCanceled(true);
             }
