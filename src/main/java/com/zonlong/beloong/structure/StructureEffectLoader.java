@@ -44,8 +44,17 @@ public class StructureEffectLoader extends SimpleJsonResourceReloadListener {
                             fileEntry.getKey(), error)
             ).ifPresent(map -> {
                 for (var structEntry : map.entrySet()) {
+                    ResourceLocation structureLoc;
+                    try {
+                        structureLoc = ResourceLocation.parse(structEntry.getKey());
+                    } catch (Exception e) {
+                        BeLoongCore.LOGGER.error(
+                                "Invalid structure ID in file '{}': {}",
+                                fileEntry.getKey(), structEntry.getKey());
+                        continue;
+                    }
                     ResourceKey<Structure> structureKey = ResourceKey.create(
-                            Registries.STRUCTURE, ResourceLocation.parse(structEntry.getKey()));
+                            Registries.STRUCTURE, structureLoc);
 
                     List<EffectEntry> converted = new ArrayList<>();
                     for (StructureEffectEntry se : structEntry.getValue()) {
