@@ -68,6 +68,11 @@ public class Config {
             .comment("修复龙之生存弹射物崩溃")
             .define("fixDragonsurvivalProjectileCrash", true);
 
+    /** 修复Fsweep打开部分容器崩溃（默认启用） */
+    public static final ModConfigSpec.BooleanValue FIX_FSWEEP_CONTAINER_CRASH = COMMON_BUILDER
+            .comment("修复Fsweep打开部分容器崩溃")
+            .define("fixFsweepContainerCrash", true);
+
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
 
     // ==================== 服务端配置 ====================

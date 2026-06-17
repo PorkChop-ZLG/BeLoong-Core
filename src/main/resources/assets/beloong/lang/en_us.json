@@ -34,6 +34,8 @@
   "beloong.configuration.fixFDBossesStructureHeight.tooltip": "Fix FDBosses structures ignoring datapack start_height config, generating at fixed Y coordinates",
   "beloong.configuration.fixDragonsurvivalProjectileCrash": "Fix Dragon Survival Projectile Crash",
   "beloong.configuration.fixDragonsurvivalProjectileCrash.tooltip": "Fix Dragon Survival projectile crash when querying DRAGON_ABILITY_DAMAGE attribute on non-player entities.\nUses default multiplier 1.0 when the projectile owner lacks this attribute",
+  "beloong.configuration.fixFsweepContainerCrash": "Fix Fsweep Container Crash",
+  "beloong.configuration.fixFsweepContainerCrash.tooltip": "Fix singleplayer connection lost crash when F-Sweep calls getType() on certain container menus (e.g. horse) that throw UnsupportedOperationException",
   "beloong.configuration.loongPalaceToOverworld": "Loong Palace → Overworld",
   "beloong.configuration.loongPalaceToOverworld.button": "Configure",
   "beloong.configuration.loongPalaceToOverworld.tooltip": "Loong Palace → Overworld transport configuration",
