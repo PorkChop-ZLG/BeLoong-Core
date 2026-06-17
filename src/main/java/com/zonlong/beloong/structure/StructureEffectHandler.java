@@ -1,8 +1,6 @@
 package com.zonlong.beloong.structure;
 
 import com.zonlong.beloong.Config;
-import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -23,106 +21,32 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-/**
- * 结构药水效果处理器。
- * <p>
- * 当玩家进入已配置的结构区域时自动施加药水效果，
- * 通过区块变化检测、效果过期、维度切换、登录和重生事件触发重检。
- * </p>
- */
 public class StructureEffectHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StructureEffectHandler.class);
 
-    private Map<ResourceKey<Structure>, List<EffectEntry>> configMap = Map.of();
     private Set<ResourceKey<MobEffect>> watchedEffects = Set.of();
-    private int lastConfigHash;
+    private int lastWatchedHash;
     private final Map<UUID, ChunkPos> playerLastChunk = new HashMap<>();
     private boolean refreshing;
 
-    /**
-     * 刷新并解析配置文件中的结构效果配置。
-     * 仅在配置内容发生变更时重新解析，使用哈希值做快速比较。
-     */
-    private void refreshConfig() {
-        int currentHash = Config.StructureEffects.entries.get().hashCode()
-                ^ Config.StructureEffects.watchedEffects.get().hashCode();
-        if (currentHash == lastConfigHash) return;
+    private void refreshWatchedEffects() {
+        int currentHash = Config.StructureEffects.watchedEffects.get().hashCode();
+        if (currentHash == lastWatchedHash) return;
 
-        Map<ResourceKey<Structure>, List<EffectEntry>> newConfigMap = new HashMap<>();
-        Set<ResourceKey<MobEffect>> newWatchedEffects = new HashSet<>();
-
-        for (String entry : Config.StructureEffects.entries.get()) {
-            String[] parts = entry.split("\\|");
-            if (parts.length != 4) {
-                LOGGER.warn("[BeLoong] structure_effects: invalid entry format (expected 4 fields): {}", entry);
-                continue;
-            }
-
-            ResourceLocation structureLoc;
-            try {
-                structureLoc = ResourceLocation.parse(parts[0].trim());
-            } catch (Exception e) {
-                LOGGER.warn("[BeLoong] structure_effects: invalid structure ID: {}", parts[0].trim());
-                continue;
-            }
-            ResourceKey<Structure> structureKey = ResourceKey.create(Registries.STRUCTURE, structureLoc);
-
-            ResourceLocation effectLoc;
-            try {
-                effectLoc = ResourceLocation.parse(parts[1].trim());
-            } catch (Exception e) {
-                LOGGER.warn("[BeLoong] structure_effects: invalid effect ID: {}", parts[1].trim());
-                continue;
-            }
-            ResourceKey<MobEffect> effectKey = ResourceKey.create(Registries.MOB_EFFECT, effectLoc);
-
-            int amplifier;
-            int duration;
-            try {
-                amplifier = Integer.parseInt(parts[2].trim());
-                duration = Integer.parseInt(parts[3].trim());
-            } catch (NumberFormatException e) {
-                LOGGER.warn("[BeLoong] structure_effects: failed to parse amplifier/duration: {}", entry);
-                continue;
-            }
-
-            Holder<MobEffect> effectHolder = BuiltInRegistries.MOB_EFFECT
-                    .getHolder(effectKey).orElse(null);
-            if (effectHolder == null) {
-                LOGGER.warn("[BeLoong] structure_effects: mob effect not found: {}", parts[1].trim());
-                continue;
-            }
-
-            newConfigMap.computeIfAbsent(structureKey, k -> new ArrayList<>())
-                    .add(new EffectEntry(effectHolder, amplifier, duration));
-        }
-
+        Set<ResourceKey<MobEffect>> newWatched = new HashSet<>();
         for (String effectId : Config.StructureEffects.watchedEffects.get()) {
-            ResourceLocation watchedEffectLoc;
             try {
-                watchedEffectLoc = ResourceLocation.parse(effectId.trim());
+                ResourceLocation loc = ResourceLocation.parse(effectId.trim());
+                newWatched.add(ResourceKey.create(Registries.MOB_EFFECT, loc));
             } catch (Exception e) {
                 LOGGER.warn("[BeLoong] structure_effects: invalid watched effect ID: {}", effectId.trim());
-                continue;
             }
-            ResourceKey<MobEffect> key = ResourceKey.create(Registries.MOB_EFFECT, watchedEffectLoc);
-            newWatchedEffects.add(key);
         }
-
-        this.configMap = Collections.unmodifiableMap(newConfigMap);
-        this.watchedEffects = Collections.unmodifiableSet(newWatchedEffects);
-        this.lastConfigHash = currentHash;
-        LOGGER.debug("[BeLoong] structure_effects config loaded: {} structures, {} watched effects",
-                configMap.size(), watchedEffects.size());
+        this.watchedEffects = Collections.unmodifiableSet(newWatched);
+        this.lastWatchedHash = currentHash;
     }
 
-    /**
-     * 检测玩家当前位置是否处于配置的结构区域内，
-     * 若是则施加对应的药水效果。
-     *
-     * @return true 如果实际应用了至少一个效果
-     */
     private boolean checkAndApply(ServerPlayer player) {
         if (refreshing) return false;
         refreshing = true;
@@ -134,11 +58,12 @@ public class StructureEffectHandler {
     }
 
     private boolean doCheckAndApply(ServerPlayer player) {
-        refreshConfig();
+        var configMap = StructureEffectLoader.INSTANCE.getConfigMap();
         if (configMap.isEmpty()) return false;
 
         var structureManager = player.serverLevel().structureManager();
-        var structureRegistry = player.serverLevel().registryAccess().registryOrThrow(Registries.STRUCTURE);
+        var structureRegistry = player.serverLevel().registryAccess()
+                .registryOrThrow(Registries.STRUCTURE);
         boolean applied = false;
 
         for (var configEntry : configMap.entrySet()) {
@@ -154,24 +79,26 @@ public class StructureEffectHandler {
             BoundingBox bb = start.getBoundingBox();
             AABB aabb = new AABB(bb.minX(), bb.minY(), bb.minZ(),
                     bb.maxX() + 1, bb.maxY() + 1, bb.maxZ() + 1);
-            if (player.getBoundingBox().intersects(aabb)) {
-                for (EffectEntry ee : effects) {
-                    if (player.addEffect(new MobEffectInstance(
-                            ee.effect(), ee.durationTicks(), ee.amplifier(),
-                            false, true, true
-                    ))) {
-                        applied = true;
-                    }
+            if (!player.getBoundingBox().intersects(aabb)) continue;
+
+            for (EffectEntry ee : effects) {
+                if (ee.advancement().isPresent()) {
+                    var progress = player.getAdvancements()
+                            .getOrStartProgress(ee.advancement().get());
+                    if (progress.isDone()) continue;
+                }
+
+                if (player.addEffect(new MobEffectInstance(
+                        ee.effect(), ee.durationTicks(), ee.amplifier(),
+                        false, ee.showParticles(), true
+                ))) {
+                    applied = true;
                 }
             }
         }
         return applied;
     }
 
-    /**
-     * 服务端 tick 末尾：仅检测区块发生变化的玩家，
-     * 通过 {@link #playerLastChunk} 做轻量级过滤。
-     */
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
         var server = event.getServer();
@@ -186,48 +113,32 @@ public class StructureEffectHandler {
         }
     }
 
-    /**
-     * 当被监视的药水效果过期时，触发结构重检。
-     * <p>
-     * 若 checkAndApply 成功刷新了效果（玩家仍在结构内），
-     * 必须取消 Expired 事件以防止 NeoForge 的 iterator.remove()
-     * 将刚刷新的效果也一并移除。
-     */
     @SubscribeEvent
     public void onEffectExpired(MobEffectEvent.Expired event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        Holder<MobEffect> effectHolder = event.getEffectInstance().getEffect();
-        ResourceKey<MobEffect> effectKey = effectHolder.getKey();
+        ResourceKey<MobEffect> effectKey = event.getEffectInstance().getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
+            refreshWatchedEffects();
             if (checkAndApply(player)) {
                 event.setCanceled(true);
             }
         }
     }
 
-    /**
-     * 当被监视的药水效果被移除时触发结构重检。
-     * 覆盖喝牛奶、/effect clear 等所有移除场景。
-     * 与 {@link #onEffectExpired} 同理，若成功重加效果则取消事件
-     * 以防止 removeAllEffects 的 iterator.remove() 误删。
-     * 重入保护由 {@link #refreshing} 标记提供。
-     */
     @SubscribeEvent
     public void onEffectRemoved(MobEffectEvent.Remove event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         ResourceKey<MobEffect> effectKey = event.getEffect().getKey();
         if (effectKey != null && watchedEffects.contains(effectKey)) {
+            refreshWatchedEffects();
             if (checkAndApply(player)) {
                 event.setCanceled(true);
             }
         }
     }
 
-    /**
-     * 维度切换时清除缓存并检测新维度的结构。
-     */
     @SubscribeEvent
     public void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -235,9 +146,6 @@ public class StructureEffectHandler {
         checkAndApply(player);
     }
 
-    /**
-     * 玩家登录时清除缓存并检测当前位置的结构。
-     */
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -245,9 +153,6 @@ public class StructureEffectHandler {
         checkAndApply(player);
     }
 
-    /**
-     * 玩家重生时清除缓存并检测重生位置的结构。
-     */
     @SubscribeEvent
     public void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
@@ -255,9 +160,6 @@ public class StructureEffectHandler {
         checkAndApply(player);
     }
 
-    /**
-     * 玩家登出时清理追踪数据，防止内存泄漏。
-     */
     @SubscribeEvent
     public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
         playerLastChunk.remove(event.getEntity().getUUID());
