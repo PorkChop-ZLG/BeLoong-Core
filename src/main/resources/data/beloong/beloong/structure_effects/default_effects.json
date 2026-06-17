@@ -1,0 +1,10 @@
+{
+  "cataclysm:burning_arena": [
+    {
+      "effect": "beloong:flight_ban",
+      "amplifier": 5,
+      "duration": 100,
+      "show_particles": false
+    }
+  ]
+}

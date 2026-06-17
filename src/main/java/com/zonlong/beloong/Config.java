@@ -137,8 +137,6 @@ public class Config {
 
         /** 需要监听过期事件的药水效果 ID 列表 */
         public static ModConfigSpec.ConfigValue<List<? extends String>> watchedEffects;
-        /** 结构效果配置条目，格式: "结构ID|效果ID|等级|持续时间" */
-        public static ModConfigSpec.ConfigValue<List<? extends String>> entries;
     }
 
     static {
@@ -259,18 +257,11 @@ public class Config {
 
         StructureEffects.watchedEffects = SERVER_BUILDER
                 .comment("需要监听过期/移除事件的药水效果ID列表",
-                        "当这些效果过期、被牛奶清除或被指令移除时，触发结构重检")
+                        "当这些效果过期、被牛奶清除或被指令移除时，触发结构重检",
+                        "具体效果与结构的映射请在 data/beloong/beloong/structure_effects/ 中配置")
                 .defineList("watchedEffects",
                         List.of("beloong:flight_ban"),
                         s -> s instanceof String str && str.contains(":"));
-
-        StructureEffects.entries = SERVER_BUILDER
-                .comment("结构效果配置，格式: \"结构ID|效果ID|等级|持续时间(tick)\"",
-                        "等级: 0 = I级, 1 = II级, 以此类推",
-                        "示例: \"cataclysm:burning_arena|beloong:flight_ban|5|100\"")
-                .defineList("entries",
-                        List.of("cataclysm:burning_arena|beloong:flight_ban|5|100"),
-                        s -> s instanceof String str && str.contains("|"));
 
         SERVER_BUILDER.pop(); // structure_effects
     }
