@@ -3,7 +3,7 @@ package com.zonlong.beloong.structure;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.core.Holder;
+
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
@@ -11,7 +11,7 @@ import net.minecraft.world.effect.MobEffect;
 import java.util.Optional;
 
 public record StructureEffectEntry(
-        Holder<MobEffect> effect,
+        MobEffect effect,
         int amplifier,
         int duration,
         boolean showParticles,
