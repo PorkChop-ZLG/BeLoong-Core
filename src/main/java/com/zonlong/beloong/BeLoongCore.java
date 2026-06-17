@@ -7,6 +7,7 @@ import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.structure.StructureEffectHandler;
+import com.zonlong.beloong.structure.StructureEffectLoader;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -86,6 +87,7 @@ public class BeLoongCore {
     @SubscribeEvent
     public void addServerReloadListeners(AddReloadListenerEvent event) {
         event.addListener(TreasureGrowthLoader.INSTANCE);
+        event.addListener(StructureEffectLoader.INSTANCE);
     }
 
     /** 服务端启动时触发。 */
