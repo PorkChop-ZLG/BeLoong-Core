@@ -83,9 +83,13 @@ public class StructureEffectHandler {
 
             for (EffectEntry ee : effects) {
                 if (ee.advancement().isPresent()) {
-                    var progress = player.getAdvancements()
-                            .getOrStartProgress(ee.advancement().get());
-                    if (progress.isDone()) continue;
+                    var holder = player.server.getAdvancements()
+                            .get(ee.advancement().get());
+                    if (holder != null) {
+                        var progress = player.getAdvancements()
+                                .getOrStartProgress(holder);
+                        if (progress.isDone()) continue;
+                    }
                 }
 
                 if (player.addEffect(new MobEffectInstance(
