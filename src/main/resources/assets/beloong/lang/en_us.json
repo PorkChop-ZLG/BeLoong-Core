@@ -105,5 +105,5 @@
   "block.beloong.disaster_portal_frame": "Disaster Portal Frame",
   "block.beloong.disaster_portal_block": "Disaster Portal",
   "block.beloong.disaster_portal_frame.eye_duplicate": "This eye is already placed in the portal",
-  "message.beloong.flight_banned": "§cFlight level too low to fly!"
+  "message.beloong.flight_banned": "§cFlying is prohibited in this area!"
 }
