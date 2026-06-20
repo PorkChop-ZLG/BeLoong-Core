@@ -44,6 +44,7 @@ public abstract class AsteorBarHealthFixMixin {
         if (player == null) {
             lastPlayerEntityId = -1;
             lastTickHealth = 0;
+            healthFixTarget = 0;
             healthFixPending = false;
             healthFixDelay = 0;
             return;
