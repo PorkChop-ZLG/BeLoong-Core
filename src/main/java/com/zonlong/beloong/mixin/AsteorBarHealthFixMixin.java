@@ -19,61 +19,62 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * stays clamped.</p>
  *
  * <p>This Mixin detects player entity changes and schedules a 20-tick delayed
- * health correction, giving the attribute packet time to sync.</p>
+ * health correction based on {@code player.tickCount}, giving the attribute
+ * packet time to sync.</p>
  */
 @Mixin(value = PlayerHealthOverlay.class, remap = false)
 public abstract class AsteorBarHealthFixMixin {
 
     @Unique
-    private static int lastPlayerEntityId = -1;
+    private static int beloong$lastPlayerEntityId = -1;
 
     @Unique
-    private static float lastTickHealth = 0;
+    private static float beloong$lastTickHealth = 0;
 
     @Unique
-    private static float healthFixTarget = 0;
+    private static float beloong$healthFixTarget = 0;
 
     @Unique
-    private static int healthFixDelay = 0;
+    private static int beloong$healthFixTargetTick = 0;
 
     @Unique
-    private static boolean healthFixPending = false;
+    private static boolean beloong$healthFixPending = false;
 
     @Inject(method = "getParameters", at = @At("HEAD"))
-    private void onGetParameters(Player player, CallbackInfoReturnable<?> cir) {
+    private void beloong$onGetParameters(Player player, CallbackInfoReturnable<?> cir) {
         if (player == null) {
-            lastPlayerEntityId = -1;
-            lastTickHealth = 0;
-            healthFixTarget = 0;
-            healthFixPending = false;
-            healthFixDelay = 0;
+            beloong$lastPlayerEntityId = -1;
+            beloong$lastTickHealth = 0;
+            beloong$healthFixTarget = 0;
+            beloong$healthFixPending = false;
+            beloong$healthFixTargetTick = 0;
             return;
         }
 
         int currentId = player.getId();
 
         // Detect player entity change (dimension teleport / respawn)
-        if (currentId != lastPlayerEntityId && lastPlayerEntityId != -1) {
-            healthFixTarget = lastTickHealth;
-            healthFixDelay = 20;
-            healthFixPending = true;
+        if (currentId != beloong$lastPlayerEntityId && beloong$lastPlayerEntityId != -1) {
+            beloong$healthFixTarget = beloong$lastTickHealth;
+            beloong$healthFixTargetTick = player.tickCount + 20;
+            beloong$healthFixPending = true;
         }
 
-        lastPlayerEntityId = currentId;
+        beloong$lastPlayerEntityId = currentId;
 
         // Apply delayed health correction
-        if (healthFixPending) {
-            if (healthFixDelay > 0) {
-                healthFixDelay--;
+        if (beloong$healthFixPending) {
+            if (player.tickCount < beloong$healthFixTargetTick) {
+                // Still waiting
             } else {
                 float currentHealth = player.getHealth();
-                if (healthFixTarget > currentHealth + 1.0F) {
-                    player.setHealth(Math.min(healthFixTarget, player.getMaxHealth()));
+                if (beloong$healthFixTarget > currentHealth + 1.0F) {
+                    player.setHealth(Math.min(beloong$healthFixTarget, player.getMaxHealth()));
                 }
-                healthFixPending = false;
+                beloong$healthFixPending = false;
             }
         }
 
-        lastTickHealth = player.getHealth();
+        beloong$lastTickHealth = player.getHealth();
     }
 }
