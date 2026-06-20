@@ -15,7 +15,7 @@ public abstract class AsteorBarHealthFixMixin {
     private static final Logger LOGGER = LoggerFactory.getLogger("BeLoong-AsteorBarHealthFix");
 
     @Unique
-    private static int beloong$lastEntityId = -1;
+    private static int beloong$lastTickCount = -1;
 
     @Unique
     private static float beloong$lastGoodHealth = 0;
@@ -36,20 +36,22 @@ public abstract class AsteorBarHealthFixMixin {
     private float beloong$fixHealth(float health, Player player) {
         beloong$debugCallCount++;
         if (beloong$debugCallCount % 100 == 1) {
-            LOGGER.info("ALIVE callCount={} entityId={} health={} maxHealth={}",
-                    beloong$debugCallCount, player.getId(), health, player.getMaxHealth());
+            LOGGER.info("ALIVE callCount={} tickCount={} health={} maxHealth={}",
+                    beloong$debugCallCount, player.tickCount, health, player.getMaxHealth());
         }
 
-        int currentId = player.getId();
+        int currentTickCount = player.tickCount;
 
-        if (currentId != beloong$lastEntityId && beloong$lastEntityId != -1) {
-            LOGGER.info("ENTITY CHANGE: oldId={} newId={} oldHealth={} newHealth={}",
-                    beloong$lastEntityId, currentId, beloong$lastGoodHealth, health);
+        // tickCount resets when entity is recreated (dimension change / respawn).
+        // lastTickCount > 100 guards against false trigger on first world join.
+        if (currentTickCount < beloong$lastTickCount && beloong$lastTickCount > 100) {
+            LOGGER.info("TICK RESET DETECTED: oldTick={} newTick={} oldHealth={} newHealth={}",
+                    beloong$lastTickCount, currentTickCount, beloong$lastGoodHealth, health);
             beloong$freezeTicksRemaining = 20;
             beloong$healthFixTarget = beloong$lastGoodHealth;
         }
 
-        beloong$lastEntityId = currentId;
+        beloong$lastTickCount = currentTickCount;
 
         if (beloong$freezeTicksRemaining > 0) {
             if (beloong$freezeTicksRemaining == 20) {
