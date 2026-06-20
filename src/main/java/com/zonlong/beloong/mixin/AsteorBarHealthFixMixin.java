@@ -37,7 +37,7 @@ public abstract class AsteorBarHealthFixMixin {
             method = "getParameters",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/entity/player/Player;getHealth()F"
+                    target = "Lnet/minecraft/world/entity/LivingEntity;getHealth()F"
             )
     )
     private float beloong$redirectGetHealth(Player player) {
