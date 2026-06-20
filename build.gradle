@@ -174,11 +174,11 @@ dependencies {
     localRuntime "curse.maven:lionfish-api-1001614:8094835"
     localRuntime "curse.maven:fdlib-1271749:7844741"
 
-    // F-Sweep — 可选依赖（Mixin 修复 getType 崩溃）
+    // F-Sweep — 可选依赖
     compileOnly "curse.maven:f-sweep-1469993:7855396"
     localRuntime "curse.maven:f-sweep-1469993:7855396"
 
-    // AsteorBar — 可选依赖（Mixin 注入修复）
+    // AsteorBar — 可选依赖
     compileOnly "curse.maven:asteorbar-959237:7121014"
     localRuntime "curse.maven:asteorbar-959237:7121014"
 
