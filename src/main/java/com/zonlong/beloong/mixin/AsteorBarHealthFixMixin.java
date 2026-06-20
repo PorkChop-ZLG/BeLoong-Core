@@ -47,7 +47,7 @@ public abstract class AsteorBarHealthFixMixin {
 
         // tickCount resets when entity is recreated (dimension change / respawn)
         if (currentTickCount < beloong$lastTickCount && beloong$lastTickCount > 100) {
-            beloong$freezeTicksRemaining = 20;
+            beloong$freezeTicksRemaining = 10;
             beloong$healthFixTarget = beloong$lastGoodHealth;
         }
 
