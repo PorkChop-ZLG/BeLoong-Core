@@ -82,16 +82,15 @@
       "type": "minecraft:lookup",
       "fallback": {
         "type": "minecraft:linear",
-        "base": 1000,
-        "per_level_above_first": 1000
+        "base": 100,
+        "per_level_above_first": 100
       },
       "values": [
+        1.0,
+        10.0,
+        100.0,
         1000.0,
-        2000.0,
-        4000.0,
-        8000.0,
-        16000.0,
-        32000.0
+        10000.0
       ]
     },
     "maximum_level": 5,
