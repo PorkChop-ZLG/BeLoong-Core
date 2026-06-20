@@ -178,6 +178,10 @@ dependencies {
     compileOnly "curse.maven:f-sweep-1469993:7855396"
     localRuntime "curse.maven:f-sweep-1469993:7855396"
 
+    // AsteorBar — 可选依赖（Mixin 注入修复）
+    compileOnly "curse.maven:asteorbar-959237:7121014"
+    localRuntime "curse.maven:asteorbar-959237:7121014"
+
     // Beyond Dimensions — 可选依赖
     compileOnly "curse.maven:beyonddimensions-1222890:7866935"
     localRuntime "curse.maven:beyonddimensions-1222890:7866935"
