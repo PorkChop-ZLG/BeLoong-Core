@@ -7,7 +7,8 @@
     "DragonItemRenderLayerMixin",
     "OutlineBufferSourceAccessor",
     "BossClientEventsMixin",
-    "FSweepButtonControlMixin"
+    "FSweepButtonControlMixin",
+    "AsteorBarHealthFixMixin"
   ],
   "mixins": [
     "DragonDestructionHandlerMixin",
