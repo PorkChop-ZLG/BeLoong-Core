@@ -44,6 +44,10 @@ public class ModItems {
                     EternalPorkchopEffect::new
             );
 
+    /** 放大护符（Curios charm 槽位饰品，增大玩家体型 75%） */
+    public static final DeferredItem<Item> AMPLIFICATION_CHARM =
+            Items.register("amplification_charm", AmplificationCharmItem::new);
+
     /**
      * 天灾传送门框架的 BlockItem。
      * 物品 ID：{@code beloong:disaster_portal_frame}
