@@ -1,6 +1,7 @@
 package com.zonlong.beloong.item;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.world.item.BlockItem;
@@ -46,7 +47,7 @@ public class ModItems {
 
     /** 放大护符（Curios charm 槽位饰品，增大玩家体型 75%） */
     public static final DeferredItem<Item> AMPLIFICATION_CHARM =
-            Items.register("amplification_charm", AmplificationCharmItem::new);
+            Items.register("amplification_charm", AmplificationCharmEffect::new);
 
     /**
      * 天灾传送门框架的 BlockItem。

@@ -1,10 +1,10 @@
-package com.zonlong.beloong.item;
+package com.zonlong.beloong.item.effect;
 
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
 import java.util.List;
-import net.minecraft.core.Holder;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -17,12 +17,12 @@ import net.minecraft.world.item.TooltipFlag;
 import top.theillusivec4.curios.api.SlotContext;
 import top.theillusivec4.curios.api.type.capability.ICurioItem;
 
-public class AmplificationCharmItem extends Item implements ICurioItem {
+public class AmplificationCharmEffect extends Item implements ICurioItem {
 
     private static final ResourceLocation MODIFIER_ID =
             ResourceLocation.fromNamespaceAndPath("beloong", "amplification_charm");
 
-    public AmplificationCharmItem() {
+    public AmplificationCharmEffect() {
         super(new Item.Properties()
                 .stacksTo(1)
                 .rarity(Rarity.RARE)
@@ -48,7 +48,7 @@ public class AmplificationCharmItem extends Item implements ICurioItem {
     public void appendHoverText(ItemStack stack, TooltipContext context,
                                 List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
         tooltipComponents.add(
-                Component.translatable("tooltip.item.beloong.amplification_charm")
+                Component.translatable("item.beloong.amplification_charm.tooltip")
                         .withStyle(ChatFormatting.GRAY));
     }
 }
