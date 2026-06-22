@@ -34,7 +34,7 @@ public class AmplificationCharmEffect extends Item implements ICurioItem {
             SlotContext slotContext, ResourceLocation id, ItemStack stack) {
         Multimap<Holder<Attribute>, AttributeModifier> mods = LinkedHashMultimap.create();
         mods.put(Attributes.SCALE,
-                new AttributeModifier(MODIFIER_ID, 3.0,
+                new AttributeModifier(MODIFIER_ID, 1.0,
                         AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
         return mods;
     }
