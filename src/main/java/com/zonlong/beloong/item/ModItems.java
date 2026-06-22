@@ -35,17 +35,15 @@ public class ModItems {
     public static final DeferredRegister.Items Items =
             DeferredRegister.createItems(BeLoongCore.MODID);
 
-    /** 模组图标物品 */
+    /** 化龙图标 */
     public static final DeferredItem<Item> BELOONG_LOGO =
             Items.register("beloong_logo", () -> new Item(new Item.Properties()));
 
-    /** 永恒猪排（自定义食物效果） */
+    /** 永恒猪排 */
     public static final DeferredItem<Item> ETERNAL_PORKCHOP =
-            Items.register("eternal_porkchop",
-                    EternalPorkchopEffect::new
-            );
+            Items.register("eternal_porkchop", EternalPorkchopEffect::new);
 
-    /** 放大护符（Curios charm 槽位饰品，增大玩家体型 75%） */
+    /** 放大护符 */
     public static final DeferredItem<Item> AMPLIFICATION_CHARM =
             Items.register("amplification_charm", AmplificationCharmEffect::new);
 
