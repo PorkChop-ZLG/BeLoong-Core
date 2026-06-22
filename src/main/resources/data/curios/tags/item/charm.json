@@ -1,4 +1,6 @@
 {
   "replace": false,
-  "values": ["beloong:amplification_charm"]
+  "values": [
+    "beloong:amplification_charm"
+  ]
 }
