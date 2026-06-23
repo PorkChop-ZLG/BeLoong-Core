@@ -6,6 +6,7 @@ import com.finderfeed.fdbosses.content.entities.malkuth_boss.MalkuthEntity;
 import com.finderfeed.fdlib.FDLibCalls;
 import com.finderfeed.fdlib.init.FDScreenEffects;
 import com.finderfeed.fdlib.systems.screen.screen_effect.instances.datas.ScreenColorData;
+import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -46,6 +47,8 @@ public class DawnLightEffect extends Item {
             return InteractionResultHolder.success(stack);
         }
 
+        BeLoongCore.LOGGER.info("[DawnLight] Used by player {} at {}", player.getName().getString(), player.blockPosition());
+
         List<Object> bosses = new ArrayList<>();
         bosses.addAll(level.getEntitiesOfClass(
                 ChesedEntity.class,
@@ -57,7 +60,10 @@ public class DawnLightEffect extends Item {
                 GeburahEntity.class,
                 new AABB(player.blockPosition()).inflate(SCAN_RADIUS)));
 
+        BeLoongCore.LOGGER.info("[DawnLight] Scan result: {} boss(es) found (radius={})", bosses.size(), SCAN_RADIUS);
+
         if (bosses.isEmpty()) {
+            BeLoongCore.LOGGER.info("[DawnLight] No boss found — sending fail message, item not consumed");
             player.displayClientMessage(
                     Component.translatable("item.beloong.dawn_light.no_boss"),
                     true);
@@ -66,18 +72,29 @@ public class DawnLightEffect extends Item {
 
         stack.consume(1, player);
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
+        BeLoongCore.LOGGER.info("[DawnLight] Item consumed, cooldown set to {} ticks", COOLDOWN_TICKS);
 
         for (Object boss : bosses) {
             if (boss instanceof ChesedEntity chesed) {
+                int before = chesed.getRemainingHits();
                 chesed.decreaseHitCount(1);
+                int after = chesed.getRemainingHits();
+                BeLoongCore.LOGGER.info("[DawnLight] Chesed: hits {} -> {}", before, after);
             } else if (boss instanceof MalkuthEntity malkuth) {
+                int before = malkuth.getCurrentHits();
                 malkuth.hurtBoss(1);
+                int after = malkuth.getCurrentHits();
+                BeLoongCore.LOGGER.info("[DawnLight] Malkuth: hits {} -> {}", before, after);
             } else if (boss instanceof GeburahEntity geburah) {
+                int before = geburah.getSinnedTimes();
                 geburah.setSinnedTimes(geburah.getSinnedTimes() + 1);
+                int after = geburah.getSinnedTimes();
+                BeLoongCore.LOGGER.info("[DawnLight] Geburah: sins {} -> {}", before, after);
             }
         }
 
         if (player instanceof ServerPlayer serverPlayer) {
+            BeLoongCore.LOGGER.info("[DawnLight] Sending white screen effect to {}", serverPlayer.getName().getString());
             FDLibCalls.sendScreenEffect(
                     serverPlayer,
                     FDScreenEffects.SCREEN_COLOR,
@@ -88,6 +105,7 @@ public class DawnLightEffect extends Item {
             );
         }
 
+        BeLoongCore.LOGGER.info("[DawnLight] Playing totem sound");
         level.playSound(null, player.getX(), player.getY(), player.getZ(),
                 SoundEvents.TOTEM_USE, SoundSource.PLAYERS, 1f, 1f);
 
