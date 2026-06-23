@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.fdbosses;
 
 import com.finderfeed.fdbosses.BossClientEvents;
 import com.zonlong.beloong.Config;

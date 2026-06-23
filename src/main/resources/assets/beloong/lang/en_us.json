@@ -35,8 +35,6 @@
   "beloong.configuration.fixCataclysmStructureHeight.tooltip": "Fix Cataclysm structures ignoring datapack start_height config, generating at fixed Y coordinates",
   "beloong.configuration.fixDragonsurvivalProjectileCrash": "Fix Dragon Survival Projectile Crash",
   "beloong.configuration.fixDragonsurvivalProjectileCrash.tooltip": "Fix Dragon Survival projectile crash when querying DRAGON_ABILITY_DAMAGE attribute on non-player entities.\nUses default multiplier 1.0 when the projectile owner lacks this attribute",
-  "beloong.configuration.fixFDBossesStructureHeight": "Fix FDBosses Structure Generation",
-  "beloong.configuration.fixFDBossesStructureHeight.tooltip": "Fix FDBosses structures ignoring datapack start_height config, generating at fixed Y coordinates",
   "beloong.configuration.fixFsweepContainerCrash": "Fix Fsweep Container Crash",
   "beloong.configuration.fixFsweepContainerCrash.tooltip": "Fix singleplayer connection lost crash when F-Sweep calls getType() on certain container menus (e.g. horse) that throw UnsupportedOperationException",
   "beloong.configuration.fixGlowingItemInvisibility": "Fix Body Turning Transparent When Glowing While Holding Item",

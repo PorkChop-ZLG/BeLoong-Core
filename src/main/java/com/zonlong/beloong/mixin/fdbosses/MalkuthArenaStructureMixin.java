@@ -1,10 +1,9 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.fdbosses;
 
 import com.finderfeed.fdbosses.FDBosses;
 import com.finderfeed.fdbosses.content.structures.MalkuthArenaStructure;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.zonlong.beloong.Config;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.world.level.ChunkPos;
@@ -79,8 +78,6 @@ public abstract class MalkuthArenaStructureMixin extends Structure {
     @Inject(method = "findGenerationPoint", at = @At("HEAD"), cancellable = true)
     private void onFindGenerationPoint(GenerationContext ctx,
             CallbackInfoReturnable<Optional<GenerationStub>> cir) {
-        if (!Config.FIX_FDBOSSES_STRUCTURE_HEIGHT.get()) return;
-
         ChunkPos chunkpos = ctx.chunkPos();
         int x = chunkpos.getMinBlockX() + 8;
         int z = chunkpos.getMinBlockZ() + 8;

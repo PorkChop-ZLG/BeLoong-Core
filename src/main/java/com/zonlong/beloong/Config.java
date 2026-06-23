@@ -58,11 +58,6 @@ public class Config {
             .comment("修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题")
             .define("fixCataclysmStructureHeight", true);
 
-    /** 修复逆卡巴拉结构生成（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_FDBOSSES_STRUCTURE_HEIGHT = COMMON_BUILDER
-            .comment("修复逆卡巴拉结构无视数据包start_height配置，在固定Y轴生成的问题")
-            .define("fixFDBossesStructureHeight", true);
-
     /** 修复龙之生存弹射物崩溃（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_DS_PROJECTILE_CRASH = COMMON_BUILDER
             .comment("修复龙之生存弹射物崩溃")

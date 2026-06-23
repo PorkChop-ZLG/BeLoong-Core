@@ -1,9 +1,8 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.fdbosses;
 
 import com.finderfeed.fdbosses.content.structures.GeburahArenaStructure;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.zonlong.beloong.Config;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.world.level.block.Rotation;
@@ -81,8 +80,6 @@ public abstract class GeburahArenaStructureMixin extends Structure {
     @Inject(method = "findGenerationPoint", at = @At("HEAD"), cancellable = true)
     private void onFindGenerationPoint(GenerationContext ctx,
             CallbackInfoReturnable<Optional<GenerationStub>> cir) {
-        if (!Config.FIX_FDBOSSES_STRUCTURE_HEIGHT.get()) return;
-
         BlockPos pos = this.getLowestYIn5by5BoxOffset7Blocks(ctx, Rotation.NONE);
 
         int y;
