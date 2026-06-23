@@ -82,4 +82,48 @@ public class ModMobEffects {
                 return effect;
             }
     );
+
+    // ===================== 气定神闲 =====================
+
+    /**
+     * 气定神闲效果：每级提升法力回复属性（{@code dragonsurvival:mana_regeneration}）。
+     * 默认每级 +0.001（通过 attribute modifier 的 ADD_VALUE 操作叠加）。
+     * vanilla 自动按 {@code amount × (amplifier + 1)} 缩放：
+     * <pre>
+     *   I 级 (amp=0) → +0.001 × 1 = +0.001
+     *   II 级 (amp=1) → +0.001 × 2 = +0.002
+     * </pre>
+     */
+    public static final Holder<MobEffect> SERENE = REGISTRY.register(
+            "serene",
+            () -> {
+                Attribute manaRegenAttr = BuiltInRegistries.ATTRIBUTE.get(
+                        ResourceLocation.fromNamespaceAndPath("dragonsurvival", "mana_regeneration"));
+                MobEffect effect = new MobEffect(MobEffectCategory.BENEFICIAL, 0x87CEEB) {};
+                if (manaRegenAttr != null) {
+                    effect.addAttributeModifier(
+                            BuiltInRegistries.ATTRIBUTE.wrapAsHolder(manaRegenAttr),
+                            ResourceLocation.fromNamespaceAndPath("beloong", "serene"),
+                            0.001,
+                            AttributeModifier.Operation.ADD_VALUE
+                    );
+                }
+                return effect;
+            }
+    );
+
+    // ===================== 魔力流逝 =====================
+
+    /**
+     * 魔力流逝效果——持续扣除龙族玩家的法力值。
+     *
+     * <p>效果本身仅注册为有害药水效果。每 tick 的法力扣除逻辑由
+     * {@code ManaLossHandler#onPlayerTick} 处理。</p>
+     *
+     * <p>扣除量：{@code 0.025 × (amplifier + 1)} mana/tick</p>
+     */
+    public static final Holder<MobEffect> MANA_LOSS = REGISTRY.register(
+            "mana_loss",
+            () -> new MobEffect(MobEffectCategory.HARMFUL, 0x8B008B) {}
+    );
 }
