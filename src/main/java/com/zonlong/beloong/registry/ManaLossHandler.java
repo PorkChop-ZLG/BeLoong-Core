@@ -49,7 +49,9 @@ public class ManaLossHandler {
         float deduction = BASE_DRAIN * (instance.getAmplifier() + 1);
         ManaHandler.consumeMana(player, deduction);
 
-        PacketDistributor.sendToPlayer((ServerPlayer) player,
-                new SyncMana(MagicData.getData(player).getCurrentMana()));
+        if (player.tickCount % 5 == 0) {
+            PacketDistributor.sendToPlayer((ServerPlayer) player,
+                    new SyncMana(MagicData.getData(player).getCurrentMana()));
+        }
     }
 }
