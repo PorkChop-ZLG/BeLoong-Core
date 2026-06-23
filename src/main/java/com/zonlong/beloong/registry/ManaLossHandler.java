@@ -4,6 +4,7 @@ import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvide
 import by.dragonsurvivalteam.dragonsurvival.common.handlers.magic.ManaHandler;
 import by.dragonsurvivalteam.dragonsurvival.network.syncing.SyncMana;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.MagicData;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -48,7 +49,7 @@ public class ManaLossHandler {
         float deduction = BASE_DRAIN * (instance.getAmplifier() + 1);
         ManaHandler.consumeMana(player, deduction);
 
-        PacketDistributor.sendToPlayer(player,
+        PacketDistributor.sendToPlayer((ServerPlayer) player,
                 new SyncMana(MagicData.getData(player).getCurrentMana()));
     }
 }

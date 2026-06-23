@@ -99,7 +99,7 @@ public class ModMobEffects {
             () -> {
                 Attribute manaRegenAttr = BuiltInRegistries.ATTRIBUTE.get(
                         ResourceLocation.fromNamespaceAndPath("dragonsurvival", "mana_regeneration"));
-                MobEffect effect = new MobEffect(MobEffectCategory.BENEFICIAL, 0x87CEEB);
+                MobEffect effect = new MobEffect(MobEffectCategory.BENEFICIAL, 0x87CEEB) {};
                 if (manaRegenAttr != null) {
                     // 若属性未找到（极不可能，DS 先于 BeLoong 构造），效果仍注册但不带 modifier，安全降级
                     effect.addAttributeModifier(
@@ -125,6 +125,6 @@ public class ModMobEffects {
      */
     public static final Holder<MobEffect> MANA_LOSS = REGISTRY.register(
             "mana_loss",
-            () -> new MobEffect(MobEffectCategory.HARMFUL, 0x8B008B)
+            () -> new MobEffect(MobEffectCategory.HARMFUL, 0x8B008B) {}
     );
 }
