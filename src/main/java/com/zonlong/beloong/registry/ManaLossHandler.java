@@ -32,6 +32,10 @@ public class ManaLossHandler {
             return;
         }
 
+        if (!player.isAlive()) {
+            return;
+        }
+
         if (!DragonStateProvider.isDragon(player)) {
             return;
         }
