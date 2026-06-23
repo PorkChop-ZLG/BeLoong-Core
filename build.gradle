@@ -169,10 +169,11 @@ dependencies {
     // Qliphoth Awakening — 必选前置
     compileOnly "curse.maven:qliphoth-awakening-1271707:7653113"
     localRuntime "curse.maven:qliphoth-awakening-1271707:7653113"
+    compileOnly "curse.maven:fdlib-1271749:7844741"
+    localRuntime "curse.maven:fdlib-1271749:7844741"
 
     // LionfishAPI — 本地运行时
     localRuntime "curse.maven:lionfish-api-1001614:8094835"
-    localRuntime "curse.maven:fdlib-1271749:7844741"
 
     // F-Sweep — 可选依赖
     compileOnly "curse.maven:f-sweep-1469993:7855396"

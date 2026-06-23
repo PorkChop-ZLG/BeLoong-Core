@@ -2,6 +2,7 @@ package com.zonlong.beloong.item;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
+import com.zonlong.beloong.item.effect.DawnLightEffect;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.world.item.BlockItem;
@@ -46,6 +47,10 @@ public class ModItems {
     /** 放大护符 */
     public static final DeferredItem<Item> AMPLIFICATION_CHARM =
             Items.register("amplification_charm", AmplificationCharmEffect::new);
+
+    /** 黎明曙光 */
+    public static final DeferredItem<Item> DAWN_LIGHT =
+            Items.register("dawn_light", DawnLightEffect::new);
 
     /**
      * 天灾传送门框架的 BlockItem。

@@ -37,6 +37,7 @@ public class ModCreativeModeTabs {
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModItems.BELOONG_LOGO);
                         output.accept(ModItems.AMPLIFICATION_CHARM);
+                        output.accept(ModItems.DAWN_LIGHT);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
