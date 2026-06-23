@@ -105,7 +105,7 @@ public class ModMobEffects {
                     effect.addAttributeModifier(
                             BuiltInRegistries.ATTRIBUTE.wrapAsHolder(manaRegenAttr),
                             ResourceLocation.fromNamespaceAndPath("beloong", "serene"),
-                            0.001,
+                            0.004,
                             AttributeModifier.Operation.ADD_VALUE
                     );
                 }
