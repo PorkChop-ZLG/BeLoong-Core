@@ -27,6 +27,7 @@
     "CursedPyramidStructureMixin",
     "fdbosses.GeburahArenaStructureMixin",
     "fdbosses.MalkuthArenaStructureMixin",
+    "fdbosses.JusticeCoreFixMixin",
     "NetMagnetItemMixin",
     "DSAttributesMixin",
     "ToggleFlightMixin",
