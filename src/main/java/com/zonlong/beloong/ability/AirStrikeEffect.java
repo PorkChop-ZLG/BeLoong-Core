@@ -24,7 +24,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.LevelBasedValue;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -80,13 +79,18 @@ public record AirStrikeEffect(
 
         double weaponDamage = 0;
         var mainHand = player.getMainHandItem();
+        if (!mainHand.isEmpty()) {
+            for (ItemAttributeModifiers.Entry entry : mainHand.getAttributeModifiers().modifiers()) {
+                if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
+                    weaponDamage += entry.modifier().amount();
+                }
+            }
+        }
         var offHand = player.getOffhandItem();
-        for (var stack : new ItemStack[]{mainHand, offHand}) {
-            if (!stack.isEmpty()) {
-                for (ItemAttributeModifiers.Entry entry : stack.getAttributeModifiers().modifiers()) {
-                    if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
-                        weaponDamage += entry.modifier().amount();
-                    }
+        if (!offHand.isEmpty()) {
+            for (ItemAttributeModifiers.Entry entry : offHand.getAttributeModifiers().modifiers()) {
+                if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
+                    weaponDamage += entry.modifier().amount();
                 }
             }
         }
@@ -95,12 +99,14 @@ public record AirStrikeEffect(
         float speedFactorVal = speedFactor.calculate(level);
         float damage = (float) ((base + weaponDamage) * speed * speedFactorVal * abilityScale);
 
-        // actionbar display
-        player.displayClientMessage(
-                Component.translatable("message.beloong.air_strike.actionbar",
-                        String.format("%.1f", speed * 20 * 3.6),
-                        String.format("%.1f", damage)),
-                true);
+        // actionbar display, throttled to every 5 ticks
+        if (player.tickCount % 5 == 0) {
+            player.displayClientMessage(
+                    Component.translatable("message.beloong.air_strike.actionbar",
+                            String.format("%.1f", speed * 20 * 3.6),
+                            String.format("%.1f", damage)),
+                    true);
+        }
 
         double size = collisionSize.calculate(level);
         List<LivingEntity> hitEntities = player.level().getEntitiesOfClass(
