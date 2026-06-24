@@ -36,7 +36,12 @@
                   100.0
                 ]
               },
-              "min_speed": 0.5
+              "min_speed": 0.5,
+              "collision_size": {
+                "type": "minecraft:linear",
+                "base": 1.0,
+                "per_level_above_first": 0.0
+              }
             }
           ],
           "targeting_mode": "allies_and_self"
