@@ -8,6 +8,7 @@ import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilit
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.entity_effects.AbilityEntityEffect;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.mojang.datafixers.util.Either;
+import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.enchantment.LevelBasedValue;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.slf4j.Logger;
 
 import java.util.List;
 
@@ -37,6 +39,8 @@ public record AirStrikeEffect(
         LevelBasedValue collisionSize,
         LevelBasedValue minSpeed
 ) implements AbilityEntityEffect {
+
+    static final Logger LOGGER = LogUtils.getLogger();
 
     static final ResourceKey<DamageType> AIR_STRIKE = ResourceKey.create(
             Registries.DAMAGE_TYPE,
@@ -62,20 +66,25 @@ public record AirStrikeEffect(
     @Override
     public void apply(final ServerPlayer dragon, final DragonAbilityInstance ability, final Entity target) {
         if (!(target instanceof ServerPlayer player)) {
+            LOGGER.debug("[AirStrike] Rejected: target is not ServerPlayer ({})", target.getClass().getSimpleName());
             return;
         }
 
         if (!ServerFlightHandler.isGliding(player)) {
+            LOGGER.debug("[AirStrike] Rejected: player {} is not gliding", player.getName().getString());
             return;
         }
 
         int level = ability.level();
         double speed = player.getDeltaMovement().length();
-        if (speed < minSpeed.calculate(level)) {
+        float min = minSpeed.calculate(level);
+        if (speed < min) {
+            LOGGER.debug("[AirStrike] Rejected: speed {} < minSpeed {} (level {})", speed, min, level);
             return;
         }
 
         float base = baseDamage.calculate(level);
+        LOGGER.debug("[AirStrike] Triggered for {} | level={} base={} speed={}", player.getName().getString(), level, base, speed);
 
         // SWORD claw slot weapon damage, 0 when empty
         double weaponDamage = 0;
@@ -86,12 +95,17 @@ public record AirStrikeEffect(
                     weaponDamage += entry.modifier().amount();
                 }
             }
+            LOGGER.debug("[AirStrike] Claw SWORD = {} | weaponDamage = {}", sword.getHoverName().getString(), weaponDamage);
+        } else {
+            LOGGER.debug("[AirStrike] Claw SWORD = EMPTY | weaponDamage = 0");
         }
 
         // dragon_ability_damage attribute, returns default 1.0 when missing
         double abilityScale = player.getAttributeValue(DSAttributes.DRAGON_ABILITY_DAMAGE);
-
-        float damage = (float) ((base + weaponDamage) * speed * speedFactor.calculate(level) * abilityScale);
+        float speedFactorVal = speedFactor.calculate(level);
+        float damage = (float) ((base + weaponDamage) * speed * speedFactorVal * abilityScale);
+        LOGGER.debug("[AirStrike] Formula: ({}+{}) * {} * {} * {} = {}",
+                base, weaponDamage, speed, speedFactorVal, abilityScale, damage);
 
         // actionbar display
         player.displayClientMessage(
@@ -107,6 +121,7 @@ public record AirStrikeEffect(
                 player.getBoundingBox().inflate(size),
                 e -> e != player && e.isAlive() && e.isPickable()
         );
+        LOGGER.debug("[AirStrike] Collision scan: size={} found {} entities", size, hitEntities.size());
 
         if (hitEntities.isEmpty()) {
             return;
@@ -119,12 +134,16 @@ public record AirStrikeEffect(
 
         boolean dealtDamage = false;
         for (LivingEntity hitTarget : hitEntities) {
-            if (hitTarget.hurt(new DamageSource(damageType, dragon), damage)) {
+            boolean hurt = hitTarget.hurt(new DamageSource(damageType, dragon), damage);
+            LOGGER.debug("[AirStrike] Damage {} -> {} ({} hp) | dealt={}",
+                    damage, hitTarget.getName().getString(), String.format("%.1f", hitTarget.getHealth()), hurt);
+            if (hurt) {
                 dealtDamage = true;
             }
         }
 
         if (dealtDamage) {
+            LOGGER.debug("[AirStrike] Wings folded for {}", player.getName().getString());
             FlightData.getData(player).areWingsSpread = false;
             PacketDistributor.sendToPlayersTrackingEntityAndSelf(player,
                     new SyncWingsSpread(player.getId(), false));
