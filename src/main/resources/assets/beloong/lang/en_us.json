@@ -114,5 +114,7 @@
   "message.beloong.tp_loong_palace.dimension_not_found": "§cTarget dimension not found: %s",
   "message.beloong.tp_loong_palace.invalid_dimension": "§cInvalid target dimension ID: %s",
   "title.beloong.growth_multiplier": "Growth Speed: %s",
-  "title.beloong.treasure_value": "Treasure Value: %s"
+  "title.beloong.treasure_value": "Treasure Value: %s",
+  "beloong.treasure_tooltip.value": "Treasure Value: %s",
+  "beloong.treasure_tooltip.limit": "Limit: %d"
 }
