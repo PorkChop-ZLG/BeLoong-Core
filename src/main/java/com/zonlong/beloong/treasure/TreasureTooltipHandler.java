@@ -1,5 +1,7 @@
 package com.zonlong.beloong.treasure;
 
+import java.util.Locale;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -36,7 +38,7 @@ public class TreasureTooltipHandler {
             return;
         }
 
-        event.getToolTip().add(Component.translatable(VALUE_KEY, String.format("%.1f", entry.value())));
+        event.getToolTip().add(Component.translatable(VALUE_KEY, String.format(Locale.ROOT, "%.1f", entry.value())));
 
         if (entry.limit() != Integer.MAX_VALUE) {
             event.getToolTip().add(Component.translatable(LIMIT_KEY, entry.limit()));
