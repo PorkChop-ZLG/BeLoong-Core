@@ -36,7 +36,7 @@
                   1.8
                 ]
               },
-              "min_speed": 0.5,
+              "min_speed": 0.8,
               "collision_size": {
                 "type": "minecraft:linear",
                 "base": 1.0,

@@ -97,7 +97,7 @@ public record AirStrikeEffect(
 
         // actionbar display
         player.displayClientMessage(
-                Component.translatable("dragon_ability.beloong.air_strike.actionbar",
+                Component.translatable("message.beloong.air_strike.actionbar",
                         String.format("%.1f", speed * 20 * 3.6),
                         String.format("%.1f", damage)),
                 true);
