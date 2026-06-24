@@ -38,7 +38,7 @@ import org.jetbrains.annotations.Nullable;
  * @see DisasterPortalRenderer 传送门自定义渲染器
  */
 @Mod(value = BeLoongCore.MODID, dist = Dist.CLIENT)
-@EventBusSubscriber(modid = BeLoongCore.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = BeLoongCore.MODID, value = Dist.CLIENT)
 public class BeLoongCoreClient {
 
     /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */

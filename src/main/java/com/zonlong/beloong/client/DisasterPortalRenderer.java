@@ -35,7 +35,6 @@ import java.util.function.Supplier;
  *   <li>仅 Y 轴方向可见（和原版末地传送门一致）</li>
  * </ol>
  * <p>
- * 渲染器在 {@link com.zonlong.beloong.BeLoongCoreClient#registerRenderers} 中注册。
  *
  * @see DisasterPortalBlockEntity
  * @see com.zonlong.beloong.block.DisasterPortalBlock

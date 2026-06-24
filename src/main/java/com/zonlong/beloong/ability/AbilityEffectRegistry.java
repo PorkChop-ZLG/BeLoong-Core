@@ -7,7 +7,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
-@EventBusSubscriber(modid = BeLoongCore.MODID, bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = BeLoongCore.MODID)
 public class AbilityEffectRegistry {
 
     private AbilityEffectRegistry() {}

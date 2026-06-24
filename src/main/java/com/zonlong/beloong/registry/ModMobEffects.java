@@ -13,7 +13,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 /**
  * 化龙核心的药水/状态效果注册中心。
  *
- * <p>注册的所有效果通过 {@link BeLoongCore#BeLoongCore} 中的
+ * <p>注册的所有效果通过 BeLoongCore 中的
  * {@code REGISTRY.register(modEventBus)} 提交到游戏注册表。</p>
  */
 public class ModMobEffects {

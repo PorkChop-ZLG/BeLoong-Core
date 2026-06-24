@@ -21,7 +21,7 @@ import org.jetbrains.annotations.Nullable;
  * 其中 {@link #getFlightLevel(Player)} 用于读取由 {@code DSAttributesMixin} 注入到
  * Dragon Survival 侧的 {@code dragonsurvival:flight_level} 属性。</p>
  */
-@EventBusSubscriber(modid = "beloong", bus = EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = "beloong")
 public class ModAttributes {
     public static final DeferredRegister<Attribute> REGISTRY =
             DeferredRegister.create(Registries.ATTRIBUTE, "beloong");
