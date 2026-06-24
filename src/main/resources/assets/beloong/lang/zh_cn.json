@@ -115,6 +115,6 @@
   "message.beloong.tp_loong_palace.invalid_dimension": "§c无效的目标维度ID：%s",
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
-  "beloong.treasure_tooltip.value": "财宝价值：%s",
-  "beloong.treasure_tooltip.limit": "数量限制：%d"
+  "tooltip.beloong.treasure_value": "§6财宝价值：§a%s",
+  "tooltip.beloong.treasure_limit": "§6数量限制：§d%d"
 }

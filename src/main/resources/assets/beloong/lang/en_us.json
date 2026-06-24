@@ -115,6 +115,6 @@
   "message.beloong.tp_loong_palace.invalid_dimension": "§cInvalid target dimension ID: %s",
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
-  "beloong.treasure_tooltip.value": "Treasure Value: %s",
-  "beloong.treasure_tooltip.limit": "Limit: %d"
+  "tooltip.beloong.treasure_value": "§6Treasure Value: §a%s",
+  "tooltip.beloong.treasure_limit": "§6Treasure Limit: §d%d"
 }

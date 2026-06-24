@@ -15,8 +15,8 @@ import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 @EventBusSubscriber(value = Dist.CLIENT)
 public class TreasureTooltipHandler {
 
-    private static final String VALUE_KEY = "beloong.treasure_tooltip.value";
-    private static final String LIMIT_KEY = "beloong.treasure_tooltip.limit";
+    private static final String VALUE_KEY = "tooltip.beloong.treasure_value";
+    private static final String LIMIT_KEY = "tooltip.beloong.treasure_limit";
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
