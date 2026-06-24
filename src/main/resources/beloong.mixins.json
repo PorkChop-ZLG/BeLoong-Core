@@ -28,6 +28,7 @@
     "fdbosses.GeburahArenaStructureMixin",
     "fdbosses.MalkuthArenaStructureMixin",
     "fdbosses.JusticeCoreFixMixin",
+    "fdbosses.MalkuthEntityAccessor",
     "NetMagnetItemMixin",
     "DSAttributesMixin",
     "ToggleFlightMixin",

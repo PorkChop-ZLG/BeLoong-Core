@@ -7,6 +7,7 @@ import com.finderfeed.fdlib.FDLibCalls;
 import com.finderfeed.fdlib.init.FDScreenEffects;
 import com.finderfeed.fdlib.systems.screen.screen_effect.instances.datas.ScreenColorData;
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.mixin.fdbosses.MalkuthEntityAccessor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,11 +28,11 @@ import java.util.List;
 
 public class DawnLightEffect extends Item {
 
-    private static final int SCAN_RADIUS = 16;
-    private static final int COOLDOWN_TICKS = 1200;
-    private static final int SCREEN_IN_TIME = 10;
+    private static final int SCAN_RADIUS = 32;
+    private static final int COOLDOWN_TICKS = 200;
+    private static final int SCREEN_IN_TIME = 5;
     private static final int SCREEN_STAY_TIME = 0;
-    private static final int SCREEN_OUT_TIME = 30;
+    private static final int SCREEN_OUT_TIME = 5;
 
     public DawnLightEffect() {
         super(new Item.Properties()
@@ -82,9 +83,15 @@ public class DawnLightEffect extends Item {
                 BeLoongCore.LOGGER.info("[DawnLight] Chesed: hits {} -> {}", before, after);
             } else if (boss instanceof MalkuthEntity malkuth) {
                 int before = malkuth.getCurrentHits();
-                malkuth.hurtBoss(1);
-                int after = malkuth.getCurrentHits();
-                BeLoongCore.LOGGER.info("[DawnLight] Malkuth: hits {} -> {}", before, after);
+                int newHits = Math.max(0, before - 1);
+                ((MalkuthEntityAccessor) malkuth).setHits(newHits);
+                if (newHits == 0) {
+                    malkuth.kill();
+                    BeLoongCore.LOGGER.info("[DawnLight] Malkuth: hits {} -> 0 — killed", before);
+                } else {
+                    int after = malkuth.getCurrentHits();
+                    BeLoongCore.LOGGER.info("[DawnLight] Malkuth: hits {} -> {} (bypass allowedToBeDamaged)", before, after);
+                }
             } else if (boss instanceof GeburahEntity geburah) {
                 int before = geburah.getSinnedTimes();
                 geburah.setSinnedTimes(geburah.getSinnedTimes() + 1);
