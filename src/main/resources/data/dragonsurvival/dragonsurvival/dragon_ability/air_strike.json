@@ -25,22 +25,22 @@
                 "type": "minecraft:lookup",
                 "fallback": {
                   "type": "minecraft:linear",
-                  "base": 20,
-                  "per_level_above_first": 10
+                  "base": 1.0,
+                  "per_level_above_first": 0.2
                 },
                 "values": [
-                  20.0,
-                  40.0,
-                  60.0,
-                  80.0,
-                  100.0
+                  1.0,
+                  1.2,
+                  1.4,
+                  1.6,
+                  1.8
                 ]
               },
               "min_speed": 0.5,
               "collision_size": {
                 "type": "minecraft:linear",
                 "base": 1.0,
-                "per_level_above_first": 0.0
+                "per_level_above_first": 0.2
               }
             }
           ],
