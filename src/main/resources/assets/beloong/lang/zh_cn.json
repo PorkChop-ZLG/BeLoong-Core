@@ -101,10 +101,10 @@
   "effect.beloong.serene.description": "提升魔力值回复速度。",
   "item.beloong.amplification_charm": "放大护符",
   "item.beloong.amplification_charm.tooltip": "佩戴在护符槽位，使体型变大。",
-  "item.beloong.dawn_light": "黎明曙光",
-  "item.beloong.dawn_light.tooltip": "代表希望的曙光，使用后可直接对逆卡巴拉Boss造成伤害。",
-  "item.beloong.dawn_light.no_boss": "未检测到逆卡巴拉Boss",
   "item.beloong.beloong_logo": "化龙图标",
+  "item.beloong.dawn_light": "黎明曙光",
+  "item.beloong.dawn_light.no_boss": "未检测到逆卡巴拉Boss",
+  "item.beloong.dawn_light.tooltip": "代表希望的曙光，使用后可直接对逆卡巴拉Boss造成伤害。",
   "item.beloong.eternal_porkchop": "永恒猪排",
   "item.beloong.eternal_porkchop.tooltip": "一块神奇的猪排，永远都吃不完。",
   "itemGroup.beloong_tab": "化龙",
@@ -115,6 +115,6 @@
   "message.beloong.tp_loong_palace.invalid_dimension": "§c无效的目标维度ID：%s",
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
-  "tooltip.beloong.treasure_value": "§6财宝价值：§a%s",
-  "tooltip.beloong.treasure_limit": "§6数量限制：§d%d"
+  "tooltip.beloong.treasure_limit": "数量限制：%d",
+  "tooltip.beloong.treasure_value": "财宝价值：%s"
 }

@@ -101,10 +101,10 @@
   "effect.beloong.serene.description": "Increases mana regeneration speed.",
   "item.beloong.amplification_charm": "Amplification Charm",
   "item.beloong.amplification_charm.tooltip": "Equip in Charm slot to increase body size.",
-  "item.beloong.dawn_light": "Dawn Light",
-  "item.beloong.dawn_light.tooltip": "Dawn of hope. Use to directly damage FDBosses bosses.",
-  "item.beloong.dawn_light.no_boss": "No FDBosses boss detected nearby",
   "item.beloong.beloong_logo": "BeLoong Logo",
+  "item.beloong.dawn_light": "Dawn Light",
+  "item.beloong.dawn_light.no_boss": "No FDBosses boss detected nearby",
+  "item.beloong.dawn_light.tooltip": "Dawn of hope. Use to directly damage FDBosses bosses.",
   "item.beloong.eternal_porkchop": "Eternal Porkchop",
   "item.beloong.eternal_porkchop.tooltip": "A magical porkchop that never runs out.",
   "itemGroup.beloong_tab": "BeLoong",
@@ -115,6 +115,6 @@
   "message.beloong.tp_loong_palace.invalid_dimension": "§cInvalid target dimension ID: %s",
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
-  "tooltip.beloong.treasure_value": "§6Treasure Value: §a%s",
-  "tooltip.beloong.treasure_limit": "§6Treasure Limit: §d%d"
+  "tooltip.beloong.treasure_limit": "Treasure Limit: %d",
+  "tooltip.beloong.treasure_value": "Treasure Value: %s"
 }

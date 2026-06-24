@@ -2,7 +2,9 @@ package com.zonlong.beloong.treasure;
 
 import java.util.Locale;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -38,10 +40,18 @@ public class TreasureTooltipHandler {
             return;
         }
 
-        event.getToolTip().add(Component.translatable(VALUE_KEY, String.format(Locale.ROOT, "%.1f", entry.value())));
+        MutableComponent valueLine = Component.translatable(VALUE_KEY,
+                Component.literal(String.format(Locale.ROOT, "%.1f", entry.value()))
+                        .withStyle(ChatFormatting.YELLOW)
+        ).withStyle(ChatFormatting.GOLD);
+        event.getToolTip().add(valueLine);
 
         if (entry.limit() != Integer.MAX_VALUE) {
-            event.getToolTip().add(Component.translatable(LIMIT_KEY, entry.limit()));
+            MutableComponent limitLine = Component.translatable(LIMIT_KEY,
+                    Component.literal(String.valueOf(entry.limit()))
+                            .withStyle(ChatFormatting.YELLOW)
+            ).withStyle(ChatFormatting.GOLD);
+            event.getToolTip().add(limitLine);
         }
     }
 }
