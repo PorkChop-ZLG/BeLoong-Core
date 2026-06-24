@@ -3,16 +3,19 @@ package com.zonlong.beloong;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.treasure.TreasureGrowthLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
@@ -39,8 +42,9 @@ import org.jetbrains.annotations.Nullable;
 public class BeLoongCoreClient {
 
     /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */
-    public BeLoongCoreClient(ModContainer container) {
+    public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+        modEventBus.addListener(this::onRegisterClientReloadListeners);
     }
 
     /** 天灾传送门自定义着色器实例。由 RegisterShadersEvent 回调设置。 */
@@ -85,5 +89,9 @@ public class BeLoongCoreClient {
         } catch (IOException e) {
             throw new RuntimeException("Failed to load disaster portal shader", e);
         }
+    }
+
+    private void onRegisterClientReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(TreasureGrowthLoader.INSTANCE);
     }
 }
