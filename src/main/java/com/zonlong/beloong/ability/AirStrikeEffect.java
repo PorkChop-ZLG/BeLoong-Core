@@ -3,7 +3,6 @@ package com.zonlong.beloong.ability;
 import by.dragonsurvivalteam.dragonsurvival.network.flight.SyncWingsSpread;
 import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
-import by.dragonsurvivalteam.dragonsurvival.registry.attachments.ClawInventoryData;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.entity_effects.AbilityEntityEffect;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
@@ -26,6 +25,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.LevelBasedValue;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -86,19 +86,23 @@ public record AirStrikeEffect(
         float base = baseDamage.calculate(level);
         LOGGER.debug("[AirStrike] Triggered for {} | level={} base={} speed={}", player.getName().getString(), level, base, speed);
 
-        // SWORD claw slot weapon damage, 0 when empty
+        // Main hand + offhand weapon damage, 0 when empty
         double weaponDamage = 0;
-        var sword = ClawInventoryData.getData(player).getSword();
-        if (!sword.isEmpty()) {
-            for (ItemAttributeModifiers.Entry entry : sword.getAttributeModifiers().modifiers()) {
-                if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
-                    weaponDamage += entry.modifier().amount();
+        var mainHand = player.getMainHandItem();
+        var offHand = player.getOffhandItem();
+        for (var stack : new ItemStack[]{mainHand, offHand}) {
+            if (!stack.isEmpty()) {
+                for (ItemAttributeModifiers.Entry entry : stack.getAttributeModifiers().modifiers()) {
+                    if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
+                        weaponDamage += entry.modifier().amount();
+                    }
                 }
             }
-            LOGGER.debug("[AirStrike] Claw SWORD = {} | weaponDamage = {}", sword.getHoverName().getString(), weaponDamage);
-        } else {
-            LOGGER.debug("[AirStrike] Claw SWORD = EMPTY | weaponDamage = 0");
         }
+        LOGGER.debug("[AirStrike] WeaponDamage = {} (main={}, off={})",
+                weaponDamage,
+                mainHand.isEmpty() ? "EMPTY" : mainHand.getHoverName().getString(),
+                offHand.isEmpty() ? "EMPTY" : offHand.getHoverName().getString());
 
         // dragon_ability_damage attribute, returns default 1.0 when missing
         double abilityScale = player.getAttributeValue(DSAttributes.DRAGON_ABILITY_DAMAGE);
