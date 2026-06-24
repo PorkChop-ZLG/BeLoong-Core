@@ -86,7 +86,7 @@
   "dimension.beloong.disaster": "Disaster",
   "dimension.beloong.loong_palace": "Loong Palace",
   "dragon_ability.beloong.air_strike.actionbar": "§7「§eAir Strike§7」§r§bSpeed: %s km/h§r§7 | §r§cDamage: %s",
-  "dragon_ability.beloong.air_strike.dynamic_desc": "■ Base Damage: §c%s§r§7\nSpeed Factor: §c%s§r§7\nCollision Size: §c%s§r§7\nMin Speed: §c%s§r\n\n■ Damage = (Base + WeaponATK)×Speed×Factor×AbilityDamage§r",
+  "dragon_ability.beloong.air_strike.dynamic_desc": "■ Base Damage: §c%s§r§7\nSpeed Factor: §c%s§r§7\nCollision Size: §c%s§r§7\nMin Speed: §c%s§r\n\n■ Damage = (Base + Main&Off WeaponATK)×Speed×Factor×AbilityDamage§r",
   "dragon_ability.dragonsurvival.air_strike": "Air Strike",
   "dragon_ability.dragonsurvival.air_strike.desc": "§7■ Colliding with entities while gliding deals §cdamage§r§7.\n\n■ Damage scales with flight speed, §cwings fold on impact§r§7.§r",
   "dragon_ability.dragonsurvival.tp_loong_palace": "Loong Palace Teleport",

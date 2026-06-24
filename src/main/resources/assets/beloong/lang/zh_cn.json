@@ -86,7 +86,7 @@
   "dimension.beloong.disaster": "天灾",
   "dimension.beloong.loong_palace": "龙宫",
   "dragon_ability.beloong.air_strike.actionbar": "§7「§e龙击长空§7」§r§b速度：%s km/h§r§7 | §r§c伤害：%s",
-  "dragon_ability.beloong.air_strike.dynamic_desc": "基础伤害：§2%s§r§7\n速度系数：§2%s§r§7\n碰撞箱：§2%s§r§7\n最低触发速度：§2%s§r§7§r\n\n伤害=(基础伤害+武器攻击力)×速度×系数×龙息伤害属性§r",
+  "dragon_ability.beloong.air_strike.dynamic_desc": "基础伤害：§2%s§r§7\n速度系数：§2%s§r§7\n碰撞箱：§2%s§r§7\n最低触发速度：§2%s§r§7§r\n\n伤害=(基础伤害+主手副手武器伤害)×速度×系数×龙息伤害属性§r",
   "dragon_ability.dragonsurvival.air_strike": "龙击长空",
   "dragon_ability.dragonsurvival.air_strike.desc": "§7■当处于§2滑翔§r§7状态时，可以对撞击到的目标造成§2巨额伤害§r§7。\n\n■伤害随§2飞行速度§r§7增加。\n\n§c碰撞后暂时无法飞行！§r",
   "dragon_ability.dragonsurvival.tp_loong_palace": "龙宫传送",
