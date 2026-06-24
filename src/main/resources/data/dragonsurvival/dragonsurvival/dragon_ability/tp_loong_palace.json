@@ -31,9 +31,9 @@
         "transition_length": 5
       }
     },
-    "cast_time": 100.0,
-    "cooldown": 1200.0,
-    "initial_mana_cost": 1.0,
+    "cast_time": 60.0,
+    "cooldown": 0.0,
+    "initial_mana_cost": 0.0,
     "sound": {
       "end": "minecraft:entity.enderman.teleport"
     }
@@ -49,5 +49,25 @@
         "texture_resource": "dragonsurvival:abilities/beloong/tp_loong_palace_1"
       }
     ]
+  },
+  "usage_blocked": {
+    "condition": "minecraft:inverted",
+    "term": {
+      "condition": "minecraft:any_of",
+      "terms": [
+        {
+          "condition": "minecraft:location_check",
+          "predicate": {
+            "dimension": "beloong:loong_palace"
+          }
+        },
+        {
+          "condition": "minecraft:location_check",
+          "predicate": {
+            "dimension": "minecraft:overworld"
+          }
+        }
+      ]
+    }
   }
 }
