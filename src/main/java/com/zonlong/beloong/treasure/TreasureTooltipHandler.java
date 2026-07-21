@@ -31,9 +31,9 @@ public class TreasureTooltipHandler {
 
         Block block = blockItem.getBlock();
 
-        TreasureGrowthEntry entry = TreasureGrowthLoader.INSTANCE.getDragonEntry(block);
+        TreasureGrowthEntry entry = ClientTreasureCache.INSTANCE.getDragonEntry(block);
         if (entry == null) {
-            entry = TreasureGrowthLoader.INSTANCE.getOtherEntry(block);
+            entry = ClientTreasureCache.INSTANCE.getOtherEntry(block);
         }
 
         if (entry == null) {

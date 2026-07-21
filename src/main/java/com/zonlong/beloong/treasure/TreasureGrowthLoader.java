@@ -76,4 +76,12 @@ public class TreasureGrowthLoader extends SimpleJsonResourceReloadListener {
     public TreasureGrowthEntry getOtherEntry(Block block) {
         return otherTreasureEntries.get(block);
     }
+
+    public Map<Block, TreasureGrowthEntry> getDragonEntries() {
+        return dragonTreasureEntries;
+    }
+
+    public Map<Block, TreasureGrowthEntry> getOtherEntries() {
+        return otherTreasureEntries;
+    }
 }

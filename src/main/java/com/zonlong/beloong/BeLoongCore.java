@@ -3,6 +3,7 @@ package com.zonlong.beloong;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
+import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModMobEffects;
@@ -10,6 +11,9 @@ import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
+import com.zonlong.beloong.treasure.TreasureGrowthLoader;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -17,12 +21,15 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
-
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
-
-import com.zonlong.beloong.treasure.TreasureGrowthLoader;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.slf4j.Logger;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 化龙核心（BeLoong Core）模组主类。
@@ -78,6 +85,13 @@ public class BeLoongCore {
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
+
+        // === 网络包注册 ===
+        modEventBus.addListener((RegisterPayloadHandlersEvent evt) ->
+                evt.registrar(MODID).playToClient(
+                        TreasureSyncPayload.TYPE,
+                        TreasureSyncPayload.STREAM_CODEC,
+                        TreasureSyncPayload::handleClient));
     }
 
     /** FML 通用设置（双端都执行）。 */
@@ -96,5 +110,29 @@ public class BeLoongCore {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("BeLoong Launch!");
+    }
+
+    /**
+     * 玩家登录时将全量财宝条目同步至客户端。
+     * <p>
+     * 仅在登录时同步一次（非数据包重载），避免频繁网络传输。
+     */
+    @SubscribeEvent
+    public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        List<TreasureSyncPayload.SyncedEntry> entries = new ArrayList<>();
+        for (var entry : TreasureGrowthLoader.INSTANCE.getDragonEntries().entrySet()) {
+            String id = BuiltInRegistries.BLOCK.getKey(entry.getKey()).toString();
+            entries.add(new TreasureSyncPayload.SyncedEntry(
+                    id, entry.getValue().value(), entry.getValue().limit(), true));
+        }
+        for (var entry : TreasureGrowthLoader.INSTANCE.getOtherEntries().entrySet()) {
+            String id = BuiltInRegistries.BLOCK.getKey(entry.getKey()).toString();
+            entries.add(new TreasureSyncPayload.SyncedEntry(
+                    id, entry.getValue().value(), entry.getValue().limit(), false));
+        }
+
+        PacketDistributor.sendToPlayer(player, new TreasureSyncPayload(entries));
     }
 }
