@@ -17,11 +17,6 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复发光效果导致身体透明（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_GLOWING_OUTLINE = CLIENT_BUILDER
-            .comment("修复发光效果导致身体透明")
-            .define("fixGlowingItemInvisibility", true);
-
     /** 修复稳定悬浮漂移（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
             .comment("修复稳定悬浮漂移")

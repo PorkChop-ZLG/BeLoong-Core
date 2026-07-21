@@ -4,8 +4,6 @@
   "refmap": "beloong.refmap.json",
   "client": [
     "ClientFlightHandlerMixin",
-    "DragonItemRenderLayerMixin",
-    "OutlineBufferSourceAccessor",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "AsteorBarHealthFixMixin"

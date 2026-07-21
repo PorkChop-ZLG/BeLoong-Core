@@ -37,8 +37,6 @@
   "beloong.configuration.fixDragonsurvivalProjectileCrash.tooltip": "Fix Dragon Survival projectile crash when querying DRAGON_ABILITY_DAMAGE attribute on non-player entities.\nUses default multiplier 1.0 when the projectile owner lacks this attribute",
   "beloong.configuration.fixFsweepContainerCrash": "Fix Fsweep Container Crash",
   "beloong.configuration.fixFsweepContainerCrash.tooltip": "Fix singleplayer connection lost crash when F-Sweep calls getType() on certain container menus (e.g. horse) that throw UnsupportedOperationException",
-  "beloong.configuration.fixGlowingItemInvisibility": "Fix Body Turning Transparent When Glowing While Holding Item",
-  "beloong.configuration.fixGlowingItemInvisibility.tooltip": "Fix: When \"Render Item in Mouth\" is enabled in Dragon Survival config,\nif the dragon is holding an item and has the Glowing effect,\nthe dragon's body becomes semi-transparent.",
   "beloong.configuration.fixStableHoverDrift": "Fix Stable Hover Drift",
   "beloong.configuration.fixStableHoverDrift.tooltip": "Fix: When \"Stable Hover\" is enabled in Dragon Survival config,\nafter a dive ends, the dragon drifts forward;\nwhen creative flight is enabled, the dragon drifts up.",
   "beloong.configuration.fixTreasureDuplication": "Fix Treasure Duplication",

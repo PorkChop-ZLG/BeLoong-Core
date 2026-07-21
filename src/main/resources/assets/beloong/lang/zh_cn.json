@@ -37,8 +37,6 @@
   "beloong.configuration.fixDragonsurvivalProjectileCrash.tooltip": "修复龙之生存弹射物在非玩家实体上查询DRAGON_ABILITY_DAMAGE属性时崩溃的问题\n当弹射物主人不具备该属性时，使用默认倍率1.0计算伤害",
   "beloong.configuration.fixFsweepContainerCrash": "修复Fsweep打开容器崩溃",
   "beloong.configuration.fixFsweepContainerCrash.tooltip": "修复F-Sweep在打开马/载具等特定容器时，因调用getType()抛出UnsupportedOperationException导致的单人模式连接丢失崩溃",
-  "beloong.configuration.fixGlowingItemInvisibility": "修复发光效果导致身体透明",
-  "beloong.configuration.fixGlowingItemInvisibility.tooltip": "修复：在龙之生存配置文件中开启「渲染口中持有物品」后，\n当口持物品并且身上有「发光」效果时，\n龙的身体部分会变成半透明。",
   "beloong.configuration.fixStableHoverDrift": "修复稳定悬浮漂移",
   "beloong.configuration.fixStableHoverDrift.tooltip": "修复：在龙之生存配置文件中开启「稳定悬浮」后，\n当使用俯冲结束后，龙会向前漂移；\n当开启创造模式飞行后，龙会向上漂移。",
   "beloong.configuration.fixTreasureDuplication": "修复财宝堆复制",
