@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.cataclysm;
 
 import com.github.L_Ender.cataclysm.structures.CataclysmStructure;
 import com.github.L_Ender.cataclysm.structures.Cursed_Pyramid_Structure;

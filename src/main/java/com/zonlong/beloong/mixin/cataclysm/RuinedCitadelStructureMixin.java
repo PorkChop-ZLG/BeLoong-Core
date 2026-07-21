@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.cataclysm;
 
 import com.github.L_Ender.cataclysm.structures.RuinedCitadelStructure;
 import com.mojang.serialization.MapCodec;

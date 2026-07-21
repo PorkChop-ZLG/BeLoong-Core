@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.cataclysm;
 
 import com.github.L_Ender.cataclysm.structures.Sunken_City_Structure;
 import com.mojang.serialization.MapCodec;
