@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "beloong:disaster_portal_frame"
+    "beloong:disaster_portal_frame",
+    "cataclysm:altar_of_amethyst"
   ]
 }
