@@ -14,6 +14,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,14 +29,15 @@ import java.util.List;
 public class DawnLightEffect extends Item {
 
     private static final int SCAN_RADIUS = 32;
-    private static final int COOLDOWN_TICKS = 200;
+    private static final int COOLDOWN_TICKS = 1200;
     private static final int SCREEN_IN_TIME = 5;
     private static final int SCREEN_STAY_TIME = 0;
     private static final int SCREEN_OUT_TIME = 5;
 
     public DawnLightEffect() {
         super(new Item.Properties()
-                .stacksTo(16)
+                .stacksTo(1)
+                .durability(10)
                 .rarity(Rarity.EPIC));
     }
 
@@ -65,7 +67,10 @@ public class DawnLightEffect extends Item {
             return InteractionResultHolder.fail(stack);
         }
 
-        stack.consume(1, player);
+        EquipmentSlot slot = hand == InteractionHand.MAIN_HAND
+                ? EquipmentSlot.MAINHAND
+                : EquipmentSlot.OFFHAND;
+        stack.hurtAndBreak(1, player, slot);
         player.getCooldowns().addCooldown(this, COOLDOWN_TICKS);
 
         for (Object boss : bosses) {
