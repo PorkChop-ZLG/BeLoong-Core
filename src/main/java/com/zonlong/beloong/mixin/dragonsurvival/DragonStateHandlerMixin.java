@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateHandler;
 import org.spongepowered.asm.mixin.Mixin;

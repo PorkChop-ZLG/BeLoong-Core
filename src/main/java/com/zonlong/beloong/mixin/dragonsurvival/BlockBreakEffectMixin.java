@@ -1,7 +1,7 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
-import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.block_effects.BonemealEffect;
+import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.block_effects.BlockBreakEffect;
 import com.zonlong.beloong.util.ClaimProtectionHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -12,10 +12,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * FTB Chunks 兼容：拦截 {@code BonemealEffect.apply()}，阻止在已认领区块内催熟作物。
+ * FTB Chunks 兼容：拦截 {@code BlockBreakEffect.apply()}，阻止在已认领区块内破坏方块。
  */
-@Mixin(BonemealEffect.class)
-public abstract class BonemealEffectMixin {
+@Mixin(BlockBreakEffect.class)
+public abstract class BlockBreakEffectMixin {
 
     @Inject(method = "apply", at = @At("HEAD"), cancellable = true, remap = false)
     private void beloong$beforeApply(ServerPlayer dragon, DragonAbilityInstance ability,

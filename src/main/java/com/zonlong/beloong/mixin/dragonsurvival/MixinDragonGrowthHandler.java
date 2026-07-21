@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.common.handlers.DragonGrowthHandler;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.stage.DragonStage;

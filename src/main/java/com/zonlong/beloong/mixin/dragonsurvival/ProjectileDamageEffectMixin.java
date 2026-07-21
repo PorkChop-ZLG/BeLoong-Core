@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.projectile.entity_effects.ProjectileDamageEffect;

@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.block_effects.FireEffect;

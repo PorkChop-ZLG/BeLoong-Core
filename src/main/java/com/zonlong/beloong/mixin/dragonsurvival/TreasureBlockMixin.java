@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.common.blocks.TreasureBlock;
 import com.zonlong.beloong.Config;

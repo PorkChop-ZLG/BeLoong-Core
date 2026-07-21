@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.network.flight.ToggleFlight;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;

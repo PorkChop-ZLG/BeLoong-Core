@@ -60,7 +60,7 @@ public class ModMobEffects {
      * 由 {@link FlightBanEffect#onEffectStarted} 处理，见该类的文档。
      *
      * @see FlightBanEffect
-     * @see com.zonlong.beloong.mixin.DSAttributesMixin
+     * @see com.zonlong.beloong.mixin.dragonsurvival.DSAttributesMixin
      */
     public static final Holder<MobEffect> FLIGHT_BAN = REGISTRY.register(
             "flight_ban",

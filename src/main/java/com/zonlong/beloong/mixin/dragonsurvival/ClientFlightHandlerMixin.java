@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.client.handlers.ClientFlightHandler;
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
