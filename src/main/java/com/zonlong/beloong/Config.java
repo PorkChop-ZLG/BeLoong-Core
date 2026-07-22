@@ -8,7 +8,7 @@ import net.neoforged.neoforge.common.ModConfigSpec;
  * <ul>
  *   <li>通用配置 — 两端均需加载，服务端同步至客户端</li>
  *   <li>客户端配置 — 仅影响本地渲染和输入，单人/多人均可在本地修改</li>
- *   <li>服务端配置 — 空占位，预留给未来需要服务端同步的配置项</li>
+ *   <li>服务端配置 — 控制仅由服务端判定的玩法参数</li>
  * </ul>
  */
 public class Config {
@@ -68,6 +68,14 @@ public class Config {
     // ==================== 服务端配置 ====================
 
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
+
+    // ==================== beloong_water ====================
+
+    public static final class BeloongWater {
+        private BeloongWater() {}
+
+        public static ModConfigSpec.IntValue triggerCooldownSeconds;
+    }
 
     // ==================== dimension_transport ====================
 
@@ -130,6 +138,16 @@ public class Config {
     }
 
     static {
+        // ========== beloong_water ==========
+        SERVER_BUILDER.push("beloong_water");
+
+        BeloongWater.triggerCooldownSeconds = SERVER_BUILDER
+                .comment("化龙池水冷却（秒）")
+                .translation("beloong.configuration.beloongWaterCooldown")
+                .defineInRange("beloongWaterCooldown", 10, 0, 3600);
+
+        SERVER_BUILDER.pop(); // beloong_water
+
         // ========== treasure_growth ==========
         SERVER_BUILDER.push("treasure_growth");
 

@@ -1,4 +1,7 @@
 {
+  "beloong.configuration.beloongWaterCooldown": "BeLoong Water Cooldown",
+  "block.beloong.beloong_water": "BeLoong Water",
+  "item.beloong.beloong_water_bucket": "BeLoong Water Bucket",
   "attribute.beloong.growth_speed": "Growth Speed",
   "attribute.dragonsurvival.flight_level": "Flight Level",
   "beloong.configuration.amplifierStep": "Value Per Level",

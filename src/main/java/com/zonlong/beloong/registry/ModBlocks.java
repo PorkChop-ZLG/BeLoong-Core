@@ -8,7 +8,10 @@ import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -89,6 +92,12 @@ public class ModBlocks {
      */
     public static final DeferredBlock<Block> DISASTER_PORTAL_BLOCK =
             BLOCKS.register("disaster_portal_block", DisasterPortalBlock::new);
+
+    /** 化龙池水的液体方块。 */
+    public static final DeferredBlock<LiquidBlock> BELOONG_WATER =
+            BLOCKS.register("beloong_water", () -> new LiquidBlock(
+                    ModFluids.BELOONG_WATER.get(),
+                    BlockBehaviour.Properties.ofFullCopy(Blocks.WATER)));
 
     // ==================== BlockEntity 注册 ====================
 

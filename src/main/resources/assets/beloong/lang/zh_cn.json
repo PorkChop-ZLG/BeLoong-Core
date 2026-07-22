@@ -1,4 +1,7 @@
 {
+  "beloong.configuration.beloongWaterCooldown": "化龙池水冷却",
+  "block.beloong.beloong_water": "化龙池水",
+  "item.beloong.beloong_water_bucket": "化龙池水桶",
   "attribute.beloong.growth_speed": "成长速度",
   "attribute.dragonsurvival.flight_level": "飞行等级",
   "beloong.configuration.amplifierStep": "每级所需财宝价值",
