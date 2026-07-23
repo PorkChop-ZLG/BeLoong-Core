@@ -74,7 +74,7 @@ public class Config {
     public static final class BeloongWater {
         private BeloongWater() {}
 
-        public static ModConfigSpec.IntValue triggerCooldownSeconds;
+        public static ModConfigSpec.IntValue triggerCooldownTicks;
     }
 
     // ==================== dimension_transport ====================
@@ -141,10 +141,10 @@ public class Config {
         // ========== beloong_water ==========
         SERVER_BUILDER.push("beloong_water");
 
-        BeloongWater.triggerCooldownSeconds = SERVER_BUILDER
-                .comment("化龙池水冷却（秒）")
+        BeloongWater.triggerCooldownTicks = SERVER_BUILDER
+                .comment("化龙池水冷却（ticks）")
                 .translation("beloong.configuration.beloongWaterCooldown")
-                .defineInRange("beloongWaterCooldown", 10, 0, 3600);
+                .defineInRange("beloongWaterCooldown", 200, 0, 72000);
 
         SERVER_BUILDER.pop(); // beloong_water
 

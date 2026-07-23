@@ -16,7 +16,6 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class BeloongWaterContactHandler {
 
-    private static final int TICKS_PER_SECOND = 20;
     private static final String ALTAR_COOLDOWN = "dragonsurvival.gui.message.altar_cooldown";
 
     private final BeloongWaterContactTracker contactTracker = new BeloongWaterContactTracker();
@@ -36,7 +35,7 @@ public final class BeloongWaterContactHandler {
         }
 
         long currentTick = player.getServer().getTickCount();
-        int cooldownTicks = Config.BeloongWater.triggerCooldownSeconds.get() * TICKS_PER_SECOND;
+        int cooldownTicks = Config.BeloongWater.triggerCooldownTicks.get();
         if (!triggerCooldown.isReady(player.getUUID(), currentTick, cooldownTicks)) {
             return;
         }

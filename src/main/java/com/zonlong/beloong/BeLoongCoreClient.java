@@ -10,6 +10,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
+import com.zonlong.beloong.item.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.BlockAndTintGetter;
@@ -22,11 +23,13 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.client.model.DynamicFluidContainerModel;
 import java.io.IOException;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
@@ -142,6 +145,13 @@ public class BeLoongCoreClient {
      * 由于原版渲染器内部将 BlockEntity 硬转型为 {@code TheEndPortalBlockEntity}，
      * 无法直接复用，因此需要自定义实现。
      */
+    @SubscribeEvent
+    static void registerItemColors(RegisterColorHandlersEvent.Item event) {
+        event.register(
+                new DynamicFluidContainerModel.Colors(),
+                ModItems.BELOONG_WATER_BUCKET.get());
+    }
+
     @SubscribeEvent
     static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(
