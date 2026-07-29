@@ -2,13 +2,16 @@ package com.zonlong.beloong.registry;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.block.BoardBlock;
 import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.block.DisasterPortalBlockEntity;
 import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -89,6 +92,15 @@ public class ModBlocks {
      */
     public static final DeferredBlock<Block> DISASTER_PORTAL_BLOCK =
             BLOCKS.register("disaster_portal_block", DisasterPortalBlock::new);
+
+    /** Fixed red-orange-yellow decorative board without a block entity. */
+    public static final DeferredBlock<BoardBlock> RED_YELLOW_BOARD =
+            BLOCKS.register("red_yellow_board", () -> new BoardBlock(Block.Properties.of()
+                    .mapColor(MapColor.COLOR_ORANGE)
+                    .strength(0.5F)
+                    .sound(SoundType.WOOL)
+                    .noCollission()
+                    .noOcclusion()));
 
     // ==================== BlockEntity 注册 ====================
 

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "beloong:block/red_yellow_board"
+    },
+    "facing=east": {
+      "model": "beloong:block/red_yellow_board",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "beloong:block/red_yellow_board",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "beloong:block/red_yellow_board",
+      "y": 270
+    }
+  }
+}

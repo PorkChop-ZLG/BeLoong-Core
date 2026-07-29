@@ -68,6 +68,11 @@ public class ModItems {
             Items.register("disaster_portal_block",
                     () -> new BlockItem(ModBlocks.DISASTER_PORTAL_BLOCK.get(), new Item.Properties()));
 
+    /** Red-orange-yellow decorative board. */
+    public static final DeferredItem<BlockItem> RED_YELLOW_BOARD =
+            Items.register("red_yellow_board",
+                    () -> new BlockItem(ModBlocks.RED_YELLOW_BOARD.get(), new Item.Properties()));
+
     /** 将物品注册到 Mod 事件总线 */
     public static void register(IEventBus eventBus) {
         Items.register(eventBus);

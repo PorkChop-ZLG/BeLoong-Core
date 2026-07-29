@@ -41,6 +41,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.ETERNAL_PORKCHOP);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
+                        output.accept(ModItems.RED_YELLOW_BOARD);
                     }).build());
 
     /** 将标签页注册到 Mod 事件总线 */
