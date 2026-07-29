@@ -57,8 +57,19 @@ class BeloongWaterRegionTest {
                 new BlockPos(-54, 68, -312),
                 new BlockPos(8, 77, -272));
 
-        assertTrue(region.intersects(new AABB(8.25, 77.25, -271.75, 8.75, 77.75, -271.25)));
+        assertTrue(region.intersects(new AABB(-54.0, 69.0, -300.0, -53.5, 70.0, -299.0)));
+        assertTrue(region.intersects(new AABB(8.5, 69.0, -300.0, 9.0, 70.0, -299.0)));
+        assertTrue(region.intersects(new AABB(-10.0, 68.0, -300.0, -9.0, 68.5, -299.0)));
+        assertTrue(region.intersects(new AABB(-10.0, 77.5, -300.0, -9.0, 78.0, -299.0)));
+        assertTrue(region.intersects(new AABB(-10.0, 69.0, -312.0, -9.0, 70.0, -311.5)));
+        assertTrue(region.intersects(new AABB(-10.0, 69.0, -271.5, -9.0, 70.0, -271.0)));
+
+        assertFalse(region.intersects(new AABB(-55.0, 69.0, -300.0, -54.0, 70.0, -299.0)));
         assertFalse(region.intersects(new AABB(9.0, 68.0, -312.0, 10.0, 69.0, -311.0)));
+        assertFalse(region.intersects(new AABB(-10.0, 67.0, -300.0, -9.0, 68.0, -299.0)));
+        assertFalse(region.intersects(new AABB(-10.0, 78.0, -300.0, -9.0, 79.0, -299.0)));
+        assertFalse(region.intersects(new AABB(-10.0, 69.0, -313.0, -9.0, 70.0, -312.0)));
+        assertFalse(region.intersects(new AABB(-10.0, 69.0, -271.0, -9.0, 70.0, -270.0)));
     }
 
     private static final class LevelKeys {
