@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
+import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
@@ -108,6 +109,7 @@ public class BeLoongCore {
     public void addServerReloadListeners(AddReloadListenerEvent event) {
         event.addListener(TreasureGrowthLoader.INSTANCE);
         event.addListener(StructureEffectLoader.INSTANCE);
+        event.addListener(BeloongWaterRegionLoader.INSTANCE);
     }
 
     /** 服务端启动时触发。 */
