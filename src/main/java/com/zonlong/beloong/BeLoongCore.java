@@ -8,7 +8,6 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
-import com.zonlong.beloong.registry.ModFluids;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
@@ -72,7 +71,6 @@ public class BeLoongCore {
         modEventBus.addListener(this::commonSetup);
 
         // === 注册阶段 ===
-        ModFluids.register(modEventBus);           // 流体
         ModItems.register(modEventBus);              // 物品
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页

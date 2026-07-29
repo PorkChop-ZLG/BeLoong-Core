@@ -6,7 +6,6 @@ import by.dragonsurvivalteam.dragonsurvival.registry.attachments.AltarData;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.DragonSpecies;
 import by.dragonsurvivalteam.dragonsurvival.util.Functions;
 import com.zonlong.beloong.Config;
-import com.zonlong.beloong.registry.ModFluids;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -29,7 +28,7 @@ public final class BeloongWaterContactHandler {
 
         boolean touching = player.isAlive()
                 && !player.isRemoved()
-                && player.isInFluidType(ModFluids.BELOONG_WATER_TYPE.get());
+                && BeloongWaterContactDetector.isTouching(player);
         if (!contactTracker.update(player.getUUID(), touching)) {
             return;
         }

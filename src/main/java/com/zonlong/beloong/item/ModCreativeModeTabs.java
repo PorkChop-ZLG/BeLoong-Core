@@ -39,7 +39,6 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.AMPLIFICATION_CHARM);
                         output.accept(ModItems.DAWN_LIGHT);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
-                        output.accept(ModItems.BELOONG_WATER_BUCKET);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
                     }).build());

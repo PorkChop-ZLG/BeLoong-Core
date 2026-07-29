@@ -1,0 +1,13 @@
+{
+  "dimension": "beloong:loong_palace",
+  "min": {
+    "x": -54,
+    "y": 68,
+    "z": -312
+  },
+  "max": {
+    "x": 8,
+    "y": 77,
+    "z": -272
+  }
+}

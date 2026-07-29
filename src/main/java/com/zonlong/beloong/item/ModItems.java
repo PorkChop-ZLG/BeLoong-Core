@@ -5,9 +5,7 @@ import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
 import com.zonlong.beloong.item.effect.DawnLightEffect;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import com.zonlong.beloong.registry.ModBlocks;
-import com.zonlong.beloong.registry.ModFluids;
 import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -53,12 +51,6 @@ public class ModItems {
     /** 黎明曙光 */
     public static final DeferredItem<Item> DAWN_LIGHT =
             Items.register("dawn_light", DawnLightEffect::new);
-
-    /** 化龙池水桶。 */
-    public static final DeferredItem<BucketItem> BELOONG_WATER_BUCKET =
-            Items.register("beloong_water_bucket", () -> new BucketItem(
-                    ModFluids.BELOONG_WATER.get(),
-                    new Item.Properties().craftRemainder(net.minecraft.world.item.Items.BUCKET).stacksTo(1)));
 
     /**
      * 天灾传送门框架的 BlockItem。
