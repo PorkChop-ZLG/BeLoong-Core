@@ -94,10 +94,6 @@ public class Config {
 
         public static ModConfigSpec.BooleanValue lpToOw_enabled;
         public static ModConfigSpec.IntValue lpToOw_triggerY;
-        public static ModConfigSpec.ConfigValue<String> lpToOw_targetDimension;
-        public static ModConfigSpec.DoubleValue lpToOw_targetX;
-        public static ModConfigSpec.DoubleValue lpToOw_targetZ;
-        public static ModConfigSpec.DoubleValue lpToOw_fallbackY;
     }
 
     // ==================== treasure_growth ====================
@@ -216,18 +212,6 @@ public class Config {
         DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
                 .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
                 .defineInRange("triggerY", 0, -2032, 2032);
-        DimensionTransport.lpToOw_targetDimension = SERVER_BUILDER
-                .comment("目标维度 ID")
-                .define("targetDimension", "minecraft:overworld");
-        DimensionTransport.lpToOw_targetX = SERVER_BUILDER
-                .comment("目标固定 X 坐标")
-                .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
-        DimensionTransport.lpToOw_targetZ = SERVER_BUILDER
-                .comment("目标固定 Z 坐标")
-                .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
-        DimensionTransport.lpToOw_fallbackY = SERVER_BUILDER
-                .comment("高度图查找失败时的回退 Y 坐标")
-                .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
         SERVER_BUILDER.pop(); // dimension_transport

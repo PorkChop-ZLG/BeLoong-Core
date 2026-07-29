@@ -3,6 +3,7 @@ package com.zonlong.beloong.transport;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -63,7 +64,7 @@ public class DimensionTransportHandler {
         TICK_COUNTERS.put(uuid, 0);
 
         // 检查两个方向的触发条件
-        tryTransport(player,
+        tryTransportToConfiguredDestination(player,
                 player.level().dimension().location().toString(),
                 Level.OVERWORLD.location().toString(),
                 Config.DimensionTransport.owToLP_enabled.get(),
@@ -71,33 +72,23 @@ public class DimensionTransportHandler {
                 Config.DimensionTransport.owToLP_targetDimension.get(),
                 Config.DimensionTransport.owToLP_targetX.get(),
                 Config.DimensionTransport.owToLP_targetZ.get(),
-                Config.DimensionTransport.owToLP_fallbackY.get(),
-                true); // overworld rule: trigger when Y > threshold
+                Config.DimensionTransport.owToLP_fallbackY.get());
 
-        tryTransport(player,
+        tryTransportToOverworldSpawn(player,
                 player.level().dimension().location().toString(),
                 ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace").toString(),
                 Config.DimensionTransport.lpToOw_enabled.get(),
-                Config.DimensionTransport.lpToOw_triggerY.get(),
-                Config.DimensionTransport.lpToOw_targetDimension.get(),
-                Config.DimensionTransport.lpToOw_targetX.get(),
-                Config.DimensionTransport.lpToOw_targetZ.get(),
-                Config.DimensionTransport.lpToOw_fallbackY.get(),
-                false); // loong palace rule: trigger when Y < threshold
+                Config.DimensionTransport.lpToOw_triggerY.get());
     }
 
-    private void tryTransport(ServerPlayer player,
+    private void tryTransportToConfiguredDestination(ServerPlayer player,
             String currentDim, String sourceDim,
             boolean enabled, int triggerY,
-            String targetDimStr, double targetX, double targetZ, double fallbackY,
-            boolean above) {
+            String targetDimStr, double targetX, double targetZ, double fallbackY) {
 
         if (!enabled) return;
         if (!currentDim.equals(sourceDim)) return;
-
-        double playerY = player.getY();
-        boolean triggered = above ? playerY > triggerY : playerY < triggerY;
-        if (!triggered) return;
+        if (player.getY() <= triggerY) return;
 
         // 解析目标维度
         ResourceLocation targetDimId = ResourceLocation.tryParse(targetDimStr);
@@ -146,17 +137,56 @@ public class DimensionTransportHandler {
                 targetX, safeY, targetZ,
                 Set.of(), player.getYRot(), player.getXRot());
 
-        // 重置摔落距离，防止传送前的坠落伤害带到传送后
-        player.fallDistance = 0;
-
-        // 设置冷却
-        UUID uuid = player.getUUID();
-        COOLDOWNS.put(uuid, Config.DimensionTransport.cooldownTicks.get());
-        TICK_COUNTERS.remove(uuid); // 传送后重置检查计数器
+        finishTransport(player);
 
         LOGGER.debug("[BeLoongCore] {} 从 {} 传送到 {} ({}, {}, {})",
                 player.getName().getString(), sourceDim, targetDimId,
                 targetX, safeY, targetZ);
+    }
+
+    private void tryTransportToOverworldSpawn(ServerPlayer player,
+            String currentDim, String sourceDim,
+            boolean enabled, int triggerY) {
+        if (!enabled) return;
+        if (!currentDim.equals(sourceDim)) return;
+        if (player.getY() >= triggerY) return;
+
+        ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
+        if (overworld == null) {
+            LOGGER.warn("[BeLoongCore] Overworld not found for void transport");
+            player.sendSystemMessage(Component.translatable(
+                    "message.beloong.dimension_transport.dimension_not_found",
+                    Level.OVERWORLD.location().toString()));
+            return;
+        }
+
+        if (player.isPassenger()) {
+            player.stopRiding();
+        }
+
+        BlockPos spawnPos = overworld.getSharedSpawnPos();
+        overworld.getChunk(spawnPos.getX() >> 4, spawnPos.getZ() >> 4);
+
+        double targetX = spawnPos.getX() + 0.5;
+        double targetY = spawnPos.getY();
+        double targetZ = spawnPos.getZ() + 0.5;
+        player.teleportTo(overworld,
+                targetX, targetY, targetZ,
+                Set.of(), player.getYRot(), player.getXRot());
+
+        finishTransport(player);
+
+        LOGGER.debug("[BeLoongCore] {} 从 {} 传送到主世界出生点 ({}, {}, {})",
+                player.getName().getString(), sourceDim,
+                targetX, targetY, targetZ);
+    }
+
+    private static void finishTransport(ServerPlayer player) {
+        player.fallDistance = 0;
+
+        UUID uuid = player.getUUID();
+        COOLDOWNS.put(uuid, Config.DimensionTransport.cooldownTicks.get());
+        TICK_COUNTERS.remove(uuid);
     }
 
     @SubscribeEvent
