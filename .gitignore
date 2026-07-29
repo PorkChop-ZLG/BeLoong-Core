@@ -42,5 +42,8 @@ repo/
 ### Claude ###
 .claude
 
+### Local agent memory ###
+memory/
+
 ### Spyglass ###
 spyglass.json

@@ -74,7 +74,7 @@ public final class BeloongWaterContactDetector {
         return false;
     }
 
-    static boolean isVanillaWater(Fluid fluid) {
+    private static boolean isVanillaWater(Fluid fluid) {
         return fluid == Fluids.WATER || fluid == Fluids.FLOWING_WATER;
     }
 }

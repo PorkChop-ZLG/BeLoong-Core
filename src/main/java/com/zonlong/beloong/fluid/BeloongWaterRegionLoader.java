@@ -39,7 +39,7 @@ public final class BeloongWaterRegionLoader extends SimpleJsonResourceReloadList
         return regionsByDimension.getOrDefault(dimension, List.of());
     }
 
-    static Map<ResourceKey<Level>, List<BeloongWaterRegion>> buildIndex(
+    private static Map<ResourceKey<Level>, List<BeloongWaterRegion>> buildIndex(
             Map<ResourceLocation, JsonElement> files) {
         Map<ResourceKey<Level>, List<BeloongWaterRegion>> mutableIndex = new HashMap<>();
 
