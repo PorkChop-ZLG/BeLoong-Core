@@ -70,3 +70,25 @@ Before testing, ensure `beloong:loong_palace` is not listed in FTB Chunks'
    remains protected through `ClaimProtectionHelper` by design.
 7. Repeat representative cases outside Loong Palace and verify existing FTB
    claim behavior is unchanged.
+8. With all protection categories enabled, verify water/lava buckets and solid
+   buckets cannot place or collect their contents in Loong Palace. Confirm the
+   held item immediately returns to the server-authoritative state without a
+   ghost fluid or container change.
+9. Verify paintings, item frames, and glow item frames cannot be placed. For an
+   existing item frame, verify inserting an item, rotating it, removing its
+   contents, and attacking the frame are all denied. Attacking living entities
+   must remain allowed.
+10. Verify both inserting a valid plant into an empty flower pot and removing a
+    plant from a filled pot are denied, with no ghost block or inventory state.
+11. Disable `protectFluidContainerEdits`, `protectHangingEntityEdits`, and
+    `protectFlowerPotEdits` one at a time. Confirm only the selected lifecycle
+    becomes editable. Then disable `environment_protection.enabled` and confirm
+    all three become editable while direct break/place protection remains.
+12. Give a real player FTB bypass permission and repeat the bucket, flower-pot,
+    painting, and item-frame scenarios; every action must be allowed. Repeat a
+    representative action with a FakePlayer and confirm it remains denied.
+13. Switch the client language between English and Simplified Chinese and open
+    the NeoForge server-config screen. Verify the Loong Palace and environment
+    groups, every protection option, and every tooltip are localized. Inspect
+    the generated server TOML and verify its Loong Palace comments contain both
+    languages.

@@ -84,6 +84,9 @@ public class Config {
         public static ModConfigSpec.BooleanValue protectCropGrowth;
         public static ModConfigSpec.BooleanValue protectFeatureGrowth;
         public static ModConfigSpec.BooleanValue protectPortalCreation;
+        public static ModConfigSpec.BooleanValue protectFluidContainerEdits;
+        public static ModConfigSpec.BooleanValue protectHangingEntityEdits;
+        public static ModConfigSpec.BooleanValue protectFlowerPotEdits;
     }
 
     // ==================== beloong_water ====================
@@ -156,36 +159,72 @@ public class Config {
         SERVER_BUILDER.push("environment_protection");
 
         LoongPalaceProtection.environmentProtectionEnabled = SERVER_BUILDER
-                .comment("Master switch for configurable Loong Palace environment protection")
+                .comment("Master switch for configurable Loong Palace environment protection",
+                        "龙宫可配置环境保护的总开关")
+                .translation("beloong.configuration.loongPalaceEnvironmentProtectionEnabled")
                 .define("enabled", true);
         LoongPalaceProtection.protectExplosions = SERVER_BUILDER
                 .comment("Prevent explosions reaching NeoForge's detonate event from changing blocks",
-                        "Dragon Survival's protected explosion skill remains fully canceled")
+                        "Dragon Survival's protected explosion skill remains fully canceled",
+                        "阻止进入 NeoForge 爆炸事件的爆炸修改方块",
+                        "龙之生存受保护的爆炸技能仍会被完整取消")
+                .translation("beloong.configuration.protectExplosions")
                 .define("protectExplosions", true);
         LoongPalaceProtection.protectNonPlayerBlockPlacement = SERVER_BUILDER
-                .comment("Prevent block placement attributed to non-player entities or no actor")
+                .comment("Prevent block placement attributed to non-player entities or no actor",
+                        "阻止由非玩家实体或无来源行为放置方块")
+                .translation("beloong.configuration.protectNonPlayerBlockPlacement")
                 .define("protectNonPlayerBlockPlacement", true);
         LoongPalaceProtection.protectLivingBlockDestruction = SERVER_BUILDER
-                .comment("Prevent living entities from destroying blocks")
+                .comment("Prevent living entities from destroying blocks",
+                        "阻止生物破坏方块")
+                .translation("beloong.configuration.protectLivingBlockDestruction")
                 .define("protectLivingBlockDestruction", true);
         LoongPalaceProtection.protectMobGriefing = SERVER_BUILDER
-                .comment("Disable mob-griefing actions")
+                .comment("Disable mob-griefing actions",
+                        "阻止生物破坏环境的行为")
+                .translation("beloong.configuration.protectMobGriefing")
                 .define("protectMobGriefing", true);
         LoongPalaceProtection.protectFarmlandTrampling = SERVER_BUILDER
-                .comment("Prevent farmland trampling")
+                .comment("Prevent farmland trampling",
+                        "阻止耕地被踩踏")
+                .translation("beloong.configuration.protectFarmlandTrampling")
                 .define("protectFarmlandTrampling", true);
         LoongPalaceProtection.protectToolModifications = SERVER_BUILDER
-                .comment("Prevent tool actions such as stripping, tilling, and flattening")
+                .comment("Prevent tool actions such as stripping, tilling, and flattening",
+                        "阻止去皮、耕作和铲平等工具修改方块的行为")
+                .translation("beloong.configuration.protectToolModifications")
                 .define("protectToolModifications", true);
         LoongPalaceProtection.protectCropGrowth = SERVER_BUILDER
-                .comment("Prevent random-tick crop growth and non-bypass bone meal use")
+                .comment("Prevent random-tick crop growth and non-bypass bone meal use",
+                        "阻止随机刻作物生长和无绕过权限玩家使用骨粉")
+                .translation("beloong.configuration.protectCropGrowth")
                 .define("protectCropGrowth", true);
         LoongPalaceProtection.protectFeatureGrowth = SERVER_BUILDER
-                .comment("Prevent saplings and similar blocks from growing configured features")
+                .comment("Prevent saplings and similar blocks from growing configured features",
+                        "阻止树苗等方块生长为地物")
+                .translation("beloong.configuration.protectFeatureGrowth")
                 .define("protectFeatureGrowth", true);
         LoongPalaceProtection.protectPortalCreation = SERVER_BUILDER
-                .comment("Prevent block updates from creating portals")
+                .comment("Prevent block updates from creating portals",
+                        "阻止方块更新创建传送门")
+                .translation("beloong.configuration.protectPortalCreation")
                 .define("protectPortalCreation", true);
+        LoongPalaceProtection.protectFluidContainerEdits = SERVER_BUILDER
+                .comment("Prevent players from placing or collecting fluids with buckets and solid buckets",
+                        "阻止玩家使用桶和固体桶放置或收集流体")
+                .translation("beloong.configuration.protectFluidContainerEdits")
+                .define("protectFluidContainerEdits", true);
+        LoongPalaceProtection.protectHangingEntityEdits = SERVER_BUILDER
+                .comment("Prevent players from placing, changing, or destroying paintings and item frames",
+                        "阻止玩家放置、修改或破坏画与物品展示框")
+                .translation("beloong.configuration.protectHangingEntityEdits")
+                .define("protectHangingEntityEdits", true);
+        LoongPalaceProtection.protectFlowerPotEdits = SERVER_BUILDER
+                .comment("Prevent players from inserting or removing flower-pot contents",
+                        "阻止玩家放入或取出花盆内容物")
+                .translation("beloong.configuration.protectFlowerPotEdits")
+                .define("protectFlowerPotEdits", true);
 
         SERVER_BUILDER.pop(); // environment_protection
         SERVER_BUILDER.pop(); // loong_palace
