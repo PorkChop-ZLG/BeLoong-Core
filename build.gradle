@@ -34,6 +34,18 @@ repositories {
         }
     }
     maven {
+        url = "https://maven.architectury.dev/"
+        content {
+            includeGroup "dev.architectury"
+        }
+    }
+    maven {
+        url = "https://maven.ftb.dev/releases"
+        content {
+            includeGroup "dev.ftb.mods"
+        }
+    }
+    maven {
         url = "https://jitpack.io"
     }
 }
@@ -123,6 +135,8 @@ dependencies {
     annotationProcessor "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
 
     // FTB Chunks - optional compatibility for claim protection
+    compileOnly "dev.architectury:architectury-neoforge:13.0.8"
+    compileOnly "dev.ftb.mods:ftb-library-neoforge:2101.1.30"
     compileOnly "curse.maven:ftb-chunks-forge-314906:6295696"
     localRuntime "curse.maven:ftb-chunks-forge-314906:6295696"
     // Example optional mod dependency with JEI

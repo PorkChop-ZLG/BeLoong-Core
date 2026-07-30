@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -19,6 +20,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -83,6 +85,9 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new StructureEffectHandler());
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
+        if (ModList.get().isLoaded("ftbchunks")) {
+            LoongPalaceProtectionHandler.register();
+        }
 
         // === 配置文件 ===
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
