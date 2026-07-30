@@ -1,12 +1,10 @@
 package com.zonlong.beloong.util;
 
 import com.zonlong.beloong.Config;
-import dev.ftb.mods.ftbchunks.api.FTBChunksAPI;
-import dev.ftb.mods.ftbchunks.api.Protection;
-import dev.ftb.mods.ftbchunks.api.ProtectionPolicy;
+import com.zonlong.beloong.compat.ftbchunks.FTBChunksProtectionBridge;
+import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionPolicy;
 import java.util.function.BooleanSupplier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.fml.ModList;
 
@@ -18,9 +16,6 @@ import net.neoforged.fml.ModList;
 public class ClaimProtectionHelper {
 
     private ClaimProtectionHelper() {}
-
-    private static final Protection ALWAYS_BLOCK =
-            (player, pos, hand, chunk, entity) -> ProtectionPolicy.CHECK;
 
     public static boolean isClaimed(Entity actor, BlockPos pos) {
         return isClaimed(actor, pos, Config.DS_FTBCHUNKS_COMPAT::get);
@@ -42,11 +37,10 @@ public class ClaimProtectionHelper {
             return false;
         }
 
-        var manager = FTBChunksAPI.api().getManager();
-        if (manager == null) {
-            return false;
+        if (LoongPalaceProtectionPolicy.isLoongPalace(actor)) {
+            return !LoongPalaceProtectionPolicy.hasBypass(actor);
         }
 
-        return manager.shouldPreventInteraction(actor, InteractionHand.MAIN_HAND, pos, ALWAYS_BLOCK, null);
+        return FTBChunksProtectionBridge.isClaimed(actor, pos);
     }
 }

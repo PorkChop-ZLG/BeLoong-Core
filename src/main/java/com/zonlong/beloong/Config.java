@@ -69,6 +69,23 @@ public class Config {
 
     private static final ModConfigSpec.Builder SERVER_BUILDER = new ModConfigSpec.Builder();
 
+    // ==================== loong_palace ====================
+
+    public static final class LoongPalaceProtection {
+        private LoongPalaceProtection() {}
+
+        public static ModConfigSpec.BooleanValue environmentProtectionEnabled;
+        public static ModConfigSpec.BooleanValue protectExplosions;
+        public static ModConfigSpec.BooleanValue protectNonPlayerBlockPlacement;
+        public static ModConfigSpec.BooleanValue protectLivingBlockDestruction;
+        public static ModConfigSpec.BooleanValue protectMobGriefing;
+        public static ModConfigSpec.BooleanValue protectFarmlandTrampling;
+        public static ModConfigSpec.BooleanValue protectToolModifications;
+        public static ModConfigSpec.BooleanValue protectCropGrowth;
+        public static ModConfigSpec.BooleanValue protectFeatureGrowth;
+        public static ModConfigSpec.BooleanValue protectPortalCreation;
+    }
+
     // ==================== beloong_water ====================
 
     public static final class BeloongWater {
@@ -134,6 +151,45 @@ public class Config {
     }
 
     static {
+        // ========== loong_palace.environment_protection ==========
+        SERVER_BUILDER.push("loong_palace");
+        SERVER_BUILDER.push("environment_protection");
+
+        LoongPalaceProtection.environmentProtectionEnabled = SERVER_BUILDER
+                .comment("Master switch for configurable Loong Palace environment protection")
+                .define("enabled", true);
+        LoongPalaceProtection.protectExplosions = SERVER_BUILDER
+                .comment("Prevent explosions reaching NeoForge's detonate event from changing blocks",
+                        "Dragon Survival's protected explosion skill remains fully canceled")
+                .define("protectExplosions", true);
+        LoongPalaceProtection.protectNonPlayerBlockPlacement = SERVER_BUILDER
+                .comment("Prevent block placement attributed to non-player entities or no actor")
+                .define("protectNonPlayerBlockPlacement", true);
+        LoongPalaceProtection.protectLivingBlockDestruction = SERVER_BUILDER
+                .comment("Prevent living entities from destroying blocks")
+                .define("protectLivingBlockDestruction", true);
+        LoongPalaceProtection.protectMobGriefing = SERVER_BUILDER
+                .comment("Disable mob-griefing actions")
+                .define("protectMobGriefing", true);
+        LoongPalaceProtection.protectFarmlandTrampling = SERVER_BUILDER
+                .comment("Prevent farmland trampling")
+                .define("protectFarmlandTrampling", true);
+        LoongPalaceProtection.protectToolModifications = SERVER_BUILDER
+                .comment("Prevent tool actions such as stripping, tilling, and flattening")
+                .define("protectToolModifications", true);
+        LoongPalaceProtection.protectCropGrowth = SERVER_BUILDER
+                .comment("Prevent random-tick crop growth and non-bypass bone meal use")
+                .define("protectCropGrowth", true);
+        LoongPalaceProtection.protectFeatureGrowth = SERVER_BUILDER
+                .comment("Prevent saplings and similar blocks from growing configured features")
+                .define("protectFeatureGrowth", true);
+        LoongPalaceProtection.protectPortalCreation = SERVER_BUILDER
+                .comment("Prevent block updates from creating portals")
+                .define("protectPortalCreation", true);
+
+        SERVER_BUILDER.pop(); // environment_protection
+        SERVER_BUILDER.pop(); // loong_palace
+
         // ========== beloong_water ==========
         SERVER_BUILDER.push("beloong_water");
 
