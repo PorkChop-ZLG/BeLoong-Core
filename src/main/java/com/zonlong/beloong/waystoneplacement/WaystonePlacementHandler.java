@@ -17,6 +17,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
@@ -26,6 +27,10 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.ChunkEvent;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 龙宫预设传送石碑处理器。
@@ -40,12 +45,19 @@ import net.neoforged.neoforge.event.level.ChunkEvent;
  * </ul>
  * <p>
  * Waystones 为必选依赖。
+ * <p>
+ * <b>防卡死设计</b>：校正一律延迟到下一个 tick 执行（{@link MinecraftServer#tell}），
+ * 并跳过未完全加载的区块、用重入标志防止嵌套校正——避免在区块加载调用栈上修改方块，
+ * 从而杜绝「setBlock → 邻居更新加载相邻区块 → ChunkEvent.Load → 再次校正」的加载风暴。
  */
 public final class WaystonePlacementHandler {
 
     private static final ResourceKey<Level> LOONG_PALACE = ResourceKey.create(
             Registries.DIMENSION,
             ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace"));
+
+    /** 正在执行校正的石碑位置，防止区块加载链上的重入。 */
+    private static final Set<BlockPos> ENSURING = Collections.synchronizedSet(new HashSet<>());
 
     /** 玩家进入龙宫维度时，对全部预设石碑做一次幂等校正。 */
     @SubscribeEvent
@@ -78,15 +90,16 @@ public final class WaystonePlacementHandler {
         int maxX = event.getChunk().getPos().getMaxBlockX();
         int maxZ = event.getChunk().getPos().getMaxBlockZ();
 
-        // 延后到本 tick 末尾执行，确保方块实体已完成 onLoad
-        server.execute(() -> {
+        // 延迟到下一个 tick 执行：彻底脱离区块加载调用栈，
+        // 避免在主线程的 ChunkEvent.Load 栈上直接 setBlock 引发递归加载风暴
+        server.tell(new TickTask(server.getTickCount() + 1, () -> {
             for (WaystonePlacementEntry entry : WaystonePlacementLoader.INSTANCE.getEntries()) {
                 BlockPos pos = entry.pos();
                 if (pos.getX() >= minX && pos.getX() <= maxX && pos.getZ() >= minZ && pos.getZ() <= maxZ) {
                     ensureWaystone(level, entry);
                 }
             }
-        });
+        }));
     }
 
     private static void ensureAll(ServerLevel level) {
@@ -96,6 +109,27 @@ public final class WaystonePlacementHandler {
     }
 
     private static void ensureWaystone(ServerLevel level, WaystonePlacementEntry entry) {
+        BlockPos lowerPos = entry.pos();
+
+        // 区块未完全加载时跳过：此时 getBlockEntity 会返回 null，
+        // 若直接放置会触发同步区块加载（可能再次进入 ChunkEvent.Load 链路）。
+        // 该区块自身的 ChunkEvent.Load 兜底会在加载完成后处理。
+        if (!level.isLoaded(lowerPos)) {
+            return;
+        }
+
+        // 防重入：同一个石碑的校正不能嵌套执行
+        if (!ENSURING.add(entry.pos())) {
+            return;
+        }
+        try {
+            doEnsureWaystone(level, entry);
+        } finally {
+            ENSURING.remove(entry.pos());
+        }
+    }
+
+    private static void doEnsureWaystone(ServerLevel level, WaystonePlacementEntry entry) {
         BlockPos lowerPos = entry.pos();
         BlockPos upperPos = lowerPos.above();
         WaystoneManagerImpl manager = WaystoneManagerImpl.get(level.getServer());
@@ -110,6 +144,8 @@ public final class WaystonePlacementHandler {
 
         // 2. 固定 UUID 记录不存在（数据丢失）→ 清理孤儿 + 重建
         if (manager.getWaystoneById(entry.fixedUid()).isEmpty()) {
+            BeLoongCore.LOGGER.info(
+                    "WaystonePlacement: restoring missing waystone record '{}' at {}", entry.id(), lowerPos);
             if (current.isValid() && !current.getWaystoneUid().equals(entry.fixedUid())) {
                 manager.removeWaystone(current);
             }
@@ -146,6 +182,8 @@ public final class WaystonePlacementHandler {
         BlockState upper = block.defaultBlockState()
                 .setValue(WaystoneBlockBase.HALF, DoubleBlockHalf.UPPER)
                 .setValue(WaystoneBlockBase.ORIGIN, WaystoneOrigin.UNKNOWN);
+
+        BeLoongCore.LOGGER.info("WaystonePlacement: placing waystone '{}' at {}", entry.id(), lowerPos);
 
         level.setBlock(lowerPos, lower, Block.UPDATE_ALL);
         level.setBlock(lowerPos.above(), upper, Block.UPDATE_ALL);
