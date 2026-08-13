@@ -116,6 +116,13 @@ config = "beloong.mixins.json"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
+    modId="waystones"
+    type="required"
+    versionRange="[21.1.40,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
     modId="ftbchunks"
     type="optional"
     ordering="AFTER"

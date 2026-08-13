@@ -194,6 +194,12 @@ dependencies {
     compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
     localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
     localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:7745142"
+
+    // Waystones — 必选依赖（龙宫预设传送石碑）
+    implementation "curse.maven:waystones-245755:8568526"
+    // Balm — 可选依赖，Waystones 的底层依赖（编译时引用其方块实体基类，运行时由 Waystones 提供）
+    compileOnly "curse.maven:balm-531761:8545422"
+    localRuntime "curse.maven:balm-531761:8545422"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

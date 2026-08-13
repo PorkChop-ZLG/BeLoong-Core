@@ -15,6 +15,8 @@ import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
 import com.zonlong.beloong.transport.DimensionTransportHandler;
 import com.zonlong.beloong.treasure.TreasureGrowthLoader;
+import com.zonlong.beloong.waystoneplacement.WaystonePlacementHandler;
+import com.zonlong.beloong.waystoneplacement.WaystonePlacementLoader;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -85,6 +87,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new StructureEffectHandler());
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
+        NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         if (ModList.get().isLoaded("ftbchunks")) {
             LoongPalaceProtectionHandler.register();
         }
@@ -113,6 +116,7 @@ public class BeLoongCore {
         event.addListener(TreasureGrowthLoader.INSTANCE);
         event.addListener(StructureEffectLoader.INSTANCE);
         event.addListener(BeloongWaterRegionLoader.INSTANCE);
+        event.addListener(WaystonePlacementLoader.INSTANCE);
     }
 
     /** 服务端启动时触发。 */
