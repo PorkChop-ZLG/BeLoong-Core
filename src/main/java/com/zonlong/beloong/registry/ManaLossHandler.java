@@ -51,7 +51,7 @@ public class ManaLossHandler {
 
         if (player.tickCount % 5 == 0) {
             PacketDistributor.sendToPlayer((ServerPlayer) player,
-                    new SyncMana(MagicData.getData(player).getCurrentMana()));
+                    new SyncMana(MagicData.getData(player).getCurrentMana(), true));
         }
     }
 }
