@@ -99,6 +99,8 @@ public class DisasterPortalBlock extends Block implements EntityBlock {
      * </ol>
      */
     @Override
+    // Level/ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
+    @SuppressWarnings("resource")
     protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
         // 仅服务端处理传送逻辑
         if (level.isClientSide) return;

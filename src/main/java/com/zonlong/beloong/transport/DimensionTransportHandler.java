@@ -81,6 +81,8 @@ public class DimensionTransportHandler {
                 Config.DimensionTransport.lpToOw_triggerY.get());
     }
 
+    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
+    @SuppressWarnings("resource")
     private void tryTransportToConfiguredDestination(ServerPlayer player,
             String currentDim, String sourceDim,
             boolean enabled, int triggerY,
@@ -144,6 +146,8 @@ public class DimensionTransportHandler {
                 targetX, safeY, targetZ);
     }
 
+    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
+    @SuppressWarnings("resource")
     private void tryTransportToOverworldSpawn(ServerPlayer player,
             String currentDim, String sourceDim,
             boolean enabled, int triggerY) {

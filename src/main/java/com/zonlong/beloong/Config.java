@@ -331,6 +331,7 @@ public class Config {
                                 "fdbosses:eye_of_malkuth",
                                 "fdbosses:eye_of_geburah"
                         ),
+                        () -> "",
                         s -> s instanceof String str && str.contains(":"));
 
         DisasterPortal.teleportCooldownTicks = SERVER_BUILDER
@@ -348,6 +349,7 @@ public class Config {
                         "具体效果与结构的映射请在 data/beloong/beloong/structure_effects/ 中配置")
                 .defineList("watchedEffects",
                         List.of("beloong:flight_ban"),
+                        () -> "",
                         s -> s instanceof String str && str.contains(":"));
 
         SERVER_BUILDER.pop(); // structure_effects

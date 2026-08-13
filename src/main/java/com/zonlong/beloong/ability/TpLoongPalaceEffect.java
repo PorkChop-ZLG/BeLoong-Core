@@ -43,6 +43,8 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
         }
     }
 
+    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
+    @SuppressWarnings("resource")
     private void teleportToLoongPalace(final ServerPlayer player) {
         String targetDimStr = Config.DimensionTransport.owToLP_targetDimension.get();
         ResourceLocation targetDimId = ResourceLocation.tryParse(targetDimStr);
@@ -89,6 +91,8 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
                 player.getName().getString(), targetDimId, targetX, safeY, targetZ);
     }
 
+    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
+    @SuppressWarnings("resource")
     private void teleportToOverworldSpawn(final ServerPlayer player) {
         ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
         if (overworld == null) {

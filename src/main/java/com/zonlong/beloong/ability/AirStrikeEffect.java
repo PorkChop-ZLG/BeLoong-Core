@@ -81,7 +81,7 @@ public record AirStrikeEffect(
         var mainHand = player.getMainHandItem();
         if (!mainHand.isEmpty()) {
             for (ItemAttributeModifiers.Entry entry : mainHand.getAttributeModifiers().modifiers()) {
-                if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
+                if (entry.attribute().value() == Attributes.ATTACK_DAMAGE.value()) {
                     weaponDamage += entry.modifier().amount();
                 }
             }
@@ -89,7 +89,7 @@ public record AirStrikeEffect(
         var offHand = player.getOffhandItem();
         if (!offHand.isEmpty()) {
             for (ItemAttributeModifiers.Entry entry : offHand.getAttributeModifiers().modifiers()) {
-                if (entry.attribute().is(Attributes.ATTACK_DAMAGE)) {
+                if (entry.attribute().value() == Attributes.ATTACK_DAMAGE.value()) {
                     weaponDamage += entry.modifier().amount();
                 }
             }
@@ -144,7 +144,9 @@ public record AirStrikeEffect(
 
     @Override
     public List<MutableComponent> getDescription(final Player dragon, final DragonAbilityInstance ability) {
-        int level = ability.level();
+        // LevelBasedValue.Lookup 不接受 level 0（会索引 values.get(-1) 崩溃），
+        // 未学习能力时按 1 级展示数值。
+        int level = Math.max(DragonAbilityInstance.MIN_LEVEL_FOR_CALCULATIONS, ability.level());
         return List.of(
                 Component.translatable("dragon_ability.beloong.air_strike.dynamic_desc",
                         String.format("%.1f", baseDamage.calculate(level)),

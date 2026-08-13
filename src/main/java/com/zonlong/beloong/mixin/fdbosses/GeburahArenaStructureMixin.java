@@ -5,7 +5,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.world.level.block.Rotation;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.heightproviders.HeightProvider;
@@ -80,7 +80,10 @@ public abstract class GeburahArenaStructureMixin extends Structure {
     @Inject(method = "findGenerationPoint", at = @At("HEAD"), cancellable = true)
     private void onFindGenerationPoint(GenerationContext ctx,
             CallbackInfoReturnable<Optional<GenerationStub>> cir) {
-        BlockPos pos = this.getLowestYIn5by5BoxOffset7Blocks(ctx, Rotation.NONE);
+        ChunkPos chunkpos = ctx.chunkPos();
+        int x = chunkpos.getBlockX(7);
+        int z = chunkpos.getBlockZ(7);
+        BlockPos pos = new BlockPos(x, getLowestY(ctx, x, z, 5, 5), z);
 
         int y;
         if (this.beloong$startHeight.isPresent()) {
