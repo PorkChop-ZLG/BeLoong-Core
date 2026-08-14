@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 
@@ -61,6 +62,7 @@ public class MeteorEntityRenderer extends EntityRenderer<MeteorEntity> {
         consumer.addVertex(pose.pose(), x, y, z)
                 .setColor(255, 255, 255, 255)
                 .setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(light)
                 .setNormal(pose, 0.0F, 0.0F, 1.0F);
     }
