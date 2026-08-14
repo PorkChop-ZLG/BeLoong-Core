@@ -153,6 +153,26 @@ public class Config {
         public static ModConfigSpec.ConfigValue<List<? extends String>> watchedEffects;
     }
 
+    // ==================== meteor_rain ====================
+
+    public static final class MeteorRain {
+        private MeteorRain() {}
+
+        public static ModConfigSpec.BooleanValue enabled;
+        public static ModConfigSpec.DoubleValue triggerChance;
+        public static ModConfigSpec.IntValue checkIntervalTicks;
+        public static ModConfigSpec.IntValue minDurationTicks;
+        public static ModConfigSpec.IntValue maxDurationTicks;
+        public static ModConfigSpec.IntValue cooldownTicks;
+        public static ModConfigSpec.IntValue meteorsPerPlayerPerSpawn;
+        public static ModConfigSpec.IntValue spawnIntervalTicks;
+        public static ModConfigSpec.IntValue spawnRadius;
+        public static ModConfigSpec.IntValue spawnHeight;
+        public static ModConfigSpec.DoubleValue explosionPower;
+        public static ModConfigSpec.DoubleValue entityDamage;
+        public static ModConfigSpec.BooleanValue fire;
+    }
+
     static {
         // ========== loong_palace.environment_protection ==========
         SERVER_BUILDER.push("loong_palace");
@@ -353,6 +373,51 @@ public class Config {
                         s -> s instanceof String str && str.contains(":"));
 
         SERVER_BUILDER.pop(); // structure_effects
+
+        // ========== meteor_rain ==========
+        SERVER_BUILDER.push("meteor_rain");
+
+        MeteorRain.enabled = SERVER_BUILDER
+                .comment("是否启用流星火雨天气（仅天灾维度）")
+                .define("enabled", true);
+        MeteorRain.triggerChance = SERVER_BUILDER
+                .comment("每次判定（每 checkIntervalTicks）触发流星火雨的概率，0.0~1.0")
+                .defineInRange("triggerChance", 0.001, 0.0, 1.0);
+        MeteorRain.checkIntervalTicks = SERVER_BUILDER
+                .comment("状态机判定间隔（ticks），默认 100 = 5 秒")
+                .defineInRange("checkIntervalTicks", 100, 1, 1200);
+        MeteorRain.minDurationTicks = SERVER_BUILDER
+                .comment("流星火雨最短持续时间（ticks），默认 600 = 30 秒")
+                .defineInRange("minDurationTicks", 600, 20, 72000);
+        MeteorRain.maxDurationTicks = SERVER_BUILDER
+                .comment("流星火雨最长持续时间（ticks），默认 2400 = 2 分钟")
+                .defineInRange("maxDurationTicks", 2400, 20, 72000);
+        MeteorRain.cooldownTicks = SERVER_BUILDER
+                .comment("结束后的冷却时间（ticks），默认 12000 = 10 分钟")
+                .defineInRange("cooldownTicks", 12000, 0, 72000);
+        MeteorRain.meteorsPerPlayerPerSpawn = SERVER_BUILDER
+                .comment("每次生成波次每玩家的陨石数量上限")
+                .defineInRange("meteorsPerPlayerPerSpawn", 3, 1, 64);
+        MeteorRain.spawnIntervalTicks = SERVER_BUILDER
+                .comment("生成波次间隔（ticks），默认 40 = 2 秒")
+                .defineInRange("spawnIntervalTicks", 40, 1, 1200);
+        MeteorRain.spawnRadius = SERVER_BUILDER
+                .comment("玩家附近陨石落点半径（方块）")
+                .defineInRange("spawnRadius", 24, 4, 128);
+        MeteorRain.spawnHeight = SERVER_BUILDER
+                .comment("陨石生成高度（Y），应高于天际")
+                .defineInRange("spawnHeight", 320, 128, 512);
+        MeteorRain.explosionPower = SERVER_BUILDER
+                .comment("爆炸威力（TNT 为 4.0）")
+                .defineInRange("explosionPower", 5.0, 1.0, 64.0);
+        MeteorRain.entityDamage = SERVER_BUILDER
+                .comment("对范围内生物的额外直接伤害")
+                .defineInRange("entityDamage", 20.0, 0.0, 1000.0);
+        MeteorRain.fire = SERVER_BUILDER
+                .comment("爆炸是否产生火焰")
+                .define("fire", true);
+
+        SERVER_BUILDER.pop(); // meteor_rain
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();

@@ -2,7 +2,10 @@ package com.zonlong.beloong;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
+import com.zonlong.beloong.client.MeteorEntityRenderer;
+import com.zonlong.beloong.client.MeteorRainClientEvents;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModEntities;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
@@ -17,6 +20,7 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import net.neoforged.neoforge.common.NeoForge;
 import java.io.IOException;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,6 +46,7 @@ public class BeLoongCoreClient {
     /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+        NeoForge.EVENT_BUS.register(new MeteorRainClientEvents());
     }
 
     /** 天灾传送门自定义着色器实例。由 RegisterShadersEvent 回调设置。 */
@@ -73,6 +78,7 @@ public class BeLoongCoreClient {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
+        event.registerEntityRenderer(ModEntities.METEOR.get(), MeteorEntityRenderer::new);
     }
 
     @SubscribeEvent

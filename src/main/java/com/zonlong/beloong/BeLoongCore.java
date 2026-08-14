@@ -1,14 +1,17 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.command.MeteorRainCommand;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
+import com.zonlong.beloong.network.MeteorRainSyncPayload;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
@@ -17,6 +20,7 @@ import com.zonlong.beloong.transport.DimensionTransportHandler;
 import com.zonlong.beloong.treasure.TreasureGrowthLoader;
 import com.zonlong.beloong.waystoneplacement.WaystonePlacementHandler;
 import com.zonlong.beloong.waystoneplacement.WaystonePlacementLoader;
+import com.zonlong.beloong.weather.MeteorRainHandler;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -76,6 +80,7 @@ public class BeLoongCore {
 
         // === 注册阶段 ===
         ModItems.register(modEventBus);              // 物品
+        ModEntities.register(modEventBus);           // 实体
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
@@ -88,6 +93,8 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
+        NeoForge.EVENT_BUS.register(new MeteorRainHandler());
+        NeoForge.EVENT_BUS.register(new MeteorRainCommand());
         if (ModList.get().isLoaded("ftbchunks")) {
             LoongPalaceProtectionHandler.register();
         }
@@ -98,11 +105,17 @@ public class BeLoongCore {
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // === 网络包注册 ===
-        modEventBus.addListener((RegisterPayloadHandlersEvent evt) ->
-                evt.registrar(MODID).playToClient(
-                        TreasureSyncPayload.TYPE,
-                        TreasureSyncPayload.STREAM_CODEC,
-                        TreasureSyncPayload::handleClient));
+        modEventBus.addListener((RegisterPayloadHandlersEvent evt) -> {
+            var registrar = evt.registrar(MODID);
+            registrar.playToClient(
+                    TreasureSyncPayload.TYPE,
+                    TreasureSyncPayload.STREAM_CODEC,
+                    TreasureSyncPayload::handleClient);
+            registrar.playToClient(
+                    MeteorRainSyncPayload.TYPE,
+                    MeteorRainSyncPayload.STREAM_CODEC,
+                    MeteorRainSyncPayload::handleClient);
+        });
     }
 
     /** FML 通用设置（双端都执行）。 */

@@ -151,5 +151,16 @@
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.beloong.treasure_limit": "Treasure Limit: %d",
-  "tooltip.beloong.treasure_value": "Treasure Value: %s"
+  "tooltip.beloong.treasure_value": "Treasure Value: %s",
+  "death.attack.beloong.meteor": "%s was struck by a meteor",
+  "death.attack.beloong.meteor.player": "%s was struck by a meteor in the meteor fire rain",
+  "command.beloong.meteorrain.started": "Started meteor fire rain in the disaster dimension",
+  "command.beloong.meteorrain.stopped": "Stopped the meteor fire rain in the disaster dimension",
+  "command.beloong.meteorrain.status.active": "Meteor fire rain active, %s seconds remaining",
+  "command.beloong.meteorrain.status.inactive": "Meteor fire rain inactive",
+  "command.beloong.meteorrain.status.cooldown": "Meteor fire rain cooling down, %s seconds remaining",
+  "command.beloong.meteorrain.only_disaster": "Meteor fire rain is only available in the disaster dimension (beloong:disaster)",
+  "command.beloong.meteorrain.usage": "Usage: beloongcore weather meteorrain [start|stop|status]",
+  "message.beloong.meteorrain.start": "Disaster approaches, the meteor fire rain has begun!",
+  "message.beloong.meteorrain.end": "The meteor fire rain has ended."
 }

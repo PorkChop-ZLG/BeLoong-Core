@@ -151,5 +151,16 @@
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.beloong.treasure_limit": "数量限制：%d",
-  "tooltip.beloong.treasure_value": "财宝价值：%s"
+  "tooltip.beloong.treasure_value": "财宝价值：%s",
+  "death.attack.beloong.meteor": "%s 被陨石砸中",
+  "death.attack.beloong.meteor.player": "%s 在流星火雨中被陨石砸中",
+  "command.beloong.meteorrain.started": "已在天灾维度开始流星火雨",
+  "command.beloong.meteorrain.stopped": "已停止天灾维度的流星火雨",
+  "command.beloong.meteorrain.status.active": "流星火雨进行中，剩余 %s 秒",
+  "command.beloong.meteorrain.status.inactive": "流星火雨未进行",
+  "command.beloong.meteorrain.status.cooldown": "流星火雨冷却中，剩余 %s 秒",
+  "command.beloong.meteorrain.only_disaster": "流星火雨仅在天灾维度（beloong:disaster）可用",
+  "command.beloong.meteorrain.usage": "用法：beloongcore weather meteorrain [start|stop|status]",
+  "message.beloong.meteorrain.start": "天灾降临，流星火雨开始了！",
+  "message.beloong.meteorrain.end": "流星火雨结束了。"
 }
