@@ -29,18 +29,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 模拟鞘翅式下坠。本 Mixin 尊重 DS 的 {@code stableHover} 配置：
  * <ul>
  *   <li>{@code stableHover = false} 时完全不干预，由 DS 原版物理处理；</li>
- *   <li>{@code stableHover = true} 时，仅在玩家处于真实空中飞行、无操作输入时调整：</li>
+ *   <li>{@code stableHover = true} 时，仅在玩家无操作输入时调整：</li>
  *   <ul>
- *     <li>{@code FLIGHT_LEVEL >= 1} + 无输入 → 清零加速度 = 稳定悬停</li>
- *     <li>{@code FLIGHT_LEVEL < 1} + 无输入 → 追加额外重力 = 模拟非稳定下坠</li>
+ *     <li>水中且 {@code FLIGHT_LEVEL >= 1} → 锁定当前高度，不缓慢下沉</li>
+ *     <li>空中且 {@code FLIGHT_LEVEL >= 1} → 清零加速度 = 稳定悬停</li>
+ *     <li>空中且 {@code FLIGHT_LEVEL < 1} → 追加额外重力 = 模拟非稳定下坠</li>
+ *     <li>水中且 {@code FLIGHT_LEVEL < 1} → 不干预</li>
  *   </ul>
  * </ul>
  *
- * <p>水中、熔岩、地面、骑乘、滑翔、旋转状态均不干预，保持 DS 原版行为。</p>
+ * <p>滑翔、旋转、地面、骑乘、熔岩状态不干预，保持 DS 原版行为。</p>
  *
  * <h3>性能</h3>
  * 每客户端 tick 在 {@code flightControl()} 末尾执行一次。对非龙玩家、无翅玩家、
- * 非空中飞行或存在操作输入时，通过早期返回跳过主体逻辑。
+ * 或存在操作输入时，通过早期返回跳过主体逻辑。
  *
  * @see com.zonlong.beloong.registry.ModAttributes#getFlightLevel
  */
@@ -80,16 +82,6 @@ public abstract class ClientFlightHandlerMixin {
                 return;
             }
 
-            // 只处理真实空中飞行，排除水中/熔岩/地面/骑乘
-            if (!ServerFlightHandler.isFlying(player)) {
-                return;
-            }
-
-            // 保持 DS 原版滑翔/旋转行为，不干预
-            if (ServerFlightHandler.isGliding(player) || ServerFlightHandler.isSpin(player)) {
-                return;
-            }
-
             Input movement = player.input;
             double flightLevel = ModAttributes.getFlightLevel(player);
 
@@ -98,6 +90,29 @@ public abstract class ClientFlightHandlerMixin {
 
             // 有任何操作输入时不干预，交给 DS 处理
             if (!noMoveInput || !noVerticalInput) {
+                return;
+            }
+
+            // 水中稳定悬停：锁定当前高度
+            if (player.isInWater()) {
+                if (flightLevel >= 1.0) {
+                    ClientFlightHandlerAccessor.beloong$setAx(0.0);
+                    ClientFlightHandlerAccessor.beloong$setAz(0.0);
+                    ClientFlightHandlerAccessor.beloong$setAy(0.0);
+                    Vec3 delta = player.getDeltaMovement();
+                    player.setDeltaMovement(delta.x, 0, delta.z);
+                }
+                // flightLevel < 1 时保持原版水中行为，不干预
+                return;
+            }
+
+            // 只处理真实空中飞行，排除地面/骑乘/熔岩
+            if (!ServerFlightHandler.isFlying(player)) {
+                return;
+            }
+
+            // 保持 DS 原版滑翔/旋转行为，不干预
+            if (ServerFlightHandler.isGliding(player) || ServerFlightHandler.isSpin(player)) {
                 return;
             }
 
