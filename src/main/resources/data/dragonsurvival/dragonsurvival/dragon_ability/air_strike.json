@@ -44,7 +44,7 @@
               }
             }
           ],
-          "targeting_mode": "allies_and_self"
+          "targeting_mode": "all_except_self"
         },
         "target_type": "dragonsurvival:self"
       },

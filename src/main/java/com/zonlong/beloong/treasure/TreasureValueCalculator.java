@@ -3,6 +3,7 @@ package com.zonlong.beloong.treasure;
 import by.dragonsurvivalteam.dragonsurvival.common.blocks.TreasureBlock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -19,9 +20,13 @@ public final class TreasureValueCalculator {
 
         AABB area = AABB.ofSize(player.position(), 16, 9, 16);
 
+        int maxX = Mth.floor(Math.nextDown(area.maxX));
+        int maxY = Mth.floor(Math.nextDown(area.maxY));
+        int maxZ = Mth.floor(Math.nextDown(area.maxZ));
+
         for (BlockPos pos : BlockPos.betweenClosed(
                 (int) Math.floor(area.minX), (int) Math.floor(area.minY), (int) Math.floor(area.minZ),
-                (int) Math.ceil(area.maxX), (int) Math.ceil(area.maxY), (int) Math.ceil(area.maxZ))) {
+                maxX, maxY, maxZ)) {
             BlockState state = player.serverLevel().getBlockState(pos);
             Block block = state.getBlock();
 
