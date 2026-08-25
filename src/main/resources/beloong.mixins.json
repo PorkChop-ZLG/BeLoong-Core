@@ -3,6 +3,7 @@
   "package": "com.zonlong.beloong.mixin",
   "refmap": "beloong.refmap.json",
   "client": [
+    "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",

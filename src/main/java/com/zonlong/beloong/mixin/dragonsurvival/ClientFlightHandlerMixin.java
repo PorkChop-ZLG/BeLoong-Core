@@ -12,7 +12,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -27,38 +26,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <h3>新增功能：飞行等级控制的悬停切换</h3>
  * 飞行等级系统要求：{@code FLIGHT_LEVEL >= 1} 时稳定悬停，{@code FLIGHT_LEVEL < 1} 时
- * 模拟鞘翅式下坠。DS 的 {@code stableHover} 配置由用户控制，本 Mixin 不覆盖。
- *
- * <p>当 {@code stableHover = true} 时，DS 物理使用柔和重力（{@code -gravity}）。
- * 本 Mixin 在 TAIL 阶段根据飞行等级调整：</p>
+ * 模拟鞘翅式下坠。本 Mixin 尊重 DS 的 {@code stableHover} 配置：
  * <ul>
- *   <li>{@code FLIGHT_LEVEL >= 1} + 无输入 → 清零加速度 = 稳定悬停</li>
- *   <li>{@code FLIGHT_LEVEL < 1} + 无输入 → 追加额外重力 = 模拟非稳定下坠</li>
+ *   <li>{@code stableHover = false} 时完全不干预，由 DS 原版物理处理；</li>
+ *   <li>{@code stableHover = true} 时，仅在玩家处于真实空中飞行、无操作输入时调整：</li>
+ *   <ul>
+ *     <li>{@code FLIGHT_LEVEL >= 1} + 无输入 → 清零加速度 = 稳定悬停</li>
+ *     <li>{@code FLIGHT_LEVEL < 1} + 无输入 → 追加额外重力 = 模拟非稳定下坠</li>
+ *   </ul>
  * </ul>
  *
- * <p>当 {@code stableHover = false} 时，DS 自身使用双倍重力（{@code -(gravity×2)}），
- * 本 Mixin 的悬停修正不会覆盖飞行控制已设定的速度，自然表现为无稳定悬停。</p>
+ * <p>水中、熔岩、地面、骑乘、滑翔、旋转状态均不干预，保持 DS 原版行为。</p>
  *
  * <h3>性能</h3>
- * 每客户端 tick 在 {@code flightControl()} 末尾执行一次。对非龙玩家或无翅玩家，
- * 通过早期返回跳过主体逻辑（{@code handler.isDragon()}、{@code isWingsSpread()} 检查）。
+ * 每客户端 tick 在 {@code flightControl()} 末尾执行一次。对非龙玩家、无翅玩家、
+ * 非空中飞行或存在操作输入时，通过早期返回跳过主体逻辑。
  *
  * @see com.zonlong.beloong.registry.ModAttributes#getFlightLevel
  */
-@Mixin(ClientFlightHandler.class)
+@Mixin(value = ClientFlightHandler.class, remap = false)
 public abstract class ClientFlightHandlerMixin {
-
-    /** 龙的 X 轴加速度（前后），Shadow 映射目标类 {@code ClientFlightHandler.ax} */
-    @Shadow
-    private static double ax;
-
-    /** 龙的 Z 轴加速度（左右），Shadow 映射目标类 {@code ClientFlightHandler.az} */
-    @Shadow
-    private static double az;
-
-    /** 龙的 Y 轴加速度（垂直），Shadow 映射目标类 {@code ClientFlightHandler.ay} */
-    @Shadow
-    private static double ay;
 
     /**
      * 在 {@code flightControl} 完成所有飞行动力学计算后注入。
@@ -71,48 +58,64 @@ public abstract class ClientFlightHandlerMixin {
             return;
         }
 
+        // 尊重 DS 配置：stableHover=false 时完全不干预
+        if (!ServerFlightHandler.stableHover) {
+            return;
+        }
+
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return;
+        if (player == null) {
+            return;
+        }
 
         DragonStateProvider.getOptional(player).ifPresent(handler -> {
             // 仅处理龙玩家
-            if (!handler.isDragon()) return;
+            if (!handler.isDragon()) {
+                return;
+            }
 
             // 翅膀未展开或无飞行能力时不干预
             FlightData flightData = FlightData.getData(player);
-            if (!flightData.isWingsSpread() || !flightData.hasFlight()) return;
+            if (!flightData.isWingsSpread() || !flightData.hasFlight()) {
+                return;
+            }
+
+            // 只处理真实空中飞行，排除水中/熔岩/地面/骑乘
+            if (!ServerFlightHandler.isFlying(player)) {
+                return;
+            }
+
+            // 保持 DS 原版滑翔/旋转行为，不干预
+            if (ServerFlightHandler.isGliding(player) || ServerFlightHandler.isSpin(player)) {
+                return;
+            }
 
             Input movement = player.input;
             double flightLevel = ModAttributes.getFlightLevel(player);
 
-            // 判断是否应进入稳定悬停：
-            //   FLIGHT_LEVEL >= 1 && 未按跳跃/潜行 && 未旋转/滑翔
-            boolean shouldHover = flightLevel >= 1.0
-                    && !movement.jumping
-                    && !movement.shiftKeyDown
-                    && !ServerFlightHandler.isSpin(player)
-                    && !ServerFlightHandler.isGliding(player);
-
-            // 无水平移动输入（键盘 WASD 均未按下）
             boolean noMoveInput = movement.forwardImpulse == 0 && movement.leftImpulse == 0;
+            boolean noVerticalInput = !movement.jumping && !movement.shiftKeyDown;
 
-            // ── 稳定悬停：清零加速度 ──
-            if (shouldHover && noMoveInput) {
-                ax = 0.0;
-                az = 0.0;
+            // 有任何操作输入时不干预，交给 DS 处理
+            if (!noMoveInput || !noVerticalInput) {
+                return;
+            }
+
+            if (flightLevel >= 1.0) {
+                // 稳定悬停：清零水平加速度
+                ClientFlightHandlerAccessor.beloong$setAx(0.0);
+                ClientFlightHandlerAccessor.beloong$setAz(0.0);
 
                 // 创造模式无重力，需额外清零垂直速度和加速度防止上漂
                 if (player.isCreative()) {
-                    ay = 0.0;
+                    ClientFlightHandlerAccessor.beloong$setAy(0.0);
                     Vec3 delta = player.getDeltaMovement();
                     player.setDeltaMovement(delta.x, 0, delta.z);
                 }
-            }
-
-            // ── 非稳定悬停：追加额外重力模拟 elytra 式下落 ──
-            // DS 的 stableHover=true 路径仅应用 -gravity；此处追加 -gravity
-            // 使总重力达到 -(gravity×2)，与 DS 原版 stableHover=false 一致
-            if (!shouldHover && flightLevel < 1.0 && noMoveInput) {
+            } else if (flightLevel < 1.0) {
+                // 非稳定悬停：追加额外重力模拟 elytra 式下落
+                // DS 的 stableHover=true 路径仅应用 -gravity；此处追加 -gravity
+                // 使总重力达到 -(gravity×2)，与 DS 原版 stableHover=false 一致
                 double gravity = player.getAttributeValue(Attributes.GRAVITY);
                 Vec3 delta = player.getDeltaMovement();
                 player.setDeltaMovement(delta.x, delta.y - gravity, delta.z);
