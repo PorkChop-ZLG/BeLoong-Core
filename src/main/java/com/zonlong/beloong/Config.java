@@ -30,6 +30,7 @@ public class Config {
     /** 隐藏未专门绘制的龙盔甲（默认启用） */
     public static final ModConfigSpec.BooleanValue HIDE_UNDEVELOPED_DRAGON_ARMOR = CLIENT_BUILDER
             .comment("当龙盔甲没有专门贴图时，不显示通用默认回退盔甲")
+            .translation("beloong.configuration.hideUndevelopedDragonArmor")
             .define("hideUndevelopedDragonArmor", true);
 
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();

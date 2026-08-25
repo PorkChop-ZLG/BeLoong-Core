@@ -76,6 +76,8 @@
   "beloong.configuration.fixStableHoverDrift.tooltip": "修复：在龙之生存配置文件中开启「稳定悬浮」后，\n当使用俯冲结束后，龙会向前漂移；\n当开启创造模式飞行后，龙会向上漂移。",
   "beloong.configuration.fixTreasureDuplication": "修复财宝堆复制",
   "beloong.configuration.fixTreasureDuplication.tooltip": "移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆\n关闭后恢复龙之生存原版下落机制",
+  "beloong.configuration.hideUndevelopedDragonArmor": "隐藏未专门绘制的龙盔甲",
+  "beloong.configuration.hideUndevelopedDragonArmor.tooltip": "当盔甲没有专门绘制的龙模型贴图时，不显示通用默认回退盔甲",
   "beloong.configuration.loongPalaceToOverworld": "龙宫 → 主世界",
   "beloong.configuration.loongPalaceToOverworld.button": "配置",
   "beloong.configuration.loongPalaceToOverworld.tooltip": "龙宫 → 主世界 传送配置",
