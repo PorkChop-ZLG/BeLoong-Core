@@ -27,6 +27,11 @@ public class Config {
             .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
+    /** 隐藏未专门绘制的龙盔甲（默认启用） */
+    public static final ModConfigSpec.BooleanValue HIDE_UNDEVELOPED_DRAGON_ARMOR = CLIENT_BUILDER
+            .comment("当龙盔甲没有专门贴图时，不显示通用默认回退盔甲")
+            .define("hideUndevelopedDragonArmor", true);
+
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
 
     // ==================== 通用配置 ====================

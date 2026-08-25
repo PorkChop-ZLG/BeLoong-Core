@@ -5,6 +5,7 @@
   "client": [
     "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
+    "dragonsurvival.DragonArmorRenderLayerMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "AsteorBarHealthFixMixin"
