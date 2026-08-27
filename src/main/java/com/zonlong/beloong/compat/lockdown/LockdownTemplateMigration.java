@@ -24,9 +24,12 @@ import org.apache.commons.io.FileUtils;
  *
  * <p>This runs on {@link ServerAboutToStartEvent}, which fires before
  * {@code MinecraftServer#loadLevel()}, so no dimension is loaded yet.</p>
+ *
+ * <p>Only custom dimensions stored under {@code <save>/dimensions/} are handled.
+ * Vanilla dimensions (overworld/nether/end) are skipped because they are not
+ * part of the {@code dimensions} folder.</p>
  */
 public final class LockdownTemplateMigration {
-    private static final String[] OVERWORLD_DIRECTORIES = {"data", "entities", "poi", "region"};
 
     @SubscribeEvent
     public void onServerAboutToStart(ServerAboutToStartEvent event) {
@@ -51,6 +54,13 @@ public final class LockdownTemplateMigration {
 
         if (!isTemplateUsable(templateDir)) {
             BeLoongCore.LOGGER.warn("[LockdownMigration] Template directory {} is missing or empty; skipping template migration.", templateDir);
+            return;
+        }
+
+        if (!isSafeTemplatePath(templateDir, saveDir)) {
+            BeLoongCore.LOGGER.error(
+                    "[LockdownMigration] Template directory {} is not safe to use with save directory {}; aborting template migration.",
+                    templateDir, saveDir);
             return;
         }
 
@@ -96,6 +106,25 @@ public final class LockdownTemplateMigration {
         }
     }
 
+    private boolean isSafeTemplatePath(Path templateDir, Path saveDir) {
+        Path template = templateDir.toAbsolutePath().normalize();
+        Path save = saveDir.toAbsolutePath().normalize();
+
+        if (template.equals(save)) {
+            return false;
+        }
+        if (template.startsWith(save) || save.startsWith(template)) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isUnderDimensionsFolder(Path saveDir, ResourceKey<Level> dimensionKey) {
+        Path target = DimensionType.getStorageFolder(dimensionKey, saveDir).normalize();
+        Path dimensionsRoot = saveDir.resolve("dimensions").normalize();
+        return target.startsWith(dimensionsRoot);
+    }
+
     private boolean copyPinnedDimension(Path templateDir, Path saveDir, String dimensionId) {
         ResourceLocation location = ResourceLocation.tryParse(dimensionId);
         if (location == null) {
@@ -104,12 +133,13 @@ public final class LockdownTemplateMigration {
         }
 
         ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, location);
+        if (!isUnderDimensionsFolder(saveDir, dimensionKey)) {
+            BeLoongCore.LOGGER.warn("[LockdownMigration] Dimension {} is not under the save's dimensions folder; skipping.", dimensionId);
+            return true;
+        }
+
         Path source = DimensionType.getStorageFolder(dimensionKey, templateDir);
         Path target = DimensionType.getStorageFolder(dimensionKey, saveDir);
-
-        if (dimensionKey.equals(Level.OVERWORLD)) {
-            return copyOverworldDirectories(source, target);
-        }
 
         if (!Files.isDirectory(source)) {
             BeLoongCore.LOGGER.warn("[LockdownMigration] Template dimension {} does not exist at {}; skipping.", dimensionId, source);
@@ -127,32 +157,5 @@ public final class LockdownTemplateMigration {
             BeLoongCore.LOGGER.error("[LockdownMigration] Failed to copy dimension {} from {} to {}.", dimensionId, source, target, exception);
             return false;
         }
-    }
-
-    private boolean copyOverworldDirectories(Path templateWorld, Path targetWorld) {
-        boolean copiedAny = false;
-
-        for (String directoryName : OVERWORLD_DIRECTORIES) {
-            Path sourceDir = templateWorld.resolve(directoryName);
-            if (!Files.isDirectory(sourceDir)) {
-                continue;
-            }
-
-            Path targetDir = targetWorld.resolve(directoryName);
-            try {
-                if (Files.exists(targetDir)) {
-                    FileUtils.deleteDirectory(targetDir.toFile());
-                }
-                FileUtils.copyDirectory(sourceDir.toFile(), targetDir.toFile());
-                copiedAny = true;
-            } catch (IOException exception) {
-                BeLoongCore.LOGGER.error("[LockdownMigration] Failed to copy overworld directory {} from {} to {}.", directoryName, sourceDir, targetDir, exception);
-            }
-        }
-
-        if (!copiedAny) {
-            BeLoongCore.LOGGER.warn("[LockdownMigration] No overworld template subdirectories found under {}; skipping overworld pin.", templateWorld);
-        }
-        return copiedAny;
     }
 }
