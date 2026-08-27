@@ -131,6 +131,9 @@ dependencies {
     implementation "curse.maven:dragons-survival-420799:8726322"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:7023453"
+
+    // LockDown - required dependency
+    implementation "curse.maven:lockdown-reneoforged-1492416:8245680"
     // Mixin Annotation Processor - generates refmap for @Inject resolution
     annotationProcessor "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
 

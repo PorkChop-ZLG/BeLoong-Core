@@ -68,6 +68,30 @@ public class Config {
             .comment("修复Fsweep打开部分容器崩溃")
             .define("fixFsweepContainerCrash", true);
 
+    // ==================== 旧存档模板维度迁移 ====================
+
+    public static final class TemplateUpdate {
+        private TemplateUpdate() {}
+
+        /** 旧存档模板维度自动迁移总开关（默认启用） */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 模板版本号，更新地图模板后手动 +1 可触发旧存档覆盖更新 */
+        public static ModConfigSpec.IntValue templateVersion;
+    }
+
+    static {
+        COMMON_BUILDER.push("template_update");
+        TemplateUpdate.enabled = COMMON_BUILDER
+                .comment("Enable old-save template dimension migration",
+                        "是否启用旧存档模板维度自动迁移")
+                .define("enabled", true);
+        TemplateUpdate.templateVersion = COMMON_BUILDER
+                .comment("Template version; bump this to force old saves to be overwritten from the template",
+                        "模板版本号；更新地图模板后手动 +1 可触发旧存档覆盖更新")
+                .defineInRange("templateVersion", 1, 1, Integer.MAX_VALUE);
+        COMMON_BUILDER.pop();
+    }
+
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
 
     // ==================== 服务端配置 ====================
