@@ -3,7 +3,7 @@
 **日期：** 2026-08-14  
 **审查对象：** BeLoong-Core × 最新 DragonSurvival（`origin/1.21.1`）  
 **DS 本地源码：** `D:\Minecraft\DragonSurvival`  
-**结论：** 未发现会导致加载崩溃或 Mixin 应用失败的严重不兼容，但存在 4 个重要行为级不兼容/风险。
+**结论：** 未发现会导致加载崩溃或 Mixin 应用失败的严重不兼容，但存在 3 个重要行为级不兼容/风险（原 2.1 已实测无异常，暂不修复）。
 
 ---
 
@@ -19,7 +19,9 @@
 
 ## 2. 重要问题
 
-### 2.1 `ClientFlightHandlerMixin` 基于旧版 DS 飞行物理，修复效果可能不准
+### 2.1 `ClientFlightHandlerMixin` 基于旧版 DS 飞行物理，修复效果可能不准（已实测无异常，暂不修复）
+
+**实测结论：** 已在新版 DS 下实际测试，悬停与 BUG 修复功能正常，暂不修复。以下为静态分析记录，留作后续参考。
 
 DS 最新版无输入悬停分支已经变化：
 
@@ -103,7 +105,7 @@ BuiltInRegistries.ATTRIBUTE.get(
 
 ## 4. 后续建议
 
-1. 根据当前 DS 飞行物理重新校准 `ClientFlightHandlerMixin`。
+1. `ClientFlightHandlerMixin` 已实测无异常，暂不修复；如后续出现具体症状（如生存悬停漂移、低飞行等级下坠异常）再重新校准。
 2. 确认 `mana_loss` 是否需要避开 DS 经验转换机制。
 3. 将 `ModMobEffects` 的跨模组属性查找改为懒加载或注册后绑定。
 4. 优化 `DragonArmorRenderLayerMixin` 的隐藏时机和路径判断。
