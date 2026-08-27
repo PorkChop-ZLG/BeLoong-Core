@@ -128,7 +128,7 @@ configurations {
 
 dependencies {
     // Dragon Survival - required dependency
-    implementation "curse.maven:dragons-survival-420799:8564714"
+    implementation "curse.maven:dragons-survival-420799:8726322"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:7023453"
     // Mixin Annotation Processor - generates refmap for @Inject resolution
