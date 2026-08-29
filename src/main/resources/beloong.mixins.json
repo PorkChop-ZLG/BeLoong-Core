@@ -1,4 +1,4 @@
-{
+﻿{
   "required": true,
   "package": "com.zonlong.beloong.mixin",
   "refmap": "beloong.refmap.json",
@@ -34,7 +34,8 @@
     "dragonsurvival.DSAttributesMixin",
     "dragonsurvival.ToggleFlightMixin",
     "dragonsurvival.DragonStateHandlerMixin",
-    "dragonsurvival.ProjectileDamageEffectMixin"
+    "dragonsurvival.ProjectileDamageEffectMixin",
+    "betterendisland.DragonSummonMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
@@ -94,6 +95,9 @@ public class BeLoongCore {
         }
         if (ModList.get().isLoaded("ftbchunks")) {
             LoongPalaceProtectionHandler.register();
+        }
+        if (ModList.get().isLoaded("betterendisland")) {
+            NeoForge.EVENT_BUS.register(new DragonSummonHandler());
         }
 
         // === 配置文件 ===

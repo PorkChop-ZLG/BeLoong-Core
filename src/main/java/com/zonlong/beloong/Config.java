@@ -182,6 +182,19 @@ public class Config {
         public static ModConfigSpec.ConfigValue<List<? extends String>> watchedEffects;
     }
 
+    // ==================== dragon_summon ====================
+    // 末影龙手动召唤仪式（YUNG's Better End Island 兼容）
+
+    public static final class DragonSummon {
+        private DragonSummon() {}
+
+        /** 启用手动召唤末影龙仪式 */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 用于召唤末影龙的特殊方块 ID */
+        public static ModConfigSpec.ConfigValue<String> summonBlock;
+    }
+
+
     static {
         // ========== loong_palace.environment_protection ==========
         SERVER_BUILDER.push("loong_palace");
@@ -382,6 +395,23 @@ public class Config {
                         s -> s instanceof String str && str.contains(":"));
 
         SERVER_BUILDER.pop(); // structure_effects
+
+        // ========== dragon_summon ==========
+        SERVER_BUILDER.push("dragon_summon");
+
+        DragonSummon.enabled = SERVER_BUILDER
+                .comment("Enable the Ender Dragon summon ritual",
+                        "启用手动召唤末影龙仪式")
+                .translation("beloong.configuration.dragonSummonEnabled")
+                .define("enabled", true);
+
+        DragonSummon.summonBlock = SERVER_BUILDER
+                .comment("Block used to summon the Ender Dragon",
+                        "用于召唤末影龙的特殊方块 ID")
+                .translation("beloong.configuration.dragonSummonBlock")
+                .define("summonBlock", "bosses_of_mass_destruction:levitation_block");
+
+        SERVER_BUILDER.pop(); // dragon_summon
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
