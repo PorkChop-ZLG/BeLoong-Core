@@ -194,8 +194,8 @@ dependencies {
     localRuntime "curse.maven:beyonddimensions-1222890:7866935"
 
     // BWG + TerraBlender — 可选依赖
-    compileOnly files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
-    localRuntime files('libs/TerraBlender-neoforge-1.21.1-4.1.0.8.jar')
+    compileOnly "curse.maven:terrablender-neoforge-940057:6054947"
+    localRuntime "curse.maven:terrablender-neoforge-940057:6054947"
     localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:7745142"
 
     // Waystones — 必选依赖（龙宫预设传送石碑）
@@ -203,6 +203,13 @@ dependencies {
     // Balm — 可选依赖，Waystones 的底层依赖（编译时引用其方块实体基类，运行时由 Waystones 提供）
     compileOnly "curse.maven:balm-531761:8545422"
     localRuntime "curse.maven:balm-531761:8545422"
+
+    // Bosses of Mass Destruction — 祸乱鬼魅（可选兼容）
+    localRuntime "curse.maven:bosses-of-mass-destruction-forge-941573:8448640"
+    // Cerbons API — BOMD 前置
+    localRuntime "curse.maven:cerbons-api-955605:6483943"
+    // Cloth Config — BOMD 前置
+    localRuntime "curse.maven:cloth-config-348521:5729127"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
