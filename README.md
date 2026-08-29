@@ -31,6 +31,28 @@ templateVersion = 1
 - `enabled`：是否启用旧存档模板维度自动迁移。
 - `templateVersion`：模板版本号；更新地图模板后手动 +1，旧存档会在下次启动时自动覆盖更新。
 
+### 末影龙手动召唤仪式（YUNG's Better End Island 兼容）
+
+配合 YUNG's Better End Island 使用，将末影龙首次召唤与死亡后复活改为手动仪式：
+
+- 禁用 BEI 在中央塔周围自动生成 4 颗召唤水晶；承载水晶的基岩会被替换为强化深板岩，并加入 `minecraft:dragon_immune` 标签，防止被末影龙破坏。
+- 玩家需要在原本 4 颗召唤水晶的位置放置配置的特殊方块（默认 `bosses_of_mass_destruction:levitation_block`）。
+- 空位会向附近玩家持续发送提醒粒子；每放对一个方块会播放信标选择音并生成村民喜悦绿色粒子。
+- 4 个位置全部放满后，播放信标激活音并生成龙息粒子，方块立即转化为末地水晶，随后自动触发 BEI 的首次召唤/复活流程。
+- 由于仪式位置不再使用基岩，玩家无法再通过手动放置末地水晶来触发复活。
+
+配置位于 `beloong-server.toml`：
+
+```toml
+[dragon_summon]
+enabled = true
+summonBlock = "bosses_of_mass_destruction:levitation_block"
+```
+
+- `enabled`：是否启用手动召唤仪式。
+- `summonBlock`：用于召唤末影龙的特殊方块 ID。
+
+
 
 ## 构建
 
