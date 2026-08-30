@@ -37,7 +37,8 @@
     "dragonsurvival.ToggleFlightMixin",
     "dragonsurvival.DragonStateHandlerMixin",
     "dragonsurvival.ProjectileDamageEffectMixin",
-    "betterendisland.DragonSummonMixin"
+    "betterendisland.DragonSummonMixin",
+    "betterendisland.ExitPortalUtilsMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
