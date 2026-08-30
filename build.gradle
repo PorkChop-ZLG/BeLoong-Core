@@ -211,6 +211,10 @@ dependencies {
     // Cloth Config — BOMD 前置
     localRuntime "curse.maven:cloth-config-348521:5729127"
 
+    // Cult of Azazel — 可选兼容
+    compileOnly "curse.maven:cult-of-azazel-1571005:8655331"
+    localRuntime "curse.maven:cult-of-azazel-1571005:8655331"
+
     // YUNG's API — YUNG's Better End Island 前置
     compileOnly "curse.maven:yungs-api-neoforge-1015100:6715463"
     localRuntime "curse.maven:yungs-api-neoforge-1015100:6715463"

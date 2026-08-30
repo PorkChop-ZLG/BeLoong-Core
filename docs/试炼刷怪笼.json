@@ -10,6 +10,8 @@ give @p minecraft:trial_spawner[block_entity_data={id: "minecraft:trial_spawner"
         }
     }
 ]
+
+// 星光傀儡
 give @p minecraft:trial_spawner[block_entity_data={id: "minecraft:trial_spawner",normal_config: {loot_tables_to_eject: [
                 {data: "minecraft:empty",weight: 1
                 }

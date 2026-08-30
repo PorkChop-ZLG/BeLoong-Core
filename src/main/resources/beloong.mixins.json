@@ -6,6 +6,7 @@
     "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
     "dragonsurvival.DragonArmorRenderLayerMixin",
+    "dragonsurvival.DamageEffectMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "AsteorBarHealthFixMixin"
