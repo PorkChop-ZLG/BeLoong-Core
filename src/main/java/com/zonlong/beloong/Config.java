@@ -192,6 +192,12 @@ public class Config {
         public static ModConfigSpec.BooleanValue enabled;
         /** 用于召唤末影龙的特殊方块 ID */
         public static ModConfigSpec.ConfigValue<String> summonBlock;
+        /** 自定义返回传送门偏移 X */
+        public static ModConfigSpec.IntValue offsetX;
+        /** 自定义返回传送门偏移 Y */
+        public static ModConfigSpec.IntValue offsetY;
+        /** 自定义返回传送门偏移 Z */
+        public static ModConfigSpec.IntValue offsetZ;
     }
 
 
@@ -410,6 +416,24 @@ public class Config {
                         "用于召唤末影龙的特殊方块 ID")
                 .translation("beloong.configuration.dragonSummonBlock")
                 .define("summonBlock", "bosses_of_mass_destruction:levitation_block");
+
+        DragonSummon.offsetX = SERVER_BUILDER
+                .comment("Custom return portal offset X",
+                        "自定义返回传送门偏移 X")
+                .translation("beloong.configuration.dragonSummonOffsetX")
+                .defineInRange("offsetX", -6, -1000, 1000);
+
+        DragonSummon.offsetY = SERVER_BUILDER
+                .comment("Custom return portal offset Y",
+                        "自定义返回传送门偏移 Y")
+                .translation("beloong.configuration.dragonSummonOffsetY")
+                .defineInRange("offsetY", -5, -1000, 1000);
+
+        DragonSummon.offsetZ = SERVER_BUILDER
+                .comment("Custom return portal offset Z",
+                        "自定义返回传送门偏移 Z")
+                .translation("beloong.configuration.dragonSummonOffsetZ")
+                .defineInRange("offsetZ", -6, -1000, 1000);
 
         SERVER_BUILDER.pop(); // dragon_summon
     }

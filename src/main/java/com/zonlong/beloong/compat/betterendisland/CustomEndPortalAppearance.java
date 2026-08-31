@@ -2,6 +2,7 @@ package com.zonlong.beloong.compat.betterendisland;
 
 import com.yungnickyoung.minecraft.betterendisland.mixin.accessor.EndDragonFightAccessor;
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.Config;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -21,8 +22,8 @@ import java.util.Optional;
  *   <li>复活完成后（inactive）→ {@code end_return_portal_deactivated}</li>
  * </ul>
  *
- * <p>对齐方式：使用硬编码偏移 {@code portalLocation.offset(-7, -1, -7)}，
- * 不依赖 NBT 内的 bedrock 锚点。</p>
+ * <p>对齐方式：偏移来自 {@code dragon_summon} 配置节的
+ * {@code offsetX / offsetY / offsetZ}，默认 {@code -7 / -1 / -7}。</p>
  */
 public final class CustomEndPortalAppearance {
 
@@ -55,9 +56,12 @@ public final class CustomEndPortalAppearance {
         }
 
         // NBT size: 15 x 7 x 15。
-        // 使用硬编码偏移：结构原点为 portalLocation.offset(-7, -1, -7)。
-        // 该偏移是在旧“四基岩中心对齐 portalLocation”的基础上整体上移一格得到的。
-        BlockPos origin = portalLocation.offset(-7, -1, -7);
+        // 偏移来自 dragon_summon 配置节，默认 -7 / -1 / -7。
+        BlockPos origin = portalLocation.offset(
+                Config.DragonSummon.offsetX.get(),
+                Config.DragonSummon.offsetY.get(),
+                Config.DragonSummon.offsetZ.get()
+        );
         StructurePlaceSettings settings = new StructurePlaceSettings();
 
         try {
