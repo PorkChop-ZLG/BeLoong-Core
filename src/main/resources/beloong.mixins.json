@@ -37,7 +37,8 @@
     "dragonsurvival.DragonStateHandlerMixin",
     "dragonsurvival.ProjectileDamageEffectMixin",
     "betterendisland.DragonSummonMixin",
-    "betterendisland.ExitPortalUtilsMixin"
+    "betterendisland.ExitPortalUtilsMixin",
+    "legendarymonsters.AnnihilationPursuerDamageCapMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

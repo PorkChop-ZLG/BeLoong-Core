@@ -130,7 +130,7 @@ dependencies {
     // Dragon Survival - required dependency
     implementation "curse.maven:dragons-survival-420799:8726322"
     // GeckoLib - required by Dragon Survival
-    implementation "curse.maven:geckolib-388172:7023453"
+    implementation "curse.maven:geckolib-388172:8350073"
 
     // LockDown - required dependency
     implementation "curse.maven:lockdown-reneoforged-1492416:8245680"
@@ -218,6 +218,13 @@ dependencies {
     // YUNG's Better End Island — 可选兼容（手动召唤末影龙仪式）
     compileOnly "curse.maven:yungs-better-end-island-neoforge-1015127:6300968"
     localRuntime "curse.maven:yungs-better-end-island-neoforge-1015127:6300968"
+
+    // Mowzie's Mobs — 必选依赖（钢铁守护者重锤伤害）
+    implementation "curse.maven:mowzies-mobs-250498:7760267"
+
+    // Legendary Monsters — 可选兼容（湮灭猎影伤害上限修复）
+    compileOnly "curse.maven:legendary-monsters-944035:8715533"
+    localRuntime "curse.maven:legendary-monsters-944035:8715533"
 
 }
 
