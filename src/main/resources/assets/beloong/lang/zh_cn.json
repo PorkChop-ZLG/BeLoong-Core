@@ -99,6 +99,8 @@
   "beloong.configuration.protectPortalCreation.tooltip": "阻止方块更新创建传送门",
   "beloong.configuration.protectToolModifications": "防止工具修改",
   "beloong.configuration.protectToolModifications.tooltip": "阻止去皮、耕作、铲平等工具行为修改方块",
+  "beloong.configuration.removeSculptorAntiCheat": "移除通臂大师的反作弊",
+  "beloong.configuration.removeSculptorAntiCheat.tooltip": "移除通臂大师跑酷试炼中的飞行、水中和持续上升反作弊；保留距离、低于石柱和传送检测。",
   "beloong.configuration.section.beloong.client.toml": "化龙核心 - 客户端设置",
   "beloong.configuration.section.beloong.client.toml.title": "客户端设置",
   "beloong.configuration.section.beloong.common.toml": "化龙核心 - 通用设置",

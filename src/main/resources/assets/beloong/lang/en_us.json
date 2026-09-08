@@ -99,6 +99,8 @@
   "beloong.configuration.protectPortalCreation.tooltip": "Prevent block updates from creating portals",
   "beloong.configuration.protectToolModifications": "Protect Against Tool Modifications",
   "beloong.configuration.protectToolModifications.tooltip": "Prevent stripping, tilling, flattening, and similar tool actions from changing blocks",
+  "beloong.configuration.removeSculptorAntiCheat": "Remove Sculptor Anti-Cheat",
+  "beloong.configuration.removeSculptorAntiCheat.tooltip": "Remove flying, swimming, and sustained upward acceleration anti-cheat during the Sculptor's parkour test. Keeps distance, below-pillar and teleport detection.",
   "beloong.configuration.section.beloong.client.toml": "BeLoong Core - Client Settings",
   "beloong.configuration.section.beloong.client.toml.title": "Client Settings",
   "beloong.configuration.section.beloong.common.toml": "BeLoong Core - Common Settings",

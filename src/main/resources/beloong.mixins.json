@@ -39,7 +39,8 @@
     "betterendisland.DragonSummonMixin",
     "betterendisland.ExitPortalUtilsMixin",
     "legendarymonsters.AnnihilationPursuerDamageCapMixin",
-    "mowziesmobs.EntityWroughtnautMaceMixin"
+    "mowziesmobs.EntityWroughtnautMaceMixin",
+    "mowziesmobs.EntitySculptorCanFlyMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

@@ -69,6 +69,12 @@ public class Config {
                     "允许使用原版重锤对已激活的钢铁守护者造成伤害")
             .define("enableMowzieMaceDamage", true);
 
+    /** Mowzie's Mobs 通臂大师：移除跑酷试炼中的飞行/水中/持续上升反作弊（默认启用） */
+    public static final ModConfigSpec.BooleanValue REMOVE_SCULPTOR_ANTI_CHEAT = COMMON_BUILDER
+            .comment("Remove Sculptor anti-cheat",
+                    "移除通臂大师跑酷试炼中的飞行、水中和持续上升反作弊；保留距离、低于石柱和传送检测")
+            .define("removeSculptorAntiCheat", true);
+
     // ==================== 旧存档模板维度迁移 ====================
 
     public static final class TemplateUpdate {
