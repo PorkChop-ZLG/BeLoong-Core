@@ -63,6 +63,12 @@ public class Config {
             .comment("修复Fsweep打开部分容器崩溃")
             .define("fixFsweepContainerCrash", true);
 
+    /** Mowzie's Mobs 钢铁守护者：允许原版重锤伤害（默认启用） */
+    public static final ModConfigSpec.BooleanValue ENABLE_MOWZIE_MACE_DAMAGE = COMMON_BUILDER
+            .comment("Enable Ferrous Wroughtnaut damage by vanilla mace",
+                    "允许使用原版重锤对已激活的钢铁守护者造成伤害")
+            .define("enableMowzieMaceDamage", true);
+
     // ==================== 旧存档模板维度迁移 ====================
 
     public static final class TemplateUpdate {

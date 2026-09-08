@@ -37,6 +37,8 @@
   "beloong.configuration.effectDurationTicks.tooltip": "Duration of each effect refresh (ticks), should exceed check interval to avoid flickering",
   "beloong.configuration.enabled": "Enable",
   "beloong.configuration.enabled.tooltip": "Whether to enable this feature",
+  "beloong.configuration.enableMowzieMaceDamage": "Mowzie Mace Damage",
+  "beloong.configuration.enableMowzieMaceDamage.tooltip": "Allow the vanilla mace to damage an active Ferrous Wroughtnaut that is in combat.",
   "beloong.configuration.entries": "Structure → Effect Mapping",
   "beloong.configuration.entries.button": "Configure",
   "beloong.configuration.entries.tooltip": "Format: StructureID|EffectID|Amplifier|Duration(ticks)\nAmplifier: 0 = Level I, etc.\nMultiple entries per structure are supported",

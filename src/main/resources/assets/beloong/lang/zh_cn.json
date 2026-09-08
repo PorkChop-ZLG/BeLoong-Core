@@ -37,6 +37,8 @@
   "beloong.configuration.effectDurationTicks.tooltip": "每次刷新效果的持续时间（ticks），应大于检查间隔以避免闪烁",
   "beloong.configuration.enabled": "配置开关",
   "beloong.configuration.enabled.tooltip": "是否启用该配置功能",
+  "beloong.configuration.enableMowzieMaceDamage": "允许重锤伤害钢铁守护者",
+  "beloong.configuration.enableMowzieMaceDamage.tooltip": "钢铁守护者已激活且处于战斗中时，允许使用原版重锤直接造成伤害。",
   "beloong.configuration.entries": "结构→效果映射",
   "beloong.configuration.entries.button": "配置",
   "beloong.configuration.entries.tooltip": "格式：结构ID|效果ID|等级|持续时间(tick)\n等级: 0 = I级，以此类推\n同一结构可配置多条效果",
