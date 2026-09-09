@@ -1,6 +1,7 @@
 package com.zonlong.beloong.client.sky;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.resources.ResourceLocation;
@@ -9,48 +10,129 @@ import org.joml.Matrix4f;
 import java.util.List;
 
 /**
- * Dramatic Skys 昼夜天空多层渲染器。
+ * Dramatic Skys 完整天空多层渲染器。
  *
- * <p>第一阶段实现 stars / mask / day / night 四层，
- * 暂不处理太阳、月亮、阳光 flare 和层旋转。</p>
+ * <p>包含 stars / mask_moon / mask / day / night / sunset / sunrise / flare 九层，
+ * 支持完整昼夜 fade、图层旋转和逐 tick 平滑过渡。</p>
  */
 public final class DramaticSkyRenderer {
 
+    private static final int NORMAL_TRANSITION_TICKS = 20;
+    private static final int UNEXPECTED_TRANSITION_TICKS = 100;
+
     private static final ResourceLocation STARS = skyTexture("stars");
+    private static final ResourceLocation MASK_MOON = skyTexture("mask_moon");
     private static final ResourceLocation MASK = skyTexture("mask");
     private static final ResourceLocation DAY = skyTexture("day");
     private static final ResourceLocation NIGHT = skyTexture("night");
+    private static final ResourceLocation SUN = skyTexture("sun");
+    private static final ResourceLocation SUNFLARE = skyTexture("sunflare");
+
+    private static final List<SkyLayerConfig> LAYERS = List.of(
+            new SkyLayerConfig(STARS, SkyBlendMode.ALPHA, SkyAlphaSource.NIGHT, SkyRotation.STAR_ROTATION),
+            new SkyLayerConfig(MASK_MOON, SkyBlendMode.ALPHA, SkyAlphaSource.NIGHT, SkyRotation.STAR_ROTATION),
+            new SkyLayerConfig(MASK, SkyBlendMode.ALPHA, SkyAlphaSource.NIGHT, SkyRotation.DAY_ROTATION),
+            new SkyLayerConfig(DAY, SkyBlendMode.SCREEN, SkyAlphaSource.DAY, SkyRotation.DAY_ROTATION),
+            new SkyLayerConfig(NIGHT, SkyBlendMode.ADD, SkyAlphaSource.NIGHT, SkyRotation.DAY_ROTATION),
+            new SkyLayerConfig(SUN, SkyBlendMode.SCREEN, SkyAlphaSource.SUNSET, SkyRotation.SUN_ROTATION),
+            new SkyLayerConfig(SUN, SkyBlendMode.SCREEN, SkyAlphaSource.SUNRISE, SkyRotation.SUN_ROTATION),
+            new SkyLayerConfig(SUNFLARE, SkyBlendMode.SCREEN, SkyAlphaSource.SUNSET, SkyRotation.FLARE_ROTATION),
+            new SkyLayerConfig(SUNFLARE, SkyBlendMode.SCREEN, SkyAlphaSource.SUNRISE, SkyRotation.FLARE_ROTATION)
+    );
+
+    /** 每一层当前的时间亮度因子 fadeAlpha。 */
+    private static final float[] FADE_ALPHAS = new float[LAYERS.size()];
+    /** 每一层当前的激活平滑因子 conditionAlpha。 */
+    private static final float[] CONDITION_ALPHAS = new float[LAYERS.size()];
+    private static boolean initialized;
+    private static long lastDayTime = -1;
 
     private DramaticSkyRenderer() {
+    }
+
+    /**
+     * 每个客户端 tick 调用一次，将各层 alpha 平滑趋近目标值。
+     */
+    public static void tick(ClientLevel level) {
+        long dayTime = Math.floorMod(level.getDayTime(), 24000L);
+        boolean timeJump = initialized
+                && lastDayTime >= 0
+                && Math.abs(dayTime - lastDayTime) > 1;
+        int duration = timeJump
+                ? UNEXPECTED_TRANSITION_TICKS
+                : NORMAL_TRANSITION_TICKS;
+
+        for (int i = 0; i < LAYERS.size(); i++) {
+            float fadeAlpha = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
+            FADE_ALPHAS[i] = fadeAlpha;
+            float conditionTarget = fadeAlpha > 0.0F ? 1.0F : 0.0F;
+            if (!initialized) {
+                CONDITION_ALPHAS[i] = conditionTarget;
+            } else {
+                CONDITION_ALPHAS[i] = moveTowards(CONDITION_ALPHAS[i], conditionTarget, duration);
+            }
+        }
+        initialized = true;
+        lastDayTime = dayTime;
     }
 
     public static void render(ClientLevel level,
                               Matrix4f modelViewMatrix,
                               Matrix4f projectionMatrix) {
-        long dayTime = Math.floorMod(level.getDayTime(), 24000L);
-        float dayFade = dayFade(dayTime);
-        float nightFade = nightFade(dayTime);
+        if (!initialized) {
+            long dayTime = Math.floorMod(level.getDayTime(), 24000L);
+            for (int i = 0; i < LAYERS.size(); i++) {
+                float fadeAlpha = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
+                FADE_ALPHAS[i] = fadeAlpha;
+                CONDITION_ALPHAS[i] = fadeAlpha > 0.0F ? 1.0F : 0.0F;
+            }
+            initialized = true;
+        }
 
-        List<SkyLayer> layers = List.of(
-                new SkyLayer(STARS, SkyBlendMode.ALPHA, nightFade),
-                new SkyLayer(MASK, SkyBlendMode.ALPHA, nightFade),
-                new SkyLayer(DAY, SkyBlendMode.SCREEN, dayFade),
-                new SkyLayer(NIGHT, SkyBlendMode.ADD, nightFade)
-        );
+        PoseStack poseStack = new PoseStack();
+        poseStack.mulPose(modelViewMatrix);
 
         RenderSystem.enableBlend();
-        for (SkyLayer layer : layers) {
-            if (layer.alpha() <= 0.0F) {
+        for (int i = 0; i < LAYERS.size(); i++) {
+            SkyLayerConfig layer = LAYERS.get(i);
+            float alpha = FADE_ALPHAS[i] * CONDITION_ALPHAS[i];
+            if (alpha <= 0.0F) {
                 continue;
             }
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, layer.alpha());
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
             layer.blend().apply();
-            CubeAtlasSkyRenderer.render(modelViewMatrix, projectionMatrix, layer.texture());
+
+            poseStack.pushPose();
+            layer.rotation().apply(poseStack, level);
+            CubeAtlasSkyRenderer.render(poseStack, projectionMatrix, layer.texture());
+            poseStack.popPose();
         }
 
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableBlend();
+    }
+
+    private static float moveTowards(float current, float target, int ticks) {
+        if (Float.compare(current, target) == 0) {
+            return target;
+        }
+        float step = 1.0F / ticks;
+        if (current < target) {
+            return Math.min(target, current + step);
+        } else {
+            return Math.max(target, current - step);
+        }
+    }
+
+    private static float alphaFor(SkyAlphaSource source, long dayTime) {
+        return switch (source) {
+            case ALWAYS -> 1.0F;
+            case NIGHT -> nightFade(dayTime);
+            case DAY -> dayFade(dayTime);
+            case SUNSET -> sunsetFade(dayTime);
+            case SUNRISE -> sunriseFade(dayTime);
+        };
     }
 
     private static float dayFade(long dayTime) {
@@ -77,6 +159,32 @@ public final class DramaticSkyRenderer {
             return (23500 - dayTime) / 1000.0F;
         }
         return 0.0F;
+    }
+
+    private static float sunsetFade(long dayTime) {
+        if (dayTime > 10500 && dayTime < 11500) {
+            return (dayTime - 10500) / 1000.0F;
+        }
+        if (dayTime >= 11500 && dayTime < 12500) {
+            return 1.0F;
+        }
+        if (dayTime >= 12500 && dayTime < 13500) {
+            return (13500 - dayTime) / 1000.0F;
+        }
+        return 0.0F;
+    }
+
+    private static float sunriseFade(long dayTime) {
+        if (dayTime > 500 && dayTime < 1500) {
+            return (1500 - dayTime) / 1000.0F;
+        }
+        if (dayTime >= 1500 && dayTime < 22500) {
+            return 0.0F;
+        }
+        if (dayTime >= 22500 && dayTime < 23500) {
+            return (dayTime - 22500) / 1000.0F;
+        }
+        return 1.0F;
     }
 
     private static ResourceLocation skyTexture(String name) {

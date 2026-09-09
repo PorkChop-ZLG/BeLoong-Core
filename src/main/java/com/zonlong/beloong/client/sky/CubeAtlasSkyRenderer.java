@@ -85,7 +85,12 @@ public final class CubeAtlasSkyRenderer {
                               ResourceLocation texture) {
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(modelViewMatrix);
+        render(poseStack, projectionMatrix, texture);
+    }
 
+    public static void render(PoseStack poseStack,
+                              Matrix4f projectionMatrix,
+                              ResourceLocation texture) {
         RenderSystem.disableCull();
         RenderSystem.depthMask(false);
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
