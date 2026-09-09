@@ -155,16 +155,34 @@
 
 ## 十一、关键结论
 
-最可能造成“时间跳变仍瞬间切换”的原因是：
+### 11.1 此前尝试的问题
 
-1. 本模组没有独立的 `conditionAlpha`；
-2. 本模组没有 active 图层状态机；
-3. 本模组把时间 fade 直接作为唯一 alpha，未拆成 `fadeAlpha × conditionAlpha`；
-4. `lastDayTime` 只影响步长，未模拟参考模组的“激活/退场平滑”。
+尝试 `fadeAlpha × conditionAlpha` 后仍然硬切，问题出在：
 
-修复方向：
+- `conditionTarget = fadeAlpha > 0 ? 1 : 0` 将“时间亮度”和“激活状态”错误绑定；
+- 当旧图层（如 Day）的 `fadeAlpha` 跳变为 0 时：
+  ```java
+  alpha = fadeAlpha * conditionAlpha = 0 * conditionAlpha = 0
+  ```
+- 因此旧图层会被瞬间清零，出现“新图层慢慢淡入、旧图层立刻消失”的硬切。
 
-- 每个图层保存 `fadeAlpha` 与 `conditionAlpha`；
-- `conditionAlpha` 根据图层是否应激活（`fadeAlpha > 0`）进行 0/1 平滑过渡；
-- 时间跳变时使用 `unexpectedTransitionDuration`；
-- 最终渲染 alpha = `fadeAlpha * conditionAlpha`。
+### 11.2 真正需要的行为
+
+- 每个图层保存 **显示中的 alpha**；
+- 目标值为时间 `fadeAlpha`；
+- 显示 alpha 从旧值**逐渐趋近**目标值；
+- 旧图层不应因为 `fadeAlpha` 变为 0 而被瞬间乘掉；
+- `conditionAlpha` 如果保留，应只作为真正的“激活条件”因子，不能在退出时因 `fadeAlpha = 0` 直接裁剪。
+
+### 11.3 修复方向
+
+- 移除“用 `fadeAlpha × conditionAlpha` 作为最终 alpha”的错误做法；
+- 使用单一 `DISPLAY_ALPHAS`：
+  ```java
+  DISPLAY_ALPHAS[i] = moveTowards(DISPLAY_ALPHAS[i], fadeAlpha, duration);
+  ```
+- 时间跳变使用更长的 `UNEXPECTED_TRANSITION_TICKS`；
+- 最终渲染：
+  ```java
+  float alpha = DISPLAY_ALPHAS[i];
+  ```

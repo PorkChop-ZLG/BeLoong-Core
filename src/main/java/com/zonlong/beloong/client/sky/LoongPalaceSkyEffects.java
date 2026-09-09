@@ -15,6 +15,8 @@ import org.joml.Matrix4f;
  */
 public class LoongPalaceSkyEffects extends DimensionSpecialEffects.OverworldEffects {
 
+    private static final boolean ENABLE_DECORATIONS = true;
+
     @Override
     public boolean renderSky(ClientLevel level,
                              int ticks,
@@ -25,7 +27,9 @@ public class LoongPalaceSkyEffects extends DimensionSpecialEffects.OverworldEffe
                              boolean isFoggy,
                              Runnable setupFog) {
         DramaticSkyRenderer.render(level, modelViewMatrix, projectionMatrix);
-        SkyDecorationsRenderer.render(level, modelViewMatrix, projectionMatrix, partialTick);
+        if (ENABLE_DECORATIONS) {
+            SkyDecorationsRenderer.render(level, modelViewMatrix, projectionMatrix, partialTick);
+        }
         return true;
     }
 

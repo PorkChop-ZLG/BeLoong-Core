@@ -20,11 +20,26 @@ public class LoongPalaceSkyTickHandler {
             ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace")
     );
 
+    private static int eventCounter;
+
     @SubscribeEvent
     public void onLevelTick(LevelTickEvent.Post event) {
-        if (event.getLevel() instanceof ClientLevel clientLevel
-                && LOONG_PALACE.equals(clientLevel.dimension())) {
-            DramaticSkyRenderer.tick(clientLevel);
+        boolean isClient = event.getLevel() instanceof ClientLevel;
+        boolean isLoong = isClient
+                && LOONG_PALACE.equals(((ClientLevel) event.getLevel()).dimension());
+
+        eventCounter++;
+        if (eventCounter % 100 == 0 || isLoong) {
+            String levelClass = event.getLevel().getClass().getSimpleName();
+            String dim = event.getLevel().dimension().location().toString();
+            BeLoongCore.LOGGER.info(
+                    "[SkyDebug] tickHandler called count={} level={} dim={} client={} loong={}",
+                    eventCounter, levelClass, dim, isClient, isLoong
+            );
+        }
+
+        if (isLoong) {
+            DramaticSkyRenderer.tick((ClientLevel) event.getLevel());
         }
     }
 }

@@ -1,10 +1,19 @@
 package com.zonlong.beloong.client.sky;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Axis;
 import com.zonlong.beloong.BeLoongCore;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.List;
@@ -17,8 +26,10 @@ import java.util.List;
  */
 public final class DramaticSkyRenderer {
 
+    private static final boolean ENABLE_ROTATION = true;
+
     private static final int NORMAL_TRANSITION_TICKS = 20;
-    private static final int UNEXPECTED_TRANSITION_TICKS = 100;
+    private static final int UNEXPECTED_TRANSITION_TICKS = 200;
 
     private static final ResourceLocation STARS = skyTexture("stars");
     private static final ResourceLocation MASK_MOON = skyTexture("mask_moon");
@@ -40,12 +51,12 @@ public final class DramaticSkyRenderer {
             new SkyLayerConfig(SUNFLARE, SkyBlendMode.SCREEN, SkyAlphaSource.SUNRISE, SkyRotation.FLARE_ROTATION)
     );
 
-    /** 每一层当前的时间亮度因子 fadeAlpha。 */
-    private static final float[] FADE_ALPHAS = new float[LAYERS.size()];
-    /** 每一层当前的激活平滑因子 conditionAlpha。 */
-    private static final float[] CONDITION_ALPHAS = new float[LAYERS.size()];
+    /** 每一层当前实际显示的平滑 alpha。 */
+    private static final float[] DISPLAY_ALPHAS = new float[LAYERS.size()];
     private static boolean initialized;
     private static long lastDayTime = -1;
+    private static int tickLogCounter;
+    private static boolean unexpectedTransitionActive;
 
     private DramaticSkyRenderer() {
     }
@@ -58,22 +69,46 @@ public final class DramaticSkyRenderer {
         boolean timeJump = initialized
                 && lastDayTime >= 0
                 && Math.abs(dayTime - lastDayTime) > 1;
-        int duration = timeJump
+        if (timeJump) {
+            unexpectedTransitionActive = true;
+        }
+        boolean useUnexpected = timeJump || unexpectedTransitionActive;
+        int duration = useUnexpected
                 ? UNEXPECTED_TRANSITION_TICKS
                 : NORMAL_TRANSITION_TICKS;
 
+        boolean allReachedTarget = true;
         for (int i = 0; i < LAYERS.size(); i++) {
-            float fadeAlpha = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
-            FADE_ALPHAS[i] = fadeAlpha;
-            float conditionTarget = fadeAlpha > 0.0F ? 1.0F : 0.0F;
+            float target = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
             if (!initialized) {
-                CONDITION_ALPHAS[i] = conditionTarget;
+                DISPLAY_ALPHAS[i] = target;
             } else {
-                CONDITION_ALPHAS[i] = moveTowards(CONDITION_ALPHAS[i], conditionTarget, duration);
+                DISPLAY_ALPHAS[i] = moveTowards(DISPLAY_ALPHAS[i], target, duration);
+                if (Math.abs(DISPLAY_ALPHAS[i] - target) > 0.001F) {
+                    allReachedTarget = false;
+                }
             }
+        }
+        if (unexpectedTransitionActive && allReachedTarget) {
+            unexpectedTransitionActive = false;
         }
         initialized = true;
         lastDayTime = dayTime;
+
+        if (timeJump || tickLogCounter % 20 == 0) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < LAYERS.size(); i++) {
+                float target = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
+                sb.append(i)
+                        .append("=")
+                        .append(String.format("%.3f/%.3f", DISPLAY_ALPHAS[i], target))
+                        .append(' ');
+            }
+            BeLoongCore.LOGGER.info(
+                    "[SkyDebug] dayTime={} timeJump={} duration={} alphas[display/target]={}",
+                    dayTime, timeJump, duration, sb.toString().trim());
+        }
+        tickLogCounter++;
     }
 
     public static void render(ClientLevel level,
@@ -82,28 +117,30 @@ public final class DramaticSkyRenderer {
         if (!initialized) {
             long dayTime = Math.floorMod(level.getDayTime(), 24000L);
             for (int i = 0; i < LAYERS.size(); i++) {
-                float fadeAlpha = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
-                FADE_ALPHAS[i] = fadeAlpha;
-                CONDITION_ALPHAS[i] = fadeAlpha > 0.0F ? 1.0F : 0.0F;
+                DISPLAY_ALPHAS[i] = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
             }
             initialized = true;
+            BeLoongCore.LOGGER.info("[SkyDebug] render initialized at dayTime={}", dayTime);
         }
 
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(modelViewMatrix);
 
+        renderBaseSky(level, poseStack, projectionMatrix);
+
         RenderSystem.enableBlend();
         for (int i = 0; i < LAYERS.size(); i++) {
             SkyLayerConfig layer = LAYERS.get(i);
-            float alpha = FADE_ALPHAS[i] * CONDITION_ALPHAS[i];
+            float alpha = DISPLAY_ALPHAS[i];
             if (alpha <= 0.0F) {
                 continue;
             }
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-            layer.blend().apply();
+            layer.blend().apply(alpha);
 
             poseStack.pushPose();
-            layer.rotation().apply(poseStack, level);
+            if (ENABLE_ROTATION) {
+                layer.rotation().apply(poseStack, level);
+            }
             CubeAtlasSkyRenderer.render(poseStack, projectionMatrix, layer.texture());
             poseStack.popPose();
         }
@@ -123,6 +160,56 @@ public final class DramaticSkyRenderer {
         } else {
             return Math.max(target, current - step);
         }
+    }
+
+    private static void renderBaseSky(ClientLevel level, PoseStack poseStack, Matrix4f projectionMatrix) {
+        Vec3 skyColor = level.getSkyColor(
+                Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),
+                0.0F
+        );
+
+        RenderSystem.disableCull();
+        RenderSystem.depthMask(false);
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+
+        Tesselator tesselator = Tesselator.getInstance();
+        for (int i = 0; i < 6; i++) {
+            poseStack.pushPose();
+            if (i == 1) {
+                poseStack.mulPose(Axis.XP.rotationDegrees(90.0F));
+            } else if (i == 2) {
+                poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
+                poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
+            } else if (i == 3) {
+                poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
+            } else if (i == 4) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(90.0F));
+                poseStack.mulPose(Axis.YP.rotationDegrees(-90.0F));
+            } else if (i == 5) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(-90.0F));
+                poseStack.mulPose(Axis.YP.rotationDegrees(90.0F));
+            }
+
+            Matrix4f matrix4f = poseStack.last().pose();
+            BufferBuilder bufferBuilder = tesselator.begin(
+                    VertexFormat.Mode.QUADS,
+                    DefaultVertexFormat.POSITION_COLOR
+            );
+            bufferBuilder.addVertex(matrix4f, -100.0F, -100.0F, -100.0F)
+                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
+            bufferBuilder.addVertex(matrix4f, -100.0F, -100.0F, 100.0F)
+                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
+            bufferBuilder.addVertex(matrix4f, 100.0F, -100.0F, 100.0F)
+                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
+            bufferBuilder.addVertex(matrix4f, 100.0F, -100.0F, -100.0F)
+                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
+            BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
+            poseStack.popPose();
+        }
+
+        RenderSystem.depthMask(true);
+        RenderSystem.enableCull();
     }
 
     private static float alphaFor(SkyAlphaSource source, long dayTime) {
