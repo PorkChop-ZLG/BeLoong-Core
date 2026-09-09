@@ -2,11 +2,13 @@ package com.zonlong.beloong.client.sky;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import org.lwjgl.opengl.GL14;
 
 /**
  * Dramatic Skys 图层使用的混合模式。
  *
- * <p>SCREEN 模式必须把 alpha 缩放到 RGB，否则日出日落层不会随 alpha 淡出。</p>
+ * <p>SCREEN 模式必须把 alpha 缩放到 RGB，否则日出日落层不会随 alpha 淡出。
+ * 所有模式都显式设置加法混合方程，避免其他模组残留的 blend equation 影响天空。</p>
  */
 public enum SkyBlendMode {
 
@@ -19,6 +21,7 @@ public enum SkyBlendMode {
                     GlStateManager.SourceFactor.ONE,
                     GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
             );
+            RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
         }
     },
@@ -32,6 +35,7 @@ public enum SkyBlendMode {
                     GlStateManager.SourceFactor.ONE,
                     GlStateManager.DestFactor.ONE
             );
+            RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
         }
     },
@@ -46,6 +50,7 @@ public enum SkyBlendMode {
                     GlStateManager.SourceFactor.ONE,
                     GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
             );
+            RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
             // 必须将 alpha 缩放到 RGB，否则 screen 层不会随 alpha 变淡
             RenderSystem.setShaderColor(alpha, alpha, alpha, 1.0F);
         }

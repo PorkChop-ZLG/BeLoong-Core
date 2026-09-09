@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.Mth;
-import org.joml.Vector3f;
 
 /**
  * 天空盒图层旋转配置。
@@ -13,11 +12,11 @@ import org.joml.Vector3f;
  */
 public final class SkyRotation {
 
-    public static final SkyRotation NONE = new SkyRotation(0, 0, 0, 0, 0, 0, true, 0, 0, 0, 0, 0, 0);
     public static final SkyRotation STAR_ROTATION = new SkyRotation(0, 0, 1, 0, 0, 0, false, 0, 0, 0, 0, 0, 0);
     public static final SkyRotation DAY_ROTATION = new SkyRotation(0, 1, 0, 0, 0, 0, true, 0, 0, 0, 0, 0, 0);
-    public static final SkyRotation SUN_ROTATION = new SkyRotation(0, 1, 0, 0, 0, 0, false, 0, 0, 0, 0, 0, 0);
+    public static final SkyRotation SUN_ROTATION = new SkyRotation(0, 1, 0, 0, 0, 0, true, 0, 0, 0, 0, 0, 0);
     public static final SkyRotation FLARE_ROTATION = new SkyRotation(0, 0, 1, 0, 0, 0, false, 0, 0, 0, 0, 0, 0);
+    public static final SkyRotation DECORATION_ROTATION = new SkyRotation(0, 0, 1, 0, 0, 0, false, 0, 0, 0, 0, 0, 0);
 
     private final float rotationSpeedX;
     private final float rotationSpeedY;
@@ -62,15 +61,17 @@ public final class SkyRotation {
     }
 
     public void apply(PoseStack poseStack, ClientLevel level) {
-        Vector3f timeRotation = calculateTimeRotation(level);
+        float timeRotationX = calculateAxisRotation(level, rotationSpeedX, timeShiftX);
+        float timeRotationY = calculateAxisRotation(level, rotationSpeedY, timeShiftY);
+        float timeRotationZ = calculateAxisRotation(level, rotationSpeedZ, timeShiftZ);
 
         poseStack.mulPose(Axis.XP.rotationDegrees(axisX));
         poseStack.mulPose(Axis.YP.rotationDegrees(axisY));
         poseStack.mulPose(Axis.ZP.rotationDegrees(axisZ));
 
-        poseStack.mulPose(Axis.XP.rotationDegrees(timeRotation.x()));
-        poseStack.mulPose(Axis.YP.rotationDegrees(timeRotation.y()));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(timeRotation.z()));
+        poseStack.mulPose(Axis.XP.rotationDegrees(timeRotationX));
+        poseStack.mulPose(Axis.YP.rotationDegrees(timeRotationY));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(timeRotationZ));
 
         poseStack.mulPose(Axis.ZN.rotationDegrees(axisZ));
         poseStack.mulPose(Axis.YN.rotationDegrees(axisY));
@@ -79,14 +80,6 @@ public final class SkyRotation {
         poseStack.mulPose(Axis.XP.rotationDegrees(staticX));
         poseStack.mulPose(Axis.YP.rotationDegrees(staticY));
         poseStack.mulPose(Axis.ZP.rotationDegrees(staticZ));
-    }
-
-    public Vector3f calculateTimeRotation(ClientLevel level) {
-        return new Vector3f(
-                calculateAxisRotation(level, rotationSpeedX, timeShiftX),
-                calculateAxisRotation(level, rotationSpeedY, timeShiftY),
-                calculateAxisRotation(level, rotationSpeedZ, timeShiftZ)
-        );
     }
 
     private float calculateAxisRotation(ClientLevel level, float speed, int timeShift) {

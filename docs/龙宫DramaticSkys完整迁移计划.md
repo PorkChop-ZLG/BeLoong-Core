@@ -11,7 +11,7 @@
 5. 阳光 flare 层
 6. 完整图层旋转
 7. 天气状态下仍保持晴天外观
-8. 龙宫禁用云和雾
+8. 龙宫禁用云，保留原版雾
 9. 参考 NeoForgeSkyboxes 源码，但不使用 Mixin 修改 Minecraft 原版
 10. 完成后等待批准再执行
 
@@ -19,8 +19,8 @@
 
 | 项目 | 决策 |
 |---|---|
-| 天气 | 仅客户端视觉禁用：始终晴天外观，隐藏雨雪/雷声/云/雾 |
-| 禁用雾 | 使用 NeoForge 官方 `ViewportEvent.RenderFog` |
+| 天气 | 仅客户端视觉禁用：始终晴天外观，隐藏雨雪/雷声/云 |
+| 雾 | 保留原版雾，不新增禁雾处理 |
 | 太阳/月亮 | 分层贴图与实际太阳月亮贴图分离 |
 | 旋转 | 完整移植资源包中的层旋转 |
 | Mixin | 不使用任何新增 Mixin 修改 Minecraft 原版 |
@@ -77,18 +77,18 @@ src/main/resources/assets/beloong/textures/
 | MaskMoon | `mask_moon.png` | alpha | `nightFade` | 绕 Z |
 | Mask | `mask.png` | alpha | `nightFade` | 绕 Y |
 | Day | `day.png` | screen | `dayFade` | 绕 Y |
-| Night | `night.png` | add | `nightFade` | 绕 Y |
+| Night | `night.png` | screen | `nightFade` | 绕 Y |
 | Sunset | `sun.png` | screen | `sunsetFade` | 绕 Y |
 | Sunrise | `sun.png` | screen | `sunriseFade` | 绕 Y |
 | SunflareSunset | `sunflare.png` | screen | `sunsetFade` | 绕 Z |
 | SunflareSunrise | `sunflare.png` | screen | `sunriseFade` | 绕 Z |
 
-参考 Celestial `variables.json` 移植：
+参考 NeoForgeSkyboxes 实际加载的 fabricskyboxes JSON，使用离散 fade 区间：
 
-- `dayFade`
-- `nightFade`
-- `sunsetFade`
-- `sunriseFade`
+- Day：`23666-333 / 11666-12333`
+- Night：`13333-13666 / 22333-22666`
+- Sunset：`11666-12333 / 13333-13666`
+- Sunrise：`22333-22666 / 23666-333`
 
 ### 5.2 新增 `SkyLayerConfig` / `SkyRotation` 数据
 
@@ -152,22 +152,14 @@ public boolean tickRain(...) {
 
 `renderSky` 始终绘制晴天 Dramatic Skys 图层，不因 `isRaining()/isThundering()` 隐藏。
 
-### 5.5 禁用雾（NeoForge 官方事件）
+### 5.5 保留雾（不再禁用）
 
-新增客户端事件处理器：
+龙宫保留原版雾逻辑：
 
-```
-LoongPalaceFogHandler
-```
-
-监听 `ViewportEvent.RenderFog`：
-
-- 如果当前摄像机在 `beloong:loong_palace`
-- 将 `farPlaneDistance` 设为极大值
-- 将 `nearPlaneDistance` 设为极大值
-- 取消事件，使原版雾不再生效
-
-不使用 Mixin。
+- 不注册 `LoongPalaceFogHandler`。
+- 不监听 `ViewportEvent.RenderFog`。
+- 地形雾、天空雾、水中雾均按原版/维度类型处理。
+- 仅继续在客户端隐藏云、雨雪、雨声。
 
 ## 六、代码改动清单
 
@@ -179,9 +171,7 @@ client/sky/
 ├── SkyRotation.java
 ├── SkyFade.java
 ├── SkyDecorationsRenderer.java
-├── DramaticSkyRenderer.java  # 扩展
-client/
-└── LoongPalaceFogHandler.java
+└── DramaticSkyRenderer.java  # 扩展
 ```
 
 ### 修改
@@ -196,7 +186,7 @@ client/sky/
 
 - `DramaticSkyRenderer` 从四层扩展为九层并接入旋转。
 - `LoongPalaceSkyEffects` 增加云/雨雪/雨声禁用，并绘制太阳月亮。
-- 注册 `LoongPalaceFogHandler` 到客户端 `NeoForge.EVENT_BUS`。
+- 不注册任何雾处理器；龙宫保留原版雾。
 
 ### 资源
 
@@ -223,7 +213,7 @@ client/sky/
    - 禁用雨雪/雨声
    - 始终晴天视觉
    - 绘制太阳/月亮
-6. 实现并注册 `LoongPalaceFogHandler`。
+6. 不注册 `LoongPalaceFogHandler`，保留原版雾。
 7. 编译并进入游戏验证。
 8. 更新迁移计划文档为完成状态。
 
@@ -235,7 +225,7 @@ client/sky/
    - 星星和图层旋转正确。
 2. 天气：
    - 即使下雨/下雪/打雷，龙宫仍显示晴天外观。
-   - 无雨雪粒子、雨声、云、雾。
+   - 无雨雪粒子、雨声、云；保留原版雾。
 3. 服务器：
    - 原版天气状态仍存在，但客户端不呈现。
 4. 天灾：
@@ -245,11 +235,11 @@ client/sky/
 
 ## 十、风险与待确认
 
-- `ViewportEvent.RenderFog` 需要实测：取消后是否完全移除龙宫雾效，还是只对天空生效。
+- 雾保留后需确认龙宫远处地形/天空雾观感是否符合预期；不再取消 `ViewportEvent.RenderFog`。
 - 太阳/月亮绘制位置与旋转角度需在游戏内微调。
 - 完整天气“视觉禁用”属于客户端表现；服务器仍会运行天气/发送天气包，若未来在意性能，需要额外讨论服务端方案。
 - 如果某些雾/云仍由其他模组（Sodium/Iris）渲染，可能还需要与它们交互；当前不处理。
 
 ---
 
-> 计划已写入文档，等待批准后再开始执行。
+> 计划已按 2026-09-09 修复设计更新；实施见 `docs/plans/2026-09-09-dramatic-sky-fix-plan.md`。

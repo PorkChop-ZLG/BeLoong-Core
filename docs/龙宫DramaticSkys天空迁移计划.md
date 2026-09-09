@@ -80,7 +80,7 @@ Dramatic Skys/assets/
 | Stars | `stars.png` | alpha | `nightFade` |
 | Mask | `mask.png` | alpha | `nightFade` |
 | Day | `day.png` | screen | `dayFade` |
-| Night | `night.png` | add | `nightFade` |
+| Night | `night.png` | screen | `nightFade` |
 
 ## 四、总体架构
 

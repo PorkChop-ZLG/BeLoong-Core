@@ -8,18 +8,18 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.math.Axis;
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL14;
 
 /**
  * 太阳与月亮本体绘制器。
  *
  * <p>使用资源包提供的 sun.png / moon_phases.png，
- * 太阳和月亮路径参考原版渲染方式绕 X 轴旋转。</p>
+ * 旋转方式参考 NeoForgeSkyboxes 默认 Decorations.rotation。</p>
  */
 public final class SkyDecorationsRenderer {
 
@@ -33,8 +33,7 @@ public final class SkyDecorationsRenderer {
 
     public static void render(ClientLevel level,
                               Matrix4f modelViewMatrix,
-                              Matrix4f projectionMatrix,
-                              float partialTick) {
+                              Matrix4f projectionMatrix) {
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(modelViewMatrix);
 
@@ -47,10 +46,10 @@ public final class SkyDecorationsRenderer {
                 GlStateManager.SourceFactor.ONE,
                 GlStateManager.DestFactor.ZERO
         );
+        RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
 
         poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees(-90.0F));
-        poseStack.mulPose(Axis.XP.rotationDegrees(level.getTimeOfDay(partialTick) * 360.0F));
+        SkyRotation.DECORATION_ROTATION.apply(poseStack, level);
 
         drawSun(poseStack);
         drawMoon(poseStack, level);
@@ -60,6 +59,7 @@ public final class SkyDecorationsRenderer {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.depthMask(true);
         RenderSystem.disableBlend();
+        RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
         RenderSystem.defaultBlendFunc();
     }
 

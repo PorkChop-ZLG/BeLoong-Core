@@ -2,7 +2,6 @@ package com.zonlong.beloong;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
-import com.zonlong.beloong.client.LoongPalaceFogHandler;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
@@ -47,7 +46,6 @@ public class BeLoongCoreClient {
     /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-        NeoForge.EVENT_BUS.register(new LoongPalaceFogHandler());
         NeoForge.EVENT_BUS.register(new LoongPalaceSkyTickHandler());
     }
 

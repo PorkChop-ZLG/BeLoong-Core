@@ -4,8 +4,10 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL14;
 
 import java.util.List;
 
@@ -22,6 +24,27 @@ public final class DramaticSkyRenderer {
     private static final int NORMAL_TRANSITION_TICKS = 20;
     private static final int UNEXPECTED_TRANSITION_TICKS = 200;
 
+    // fabricskyboxes 对应 9 层配置使用的离散 fade 区间
+    private static final int NIGHT_FADE_IN_START = 13333;
+    private static final int NIGHT_FADE_IN_END = 13666;
+    private static final int NIGHT_FADE_OUT_START = 22333;
+    private static final int NIGHT_FADE_OUT_END = 22666;
+
+    private static final int DAY_FADE_IN_START = 23666;
+    private static final int DAY_FADE_IN_END = 333;
+    private static final int DAY_FADE_OUT_START = 11666;
+    private static final int DAY_FADE_OUT_END = 12333;
+
+    private static final int SUNSET_FADE_IN_START = 11666;
+    private static final int SUNSET_FADE_IN_END = 12333;
+    private static final int SUNSET_FADE_OUT_START = 13333;
+    private static final int SUNSET_FADE_OUT_END = 13666;
+
+    private static final int SUNRISE_FADE_IN_START = 22333;
+    private static final int SUNRISE_FADE_IN_END = 22666;
+    private static final int SUNRISE_FADE_OUT_START = 23666;
+    private static final int SUNRISE_FADE_OUT_END = 333;
+
     private static final ResourceLocation STARS = skyTexture("stars");
     private static final ResourceLocation MASK_MOON = skyTexture("mask_moon");
     private static final ResourceLocation MASK = skyTexture("mask");
@@ -35,7 +58,7 @@ public final class DramaticSkyRenderer {
             new SkyLayerConfig(MASK_MOON, SkyBlendMode.ALPHA, SkyAlphaSource.NIGHT, SkyRotation.STAR_ROTATION),
             new SkyLayerConfig(MASK, SkyBlendMode.ALPHA, SkyAlphaSource.NIGHT, SkyRotation.DAY_ROTATION),
             new SkyLayerConfig(DAY, SkyBlendMode.SCREEN, SkyAlphaSource.DAY, SkyRotation.DAY_ROTATION),
-            new SkyLayerConfig(NIGHT, SkyBlendMode.ADD, SkyAlphaSource.NIGHT, SkyRotation.DAY_ROTATION),
+            new SkyLayerConfig(NIGHT, SkyBlendMode.SCREEN, SkyAlphaSource.NIGHT, SkyRotation.DAY_ROTATION),
             new SkyLayerConfig(SUN, SkyBlendMode.SCREEN, SkyAlphaSource.SUNSET, SkyRotation.SUN_ROTATION),
             new SkyLayerConfig(SUN, SkyBlendMode.SCREEN, SkyAlphaSource.SUNRISE, SkyRotation.SUN_ROTATION),
             new SkyLayerConfig(SUNFLARE, SkyBlendMode.SCREEN, SkyAlphaSource.SUNSET, SkyRotation.FLARE_ROTATION),
@@ -118,6 +141,10 @@ public final class DramaticSkyRenderer {
         poseStack.mulPose(modelViewMatrix);
 
         RenderSystem.enableBlend();
+        RenderSystem.disableCull();
+        RenderSystem.depthMask(false);
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+
         for (int i = 0; i < LAYERS.size(); i++) {
             SkyLayerConfig layer = LAYERS.get(i);
             float alpha = DISPLAY_ALPHAS[i];
@@ -134,7 +161,10 @@ public final class DramaticSkyRenderer {
             poseStack.popPose();
         }
 
+        RenderSystem.depthMask(true);
+        RenderSystem.enableCull();
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.blendEquation(GL14.GL_FUNC_ADD);
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableBlend();
     }
@@ -153,64 +183,59 @@ public final class DramaticSkyRenderer {
 
     private static float alphaFor(SkyAlphaSource source, long dayTime) {
         return switch (source) {
-            case ALWAYS -> 1.0F;
-            case NIGHT -> nightFade(dayTime);
-            case DAY -> dayFade(dayTime);
-            case SUNSET -> sunsetFade(dayTime);
-            case SUNRISE -> sunriseFade(dayTime);
+            case NIGHT -> fadeAlpha(
+                    dayTime,
+                    NIGHT_FADE_IN_START, NIGHT_FADE_IN_END,
+                    NIGHT_FADE_OUT_START, NIGHT_FADE_OUT_END
+            );
+            case DAY -> fadeAlpha(
+                    dayTime,
+                    DAY_FADE_IN_START, DAY_FADE_IN_END,
+                    DAY_FADE_OUT_START, DAY_FADE_OUT_END
+            );
+            case SUNSET -> fadeAlpha(
+                    dayTime,
+                    SUNSET_FADE_IN_START, SUNSET_FADE_IN_END,
+                    SUNSET_FADE_OUT_START, SUNSET_FADE_OUT_END
+            );
+            case SUNRISE -> fadeAlpha(
+                    dayTime,
+                    SUNRISE_FADE_IN_START, SUNRISE_FADE_IN_END,
+                    SUNRISE_FADE_OUT_START, SUNRISE_FADE_OUT_END
+            );
         };
     }
 
-    private static float dayFade(long dayTime) {
-        if (dayTime >= 500 && dayTime < 1500) {
-            return (dayTime - 500) / 1000.0F;
-        }
-        if (dayTime >= 1500 && dayTime < 10500) {
+    /**
+     * 参考 NeoForgeSkyboxes Utils.calculateFadeAlphaValue 的循环区间算法。
+     */
+    private static float fadeAlpha(long dayTime,
+                                   int startFadeIn, int endFadeIn,
+                                   int startFadeOut, int endFadeOut) {
+        int time = (int) Math.floorMod(dayTime, 24000L);
+
+        if (inInterval(time, endFadeIn, startFadeOut)) {
             return 1.0F;
         }
-        if (dayTime >= 10500 && dayTime < 11500) {
-            return (11500 - dayTime) / 1000.0F;
+        if (inInterval(time, startFadeIn, endFadeIn)) {
+            int duration = cyclicDistance(startFadeIn, endFadeIn);
+            return duration == 0 ? 1.0F : (float) cyclicDistance(startFadeIn, time) / duration;
+        }
+        if (inInterval(time, startFadeOut, endFadeOut)) {
+            int duration = cyclicDistance(startFadeOut, endFadeOut);
+            return duration == 0 ? 0.0F : 1.0F - (float) cyclicDistance(startFadeOut, time) / duration;
         }
         return 0.0F;
     }
 
-    private static float nightFade(long dayTime) {
-        if (dayTime >= 12500 && dayTime < 13500) {
-            return (dayTime - 12500) / 1000.0F;
-        }
-        if (dayTime >= 13500 && dayTime < 22500) {
-            return 1.0F;
-        }
-        if (dayTime >= 22500 && dayTime < 23500) {
-            return (23500 - dayTime) / 1000.0F;
-        }
-        return 0.0F;
+    private static boolean inInterval(int time, int start, int end) {
+        return start <= end
+                ? time >= start && time <= end
+                : time >= start || time <= end;
     }
 
-    private static float sunsetFade(long dayTime) {
-        if (dayTime > 10500 && dayTime < 11500) {
-            return (dayTime - 10500) / 1000.0F;
-        }
-        if (dayTime >= 11500 && dayTime < 12500) {
-            return 1.0F;
-        }
-        if (dayTime >= 12500 && dayTime < 13500) {
-            return (13500 - dayTime) / 1000.0F;
-        }
-        return 0.0F;
-    }
-
-    private static float sunriseFade(long dayTime) {
-        if (dayTime > 500 && dayTime < 1500) {
-            return (1500 - dayTime) / 1000.0F;
-        }
-        if (dayTime >= 1500 && dayTime < 22500) {
-            return 0.0F;
-        }
-        if (dayTime >= 22500 && dayTime < 23500) {
-            return (dayTime - 22500) / 1000.0F;
-        }
-        return 1.0F;
+    private static int cyclicDistance(int start, int end) {
+        return (end - start + 24000) % 24000;
     }
 
     private static ResourceLocation skyTexture(String name) {
