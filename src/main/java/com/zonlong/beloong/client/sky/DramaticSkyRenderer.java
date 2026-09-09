@@ -23,6 +23,7 @@ public final class DramaticSkyRenderer {
 
     private static final int NORMAL_TRANSITION_TICKS = 20;
     private static final int UNEXPECTED_TRANSITION_TICKS = 200;
+    private static final int TIME_JUMP_THRESHOLD_TICKS = 50;
 
     // fabricskyboxes 对应 9 层配置使用的离散 fade 区间
     private static final int NIGHT_FADE_IN_START = 13333;
@@ -69,10 +70,20 @@ public final class DramaticSkyRenderer {
     private static final float[] DISPLAY_ALPHAS = new float[LAYERS.size()];
     private static boolean initialized;
     private static long lastDayTime = -1;
-    private static int tickLogCounter;
     private static boolean unexpectedTransitionActive;
 
     private DramaticSkyRenderer() {
+    }
+
+    /**
+     * 重置天空渲染状态。
+     *
+     * <p>在进入龙宫维度或客户端登录时调用，避免旧维度/旧世界的 alpha 状态残留。</p>
+     */
+    public static void reset() {
+        initialized = false;
+        lastDayTime = -1;
+        unexpectedTransitionActive = false;
     }
 
     /**
@@ -80,9 +91,7 @@ public final class DramaticSkyRenderer {
      */
     public static void tick(ClientLevel level) {
         long dayTime = Math.floorMod(level.getDayTime(), 24000L);
-        boolean timeJump = initialized
-                && lastDayTime >= 0
-                && Math.abs(dayTime - lastDayTime) > 1;
+        boolean timeJump = isUnexpectedTimeJump(dayTime);
         if (timeJump) {
             unexpectedTransitionActive = true;
         }
@@ -108,21 +117,6 @@ public final class DramaticSkyRenderer {
         }
         initialized = true;
         lastDayTime = dayTime;
-
-        if (timeJump || tickLogCounter % 20 == 0) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < LAYERS.size(); i++) {
-                float target = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
-                sb.append(i)
-                        .append("=")
-                        .append(String.format("%.3f/%.3f", DISPLAY_ALPHAS[i], target))
-                        .append(' ');
-            }
-            BeLoongCore.LOGGER.info(
-                    "[SkyDebug] dayTime={} timeJump={} duration={} alphas[display/target]={}",
-                    dayTime, timeJump, duration, sb.toString().trim());
-        }
-        tickLogCounter++;
     }
 
     public static void render(ClientLevel level,
@@ -134,7 +128,6 @@ public final class DramaticSkyRenderer {
                 DISPLAY_ALPHAS[i] = alphaFor(LAYERS.get(i).alphaSource(), dayTime);
             }
             initialized = true;
-            BeLoongCore.LOGGER.info("[SkyDebug] render initialized at dayTime={}", dayTime);
         }
 
         PoseStack poseStack = new PoseStack();
@@ -179,6 +172,21 @@ public final class DramaticSkyRenderer {
         } else {
             return Math.max(target, current - step);
         }
+    }
+
+    /**
+     * 判断是否属于真正的“意外时间跳变”。
+     *
+     * <p>使用循环时间差并加阈值，避免把客户端时间同步、正常跨天等小幅度变化
+     * 误判为需要 200 tick 长过渡的跳变。</p>
+     */
+    private static boolean isUnexpectedTimeJump(long dayTime) {
+        if (lastDayTime < 0) {
+            return false;
+        }
+        long delta = Math.floorMod(dayTime - lastDayTime, 24000L);
+        return delta > TIME_JUMP_THRESHOLD_TICKS
+                && delta < 24000L - TIME_JUMP_THRESHOLD_TICKS;
     }
 
     private static float alphaFor(SkyAlphaSource source, long dayTime) {

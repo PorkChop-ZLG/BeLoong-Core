@@ -11,7 +11,6 @@
   - `647f866` 修复了天空白天黑夜的过渡效果
 - 额外包含：
   - 工作区未提交改动：`DramaticSkyRenderer.java` 删除 `renderBaseSky`
-  - 未跟踪文档：`docs/本会话修改与决策总结.md`
 - 主要代码文件：
   - `BeLoongCore.java`
   - `BeLoongCoreClient.java`
@@ -31,7 +30,6 @@
     - `docs/龙宫DramaticSkys完整迁移计划.md`
     - `docs/龙宫DramaticSkys天空迁移计划.md`
     - `docs/天空渲染对照NeoForgeSkyboxes分析.md`
-    - `docs/本会话修改与决策总结.md`
   - 参考模组：`D:\Minecraft\NeoforgeSkyboxes-main`
   - 迁移资源包：`D:\Minecraft\optifine-master\Dramatic Skys`
   - NeoForge / Minecraft 源码：从 Gradle 缓存中的 `neoforge-21.1.236-sources.jar` 与客户端资源提取核对
@@ -126,7 +124,6 @@ BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
 - `LoongPalaceSkyTickHandler` 在 `isLoong == true` 时每个 `LevelTickEvent.Post` 都会打一条 INFO，也就是龙宫维度内约 **20 行/秒**。
 - 它还会每 100 次事件在所有维度打日志，包括非龙宫维度。
 - `DramaticSkyRenderer.tick` 每 20 tick 打一条，时间跳变时也打。
-- 文档 `本会话修改与决策总结.md` 已明确写“调试日志仍在，验证完成后可以删除/降低频率”。
 
 **建议**
 

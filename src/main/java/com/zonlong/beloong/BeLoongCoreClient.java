@@ -5,7 +5,6 @@ import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -14,7 +13,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -52,13 +50,6 @@ public class BeLoongCoreClient {
     /** 天灾传送门自定义着色器实例。由 RegisterShadersEvent 回调设置。 */
     @Nullable
     public static ShaderInstance disasterPortalShader;
-
-    /** FML 客户端设置事件。 */
-    @SubscribeEvent
-    static void onClientSetup(FMLClientSetupEvent event) {
-        BeLoongCore.LOGGER.info("HELLO FROM CLIENT SETUP");
-        BeLoongCore.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
-    }
 
     /**
      * 注册 BlockEntity 渲染器（BER）。

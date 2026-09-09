@@ -9,7 +9,7 @@
 对 `0.8.2` 之后的龙宫自定义天空渲染进行修复。当前实现存在：
 
 1. 天空盒 draw call 过多（每层 6 次 buffer 上传）。
-2. 调试日志保留，暂不清理。
+2. 调试日志刷屏，需要清理。
 3. 自定义 `renderSky` 未处理失明/黑暗/水中/岩浆/细雪等“不应绘制天空”场景。
 4. 天空配置与资源包在 NeoForgeSkyboxes 下的 fabricskyboxes 表现不一致。
 5. 龙宫被错误禁雾，需要恢复原版雾。
@@ -28,7 +28,7 @@
 保留现有硬编码 9 层天空渲染架构，不引入 JSON 数据驱动。在现有类内完成修复：
 
 - `CubeAtlasSkyRenderer`：单层单 draw call，状态提升。
-- `DramaticSkyRenderer`：修正图层配置、fade 区间、旋转；保留 `[SkyDebug]`。
+- `DramaticSkyRenderer`：修正图层配置、fade 区间、旋转；移除 `[SkyDebug]`。
 - `SkyRotation`：修正 `SUN_ROTATION`，新增 `DECORATION_ROTATION`，减少分配，清理死代码。
 - `SkyBlendMode`：显式设置加法混合方程。
 - `LoongPalaceSkyEffects`：增加相机遮挡判断。
@@ -62,7 +62,7 @@
 | SunflareSunrise | SCREEN | 22333-22666 / 23666-333 | false Z1 |
 
 - fade 改为离散循环区间算法，参考 NeoForgeSkyboxes `Utils.calculateFadeAlphaValue`。
-- 保留 `[SkyDebug]`。
+- 移除全部 `[SkyDebug]` 日志与 `tickLogCounter`。
 
 #### SkyRotation
 
@@ -112,7 +112,7 @@ DramaticSkyRenderer.tick(clientLevel);
 - fade 跨 24000 回绕采用循环距离算法，避免负距离。
 - 相机遮挡判断只影响龙宫维度。
 - RenderSystem 状态在渲染结束恢复。
-- 静态 alpha 状态不重置（问题 6 不处理）。
+- 进入龙宫时会重置静态 alpha 状态，避免跨维度残留。
 
 ## Decisions Made
 
@@ -122,19 +122,19 @@ DramaticSkyRenderer.tick(clientLevel);
 - fade 区间改为 fabricskyboxes 离散区间。
 - 太阳/月亮旋转改为 NeoForgeSkyboxes 默认 `Decorations.rotation`。
 - 彻底移除 `LoongPalaceFogHandler`，恢复原版雾。
-- `LoongPalaceSkyTickHandler` 不再打日志，保留 `DramaticSkyRenderer` 的 `[SkyDebug]`。
-- 问题 2、6、8、12 不修复。
+- `LoongPalaceSkyTickHandler` 不再打日志；`DramaticSkyRenderer` 的 `[SkyDebug]` 也已移除。
+- 问题 8、12 不修复；问题 2、6 已在后续隐藏问题修复中处理。
 
 ## Non-Goals
 
 - 不引入数据驱动 JSON 加载。
-- 不清理 `DramaticSkyRenderer` 中保留的 `[SkyDebug]`。
-- 不处理静态 alpha 生命周期。
+- 不再保留 `[SkyDebug]` 日志。
+- 静态 alpha 生命周期已通过进入龙宫时 `reset()` 处理。
 - 不处理无关 Javadoc 与贴图体积。
 - 不新增 Sodium/Iris 兼容层。
 
 ## Next Steps
 
 - 按 `docs/plans/2026-09-09-dramatic-sky-fix-plan.md` 执行修复。
-- 更新 `docs/龙宫DramaticSkys完整迁移计划.md` 与 `docs/本会话修改与决策总结.md`。
+- 更新 `docs/龙宫DramaticSkys完整迁移计划.md`。
 - 更新 `memory/decisions-log.md` 与 `memory/learned-patterns.md`。

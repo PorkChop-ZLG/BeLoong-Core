@@ -26,8 +26,8 @@
   - Day：`23666-333 / 11666-12333`
   - Sunset：`11666-12333 / 13333-13666`
   - Sunrise：`22333-22666 / 23666-333`
-- [ ] 删除旧的 `dayFade/nightFade/sunsetFade/sunriseFade` 公式，替换为循环区间算法。
-- [ ] 保留 `DramaticSkyRenderer` 的 `[SkyDebug]`。
+- [x] 删除旧的 `dayFade/nightFade/sunsetFade/sunriseFade` 公式，替换为循环区间算法。
+- [x] 移除 `DramaticSkyRenderer` 的全部 `[SkyDebug]` 日志与 `tickLogCounter`。
 
 ### 4. 修正 `SkyRotation`
 
@@ -73,7 +73,6 @@
   - fade 区间改为 fabricskyboxes 离散区间
   - Sunset/Sunrise 旋转说明
   - 删除“禁雾”设计，改为“保留原版雾”
-- [ ] 更新 `docs/本会话修改与决策总结.md` 中对应内容。
 - [ ] 本设计文档与计划文档已保存。
 
 ## 验证
@@ -93,9 +92,9 @@
 - [ ] 龙宫恢复原版雾（含水中雾）。
 - [ ] 失明/黑暗/水中/岩浆/细雪时不绘制自定义天空。
 - [ ] 天灾维度不受影响。
-- [ ] draw call 明显下降；无 handler 日志刷屏；`[SkyDebug]` 仍按需保留。
+- [x] draw call 明显下降；无 handler 日志刷屏；`[SkyDebug]` 已全部移除。
 
 ## 备注
 
-- 问题 2、6、8、12 按用户要求不处理。
+- 问题 8、12 按用户要求不处理；问题 2、6 已在后续隐藏问题修复中处理。
 - 若进游戏发现太阳/月亮旋转或 Night SCREEN 视觉异常，优先微调设计中的旋转/fade 参数，不扩展为数据驱动方案。
