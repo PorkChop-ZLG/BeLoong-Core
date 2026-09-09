@@ -1,19 +1,10 @@
 package com.zonlong.beloong.client.sky;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.math.Axis;
 import com.zonlong.beloong.BeLoongCore;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.List;
@@ -126,8 +117,6 @@ public final class DramaticSkyRenderer {
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(modelViewMatrix);
 
-        renderBaseSky(level, poseStack, projectionMatrix);
-
         RenderSystem.enableBlend();
         for (int i = 0; i < LAYERS.size(); i++) {
             SkyLayerConfig layer = LAYERS.get(i);
@@ -160,56 +149,6 @@ public final class DramaticSkyRenderer {
         } else {
             return Math.max(target, current - step);
         }
-    }
-
-    private static void renderBaseSky(ClientLevel level, PoseStack poseStack, Matrix4f projectionMatrix) {
-        Vec3 skyColor = level.getSkyColor(
-                Minecraft.getInstance().gameRenderer.getMainCamera().getPosition(),
-                0.0F
-        );
-
-        RenderSystem.disableCull();
-        RenderSystem.depthMask(false);
-        RenderSystem.setShader(GameRenderer::getPositionColorShader);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-        Tesselator tesselator = Tesselator.getInstance();
-        for (int i = 0; i < 6; i++) {
-            poseStack.pushPose();
-            if (i == 1) {
-                poseStack.mulPose(Axis.XP.rotationDegrees(90.0F));
-            } else if (i == 2) {
-                poseStack.mulPose(Axis.XP.rotationDegrees(-90.0F));
-                poseStack.mulPose(Axis.YP.rotationDegrees(180.0F));
-            } else if (i == 3) {
-                poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
-            } else if (i == 4) {
-                poseStack.mulPose(Axis.ZP.rotationDegrees(90.0F));
-                poseStack.mulPose(Axis.YP.rotationDegrees(-90.0F));
-            } else if (i == 5) {
-                poseStack.mulPose(Axis.ZP.rotationDegrees(-90.0F));
-                poseStack.mulPose(Axis.YP.rotationDegrees(90.0F));
-            }
-
-            Matrix4f matrix4f = poseStack.last().pose();
-            BufferBuilder bufferBuilder = tesselator.begin(
-                    VertexFormat.Mode.QUADS,
-                    DefaultVertexFormat.POSITION_COLOR
-            );
-            bufferBuilder.addVertex(matrix4f, -100.0F, -100.0F, -100.0F)
-                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
-            bufferBuilder.addVertex(matrix4f, -100.0F, -100.0F, 100.0F)
-                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
-            bufferBuilder.addVertex(matrix4f, 100.0F, -100.0F, 100.0F)
-                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
-            bufferBuilder.addVertex(matrix4f, 100.0F, -100.0F, -100.0F)
-                    .setColor((float) skyColor.x, (float) skyColor.y, (float) skyColor.z, 1.0F);
-            BufferUploader.drawWithShader(bufferBuilder.buildOrThrow());
-            poseStack.popPose();
-        }
-
-        RenderSystem.depthMask(true);
-        RenderSystem.enableCull();
     }
 
     private static float alphaFor(SkyAlphaSource source, long dayTime) {
