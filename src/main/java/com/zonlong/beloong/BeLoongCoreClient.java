@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
+import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -16,6 +17,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
+import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import java.io.IOException;
 import org.jetbrains.annotations.Nullable;
@@ -87,5 +89,13 @@ public class BeLoongCoreClient {
             throw new RuntimeException("Failed to load disaster portal shader", e);
         }
     }
+
+    @SubscribeEvent
+    static void registerDimensionEffects(RegisterDimensionSpecialEffectsEvent event) {
+        event.register(
+                ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace"),
+                new LoongPalaceSkyEffects());
+    }
+
 
 }

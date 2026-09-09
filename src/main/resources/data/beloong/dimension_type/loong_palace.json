@@ -2,7 +2,7 @@
   "ultrawarm": false,
   "natural": true,
   "coordinate_scale": 1.0,
-  "has_skylight": true,
+  "has_skylight": false,
   "has_ceiling": false,
   "ambient_light": 0.0,
   "monster_spawn_light_level": 0,
@@ -15,5 +15,5 @@
   "min_y": -64,
   "height": 384,
   "infiniburn": "#minecraft:infiniburn_overworld",
-  "effects": "minecraft:overworld"
+  "effects": "beloong:loong_palace"
 }
