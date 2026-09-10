@@ -55,7 +55,7 @@
 enabled = true
 allowedNamespaces = ["biomeswevegone", "regions_unexplored"]
 allowedBiomes = []                        # 额外精确 ID(如没有 RU 时填原版水/洞穴)
-structureSetWhitelist = ["beloong:disaster_set"]
+structureSetWhitelist = []                        # 空 = 交集模式(默认);要纯Boss维度时加 beloong:disaster_set
 structureSpacingOverride = -1             # -1 = 保持结构集原值
 structureSeparationOverride = -1
 structureFrequencyOverride = -1.0         # 0.0~1.0

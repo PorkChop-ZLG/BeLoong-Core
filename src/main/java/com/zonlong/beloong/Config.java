@@ -512,12 +512,18 @@ public class Config {
                 .comment("Structure sets allowed to generate in the disaster dimension. Everything else (villages,",
                         "strongholds, mineshafts, ...) is dropped there. Vanilla land structures disappear",
                         "automatically anyway once vanilla biomes are filtered out.",
+                        "Set the list EMPTY to use intersection mode: structure sets are NOT filtered here and the",
+                        "vanilla 'structure biome tag vs dimension biome set' rule decides — the same rule",
+                        "structure-compass/locator mods use, so their listing always matches reality.",
+                        "To keep ONLY the boss arenas, add beloong:disaster_set below.",
                         "天灾维度允许生成的结构集白名单，其余结构集（村庄/要塞/矿井等）在该维度不放置。",
-                        "原版陆地结构在群系过滤后本就会自动消失，这里兜底覆盖要塞/矿井等按标签残留的结构",
-                        "注意：beloong:disaster_set 必须保留，否则 Boss 竞技场不会生成")
+                        "原版陆地结构在群系过滤后本就会自动消失，这里兜底覆盖要塞/矿井等按标签残留的结构。",
+                        "默认空列表 = 交集模式：不在此裁剪结构集，交由原版'结构群系标签 ∩ 维度群系集'判定——",
+                        "与结构罗盘等按标签定位的模组使用同一条规则，罗盘显示与实际生成完全一致。",
+                        "若想只保留 Boss 竞技场，请加回 beloong:disaster_set")
                 .translation("beloong.configuration.disasterBiomesStructureSetWhitelist")
                 .defineList("structureSetWhitelist",
-                        List.of("beloong:disaster_set"),
+                        List.<String>of(),
                         () -> "",
                         s -> s instanceof String str && ResourceLocation.tryParse(str) != null);
 

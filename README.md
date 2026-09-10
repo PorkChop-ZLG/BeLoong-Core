@@ -67,13 +67,13 @@ summonBlock = "bosses_of_mass_destruction:levitation_block"
 enabled = true
 allowedNamespaces = ["biomeswevegone", "regions_unexplored"]
 allowedBiomes = []                        # 额外精确 ID（如没有 RU 时填原版水/洞穴群系）
-structureSetWhitelist = ["beloong:disaster_set"]
+structureSetWhitelist = []                        # 空 = 交集模式(默认);加 beloong:disaster_set 可只保留 Boss 竞技场
 structureSpacingOverride = -1             # 结构间距覆写，-1 = 保持结构集原值
 structureSeparationOverride = -1          # 结构间隔覆写，-1 = 保持；必须小于 spacing
 structureFrequencyOverride = -1.0         # 结构出现频率 0.0~1.0，-1 = 保持原值
 ```
 
-- `structureSetWhitelist`：天灾维度允许生成的结构集；`beloong:disaster_set` 必须保留，否则 Boss 竞技场不会生成。**设为空列表 = 交集模式**：不裁剪结构集，交由原版“结构群系标签 ∩ 维度群系集”判定——与结构罗盘等按标签判定的工具使用同一条规则，不会出现“罗盘说会生成、实际不生成”的判定分叉。
+- `structureSetWhitelist`：天灾维度允许生成的结构集。**默认空列表 = 交集模式**：不在此裁剪结构集，交由原版“结构群系标签 ∩ 维度群系集”判定——与结构罗盘等按标签定位的模组使用同一条规则，罗盘显示与实际生成完全一致。若想只保留 Boss 竞技场（纯挑战维度），把 `beloong:disaster_set` 加进列表即可（此时其它结构集被裁剪，罗盘会虚报被裁掉的结构属正常——它们确实不生成）。
 - `allowedNamespaces`：允许进入天灾维度的群系模组命名空间。
 - `allowedBiomes`：额外按精确 ID 放行的群系，与命名空间规则取并集。
 - `structureSetWhitelist`：天灾维度允许生成的结构集；`beloong:disaster_set` 必须保留，否则 Boss 竞技场不会生成。
