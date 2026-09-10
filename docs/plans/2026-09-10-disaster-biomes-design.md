@@ -42,7 +42,7 @@
 `ChunkMap.<init>` 的 `createState` redirect(每维度一次):
 
 - 仅天灾维度 + enabled → 把注册表查询包进 `DisasterStructureSetLookup`:
-  - `listElements()` 按 `structureSetWhitelist` 过滤;
+  - `listElements()` 不裁剪结构集(交集判定,写死);
   - 命中项按配置覆写 `RandomSpreadStructurePlacement` 的 spacing/separation(钳制保证 `separation < spacing`)与 frequency ∈ [0,1],`-1`/`-1.0` 表示保持原值;非随机点状放置(同心环等)保持原样并提示一次;
   - 覆写结果以 `DisasterStructureSetHolder`(`Holder.Reference` 子类,保住 `key()/kind()` 语义)承载,IdentityHashMap 缓存。
 
@@ -55,7 +55,6 @@
 enabled = true
 allowedNamespaces = ["biomeswevegone", "regions_unexplored"]
 allowedBiomes = []                        # 额外精确 ID(如没有 RU 时填原版水/洞穴)
-structureSetWhitelist = []                        # 空 = 交集模式(默认);要纯Boss维度时加 beloong:disaster_set
 structureSpacingOverride = -1             # -1 = 保持结构集原值
 structureSeparationOverride = -1
 structureFrequencyOverride = -1.0         # 0.0~1.0
@@ -66,7 +65,7 @@ structureFrequencyOverride = -1.0         # 0.0~1.0
 `ChunkMap.<init>` 的 `createState` redirect(每维度一次):
 
 - 仅天灾维度 + enabled → 把注册表查询包进 `DisasterStructureSetLookup`:
-  - `listElements()` 按 `structureSetWhitelist` 过滤;
+  - `listElements()` 不裁剪结构集(交集判定,写死);
   - 命中项按配置覆写 `RandomSpreadStructurePlacement` 的 spacing/separation(钳制保证 `separation < spacing`)与 frequency ∈ [0,1],`-1`/`-1.0` 表示保持原值;非随机点状放置(同心环等)保持原样并提示一次;
   - 覆写结果以 `DisasterStructureSetHolder`(`Holder.Reference` 子类,保住 `key()/kind()` 语义)承载,IdentityHashMap 缓存。
 

@@ -19,10 +19,8 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -54,7 +52,6 @@ public final class DisasterStructureSetLookup implements HolderLookup<StructureS
             new IdentityHashMap<>();
 
     private final HolderLookup<StructureSet> delegate;
-    private final Set<ResourceLocation> whitelist;
     private final int spacingOverride;
     private final int separationOverride;
     private final double frequencyOverride;
@@ -62,53 +59,28 @@ public final class DisasterStructureSetLookup implements HolderLookup<StructureS
 
     private DisasterStructureSetLookup(HolderLookup<StructureSet> delegate) {
         this.delegate = delegate;
-        this.whitelist = parseWhitelist();
         this.spacingOverride = Config.DisasterBiomes.structureSpacingOverride.get();
         this.separationOverride = Config.DisasterBiomes.structureSeparationOverride.get();
         this.frequencyOverride = Config.DisasterBiomes.structureFrequencyOverride.get();
-        if (!whitelist.isEmpty() || needsPlacementRewrite()) {
+        if (needsPlacementRewrite()) {
             BeLoongCore.LOGGER.info(
-                    "[beloong] disaster_biomes: structure-set filter active, whitelist={}, spacingOverride={},"
+                    "[beloong] disaster_biomes: placement overrides active, spacingOverride={},"
                             + " separationOverride={}, frequencyOverride={}",
-                    whitelist, spacingOverride, separationOverride, frequencyOverride);
+                    spacingOverride, separationOverride, frequencyOverride);
         }
     }
 
     /**
-     * 包装策略：
-     * <ul>
-     *   <li>结构过滤未启用、白名单为空且无 placement 覆写 → 原样透传。
-     *       此时结构集去留完全由原版"结构群系标签 ∩ 维度群系集"的交集逻辑决定，
-     *       与结构罗盘等按标签判定的一方使用同一条规则，判定结果一致；
-     *   </li>
-     *   <li>否则启用本视图（白名单裁剪 + placement 覆写）。</li>
-     * </ul>
+     * 包装策略：无 placement 覆写 → 原样透传。结构集去留完全由原版
+     * "结构群系标签 ∩ 维度群系集"的交集逻辑决定，与结构罗盘等按标签判定的一方
+     * 使用同一条规则，判定结果一致(写死,不进配置)。
      */
     public static HolderLookup<StructureSet> wrap(HolderLookup<StructureSet> delegate) {
         if (!Config.DisasterBiomes.enabled.get()) {
             return delegate;
         }
         DisasterStructureSetLookup lookup = new DisasterStructureSetLookup(delegate);
-        if (lookup.whitelist.isEmpty() && !lookup.needsPlacementRewrite()) {
-            return delegate;
-        }
-        return lookup;
-    }
-
-    private static Set<ResourceLocation> parseWhitelist() {
-        return Config.DisasterBiomes.structureSetWhitelist.get().stream()
-                .map(String::valueOf)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(s -> {
-                    ResourceLocation rl = ResourceLocation.tryParse(s);
-                    if (rl == null) {
-                        BeLoongCore.LOGGER.warn("[beloong] disaster_biomes: ignoring malformed structure set id '{}'", s);
-                    }
-                    return rl;
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        return lookup.needsPlacementRewrite() ? lookup : delegate;
     }
 
     private boolean needsPlacementRewrite() {
@@ -117,16 +89,13 @@ public final class DisasterStructureSetLookup implements HolderLookup<StructureS
 
     @Override
     public Stream<Holder.Reference<StructureSet>> listElements() {
-        return delegate.listElements()
-                .flatMap(ref -> {
-                    if (!whitelist.isEmpty() && !whitelist.contains(ref.key().location())) {
-                        return Stream.<Holder.Reference<StructureSet>>empty();
-                    }
-                    return Stream.of(needsPlacementRewrite() ? (Holder.Reference<StructureSet>) rewritten(ref) : ref);
-                });
+        if (!needsPlacementRewrite()) {
+            return delegate.listElements();
+        }
+        return delegate.listElements().map(this::rewritten);
     }
 
-    /** 白名单命中的结构集 → 应用 spacing/separation/frequency 覆写。 */
+    /** 结构集 → 应用 spacing/separation/frequency 覆写。 */
     private Holder.Reference<StructureSet> rewritten(Holder.Reference<StructureSet> ref) {
         return rewrittenCache.computeIfAbsent(ref, source -> {
             StructureSet original = source.value();
@@ -179,11 +148,11 @@ public final class DisasterStructureSetLookup implements HolderLookup<StructureS
         });
     }
 
-    // ===== 以下为兼容转发：原版链路只用 listElements() =====
+    // ===== 以下为兼容转发：原版链路只用 listElements()，结构集不裁剪(交集判定) =====
 
     @Override
     public Optional<Holder.Reference<StructureSet>> get(ResourceKey<StructureSet> key) {
-        return delegate.get(key).filter(ref -> whitelist.isEmpty() || whitelist.contains(key.location()));
+        return delegate.get(key);
     }
 
     @Override
