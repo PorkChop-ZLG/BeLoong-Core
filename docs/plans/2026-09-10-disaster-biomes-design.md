@@ -61,7 +61,20 @@ structureSeparationOverride = -1
 structureFrequencyOverride = -1.0         # 0.0~1.0
 ```
 
-## 验证锚点(日志)
+### 结构层 — `ChunkMapMixin` + `DisasterStructureSetLookup` + `DisasterStructureSetHolder`
+
+`ChunkMap.<init>` 的 `createState` redirect(每维度一次):
+
+- 仅天灾维度 + enabled → 把注册表查询包进 `DisasterStructureSetLookup`:
+  - `listElements()` 按 `structureSetWhitelist` 过滤;
+  - 命中项按配置覆写 `RandomSpreadStructurePlacement` 的 spacing/separation(钳制保证 `separation < spacing`)与 frequency ∈ [0,1],`-1`/`-1.0` 表示保持原值;非随机点状放置(同心环等)保持原样并提示一次;
+  - 覆写结果以 `DisasterStructureSetHolder`(`Holder.Reference` 子类,保住 `key()/kind()` 语义)承载,IdentityHashMap 缓存。
+
+原版 `createForNormal` 只调用 `listElements()`,其余接口纯转发——包装面最小。
+
+**白名单为空 = 交集模式**:白名单未配置且无 placement 覆写时,直接透传注册表——结构集去留完全交由原版"结构群系标签 ∩ 维度群系集"判定。这与结构罗盘等按标签判定的一方使用同一条规则,避免"罗盘说会生成、实际不生成"的判定分叉。
+
+根因记录:罗盘虚报的 69 个结构(dungeons_arise×26、biomeswevegone×19、dragonsurvival×7、legendary_monsters×6、totw_modded×4、iss/irons/eternal_starlight/iceandfire_dreadland 等)均为"结构群系标签 ∩ BWG/RU 群系非空",但其结构集不在 `disaster_set` 白名单内;且 RU 的注入器硬编码目标为 `Level.OVERWORLD`(bytecode 级证据:`BiomeTarget`/`RULithostitched` 均 `getstatic Level.OVERWORLD`),天灾维度的注入器集合为空——两种判定天然分叉。交集模式下双方共用原版判定,分叉消失;需要额外结构时再显式配置白名单。
 
 ```
 [beloong] disaster_biomes: built parameter list from 'overworld-merged|shared+TB' with NNNN biome points, namespaces=[...], ...

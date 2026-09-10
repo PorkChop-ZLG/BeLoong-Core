@@ -73,7 +73,7 @@ structureSeparationOverride = -1          # 结构间隔覆写，-1 = 保持；�
 structureFrequencyOverride = -1.0         # 结构出现频率 0.0~1.0，-1 = 保持原值
 ```
 
-- `enabled`：关闭后天灾维度与主世界同源（含原版群系）。
+- `structureSetWhitelist`：天灾维度允许生成的结构集；`beloong:disaster_set` 必须保留，否则 Boss 竞技场不会生成。**设为空列表 = 交集模式**：不裁剪结构集，交由原版“结构群系标签 ∩ 维度群系集”判定——与结构罗盘等按标签判定的工具使用同一条规则，不会出现“罗盘说会生成、实际不生成”的判定分叉。
 - `allowedNamespaces`：允许进入天灾维度的群系模组命名空间。
 - `allowedBiomes`：额外按精确 ID 放行的群系，与命名空间规则取并集。
 - `structureSetWhitelist`：天灾维度允许生成的结构集；`beloong:disaster_set` 必须保留，否则 Boss 竞技场不会生成。

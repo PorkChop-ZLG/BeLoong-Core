@@ -74,12 +74,25 @@ public final class DisasterStructureSetLookup implements HolderLookup<StructureS
         }
     }
 
-    /** 委托为空配置时返回原视图，避免无谓包装。 */
+    /**
+     * 包装策略：
+     * <ul>
+     *   <li>结构过滤未启用、白名单为空且无 placement 覆写 → 原样透传。
+     *       此时结构集去留完全由原版"结构群系标签 ∩ 维度群系集"的交集逻辑决定，
+     *       与结构罗盘等按标签判定的一方使用同一条规则，判定结果一致；
+     *   </li>
+     *   <li>否则启用本视图（白名单裁剪 + placement 覆写）。</li>
+     * </ul>
+     */
     public static HolderLookup<StructureSet> wrap(HolderLookup<StructureSet> delegate) {
         if (!Config.DisasterBiomes.enabled.get()) {
             return delegate;
         }
-        return new DisasterStructureSetLookup(delegate);
+        DisasterStructureSetLookup lookup = new DisasterStructureSetLookup(delegate);
+        if (lookup.whitelist.isEmpty() && !lookup.needsPlacementRewrite()) {
+            return delegate;
+        }
+        return lookup;
     }
 
     private static Set<ResourceLocation> parseWhitelist() {
