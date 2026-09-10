@@ -86,6 +86,21 @@ public class Config {
         public static ModConfigSpec.IntValue templateVersion;
     }
 
+    // ==================== 天灾维度群系剔除 ====================
+    // 让天灾维度（beloong:disaster）只保留白名单原版群系（9 海洋 + 2 河流 + 3 洞穴），
+    // 其余原版群系替换为 BWG 群系。替换同时作用于生成层与 BiomeSource.possibleBiomes()，
+    // 因此这些群系在天灾维度 /locate 搜不到、自然罗盘也只显示在主世界。
+    // 实现在 mixin/CloneParameterListMixin.java + mixin/DisasterBiomeSubstitution.java
+
+    public static final class DisasterBiomes {
+        private DisasterBiomes() {}
+
+        /** 天灾维度原版群系剔除总开关（默认启用）。关闭则完全回到旧行为（原版基线 + BWG 叠加） */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 替换求解失败时的兜底群系 */
+        public static ModConfigSpec.ConfigValue<String> fallbackBiome;
+    }
+
     static {
         COMMON_BUILDER.push("template_update");
         TemplateUpdate.enabled = COMMON_BUILDER
@@ -97,6 +112,25 @@ public class Config {
                         "模板版本号；更新地图模板后手动 +1 可触发旧存档覆盖更新")
                 .defineInRange("templateVersion", 1, 1, Integer.MAX_VALUE);
         COMMON_BUILDER.pop();
+
+        // ========== disaster_biomes ==========
+        COMMON_BUILDER.push("disaster_biomes");
+
+        DisasterBiomes.enabled = COMMON_BUILDER
+                .comment("Remove vanilla biomes from the disaster dimension",
+                        "Whether vanilla biomes (except the hardcoded whitelist) are replaced by BWG biomes",
+                        "从天灾维度剔除原版群系，替换为 BWG 群系",
+                        "白名单（刻意保留）：9 海洋 + 2 河流 + 3 洞穴，见 DisasterBiomeSubstitution",
+                        "关闭后完全回到旧行为：原版基线 + BWG 叠加")
+                .define("enabled", true);
+
+        DisasterBiomes.fallbackBiome = COMMON_BUILDER
+                .comment("Fallback biome used when a vanilla biome has no usable BWG counterpart",
+                        "替换求解失败时使用的兜底群系（须为已注册且未被 BWG 配置禁用的群系）")
+                .define("fallbackBiome", "biomeswevegone:prairie",
+                        o -> o instanceof String s && net.minecraft.resources.ResourceLocation.tryParse(s) != null);
+
+        COMMON_BUILDER.pop(); // disaster_biomes
     }
 
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();

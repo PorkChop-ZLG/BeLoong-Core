@@ -22,6 +22,7 @@
     "dragonsurvival.MixinDragonGrowthHandler",
     "dragonsurvival.TreasureBlockMixin",
     "CloneParameterListMixin",
+    "ParameterListAccessor",
     "cataclysm.AltarOfAmethystMixin",
     "cataclysm.BurningArenaStructureMixin",
     "cataclysm.RuinedCitadelStructureMixin",
