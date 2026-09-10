@@ -23,6 +23,7 @@
     "dragonsurvival.TreasureBlockMixin",
     "CloneParameterListMixin",
     "ParameterListAccessor",
+    "PossibleBiomesFilterMixin",
     "cataclysm.AltarOfAmethystMixin",
     "cataclysm.BurningArenaStructureMixin",
     "cataclysm.RuinedCitadelStructureMixin",

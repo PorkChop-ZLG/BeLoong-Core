@@ -1,5 +1,6 @@
 package com.zonlong.beloong.worldgen;
 
+import com.mojang.datafixers.util.Either;
 import com.mojang.datafixers.util.Pair;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
@@ -11,8 +12,10 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Climate;
+import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.dimension.LevelStem;
 import net.neoforged.fml.ModList;
+import terrablender.worldgen.IExtendedParameterList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -103,6 +106,7 @@ public final class DisasterBiomeSubstitution {
     private DisasterBiomeSubstitution() {
     }
 
+
     /**
      * 判断某个 LevelStem 是否为本方案的目标维度（{@code beloong:disaster}）。
      * <p>
@@ -132,6 +136,54 @@ public final class DisasterBiomeSubstitution {
      */
     public static boolean isWhitelisted(ResourceLocation vanillaId) {
         return WHITELIST.contains(vanillaId.getPath());
+    }
+
+    /**
+     * 判断某个群系是否应当从天灾维度<strong>剔除</strong>——即「原版命名空间 且 不在白名单」。
+     * <p>
+     * 供查询路径过滤（{@code possibleBiomes()}）与生成路径替换共用同一判定，
+     * 避免两处口径漂移。
+     *
+     * @param id 群系资源位置
+     * @return true 表示应剔除
+     */
+    public static boolean isBlocklisted(ResourceLocation id) {
+        return VANILLA_NAMESPACE.equals(id.getNamespace()) && !isWhitelisted(id);
+    }
+
+    /**
+     * 判断一个参数列表里是否含有 BWG 群系——用于识别「这是天灾维度的参数列表」。
+     * <p>
+     * <b>为何用语义判据而不是对象身份：</b>实测天灾关卡实际持有的 {@code BiomeSource}
+     * 并不是 TerraBlender 初始化时拿到的那个实例（其 {@code parameters()} 返回的
+     * ParameterList 与写入的 clone 不同），所以按实例登记不可靠。而「参数列表里含有
+     * BWG 群系」这一特征在实测的五个维度中只有天灾维度成立：
+     * 主世界 53 个全原版、下界 5 个全原版、末地走 TheEndBiomeSource、龙宫走 FixedBiomeSource。
+     * <p>
+     * 注意必须同时满足「含 BWG」与「含黑名单原版」，否则主世界（若将来恢复 BWG 群系）
+     * 会被误伤。这里只判断前者，后者由调用方在过滤时逐项判定。
+     *
+     * @param parameters 参数列表，可为 null
+     * @return true 表示含有 mod 群系
+     */
+    public static boolean hasModdedBiomes(Object parameters) {
+        if (parameters == null) {
+            return false;
+        }
+        try {
+            for (Pair<Climate.ParameterPoint, ? extends Holder<Biome>> p
+                    : ((com.zonlong.beloong.mixin.ParameterListAccessor) parameters)
+                    .beloong$getValues()) {
+                ResourceLocation id = p.getSecond().unwrapKey()
+                        .map(k -> k.location()).orElse(null);
+                if (id != null && !VANILLA_NAMESPACE.equals(id.getNamespace())) {
+                    return true;
+                }
+            }
+        } catch (Throwable t) {
+            BeLoongCore.LOGGER.warn("[BeLoong] 判定参数列表是否含 mod 群系时出错", t);
+        }
+        return false;
     }
 
     /**

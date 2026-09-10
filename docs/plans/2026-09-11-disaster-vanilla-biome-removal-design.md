@@ -1,8 +1,8 @@
 # 天灾维度剔除原版群系 设计文档
 
 **Date:** 2026-09-11
-**Status:** Implemented（运行期机制已验证；新区块生成验证待做）
-**Branch:** `disaster2`
+**Status:** Implemented & Verified（生成层与查询层均已验证；用户实机确认通过）
+**Branch:** `disaster2` · 基线提交 `6a77c0e`
 **Scope:** 仅修改 BeLoong-Core。不改 BWG 源码、不改 TerraBlender、不改 `overworld_regions` tag 语义
 **已决事项:** D1 启用 `eroded_borealis` · D2 fallback=`prairie` · D3 手写映射表 · D4 保留 `enabled` 开关（默认 true） · D5 总设计文档待实测通过后再改
 
@@ -320,18 +320,126 @@ git show disaster_test:tools/scan-biomes.js | node - "run\saves\<新存档>" --f
 | **主世界无 BWG 泄漏**（关键回归） | ✅ `天灾测试3` 主世界扫描：`biomeswevegone: 0 种 / 0 次` |
 | 编译 | ✅ `gradlew build` BUILD SUCCESSFUL |
 
-### 尚未完成的验证
+### 关键发现：天灾维度有两条独立路径（I5）
 
-**新区块生成结果未验证。** 已扫描的存档（`天灾测试3`）其天灾区块是天灾维度仍残留 `badlands 3264` / `stony_shore 1376` 等**黑名单群系**，但这些区块是在旧代码下生成的，NBT 不会回填，属于假阴性——符合预期。
+第一版实现落地后**用户实测失败**：天灾维度仍生成恶地等原版群系，`/locate` 仍能搜到，自然罗盘仍显示。
+排查后发现根因是本设计**遗漏了一个结构性事实**——天灾维度存在两条彼此独立的数据路径，只修其中一条不够：
 
-**验收必须在新建世界或未探索区域进行**：
+| 路径 | 数据源 | 对应修复 |
+|---|---|---|
+| **生成路径**<br>`getNoiseBiome` → `MixinParameterList.findValuePositional` → `uniqueTrees` | TerraBlender 初始化时被替换过的 clone 的 `values` | `CloneParameterListMixin` ✅ |
+| **查询路径**<br>`/locate biome`、自然罗盘、地图 → `BiomeSource.possibleBiomes()` | **关卡实际持有**的那份 `parameters().values()` | `PossibleBiomesFilterMixin` ✅ |
 
-```powershell
-cd D:\Minecraft\BeLoong-Core
-git show disaster_test:tools/scan-biomes.js | node - "run\saves\<新存档>" --files 8 --chunks 250
+**为什么关卡持有的 BiomeSource 不是初始化时那一个**：`LevelUtils.initializeOnServerStart` 遍历的是
+`LevelStem` 注册表，改的是注册表里那个 ChunkGenerator 的 BiomeSource；关卡运行时持有的是**另一个实例**，
+其 `values` 从未被替换。实测对比（`[VERIFY]` 探针）：
+
+| 维度 | `parameters` | 第一版 `possibleBiomes` | 修复后 |
+|---|---|---|---|
+| `minecraft:overworld` | `Right(preset)` | 53（14+39） | 53（不变，正确） |
+| `beloong:disaster` | `Left(ParameterList)` | **109**（53 原版 + 56 BWG） | **70**（14 + 55，黑名单 0） |
+| `minecraft:the_nether` | `Left(ParameterList)` | 5 | 5（不变，正确） |
+
+109 = 53 + 56 正是「完整原版 + 全部 BWG」，说明关卡那份 `values` 完全没被碰过。
+
+### 查询路径修复的两个坑（I6 / I7）
+
+**I6 — 只过滤 `collectPossibleBiomes` 无效。**
+第一版补丁注入 `MultiNoiseBiomeSource.collectPossibleBiomes()` 的 RETURN 点。
+日志确认**注入确实触发、语义判据也正确**（`含mod群系=true`），但 `possibleBiomes()` 仍返回 109。
+
+原因：`possibleBiomes()` 的实现是 `possibleBiomes.get()`——读一个 supplier 字段，而 TerraBlender 的
+`MixinBiomeSource.appendDeferredBiomesList` 会把这个字段整体替换成一个**缓存闭包**：
+
+```java
+this.possibleBiomes = () -> new ObjectLinkedOpenHashSet<>(possibleBiomes.stream().distinct()...);
 ```
 
-判据：天灾维度 `minecraft:` 出现次数应**只**来自白名单 14 项；`plains`/`forest`/`badlands`/`stony_shore`/`desert`/`savanna` 等必须为 0。
+闭包捕获的是**替换那一刻**算出的集合。`collectPossibleBiomes` 只在缓存建立时被调用一次，
+之后 `possibleBiomes()` 直接读缓存，不再经过被过滤的方法。**必须在缓存建立的那一点就让内容干净。**
+
+**I7 — 正确的注入点是 `appendDeferredBiomesList`。**
+`PossibleBiomesFilterMixin` 在该方法 HEAD 处 `cancellable` 注入：对天灾维度自行合并
+「现有集合 + 本次追加列表」、剔除黑名单、重设 supplier，然后 `ci.cancel()` 跳过 TerraBlender
+用未过滤集合重建缓存闭包的原逻辑。
+
+**如何识别天灾维度**：用**语义判据**而非对象身份——TerraBlender 只在 `RegionType.OVERWORLD`
+维度调用本方法，而实测五个维度中只有天灾维度的参数列表含 `biomeswevegone:` 群系
+（主世界 53 个全原版、下界 5 个全原版、末地走 `TheEndBiomeSource`、龙宫走 `FixedBiomeSource`）。
+判据：**追加列表里含非 `minecraft:` 命名空间群系**。
+
+> ⚠️ **若将来主世界恢复 BWG 群系**，该判据会同时命中主世界。届时需改为比对维度身份
+> （例如在 `CloneParameterListMixin` 里按 `levelKey` 打标记），不能只靠这条语义判据。
+
+### 最终验收结果（本轮实测，干净构建）
+
+用临时 `[VERIFY]` 探针（已删除）在新建世界启动后打印：
+
+```
+[VERIFY] minecraft:overworld   白名单原版=14 黑名单残留=39 BWG=0    ← 正确，主世界本就该有
+[VERIFY] minecraft:the_nether  白名单原版=0  黑名单残留=5  BWG=0    ← 正确
+[VERIFY] minecraft:the_end     白名单原版=0  黑名单残留=5  BWG=0    ← 正确
+[VERIFY] beloong:disaster      白名单原版=14 黑名单残留=0  BWG=55   ← ★ 目标达成
+[VERIFY] beloong:loong_palace  白名单原版=0  黑名单残留=0  BWG=0
+[BeLoong] 天灾维度群系替换：参数点 7593 个，替换 7552 个，未能求解 0 个
+```
+
+**生成路径**（更强的证据，非 NBT 扫描而是游戏内存中的群系容器）：强制生成 289 个全新区块
+（坐标 20000,20000），读 25 个区块全部 section 的群系：
+
+```
+biomeswevegone:dacite_ridges=46216, biomeswevegone:coniferous_forest=238,
+minecraft:deep_dark=1966, minecraft:lush_caves=2780
+其中原版群系：[deep_dark, lush_caves]   ← 全部白名单，黑名单 0
+```
+
+另有 289 个地表点抽样，原版只出现 `minecraft:river`（白名单）。
+
+### 排查过程中犯的错（值得记录）
+
+1. **把「代码执行了」当成「结果被使用了」**——第一版只验证了替换计数 7552 与白名单 41 精确吻合，
+   就下了「机制成功」的结论。这正是 `disaster_test` 交接文档第六节「教训 2」警告的错误，我重犯了。
+   教训：**必须在消费端取证**——本轮唯一有效的证据是读区块内存的群系容器与 `possibleBiomes()` 的真实内容。
+2. **`Climate.RTree` 是 protected**，无法在包外查询树内容；诊断时应改用 `getTree(0)` 之外的公开 API。
+
+### ⚠️ 重要：`tools/scan-biomes.js` 的读数是失真的（I8）
+
+本项目一直用 `disaster_test` 分支的 `tools/scan-biomes.js`（解析 `.mca` 的 `sections[].biomes.palette`）
+做群系统计。**本次发现它对单个区块的读数不可信**，会显著高报原版群系。
+
+证据：对同一批全新生成的区块（chunk 3000,3000 附近 16 个区块，天灾维度），
+用**两种互相独立**的方式读同一份数据：
+
+| 读数方式 | 结果 |
+|---|---|
+| **A. 内存**：`chunk.getSection(i).getBiomes().get(x,y,z)` | 种数 2，黑名单 **0**：`temperate_grove=30034`, `lush_caves=2734` |
+| **B. 游戏自己的序列化器**：反射调用 `ChunkSerializer.write` 再读 `sections[].biomes.palette` | 种数 2，黑名单 **0**：`temperate_grove=490`, `lush_caves=53`（palette 条目数） |
+
+**两种方式结论完全一致：零黑名单。**
+
+而同一时期用 `scan-biomes.js` 扫该存档的天灾维度，却报出 `minecraft:plains 29056`、`ocean 5216`
+等大量黑名单群系。进一步按区块 `Status` 拆解，露出马脚：
+
+| 区块 Status | 区块数 | 含黑名单 | 比例 |
+|---|---|---|---|
+| `minecraft:structure_starts` | 2513 | 2513 | **100.0%** |
+| `minecraft:full` | 2449 | 728 | 29.7% |
+| `minecraft:biomes` | 286 | 93 | 32.5% |
+| `minecraft:initialize_light` | 285 | 92 | 32.3% |
+| `minecraft:carvers` | 275 | 92 | 33.5% |
+| `minecraft:noise` | 8 | 0 | 0.0% |
+
+`structure_starts` 阶段的区块**尚未生成群系**，却是 100% 命中——这说明脚本在读**不属于它的字节**。
+另外它统计的是「palette 出现次数」而非「群系实际占用体积」，量纲本身就与预期不符
+（对照：读数 B 里 32 个 section 的 palette 合计仅 543 条）。
+
+**结论与后续约定：**
+
+- `scan-biomes.js` **不得再用于「某群系是否在天灾维度生成」的判定**。它的正确用途仅限于
+  大范围粗粒度分布观察，且结论必须用下面的方式复核。
+- 验证群系是否生成，一律以**游戏内存**为准：`ServerLevel.getBiome(pos)` 或
+  `chunk.getSection(i).getBiomes().get(x,y,z)`。
+- 旧区块本就含修复前生成的原版群系（NBT 不回填），用旧存档扫描必然得到假阳性。
 
 ### 环境改动（不入版本库）
 
@@ -355,35 +463,41 @@ git show disaster_test:tools/scan-biomes.js | node - "run\saves\<新存档>" --f
 | 文件 | 操作 |
 |---|---|
 | `mixin/ParameterListAccessor.java` | 新建（mixin，暴露 final 的 `values`） |
-| `worldgen/DisasterBiomeSubstitution.java` | 新建（求解器，含白名单 + 维度守卫） |
+| `mixin/PossibleBiomesFilterMixin.java` | 新建（查询路径：在 `appendDeferredBiomesList` 处过滤缓存） |
+| `worldgen/DisasterBiomeSubstitution.java` | 新建（求解器：白名单 + 映射 + 维度守卫 + 语义判据） |
 | `worldgen/DisasterBiomeMapping.java` | 新建（39 项映射表） |
 | `mixin/CloneParameterListMixin.java` | 修改（插入替换 + 维度守卫） |
 | `Config.java` | 修改（`[disaster_biomes]`：`enabled` / `fallbackBiome`） |
-| `beloong.mixins.json` | 修改（注册 `ParameterListAccessor`） |
+| `beloong.mixins.json` | 修改（注册 3 个生产 mixin） |
 | `build.gradle` | 修改（BWG 升至 2.6.0；不加 `compileOnly`） |
 | `run/config/biomeswevegone/world_generation.json` | 修改（环境，`eroded_borealis = true`，**不入版本库**） |
 
 ---
 
-## 验收清单（实施完成后逐项打勾）
+## 验收清单
 
-已在运行期验证的项（证据见「实施记录」）：
+**已全部验证通过。**
+
+运行期证据（`[VERIFY]` 探针 + 用户实机确认）：
 
 - [x] `eroded_borealis` 已在 BWG 配置中启用（D1，环境改动）
-- [x] `ParameterListAccessor` 注册成功，`values` 可替换（替换计数 7552 证明读写均生效）
-- [x] 主世界 `biomeswevegone:` 计数为 0（无污染回归）
-- [x] 替换计数与白名单精确吻合（7552 替换 + 41 保留 = 7593）
-- [x] 下界未被误伤（维度守卫生效）
-- [x] 无启动崩溃、无 `RTree` 相关异常、日志无映射表 WARN、无 Mixin 错误
+- [x] 替换计数与白名单精确吻合（7552 替换 + 41 保留 = 7593，未求解 0）
+- [x] **天灾维度 `possibleBiomes` 黑名单残留 = 0**（109 → 70：14 白名单原版 + 55 BWG）
+- [x] **天灾维度生成层黑名单 = 0**（内存读数与游戏序列化器读数双重确认）
+- [x] 主世界 `possibleBiomes` 完全不变（53 = 14 + 39，BWG = 0）
+- [x] 下界 / 末地 / 龙宫完全不受影响
+- [x] 编译干净、无启动崩溃、无 Mixin 错误、无 `RTree` 异常
+- [x] 日志无残留诊断输出（全部探针已删除）
 
-**仍需在新建世界验证**（旧区块不回填，已扫描存档无法作为依据）：
+用户实机确认（2026-09-11）：
 
-- [ ] 新建世界，天灾维度 `minecraft:` 群系**全部** ∈ 白名单 14 项
-- [ ] 天灾维度 `minecraft:plains` / `forest` / `desert` / `badlands` / `stony_shore` 计数为 0
-- [ ] 天灾维度 `biomeswevegone:` 种类数上升（当前基线 16 种）
-- [ ] `/execute in beloong:disaster run locate biome minecraft:plains` 立即失败
-- [ ] `/execute in beloong:disaster run locate biome minecraft:river` 成功
-- [ ] 自然罗盘对 `minecraft:plains` 只显示主世界
-- [ ] `/execute in minecraft:overworld run locate biome minecraft:plains` 正常成功
-- [ ] `enabled = false` 时生成行为完全回退到旧状态（D4 验证）
-- [ ] 实测通过后更新 `docs/天灾维度总设计.md` 第四 / 八 / 九节（D5）
+- [x] `/execute in beloong:disaster run locate biome minecraft:plains` 立即返回「无法找到」
+- [x] 自然罗盘对原版群系只显示主世界
+- [x] 天灾维度不再生成黑名单原版群系（恶地等）
+- [x] 用户结论：「验证通过，完美符合要求」
+
+剩余可选项（非阻塞）：
+
+- [ ] 天灾维度长期观感确认；若发现某替代群系出现在气候不协调处，再做 D3 的自动最近邻映射
+- [ ] `enabled = false` 的回退行为实测（D4）
+- [ ] 更新 `docs/天灾维度总设计.md` 第四 / 八 / 九节（D5）——**待用户确认是否现在做**
