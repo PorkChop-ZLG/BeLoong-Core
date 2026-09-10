@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import java.util.List;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /**
@@ -205,6 +206,37 @@ public class Config {
         public static ModConfigSpec.IntValue offsetY;
         /** 自定义返回传送门偏移 Z */
         public static ModConfigSpec.IntValue offsetZ;
+    }
+
+    // ==================== disaster_biomes ====================
+    // 天灾维度生物群系与结构管控。
+    // 机制：CloneParameterListMixin 在天灾维度初始化时，不使用 TerraBlender 的
+    // 区域唯一性噪声路由，而是重建一张“白名单参数表”：
+    //   - 命名空间 ∈ allowedNamespaces 的群系（默认 BWG + RU）
+    //   - 以及 allowedBiomes 中精确列出的额外群系 ID
+    // 生物群系选择退化为最近邻匹配，因此白名单里的水/洞穴类群系参数点
+    // 会自然占据对应的气候区间（河流/海洋/洞穴照常出现）。
+    // 结构管控：ChunkMapMixin 只允许 structureSetWhitelist 中列出的结构集
+    // 在天灾维度放置，并可将 spacing/separation/frequency 覆写为配置值
+    // （设为 -1 表示保持结构集原值）。
+
+    public static final class DisasterBiomes {
+        private DisasterBiomes() {}
+
+        /** 总开关：false 时天灾维度完全保持原样（与主世界同源） */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 允许进入天灾维度的群系命名空间列表 */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> allowedNamespaces;
+        /** 额外精确白名单的群系 ID（如 "minecraft:river"），与命名空间规则取并集 */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> allowedBiomes;
+        /** 天灾维度允许生成的结构集 ID 白名单 */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> structureSetWhitelist;
+        /** 结构集 spacing 覆写（-1 = 保持原值） */
+        public static ModConfigSpec.IntValue structureSpacingOverride;
+        /** 结构集 separation 覆写（-1 = 保持原值；必须小于 spacing） */
+        public static ModConfigSpec.IntValue structureSeparationOverride;
+        /** 结构出现频率覆写（0.0~1.0，-1 = 保持原值） */
+        public static ModConfigSpec.DoubleValue structureFrequencyOverride;
     }
 
 
@@ -443,6 +475,73 @@ public class Config {
                 .defineInRange("offsetZ", -6, -1000, 1000);
 
         SERVER_BUILDER.pop(); // dragon_summon
+
+        // ========== disaster_biomes ==========
+        SERVER_BUILDER.push("disaster_biomes");
+
+        DisasterBiomes.enabled = SERVER_BUILDER
+                .comment("Restrict disaster dimension to the biome namespaces below and curate its structure sets",
+                        "将天灾维度限制为下列命名空间的群系，并只保留白名单结构集",
+                        "关闭后天灾维度与主世界同源（含原版群系）")
+                .translation("beloong.configuration.disasterBiomesEnabled")
+                .define("enabled", true);
+
+        DisasterBiomes.allowedNamespaces = SERVER_BUILDER
+                .comment("Biome mod namespaces allowed in the disaster dimension.",
+                        "BWG provides land biomes; RU (regions_unexplored) provides oceans/rivers/caves.",
+                        "天灾维度允许的群系模组命名空间。",
+                        "BWG 提供陆地群系；RU(regions_unexplored) 提供海洋/河流/洞穴群系")
+                .translation("beloong.configuration.disasterBiomesAllowedNamespaces")
+                .defineList("allowedNamespaces",
+                        List.of("biomeswevegone", "regions_unexplored"),
+                        () -> "",
+                        s -> s instanceof String str && !str.isBlank());
+
+        DisasterBiomes.allowedBiomes = SERVER_BUILDER
+                .comment("Extra biomes allowed by exact ID, merged with the namespace rule.",
+                        "Useful when running without RU, e.g. minecraft:river, minecraft:deep_ocean, minecraft:lush_caves",
+                        "额外按精确 ID 放行的群系，与命名空间规则取并集。",
+                        "没有装 RU 时可在此填原版水体/洞穴群系，例如 minecraft:river、minecraft:deep_ocean、minecraft:lush_caves")
+                .translation("beloong.configuration.disasterBiomesAllowedBiomes")
+                .defineList("allowedBiomes",
+                        List.<String>of(),
+                        () -> "",
+                        s -> s instanceof String str && ResourceLocation.tryParse(str) != null);
+
+        DisasterBiomes.structureSetWhitelist = SERVER_BUILDER
+                .comment("Structure sets allowed to generate in the disaster dimension. Everything else (villages,",
+                        "strongholds, mineshafts, ...) is dropped there. Vanilla land structures disappear",
+                        "automatically anyway once vanilla biomes are filtered out.",
+                        "天灾维度允许生成的结构集白名单，其余结构集（村庄/要塞/矿井等）在该维度不放置。",
+                        "原版陆地结构在群系过滤后本就会自动消失，这里兜底覆盖要塞/矿井等按标签残留的结构",
+                        "注意：beloong:disaster_set 必须保留，否则 Boss 竞技场不会生成")
+                .translation("beloong.configuration.disasterBiomesStructureSetWhitelist")
+                .defineList("structureSetWhitelist",
+                        List.of("beloong:disaster_set"),
+                        () -> "",
+                        s -> s instanceof String str && ResourceLocation.tryParse(str) != null);
+
+        DisasterBiomes.structureSpacingOverride = SERVER_BUILDER
+                .comment("Override structure set spacing in the disaster dimension (-1 = keep structure set value).",
+                        "覆写天灾维度结构集的 spacing（-1 = 保持结构集原值）",
+                        "spacing 越大结构分布越稀疏")
+                .translation("beloong.configuration.disasterBiomesStructureSpacingOverride")
+                .defineInRange("structureSpacingOverride", -1, -1, 4096);
+
+        DisasterBiomes.structureSeparationOverride = SERVER_BUILDER
+                .comment("Override structure set separation (-1 = keep; must be smaller than spacing).",
+                        "覆写结构集的 separation（-1 = 保持；必须小于 spacing）")
+                .translation("beloong.configuration.disasterBiomesStructureSeparationOverride")
+                .defineInRange("structureSeparationOverride", -1, -1, 4096);
+
+        DisasterBiomes.structureFrequencyOverride = SERVER_BUILDER
+                .comment("Override structure occurrence frequency, 0.0~1.0 (-1 = keep).",
+                        "覆写结构出现频率 0.0~1.0（-1 = 保持原值）",
+                        "0.5 表示每个候选区块有 50% 概率实际生成结构")
+                .translation("beloong.configuration.disasterBiomesStructureFrequencyOverride")
+                .defineInRange("structureFrequencyOverride", -1.0, -1.0, 1.0);
+
+        SERVER_BUILDER.pop(); // disaster_biomes
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();

@@ -54,6 +54,35 @@ summonBlock = "bosses_of_mass_destruction:levitation_block"
 
 
 
+### 天灾维度纯 BWG 群系化 + 结构白名单
+
+将 `beloong:disaster`（天灾）维度限制为配置命名空间内的群系（默认 BWG + RU，零原版群系），海洋/河流/洞穴由 RU 群系补足；同时只保留白名单内的结构集（默认 `beloong:disaster_set`，即灾难 Boss 竞技场），要塞/矿井/村庄等原版与标签残留结构在该维度不再生成。主世界不受影响。
+
+实现要点：天灾维度在 TerraBlender 初始化处装回一张按命名空间/精确 ID 过滤的参数表（优先复用主世界经 Lithostitched 合并后的参数表，无需复制 BWG/RU 数据，升级自动跟随），生物群系选择退化为最近邻匹配——BWG 陆地群系与 RU 水体/洞穴群系在各自气候区间互不挤占。老区块已固化的群系/结构不回填，需新区块验证。
+
+配置位于 `beloong-server.toml`：
+
+```toml
+[disaster_biomes]
+enabled = true
+allowedNamespaces = ["biomeswevegone", "regions_unexplored"]
+allowedBiomes = []                        # 额外精确 ID（如没有 RU 时填原版水/洞穴群系）
+structureSetWhitelist = ["beloong:disaster_set"]
+structureSpacingOverride = -1             # 结构间距覆写，-1 = 保持结构集原值
+structureSeparationOverride = -1          # 结构间隔覆写，-1 = 保持；必须小于 spacing
+structureFrequencyOverride = -1.0         # 结构出现频率 0.0~1.0，-1 = 保持原值
+```
+
+- `enabled`：关闭后天灾维度与主世界同源（含原版群系）。
+- `allowedNamespaces`：允许进入天灾维度的群系模组命名空间。
+- `allowedBiomes`：额外按精确 ID 放行的群系，与命名空间规则取并集。
+- `structureSetWhitelist`：天灾维度允许生成的结构集；`beloong:disaster_set` 必须保留，否则 Boss 竞技场不会生成。
+- `structureSpacingOverride` / `structureSeparationOverride` / `structureFrequencyOverride`：生成概率与密度覆写，仅对随机点状放置（`random_spread`）的结构集生效。
+
+详细机制见 `docs/plans/2026-09-10-disaster-biomes-design.md`。
+
+
+ 
 ## 构建
 
 ```bash
