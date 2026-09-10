@@ -89,3 +89,18 @@ structureFrequencyOverride = -1.0         # 0.0~1.0
 - 老区块已固化的群系/结构不回填,需新区块验证。
 - 装不下 Lithostitched 时走 `shared+TB` 回退,RU 群系缺失,水体洞穴需靠 `allowedBiomes` 手动补原版 ID。
 - 同心环放置(如原版要塞)不参与 spacing/frequency 覆写(保持原值,白名单过滤仍生效)。
+
+
+## 追记(20:51 实测定稿): 构造期表不全 → 延迟并集交换
+
+实测时序(LH 1.8.0b4 + TB 4.1.0.8):
+- 天灾维度来源构造期,共享预设表仅原版 7593 点(`namespaces=[minecraft]`)——LH/TB 都还没写;
+- 主世界侧,LH 的 `InjectorBiomeSource`(非 MNBS 子类)以 `Either.right(preset)` 持共享表,
+  其 RU 主群系走 LH 内部 Region 路由(运行期,不进参数表),仅 2 条 AddPoints 深部洞穴
+  (`redstone_caves`/`prismachasm`,depth 全区间)被就地写入共享表 → 主世界表 7595 点;
+- 故构造期收集永远缺 RU 主群系,延迟交换改为**并集**:天灾现有表(构造期 TB 采集的 8976 BWG 点)
+  ∪ 主世界合并表过滤后新增点(2 条 RU 深洞) = 8978 点,`namespaces=[biomeswevegone, regions_unexplored]`,
+  装回后 `refreshFeaturesPerStep()` 重建特性步骤。
+
+ET(#c:is_cold → #biomeswevegone:climate/cold → 17 个 BWG 冷群系,全部在天灾维度)等结构
+在**交集模式**(`structureSetWhitelist = []`)下有宿主群系,罗盘判定与实际生成一致。

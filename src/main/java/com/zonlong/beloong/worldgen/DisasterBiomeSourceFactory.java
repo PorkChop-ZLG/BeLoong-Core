@@ -85,6 +85,22 @@ public final class DisasterBiomeSourceFactory {
             Climate.ParameterList<Holder<Biome>> sharedList, RegistryAccess registryAccess) {
         List<String> extraIds = allowedBiomes();
 
+        // 时序诊断: 共享预设表此刻(被 Lithostitched 就地改写前后)的全量命名空间分布。
+        // 若已含 regions_unexplored → LH 先于本注入点执行,共享表可直接当合并表用;
+        // 若只有原版+BWG → LH 晚于本注入点(或未注入),需走主世界来源解析。
+        Set<String> sharedNamespaces = new HashSet<>();
+        int sharedPoints = 0;
+        for (Pair<Climate.ParameterPoint, Holder<Biome>> entry : sharedList.values()) {
+            ResourceLocation id = biomeId(entry.getSecond());
+            if (id != null) {
+                sharedNamespaces.add(id.getNamespace());
+                sharedPoints++;
+            }
+        }
+        BeLoongCore.LOGGER.info(
+                "[beloong] disaster_biomes: shared-preset probe at disaster init: {} points, namespaces={}",
+                sharedPoints, sharedNamespaces);
+
         // 首选来源：主世界生物群系来源的参数表。Lithostitched 的
         // BiomeInjectorManager 在 initServer 尾部把主世界的来源替换为
         // InjectorBiomeSource，其参数表（Either.left）已合并
@@ -147,7 +163,7 @@ public final class DisasterBiomeSourceFactory {
      * {@code directDelegate()} 指向被其合并后的多噪声来源）。为避免对
      * Lithostitched 的编译期依赖，这里用反射调用该公开访问器（最多三层）。
      */
-    private static MultiNoiseBiomeSource unwrapToMultiNoise(BiomeSource source) {
+    public static MultiNoiseBiomeSource unwrapToMultiNoise(BiomeSource source) {
         for (int depth = 0; source != null && depth < 3; depth++) {
             if (source instanceof MultiNoiseBiomeSource mnbs) {
                 return mnbs;
@@ -158,6 +174,21 @@ public final class DisasterBiomeSourceFactory {
             source = next;
         }
         return null;
+    }
+    /** 白名单过滤 + 去重(供本类与延迟交换处理器复用)。 */
+    public static List<Pair<Climate.ParameterPoint, Holder<Biome>>> filterSharedPairs(
+            List<Pair<Climate.ParameterPoint, Holder<Biome>>> values) {
+        List<Pair<Climate.ParameterPoint, Holder<Biome>>> collected = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Pair<Climate.ParameterPoint, Holder<Biome>> entry : values) {
+            ResourceLocation biomeId = biomeId(entry.getSecond());
+            if (biomeId == null) continue;
+            if (!isAllowed(biomeId, allowedBiomes())) continue;
+            if (seen.add(entry.getFirst() + "\u0000" + biomeId)) {
+                collected.add(entry);
+            }
+        }
+        return collected;
     }
 
     /** 反射调用无参公共访问器，失败返回 null。 */
@@ -217,7 +248,7 @@ public final class DisasterBiomeSourceFactory {
     }
 
     /** 汇总日志 + 构造不可变参数表；空集时返回 null 并告警一次。 */
-    private static Climate.ParameterList<Holder<Biome>> finish(
+    public static Climate.ParameterList<Holder<Biome>> finish(
             List<Pair<Climate.ParameterPoint, Holder<Biome>>> collected, String sourceName) {
         if (collected.isEmpty()) {
             if (!warnedEmpty) {

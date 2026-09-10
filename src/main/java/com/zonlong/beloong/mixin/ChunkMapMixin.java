@@ -1,6 +1,7 @@
 package com.zonlong.beloong.mixin;
 
 import com.zonlong.beloong.worldgen.DisasterBiomeSourceFactory;
+import com.zonlong.beloong.worldgen.DisasterBiomeSwapHandler;
 import com.zonlong.beloong.worldgen.DisasterStructureSetLookup;
 
 import net.minecraft.core.HolderLookup;
@@ -54,6 +55,13 @@ public abstract class ChunkMapMixin {
             long seed) {
         if (DisasterBiomeSourceFactory.DISASTER_DIMENSION.equals(level.dimension().location())) {
             structureSetLookup = DisasterStructureSetLookup.wrap(structureSetLookup);
+            ChunkGeneratorStructureState state = generator.createState(structureSetLookup, randomState, seed);
+            // 天灾来源的参数表在构造期只有 原版+BWG(LH 此时尚未写共享表)。
+            // createState 完成后,用主世界(其 InjectorBiomeSource/共享表此时已含 RU 注入对)
+            // 的合并表做一次延迟交换 + 特性步骤重建;结构状态机的 placementsForStructure
+            // 是惰性计算(ensureStructuresGenerated),首次使用时自然按新群系集求值。
+            DisasterBiomeSwapHandler.swapNow(generator, level.registryAccess());
+            return state;
         }
         return generator.createState(structureSetLookup, randomState, seed);
     }
