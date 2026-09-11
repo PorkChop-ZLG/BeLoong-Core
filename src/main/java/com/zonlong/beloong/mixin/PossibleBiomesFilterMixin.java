@@ -33,8 +33,18 @@ import java.util.function.Supplier;
  * </ul>
  *
  * <h3>如何识别天灾维度</h3>
- * 用 {@link DisasterBiomeSubstitution#isSubstitutionApplied()}——由生成层的
- * {@link CloneParameterListMixin} 在真的替换成功时置位。
+ * 用 <b>作用域</b>标志 {@link DisasterBiomeSubstitution#isFilteringTargetBiomeList()}——
+ * 由 {@link CloneParameterListMixin} 在 {@code LevelUtils.initializeBiomes} 调用
+ * {@code appendDeferredBiomesList} 的<strong>前后</strong>用 {@code levelKey} 精确包夹；
+ * 另需 {@link DisasterBiomeSubstitution#isSubstitutionApplied()} 为真（生成层确实替换过）
+ * 才过滤，保持两层一致。
+ * <p>
+ * <b>⚠️ 为什么不能用全局标志（本类曾有的真实缺陷）：</b>{@code LevelUtils.initializeOnServerStart}
+ * 遍历<strong>所有</strong> level stem，而 {@code minecraft:the_nether} <strong>同样会走到
+ * {@code appendDeferredBiomesList}</strong>。若只读全局的 {@code isSubstitutionApplied()}，
+ * 天灾处理完标志即为真，轮到下界时其 5 个原版群系会被 {@code isBlocklisted} 一并过滤 ⇒
+ * <b>下界结构集因 {@code hasBiomesForStructureSet} 预筛失败而整条剔除、{@code /locate} 失效</b>
+ * （生成层无事，只坏查询层）。2026-09-11 由逐维度 {@code possibleBiomes()} 实测发现并修复。
  * <p>
  * <b>为什么不用"追加列表里是否含 BWG 群系"这个判据</b>（本类早期实现）：该列表来自
  * <b>全局</b> region 表，与"当前是哪个维度"无关。任何进入
@@ -69,6 +79,15 @@ public abstract class PossibleBiomesFilterMixin {
 
     @Inject(method = "appendDeferredBiomesList", at = @At("HEAD"), remap = false, cancellable = true)
     private void beloong$filterPossibleBiomes(List<Holder<Biome>> biomesToAppend, CallbackInfo ci) {
+        // ⚠️ 维度判据必须用「作用域标志」，不能用全局的 isSubstitutionApplied()。
+        // 后者一旦天灾处理过就永久为真，而 LevelUtils.initializeOnServerStart 会遍历**所有**
+        // level stem —— 实测下界也会走到本方法，用全局标志会把下界 5 个原版群系一并过滤，
+        // 导致下界结构集被 hasBiomesForStructureSet 整条剔除、/locate 失效。
+        // beginTargetBiomeList()/endTargetBiomeList() 由 CloneParameterListMixin 在
+        // LevelUtils.initializeBiomes 的调用点用 levelKey 精确包夹。
+        if (!DisasterBiomeSubstitution.isFilteringTargetBiomeList()) {
+            return;
+        }
         // 生成层没有真的替换过 → 查询层也不过滤，保持两层一致
         if (!DisasterBiomeSubstitution.isSubstitutionApplied()) {
             return;
@@ -94,10 +113,14 @@ public abstract class PossibleBiomesFilterMixin {
 
         Set<Holder<Biome>> filtered = new LinkedHashSet<>();
         for (Holder<Biome> h : merged) {
-            boolean blocklisted = h.unwrapKey()
-                    .map(k -> DisasterBiomeSubstitution.isBlocklisted(k.location()))
+            boolean drop = h.unwrapKey()
+                    .map(k -> DisasterBiomeSubstitution.isBlocklisted(k.location())
+                            // TerraBlender 的延迟哨兵不是真实群系，但确实注册在注册表里，
+                            // 会被 appendDeferredBiomesList 收进来。留着它会让自然罗盘把它
+                            // 列成一个永远搜不到的群系。
+                            || DisasterBiomeSubstitution.isDeferredSentinel(k.location()))
                     .orElse(false);
-            if (!blocklisted) {
+            if (!drop) {
                 filtered.add(h);
             }
         }
@@ -107,7 +130,12 @@ public abstract class PossibleBiomesFilterMixin {
         Set<Holder<Biome>> snapshot = ImmutableSet.copyOf(filtered);
         this.possibleBiomes = () -> snapshot;
 
-        // 自行完成追加，跳过 TerraBlender 的原始逻辑（它会用未过滤的集合重建缓存闭包）
+        // 自行完成追加，跳过 TerraBlender 的原始逻辑（它会用未过滤的集合重建缓存闭包）。
+        //
+        // 注意：ci.cancel() 意味着 MixinBiomeSource 里的 `hasAppended = true` 不会被置位
+        // （MixinBiomeSource.java:43-58），即 TerraBlender 的"只追加一次"幂等守卫对本类失效。
+        // 这是**刻意**的：本类的替换本身幂等（合并走 LinkedHashSet、快照走 ImmutableSet），
+        // 重复调用结果一致；而若让原逻辑继续跑，它会用**未过滤**的集合覆盖我们的快照。
         ci.cancel();
     }
 }

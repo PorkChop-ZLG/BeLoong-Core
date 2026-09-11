@@ -16,7 +16,9 @@ import net.minecraft.world.level.dimension.LevelStem;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import terrablender.api.RegionType;
 import terrablender.mixin.MultiNoiseBiomeSourceAccess;
 import terrablender.util.LevelUtils;
@@ -98,11 +100,68 @@ public class CloneParameterListMixin {
                         "[BeLoong] 天灾群系替换失败，本次按 TerraBlender 原行为初始化"
                                 + "（天灾维度将保留原版群系）", t);
             }
+
+            // 账目：region 树里还剩哪些 minecraft: 群系。
+            // 必须放在 filter() 之后——它依赖 filter() 写入的注册表与生效标志；
+            // 也必须放在 initializeForTerraBlender 之前或之后均可（region 树在本调用之后才建），
+            // 这里紧随 filter() 以便日志顺序与账目相邻。
+            DisasterBiomeSubstitution.logRegionTreeBiomes(targetRA);
         }
 
         ((IExtendedParameterList) cloned).initializeForTerraBlender(targetRA, regionType, targetSeed);
 
         MultiNoiseBiomeSource biomeSource = (MultiNoiseBiomeSource) chunkGenerator.getBiomeSource();
         ((MultiNoiseBiomeSourceAccess) biomeSource).setParameters(Either.left(cloned));
+    }
+
+    /**
+     * 为整个 {@code initializeBiomes} 调用设置<strong>作用域</strong>维度标志。
+     * <p>
+     * <b>为什么需要它：</b>{@code PossibleBiomesFilterMixin}（注入在
+     * {@code appendDeferredBiomesList} 的 HEAD）与 {@code BwgRegionBiomeRewriteMixin}
+     * （注入在 {@code BWGTerraBlenderRegion.addBiomes} 的 HEAD）都<strong>拿不到维度身份</strong>。
+     * 它们原先读全局的 {@link DisasterBiomeSubstitution#isSubstitutionApplied()}，
+     * 于是产生了一个真实缺陷：{@code LevelUtils.initializeOnServerStart} 遍历
+     * <strong>所有</strong> level stem，处理完天灾之后标志已为真，轮到
+     * {@code minecraft:the_nether} 时它的 {@code appendDeferredBiomesList} 也被过滤
+     * ⇒ 下界 5 个原版群系从 {@code possibleBiomes()} 消失、结构集被
+     * {@code hasBiomesForStructureSet} 整条剔除。
+     * <p>
+     * <b>为什么包夹整个方法而不是只包夹那一处调用：</b>{@code initializeBiomes} 内依次执行
+     * 「{@code initializeForTerraBlender}（建 index≠0 的 RTree）→ region 循环（{@code LevelUtils:117-120}）
+     * → {@code appendDeferredBiomesList}」，<strong>两条注入路径的目标都在这个区间内</strong>。
+     * 用 HEAD/RETURN 一次包住，比逐个调用点重定向更简单也更不易漏。
+     * {@code @At("RETURN")} 会匹配该方法<strong>所有</strong> return（它有两处提前返回），
+     * 因此标志一定被清除。
+     *
+     * @param levelKey 本次初始化的 level stem 键——判定的唯一依据
+     */
+    @Inject(method = "initializeBiomes", at = @At("HEAD"))
+    private static void beloong$beginTargetDimension(
+        RegistryAccess registryAccess,
+        Holder<DimensionType> dimensionType,
+        ResourceKey<LevelStem> levelKey,
+        ChunkGenerator chunkGenerator,
+        long seed,
+        CallbackInfo ci
+    ) {
+        if (DisasterBiomeSubstitution.isTargetDimension(levelKey)) {
+            DisasterBiomeSubstitution.beginTargetBiomeList();
+        }
+    }
+
+    /** 与 {@link #beloong$beginTargetDimension} 配对，清除作用域标志。 */
+    @Inject(method = "initializeBiomes", at = @At("RETURN"))
+    private static void beloong$endTargetDimension(
+        RegistryAccess registryAccess,
+        Holder<DimensionType> dimensionType,
+        ResourceKey<LevelStem> levelKey,
+        ChunkGenerator chunkGenerator,
+        long seed,
+        CallbackInfo ci
+    ) {
+        if (DisasterBiomeSubstitution.isTargetDimension(levelKey)) {
+            DisasterBiomeSubstitution.endTargetBiomeList();
+        }
     }
 }

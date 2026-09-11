@@ -3,6 +3,228 @@
 **Goal:** 用 5 个 `beloong:` 自制群系接管 14 个白名单原版群系，另 7 项改指 BWG 群系，
 使天灾维度的群系里**不含任何 `minecraft:` 群系**。
 
+> ## ✅ 执行结果（2026-09-11 完成，T0–T16 + T18 通过；T17 待客户端验收）
+>
+> **服务端验收四条全部成立**（`run/logs/latest.log`）：
+>
+> | 断言 | 实测 |
+> |---|---|
+> | 账目 100% 替换 | `参数点 7593 个 = 替换 7593 + 非原版保留 0 + 未能求解 0（替换生效）` |
+> | region 树 `minecraft:` 为 0 种 | `region_0/1/2` 三个 BWG region 全部 `[]` |
+> | 无 BeLoong 相关 ERROR | 无 |
+> | 服务器正常启动 | `Done (21.552s)!` |
+>
+> **额外的生成层实测**：用临时数据包函数 `forceload` 强制生成天灾维度区块，
+> **区块真的生成了**（`region/r.-2.-2.mca` 94 KB、`r.-2.-3.mca` 91 KB 等含实际数据），
+> 全程无异常。这证明自制群系与地表规则在**真实生成路径**上可用，而不只是注册表层面正确。
+>
+> **执行中的两处计划修正**：
+> 1. **T2 无法 `import` BWG 的类**——`build.gradle` 中 BWG 只有 `localRuntime`、
+>    按决策 18 **刻意没有 `compileOnly`**。改用 Mixin 的字符串 `targets` + `@Pseudo`，
+>    处理器签名只用原版类型，**不产生任何编译期依赖**，维持现状。
+> 2. **T11 的范围比计划小得多**——关键观察：**若原版对应群系本身在原版规则里没有分支，
+>    则复制品不需要规则**（两者都走"未命中"路径，行为天然一致）。
+>    因此 {@code beloong:ocean} / {@code river} / {@code caves} 都**不需要**规则，
+>    只有 `frozen_ocean`（海面冰）与 `windswept`（石头/砂砾）需要。
+>
+> **T4 的预测逐项命中**：region 树 `minecraft:` 从 12 种降到 7 种，
+> 剩下恰好是白名单那 7 项，被修掉的恰好是 5 项泄漏
+> （`badlands` `eroded_badlands` `wooded_badlands` `mushroom_fields` `beach`）。
+>
+> ---
+>
+> ### 补充：查询层实测抓到一个已存在的回归（2026-09-11 第二轮修复）
+>
+> 原计划只验证了**生成层**（index 0 树 + region 树）。补上 §4.8 记录的**查询层
+> `possibleBiomes()` 逐维度实测**后，立刻发现一个被掩盖的真实缺陷：
+>
+> | 维度 | 修复前 | 修复后 |
+> |---|---|---|
+> | `beloong:disaster` | 61 种（`minecraft:` **0**） | 61 种（`minecraft:` **0**） |
+> | **`minecraft:the_nether`** | **4 种（`minecraft:` 0）❌** | **9 种（`minecraft:` 5）✅** |
+> | `minecraft:overworld` | 113 种（`minecraft:` 53） | 113 种 |
+> | `minecraft:the_end` / `beloong:loong_palace` | 未受污染 | 未受污染 |
+>
+> **根因**：`PossibleBiomesFilterMixin` 的维度判据是**全局**标志 `isSubstitutionApplied()`，
+> 而 `LevelUtils.initializeOnServerStart` 会遍历所有 level stem ——
+> **`minecraft:the_nether` 同样会走到 `appendDeferredBiomesList`**。
+> 天灾处理完标志即为真，下界的 5 个原版群系便被 `isBlocklisted` 一并过滤
+> ⇒ 下界结构集因 `hasBiomesForStructureSet` 预筛失败而**整条剔除**、`/locate` 失效。
+>
+> **修法**：`CloneParameterListMixin` 新增 `@Redirect`，在 `LevelUtils.initializeBiomes`
+> 调用 `appendDeferredBiomesList` 的**前后**用 `levelKey` 精确包夹
+> （`beginTargetBiomeList()` / `endTargetBiomeList()` + `try/finally`），
+> 查询层改读这个**作用域**标志。
+>
+> **为什么第一阶段没暴露**：当时白名单非空，被误滤的下界群系在账目里仍算"待剔除残留"，
+> 看起来像设计如此；白名单清空后下界 `minecraft:` 直接归零，异常才显形。
+>
+> **教训**：跨维度共享的全局状态不能用来做维度判定。这也是"消费端取证"的直接收益——
+> 计划里原本只安排了生成层验证，补上查询层实测才发现问题。
+>
+> **已知次要项（未修）**：天灾维度的 `possibleBiomes` 里有 1 个
+> `terrablender:deferred_placeholder`（BWG region 树吐出的哨兵）。它不会生成、
+> 也不被任何结构集引用，属良性；但它并非真实群系，故天灾的计数是 61 而非 60。
+>
+> ---
+>
+> ### 补充二：`/locate biome` 端到端验证 + 哨兵消除（2026-09-11 第三轮）
+>
+> **先修掉上面那条"已知次要项"**：哨兵虽良性，但 `possibleBiomes()` 正是**自然罗盘的列表**
+> 与 `/locate biome` 的数据源——留着它会让自然罗盘把它列成一个"可搜索"的群系，
+> 而搜索永远扫不到东西。已加 `DisasterBiomeSubstitution.isDeferredSentinel(...)`
+> 并在查询层过滤掉。**实测天灾的 `possibleBiomes` 由 61 种降为 60 种，全部为真实群系。**
+>
+> **再做端到端验证**：用临时数据包函数在 `beloong:disaster` 里执行 `/locate biome`。
+> 这一条之所以是**最强证据**，是因为 `LocateCommand` 的结构决定了输出的可判定性：
+>
+> ```java
+> :128   Pair<BlockPos, Holder<Biome>> pair = source.getLevel().findClosestBiome3d(biome, blockpos, 6400, 32, 64);
+> :131       throw ERROR_BIOME_NOT_FOUND.create(...);                        // 找不到 → 抛异常
+> :199   source.sendSuccess(...);
+> :200   LOGGER.info("Locating element " + elementName + " took " + ...);     // 只在成功路径
+> ```
+>
+> 而 `findClosestBiome3d` 的**第一行**就是 `possibleBiomes()` 预筛
+> （`BiomeSource.java:78-84`，集合为空立即返回 null）。**所以"有无那行日志"就等价于
+> "能否定位"，而能否定位又等价于"在不在 `possibleBiomes()` 里"。**
+>
+> | 探测目标 | 实测输出 | 判定 |
+> |---|---|---|
+> | `minecraft:ocean` / `plains` / `frozen_ocean` / `lush_caves` / `windswept_hills` / `stony_peaks` | **无任何输出** | ✅ 抛 `ERROR_BIOME_NOT_FOUND`，搜不到 |
+> | `terrablender:deferred_placeholder` | **无任何输出** | ✅ 已随本轮修复消失 |
+> | `beloong:ocean` | `Locating element beloong:ocean took 4 ms` | ✅ 可定位 |
+> | `beloong:windswept` | `Locating element beloong:windswept took 2447 ms` | ✅ 可定位 |
+> | `biomeswevegone:prairie` | `Locating element biomeswevegone:prairie took 37 ms` | ✅ 可定位 |
+>
+> **⇒ 设计文档最关心的那条用户可见行为（"`/locate biome` 在天灾维度搜不到原版群系"）
+> 已由真实命令路径证实。**
+>
+> （`beloong:windswept` 的 2447 ms 使服务器出现一次 `Can't keep up!` 警告——
+> 那是 `/locate` 的螺旋扫描本身的开销，与总设计 §九"自然罗盘搜索不做预筛"记的是同一现象，不是缺陷。）
+>
+> ---
+>
+> ### 补充三：独立代码审查与两处修复（2026-09-11 第四轮）
+>
+> 对整套改动做了一次独立审查（Critical 零个）。两处 Important 是真实缺陷，均已修复并实机复验。
+>
+> #### ① Critical 级：`windsweptRocky()` 丢了 `UNDER_FLOOR` 门
+>
+> **这是本轮发现的唯一 Critical 级问题，而且是本次改动自己引入的。**
+>
+> `SurfaceSystem.java:124-153` 的循环是
+> `for (int i3 = 地表高度; i3 >= getMinBuildHeight(); i3--)`，
+> 对**整列中每一个**等于 `defaultBlock`（石头）的方块都调用 `tryApply`，命中非 null 就替换。
+>
+> 原版 `WINDSWEPT_GRAVELLY_HILLS` 那条阶梯整条挂在
+> `SurfaceRuleData.java:280` 的 `ifTrue(UNDER_FLOOR, rulesource6)` 之下，只作用于地表以下若干格。
+> 我原先照抄了规则体却**丢掉了这层门**，而最后一级 `stoneOrGravel` 恒不为 null
+> ⇒ **整个 `beloong:windswept` 的地下石头都会被换成砂砾**（该群系占 352 / 7593 个参数点）。
+>
+> **修法**：新增 `surfaceWindow(rule)` = `sequence(ifTrue(ON_FLOOR, rule), ifTrue(UNDER_FLOOR, rule))`，
+> 给阶梯的每一级都套上。形态取自 BWG 的 `GRASS_DIRT_DIRT_SURFACE` / `makeBeachSandRule`
+> ——它的每条叶子规则都被 `ON_FLOOR`/`UNDER_FLOOR` 门住，是应当照抄的既有范例。
+>
+> #### ② Important 级：第三条注入路径仍用全局标志推断维度
+>
+> `BwgRegionBiomeRewriteMixin` 原先读全局的 `isSubstitutionApplied()`——正是上一轮修掉的
+> 同一类缺陷（当时只修了查询层）。虽然实测当前不会误伤（`Regions.get(NETHER)` 只含
+> `DefaultNetherRegion`，不含 BWG 的 region），但这是"碰巧安全"。
+>
+> **修法**：把上一轮那个只包夹 `appendDeferredBiomesList` 的 `@Redirect` 换成
+> `initializeBiomes` 的 **HEAD/RETURN `@Inject` 包夹**（`levelKey` 精确判定 + `@At("RETURN")`
+> 覆盖全部 return），使**两条注入路径共用同一个作用域标志**，彻底移除全局标志依赖。
+> 实测日志确认两个 `@Inject` 均已应用：
+> ```
+> beloong.mixins.json:CloneParameterListMixin ... @Inject::beloong$beginTargetDimension(...)
+> beloong.mixins.json:CloneParameterListMixin ... @Inject::beloong$endTargetDimension(...)
+> ```
+>
+> #### 另修的 Important 与次要项
+>
+> - `BeLoongCore`：地表规则注册改包在 `event.enqueueWork(...)` 里。`FMLCommonSetupEvent` 是
+>   **并行分发**的而 `SurfaceRuleManager` 内部是普通 `HashMap`；**BWG 自己也是这么做的**
+>   （`BiomesWeveGoneNeoForge.onInitialize`），我原先的注释把它写错了。
+>   丢失更新会让规则被静默丢弃且不报错——正是本功能最怕的失效模式。
+> - region 树账目的标题与实际矛盾：index 0（`DefaultOverworldRegion`）的 `addBiomes` 输出恒为
+>   53 个原版群系，但它的**树**来自被改写的 `values`、并非实际取群系来源。已在该行显式标注。
+> - 账目里的 `白名单保留` 标签在白名单清空后已名不副实，改为 `非原版保留`。
+> - 删掉一处不可达分支（`rewriteKey` 返回不同键时 `getHolder` 必非空）。
+> - 修正三处文档/注释与实际不符：`araucaria_savanna` 是"无地表规则"的例外、
+>   `mushroom_fields → crag_gardens` 同样无规则（已显式记录为已知例外）、
+>   注册时机写成了"mod 构造期"（实为 common setup）。
+> - `PossibleBiomesFilterMixin` 的 `ci.cancel()` 会跳过 TerraBlender 的 `hasAppended` 幂等守卫，
+>   已加注释说明这是刻意为之。
+>
+> #### 复验结果
+>
+> | 断言 | 实测 |
+> |---|---|
+> | 两条 `@Inject` 已应用 | ✅ 日志可见 |
+> | 账目 | `替换 7593 + 非原版保留 0 + 未能求解 0` ✅ |
+> | region 树 `minecraft:` | 三个 BWG region 均 `0 种` ✅ |
+> | `possibleBiomes` | 天灾 `60 种 {beloong=5, biomeswevegone=55}`；**下界 `9 种 {minecraft=5}`** ✅ |
+> | 地表规则分发表 | `[minecraft, beloong, biomeswevegone]` ✅ |
+> | `/locate` 负例（`minecraft:*`、哨兵） | **无任何输出**（= 抛 `ERROR_BIOME_NOT_FOUND`）✅ |
+> | `/locate` 正例 | `beloong:windswept 569 ms`、`beloong:ocean 485 ms` ✅ |
+> | 生成期异常 | 无 ✅ |
+> | **SURFACE 阶段确实执行过** | 天灾维度 **8/8 个 poi 文件有数据**（区块跑到放置方块阶段，SURFACE 在其之前）⇒ 新地表规则执行未抛异常 ✅ |
+>
+> > **验证方法上的一处自我纠正**：我一度用"磁盘上的 region 文件"作为生成证据。
+> > 但总设计 §4.8 明确警告**不得依赖 NBT/磁盘扫描**。本轮的对照实验正好印证了这点：
+> > **主世界的 region 文件同样是 0 字节**（保存/刷盘时序问题），与我们的改动无关——
+> > 若只看数据盘会得出错误结论。可靠的信号是 poi 文件 + 日志无异常 + `/locate` 的真实命令路径。
+>
+> ---
+>
+> ### 补充四：地表规则的**方块级**验证（2026-09-11 第五轮）
+>
+> 补充三修掉的那个 Critical（`windsweptRocky()` 丢 `UNDER_FLOOR` 门）此前只验证到
+> "SURFACE 阶段执行过且未抛异常"。**它到底有没有产出正确的方块，仍未被验证**——
+> 而这正是我写错过一次的地方。本轮用 RCON 把它验掉了。
+>
+> #### 手法
+>
+> 启用 `enable-rcon`，用约 40 行 PowerShell 实现最小 RCON 客户端（TCP + 认证包 + 命令包），
+> 即可从外部下达命令并**读回返回值**。两条关键命令：
+>
+> | 命令 | 用途 |
+> |---|---|
+> | `execute in beloong:disaster run locate biome <b>` | 取得该群系的实际坐标（RCON 源不被抑制，`sendSuccess` 会回传） |
+> | `fill <x> -64 <z> <x> 200 <z> <m> replace <m>` | **统计**该柱某材料的数量（含相同方块的 fill 不计数，故用 `minecraft:air` 作目标；**这是破坏性的**，但探测存档本来就是临时的） |
+> | `execute in beloong:disaster if biome <pos> <b> run time query gametime` | 条件为真才返回值 ⇒ 可判定该坐标的真实群系 |
+>
+> #### 结果
+>
+> **`beloong:windswept` 柱 `(256, -2400)`** —— 内存读数确认群系为 `beloong:windswept`
+> （y=130 / 100 / 70 三处均命中；`minecraft:windswept_hills` 从不命中）：
+>
+> | 材料 | 该柱数量 | 判读 |
+> |---|---|---|
+> | `minecraft:grass_block` | **0** | ✅ **地表规则确实生效**——若规则未命中会落回原版规则的默认草 |
+> | `minecraft:stone` | **68** | ✅ **门生效**——Critical 缺陷若还在，这 68 个石头会全变成砂砾 |
+> | `minecraft:gravel` | 6 | ✅ 与阶梯的"噪声 > 2.0 带"相符 |
+> | `minecraft:dirt` | 7 | ✅ 与"噪声 > -1.0 带"相符 |
+>
+> ⇒ **同时证明了「规则生效」与「只作用于表层窗口、没有污染整个地下」两件事。**
+>
+> **`beloong:frozen_ocean`** —— 内存读数确认为 `beloong:frozen_ocean`
+> （`-736/63/-1568`、`-730/63/-1560` 命中；`minecraft:frozen_ocean` 从不命中）；
+> 其所在区块（y 40–80）内 **43 个冰方块** ⇒ **冰海确实结冰**。
+> 单柱取样曾显示 0 冰，原因是那一柱恰好落在冰面的**开阔水缝**里——这正是冰海的正常外观。
+>
+> #### 两个把自己绊了一下的地方（记下来）
+>
+> 1. **`say` 不产生 RCON 响应。** 我最初用
+>    `execute if biome … run say HIT` 做判定，结果**恒为空**，无论条件真假。
+>    发现方式是加阳性对照（`if loaded` 必真）——它同样返回空，于是暴露出是命令本身的问题。
+>    改用会返回值的 `time query gametime` 后，阳性/阴性对照都正常。
+>    **⇒ 核对"验证工具本身是否可用"是必需的，不能只看目标结果。**
+> 2. **`fill ... replace` 是破坏性的**，我用它数完方块后又想读同一柱的剖面，自然是全空气。
+>    计数是在破坏前完成的，故证据成立；但**计数与剖面不能在同一柱上先后做**。
+
+
 **Architecture:**
 三条注入路径共同完成改写 —— 现有两条（`CloneParameterListMixin` 改 index 0 兜底树、
 `PossibleBiomesFilterMixin` 过滤查询层）覆盖 14 个 DEFERRED 桶项；
@@ -96,6 +318,8 @@
    `@ModifyVariable(method = "addBiomes", at = @At("HEAD"), argsOnly = true)`
    包裹传入的 `Consumer`，对每个 pair 调 `DisasterBiomeSubstitution.rewriteKey(...)`
 3. **维度守卫**：`if (!DisasterBiomeSubstitution.isSubstitutionApplied()) return mapper;`
+   > ⚠️ **本步描述的是初版实现。** 后续发现该全局标志不足以做维度判定
+   > （会误伤下界），已改为作用域标志，见顶部「补充：查询层实测抓到一个已存在的回归」。
    —— 替换没真的发生就完全不动手，与查询层的判据保持一致（决策 21）
 4. **异常安全（必需）**：每个 pair 的改写包在 try/catch 内，**失败时原样放行**。
    异常若穿透会进入 `initializeForTerraBlender` / `LevelUtils` 的 level stem 循环，
@@ -260,7 +484,7 @@
 **Steps:** `.\gradlew.bat runServer`，读日志
 **Verification:** 四条全部成立：
 1. 账目逐点闭合且**替换率为 100%**：
-   `参数点 7593 个 = 替换 7593 + 白名单保留 0 + 未能求解 0（替换生效）`
+   `参数点 7593 个 = 替换 7593 + 非原版保留 0 + 未能求解 0（替换生效）`
 2. region 树账目里 `minecraft:` 群系 **0 种**（残留集合为空、无 ERROR）
 3. 启动无 `天灾群系替换失败` 报错
 4. 全流程无异常（服务器跑到 `Done`）
@@ -324,15 +548,65 @@ T11 ── T12 ── T13 ───────────┘
 
 ## 五、验收标准
 
-**服务端（我做）:**
-- [ ] 账目：`替换 7593 + 白名单保留 0 + 未能求解 0 = 7593`
-- [ ] region 树账目：`minecraft:` 群系 0 种
-- [ ] 启动与运行期无 ERROR 级 `[BeLoong]` 日志
+> 状态截至 2026-09-11 第 3 轮。**服务端与文档部分已全部达成并附实测证据；客户端观感部分待用户执行。**
 
-**客户端（用户做）:**
+**服务端（已达成）:**
+- [x] 账目：`替换 7593 + 非原版保留 0 + 未能求解 0 = 7593`
+      （标签由 `白名单保留` 改名——白名单已清空，该项现在指"原样放行的非 minecraft: 条目"）
+- [x] region 树账目：`biomeswevegone:region_0/1/2` 的 `minecraft:` 群系 **0 种**
+- [x] 启动与运行期无 ERROR 级 `[BeLoong]` 日志
+- [x] **额外** — 查询层 `possibleBiomes()` 逐维度实测：
+      天灾 `60 种 {beloong=5, biomeswevegone=55}`（`minecraft:` **0**）；
+      下界 `9 种 {minecraft=5, regions_unexplored=4}`；主世界 `113 种 {minecraft=53, …}`——
+      即**其余维度未被波及**（下界一度被误伤，已修复，见顶部「补充一」）
+- [x] **额外** — `/locate biome` 端到端：`minecraft:*` 与哨兵全部**无输出**（= 抛
+      `ERROR_BIOME_NOT_FOUND`）；`beloong:ocean` `took 4 ms`、`beloong:windswept` 可定位
+- [x] **额外** — **5 个自制群系逐个可定位**（最后一轮补测，此前只测过其中 2 个）：
+      `beloong:frozen_ocean` 12019 ms、`beloong:ocean` 151 ms、`beloong:river` 0 ms、
+      `beloong:caves` 0 ms、`beloong:windswept` 738 ms；
+      对照 `biomeswevegone:lush_stacks` 1166 ms；对照负例
+      `minecraft:frozen_ocean` / `river` / `lush_caves` / `terrablender:deferred_placeholder`
+      全部无输出。
+      > `frozen_ocean` 耗时 12 秒是 `/locate` 的螺旋扫描开销——它只占 4 / 7593 个参数点且仅在
+      > 冰带出现，属于本项目的正常现象（同 §九「自然罗盘搜索不做预筛」那条）。不是缺陷。
+- [x] **额外** — 5 个自制群系全部注册就绪（`registry.getHolder` 命中）
+- [x] **额外** — 地表规则进了分发表：`[minecraft, beloong, biomeswevegone]`
+- [x] **额外** — 三条注入路径的 Mixin 注入均已在启动日志中确认应用
+- [x] **额外** — SURFACE 阶段确实执行且未抛异常：天灾维度 **8/8 个 poi 文件有数据**
+      （区块到了放置方块阶段，SURFACE 在其之前）
+- [x] **额外** — **地表规则的方块级验证**（见顶部「补充四」）：
+      `beloong:windswept` 柱 `(256,-2400)` 内 `grass_block` **0 个**、
+      `stone` **68 个**、`gravel` 6 个、`dirt` 7 个
+      ⇒ 规则生效（无草）**且**只作用于表层窗口（石头未被整列换掉）；
+      该柱与 `beloong:frozen_ocean` 处的群系身份经 `if biome` 内存读数确认；
+      冻结海区块内有 **43 个冰方块** ⇒ 冰海结冰
+
+**客户端（待用户执行 —— 本计划唯一未完成项）:**
 - [ ] 海洋/河流/洞穴/碎裂地形观感符合预期
-- [ ] `/locate biome minecraft:ocean` 在天灾维度搜不到
+- [ ] `/locate biome minecraft:ocean` 在天灾维度搜不到（服务端已证，客户端可复核）
 - [ ] 地表规则生效（碎裂地形露石，非草坡）
 
-**文档:**
-- [ ] 总设计不再有"第二阶段未开始"表述，实测数字更新
+**文档（已达成）:**
+- [x] 总设计不再有"第二阶段未开始"表述，实测数字更新
+- [x] 逐项表、交接文档、`memory/decisions-log.md` 同步
+
+---
+
+## 六、可复用的验证手法（记下来）
+
+1. **临时数据包函数**：`data/minecraft/tags/function/load.json` 挂一个
+   `execute in <dim> run <cmd>` 函数，即可在**无客户端**的情况下从游戏内存端到端验证。
+   已验证有效的两类命令：
+   - `locate biome <biome>` —— `LocateCommand.java:200` 的
+     `Locating element ... took N ms` **只在成功路径打印**，可直接当断言信号；
+     而 `findClosestBiome3d` 第一行就是 `possibleBiomes()` 预筛，故它同时验证查询层。
+   - `forceload add <x> <z>` —— 强制生成区块，让只在生成期执行的代码（如地表规则）真正跑到。
+2. **主世界做对照**：判断某个磁盘/日志现象是否由本次改动引起时，先看主世界是否同样如此。
+   本轮"region 文件全为 0 字节"就是这样排除的。
+3. **不要用磁盘产物当生成证据**（总设计 §4.8 已警告）。可靠信号是 poi 文件、
+   游戏内存读数、以及真实命令路径的返回值。
+4. **看完服务器记得 `job_output` 排空后台任务的 stdout** —— 缓冲区满了会让服务器
+   阻塞在日志写入上，表现为"卡死"，实为假象。
+5. **清理临时探针文件时只删自己创建的确切路径**，不要对上层目录用 `-Recurse`
+   （本项目曾因此误删 3 个原有标签文件）。
+
