@@ -150,6 +150,17 @@
 | 雾 | Mixin `FogRenderer` | `ViewportEvent.RenderFog` |
 | 云 | 未重点处理 | `LoongPalaceSkyEffects.renderClouds()` |
 | Mixin 使用 | 是 | 否 |
+| **天空盒几何提交** | 每帧 `Tesselator` + `BufferUploader`（即时模式） | **静态 `VertexBuffer` 缓存**，每帧仅传矩阵 |
+| **太阳 / 月亮几何** | 每帧即时模式 | **静态 `VertexBuffer` 缓存**（月亮按 8 相位各一个） |
+
+> **几何提交方式的差异是有意为之**（2026-09-11 引入）。本模组与参考模组在天空盒上原本都走
+> `Tesselator` → `buildOrThrow()` → `BufferUploader.drawWithShader`，每帧重建 `MeshData`
+> 并对同一份静态几何执行两次 `glBufferData`。改为静态 `VertexBuffer` 后几何只上传一次，
+> 旋转由 `drawWithShader(poseStack.last().pose(), projectionMatrix, shader)` 的矩阵参数每帧施加
+> ——这与原版 `LevelRenderer` 绘制 `skyBuffer` / `starBuffer` 的手法一致。
+> 注意参考模组在**星星**上复用了原版的缓存 `starsBuffer`，而本模组的 `stars` 是 `stars.png`
+> 全屏图层（Dramatic Skys 观感要求），**不能**照搬该做法。
+> 设计见 [`plans/2026-09-11-loong-palace-sky-geometry-cache-design.md`](plans/2026-09-11-loong-palace-sky-geometry-cache-design.md)。
 
 ---
 
