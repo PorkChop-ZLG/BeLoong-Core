@@ -1,0 +1,220 @@
+# 龙宫天空渲染 代码审查报告
+
+**Date:** 2026-09-11
+**Baseline:** `e548e19`（工作树 `HEAD = a0b18fc` 仅含 docs 改动；`git diff e548e19 HEAD -- src/` 为空 ⇒ 被审代码与基线逐字节一致）
+**范围:** `beloong:loong_palace` 维度自定义天空渲染（9 个 Java 文件 / 817 行 + 3 个数据 JSON + 9 张运行时贴图）
+**权威文档:** `docs/龙宫天空渲染总设计.md`（576 行 / 15 节）
+**审查性质:** **只读**。本报告不落地任何修复。
+**方法:** 4 个独立只读子代理并行审查（显存与贴图管线 / 状态机与生命周期 / 渲染正确性 / 文档断言核对）+ 主线对数据契约的独立审计 + 汇总去重与终定级。
+
+---
+
+## 一、结论摘要
+
+1. **无 [阻塞] 级问题。** 渲染管线在正确性层面整体良好：12 步矩阵是标准共轭 `A·T·A⁻¹`（与参考模组逐位同序同角）、三个混合模式逐字正确且无状态泄漏窗口、状态复位与原版逐项对齐、几何缓存的两条纪律严格遵守、`FACES` 六面法线全部朝内（剔除被重新启用也不丢面）、提前 `return true` 未遗漏任何必要恢复。
+2. **唯一的资源级问题是显存**：9 张贴图占 **180.77 MiB**，且**加载后整个会话常驻、无释放路径**。可保守降到 **≈45.4 MiB（省 74.9%）**。这是本子系统最大的单项成本，且此前从未被评估。
+3. **唯一的代码缺陷是 [次要]**：进入龙宫时首帧会用上一次离开时的陈旧 alpha 渲染（窗口 ≤1 client tick）。
+4. **唯一的视觉偏差是 [次要]**：日月**贴图**相对原版在天空平面内滚转 90°（位置、高度、交替时刻逐位一致；仅月牙朝向不同），且与参考模组行为一致。
+5. **权威文档本身有 11 处断言需修正 + 7 处自洽性问题**，其中 3 处由两个批次独立命中。文档的「零视觉变化可证明」这一论证**依据无效**（结论仍成立，但需换一个论据）。
+6. 有 **4 项**曾被怀疑但**核验为非问题**（详见第五节），建议在后续工作中不再重复怀疑。
+
+---
+
+## 二、问题清单
+
+### 2.1 [重要] I1 —— 天空贴图显存 180.77 MiB，且整个会话常驻无释放
+
+- **证据**：实测 9 张贴图（自读 PNG 头）合计 RGBA8 显存 **180.77 MiB**（189,548,544 B）。解码路径 `NativeImage.read` 恒请求 4 分量并以 `GL_RGBA`/`GL_UNSIGNED_BYTE` 上传（`NativeImage.java:100-118,469,851-856`）。
+  释放路径只有 `TextureManager.release`（本模组从未调用）与 `TextureManager.close`（仅 `Minecraft.java:1128` 关闭时调用）；`AbstractTexture.reset` 让 `F3+T` 复用同一对象与 GL id。**维度切换 / 退出世界都不经过 TextureManager。**
+- **影响**：只要进过一次龙宫并经历一个昼夜，**所有维度、会话剩余时间都背着这 180.77 MiB**。`skybox/sun.png` / `sunflare.png` 在没经历黄昏/黎明的会话里不加载，但其余 7 张必然加载。
+- **与文档的关系**：§9.5 / §12.3 已正确量化总量，**但未涉及"常驻无释放"**；§8.4 只论证了几何缓冲「无失效面」，而**贴图与缓冲正相反**（会重载、会常驻）。
+- **修复建议**：以「缩小资源尺寸」为唯一实际手段（见 2.6 的分档表）。若要做运行时回收，需自定义 `AbstractTexture` 子类 + 离开维度时 `TextureManager.release(rl)`，代价是再次进入时重新解码——**不建议**为此增加复杂度。
+
+### 2.2 [重要] I2 —— 首次绘制同步解码+上传，入夜那一帧同时上传 4 张大图（≈96 MiB）
+
+- **证据**：`CubeAtlasSkyRenderer.java:135` 的 `setShaderTexture` 仅在该层 `alpha > 0` 时执行（`DramaticSkyRenderer.java:143-153`）；调用链 `RenderSystem._setShaderTexture:722-728` → `TextureManager.getTexture:109-117` → `register:62-74` → `loadTexture:90-107` → `SimpleTexture.load:29-49`；因 `RenderSystem.isOnRenderThreadOrInit()` 为真，`doLoad:51-54` **内联**完成 readResource + stb 解码 + `prepareImage` + `_texSubImage2D`。全仓 grep `preload|PreloadedTexture` **0 命中** ⇒ 无预加载路径。
+- **最坏同帧**：第 0/1/2/4 层的 alpha 来源同为 `NIGHT`、淡入区间同为 `13333→13666`（`DramaticSkyRenderer.java:29-32`），`moveTowards` 首步 0.05 > 0 ⇒ stars + mask_moon + mask + night **在同一帧一起加载**（PNG 2,044 KB / 上传 **96 MiB**）。
+- **影响**：入夜、首次进入维度、每次 `F3+T` 的一次性掉帧。
+- **与文档的关系**：§4/§5 只描述 alpha 门控，§9.5/§12.3 只算显存 ⇒ **文档未涉及**。
+- **修复建议**：进入维度时用 `TextureManager.preload(rl, Util.backgroundExecutor())` 预取。**注意**：`PreloadedTexture.getId()` 在加载完成前返回未初始化 id，该层会短暂不可见，需与 §5 的 alpha 淡入配合评估。
+
+### 2.3 [重要] I3 —— `mask_moon.png`：31 KB 的 PNG 占 24 MiB，内容仅 88×88 纯黑圆盘
+
+- **证据**（逐像素实测）：6,291,456 px 中仅 **6,099 px（0.097%）** 非透明；只有 **12 种**不同 ARGB；全部 RGB = `(0,0,0)`；内容是一个 **88×88 的纯黑 alpha 圆盘**，bbox `x[468,555] y[468,555]`。
+- **影响**：单张性价比落差最大者——**24 MiB 存 6 KB 内容**。
+- **与文档的关系**：§9.5「几乎是全透明图，24 MB 基本是浪费」**实测成立且比描述更极端**。
+- **修复建议**（择一）：① 整体降采样至 1536×1024（省 18 MiB，配合 `blur:true` 减轻块状化）；② 把圆盘裁成独立 128×128 贴图 + 独立 quad（**省 23.9 MiB 且零质量损失**，但需改 UV 与绘制代码）。
+
+### 2.4 [次要] M1 —— 进入龙宫时首帧渲染陈旧 alpha
+
+- **证据**：`reset()` **只挂在 tick 路径**（`LoongPalaceSkyTickHandler.java:38-40`，全仓库唯一调用点），而 `render` 只在 `!initialized` 时重建 alpha（`DramaticSkyRenderer.java:125`）；离开龙宫后 `initialized` 恒为 true。换维度所在帧若 tick 数为 0（`Minecraft.java:1161` runAllTasks 换 level → `1165-1168` tick 循环 → `1201` render；>20 FPS 时约 **2/3** 的帧 `i=0`），首帧用上一次龙宫访问时冻结的 alpha。
+- **影响**：窗口 ≤1 client tick（≈50 ms；60 FPS 下典型 1 帧，高帧率下最多约 9 帧）。`ReceivingLevelScreen` 的模糊/压暗背景会削弱可见度。用 `/time set` 造成时间差时，陈旧值与目标可差满量程（如午夜进龙宫先闪一帧正午天空）。
+- **与文档的关系**：**文档未涉及**。§12.2 问的是另一个问题；§12.4 把「进出维度」标为已确认，**未覆盖帧级时序**。
+- **修复建议**：把「进入龙宫」的判定上移到渲染侧——在 `LoongPalaceSkyEffects.renderSky` 中比对 `level.dimension()` 与上次渲染的维度，变化时先 `reset()` 再 `render()`。**注意 §8.2 的禁止项：不要**在 `reset()` 中加入丢弃几何缓冲的钩子。
+
+### 2.5 [次要] M2 —— 日月贴图相对原版滚转 90°（位置/轨迹正确）
+
+- **证据**：`SkyDecorationsRenderer.java:62` 应用 `DECORATION_ROTATION` = `(0,0,1,…)`（`SkyRotation.java:19`）⇒ 净变换 `R_z(θ)`；原版为 `R_y(−90)·R_x(θ)`（`LevelRenderer.java:1658-1659`）。由 `R_y(−90)R_x(θ) = R_z(θ)R_y(−90)`（θ=90° 数值验证）得 **本模组矩阵 = 原版矩阵 · `R_y(+90)`**。
+  显式例（θ=90°，太阳 v0 局部 `(−30,100,−30)`）：本模组 `(−100,−30,−30)`，原版 `(−100,30,−30)`。日月**中心**相同（`R_y` 不动 Y 轴）⇒ 位置、高度、交替时刻逐位一致。纹理基换算：本模组 `(u,v) = (原版 v, −原版 u)`。
+- **影响**：太阳贴图径向对称 ⇒ 不可见。`moon_phases.png` 是原版同名贴图的替换贴图 ⇒ **月牙朝向偏 90°**（相位索引本身正确，错的是朝向）。
+- **与文档的关系**：**文档未涉及**。与参考模组**一致**（`AbstractSkybox.java:256` 把原版那行 `YP(−90)` 注释掉了；`Rotation.java:12` 的 `DECORATIONS` 与本模组 `DECORATION_ROTATION` 逐字段相同）⇒ 属「忠实移植参考模组」，非独创偏差。
+- **修复建议**：`SkyRotation.java:19` 的 `static` 由 `(0,0,0)` 改 `(0,−90,0)`，得 `M = R_z(θ)·R_y(−90) ≡ R_y(−90)R_x(θ)`，不动位置而朝向对齐原版。
+  ⚠ **前置条件**：本审查**无法排除**「资源包的 `moon_phases.png` 本就按滚转 90° 绘制」。**改前必须先目视比对月牙朝向**，否则可能把「正确」改成「错误」。
+
+### 2.6 [次要] M3 —— 无任何关闭自定义天空的开关（同项目已有先例）
+
+- **证据**：`Config.java` 中与天空相关的开关只有 `DISABLE_MALKUTH_HELLSCAPE_SKYBOX`（`:26-28`，针对 FDBosses 的 Malkuth 天空盒，其 tooltip 明写「**解决渲染异常的问题**」）。全项目 grep `disableSky|enableSky|skyEnabled|customSky` **0 命中**；`[loong_palace]` 配置节（`:217-290`）只涉及环境保护。
+- **影响**：若龙宫自定义天空在特定驱动 / 光影组合下出现渲染异常，**用户没有退路**——而项目已经为「天空盒出渲染异常」建立了加开关的先例。
+- **与文档的关系**：文档未涉及。
+- **修复建议**：增加一个客户端布尔配置（默认 `true`），关闭时 `LoongPalaceSkyEffects.renderSky` 直接返回 `false` 以回退原版天空。命名与文案可对齐 `disableMalkuthHellscapeSkybox`。
+
+### 2.7 [次要] M4 —— `moon_phases.png`：16-bit 精度被解码丢弃 + 4000×2000 相对原版 976.6 倍像素
+
+- **证据**：PNG 头 `depth=16, colorType=2`；`NativeImage.read` → `STBImage.stbi_load_from_memory(..., RGBA.components)`，请求的恒是 **8-bit 分量**（LWJGL javadoc：16-bit 是独立的 `stbi_load_16` 入口）⇒ 降位到 8-bit、不异常。实测 889,778 个红通道采样中 **86.21% 是 257 的倍数**（即仅 8-bit 有效精度）。
+  原版对照（从 `neoforge-21.1.236-client-extra-aka-minecraft-resources.jar` 取字节读头）：`environment/moon_phases.png` = **128×64 depth 8 colorType 3，835 B**；`environment/sun.png` = 32×32 colorType 3。本模组为 4000×2000，月相 cell 1000×1000（盘面约 520 px）vs 原版 cell 32×32。
+- **与文档的关系**：§9.5/§12.3 的结论**正确**（文档已指出 16-bit 无意义）。
+- **修复建议**：降至 2000×1000（省 22.9 MiB，cell 260 px ≈ 屏幕 349 px，接近 1:1）。若同时开 `blur:true`（见 M5）可进一步降至 1000×500。
+
+### 2.8 [次要] M5 —— 全部天空贴图为 `GL_NEAREST` 且无 mipmap；加 mcmeta 可零显存换取 `GL_LINEAR`
+
+- **证据**：9 张贴图**均无 `.mcmeta`** ⇒ `blur=false, clamp=false` ⇒ `NativeImage.setFilter(false,false)` ⇒ min/mag 均 `GL_NEAREST`。另 `SimpleTexture.doLoad` 硬编码 `prepareImage(getId(), 0, w, h)` 且 mipmap 参数写死为 false ⇒ **即使加 mcmeta 也拿不到 mipmap，只能拿到 `GL_LINEAR`**。
+- **影响**：不改变显存，但决定降采样的观感代价——平滑渐变层几乎无损；点/盘状特征（`stars` / `mask_moon` / `sunflare`）会块状化。
+- **修复建议**：为 7 张 skybox 贴图加 `{"texture":{"blur":true}}` 的 mcmeta（**0 显存代价**）。这是 M4 / I3 降采样能安全落地的前提。
+
+### 2.9 [次要] M6 —— `void_start_platform` 声明被 `features:false` 门控失效（死声明）
+
+- **证据**：`dimension/loong_palace.json` 的 flat 生成器写 `"features": false`；原版门控 `FlatLevelGeneratorSettings.java:150`：
+  ```java
+  boolean flag = (!this.voidGen || biome.is(Biomes.THE_VOID)) && this.decoration;
+  if (flag) { ...从 biomegenerationsettings.features() 复制... }
+  ```
+  而 `features` → 内部 `decoration`（`Codec.BOOL.fieldOf("features").orElse(false)`，`:44`）。⇒ `decoration = false` ⇒ 群系里声明的 `minecraft:void_start_platform`（`worldgen/biome/loong_palace.json` 的 `features[10]`）**永远不会生成**。
+- **影响**：死声明。是否需要该平台取决于龙宫出生点是否由模板/结构保证。
+- **修复建议**：二选一——删除该声明，或按需把 flat 生成器的 `features` 打开。
+
+### 2.10 [仅记录]
+
+| # | 项 | 证据与判定 |
+|---|---|---|
+| N1 | `timeShift` 是死参数 | 五个预设的 `timeShiftXYZ` 全为 `(0,0,0)`（`SkyRotation.java:15-19`）；`speed=0` 时它还会被忽略（`calculateAxisRotation:86-88`） |
+| N2 | `axis` 不产生净旋转，「绕任意轴旋转」措辞偏松 | `apply` 中轴旋转是共轭 `A·T·A⁻¹`（`SkyRotation.java:68-78`）⇒ `T=I` 时 `A` 完全无效；想固定倾斜必须用 `static`。当前预设 `axis` 全 0，无实际影响 |
+| N3 | `enableCull()` 是「改状态」而非「复位」 | `DramaticSkyRenderer.java:137/:158` 无条件执行；原版 `renderSky` 全程不触碰 cull。其后仅 `AFTER_SKY` 处理者与日月渲染器，后者不依赖 cull ⇒ 无可证缺陷 |
+| N4 | 日月渲染隐式依赖天空渲染器的 shader color 复位 | `SkyDecorationsRenderer.java:50-59` 不设 `setShaderColor`，依赖 `DramaticSkyRenderer.java:159` 的 `(1,1,1,1)`；当前调用顺序固定 ⇒ 不可触发。建议显式设置 |
+| N5 | 缓存重建分支不 `close()` 旧 `VertexBuffer` | `CubeAtlasSkyRenderer.java:95-100`、`SkyDecorationsRenderer.java:76-81/97-110` 均「invalid 则直接 new」；原版先 `close()`。因 `isInvalid()` 仅在 `close()` 后为真且本模组从不 close ⇒ **分支不可达**，属潜在而非现存泄漏 |
+| N6 | ALPHA 的 alpha dst 因子与两处参照都不同 | `SkyBlendMode.java:18-23` 第四因子 `ONE_MINUS_SRC_ALPHA`；本版本 `defaultBlendFunc()` 为 `ZERO`（`RenderSystem.java:677-684`）；参考模组走 `glBlendFunc`。§7 表与代码逐字一致，但「标准 alpha 混合」措辞易误解。仅影响帧缓冲 alpha 合成（累加 vs 覆盖），下游消费者未定位 |
+| N7 | 时间跳变判据的理论假阳性 | 客户端卡顿 >2.5 s 造成 tick 债 >50 后，一次 1 s 时间同步会把 `dayTime` 前推 >50 ⇒ 误判为跳变 ⇒ 该次过渡变 200 tick。影响可忽略，**不建议改阈值** |
+| N8 | 层 5/6 与日月本体是「两套各走各的太阳」 | 层 5/6 用 `SUN_ROTATION`（**Y 轴匀速**，仰角恒定只改方位角），日月本体用 `DECORATION_ROTATION`（**Z 轴原版曲线**，有升落）⇒ 两者角位置除个别时刻外不重合。**无法判定**是资源包原意还是取值漂移（原始 Dramatic Skys / celestial JSON 不在仓库） |
+
+---
+
+## 三、总设计断言核对表
+
+**核对结论**：§2.1（`effects` 契约 / 无天空 mixin）、§2.2（9 个类行数 **9/9 精确相符**）、§3.1–3.3、§4（九层表逐行）、§5.1、§5.2（字段与常量）、§5.3（8 个 fade 常量）、§6.1–6.4、§7、§8.1（结构）、§8.2、§8.3（6316 这个**数字**）、§8.4（重建策略）、§8.5、§9.1–9.3、§9.4（6 面 UV **逐面完全相符**）、§9.5（9 行数据逐行）、§9.7、§10（全部性能数字，批次 4 独立解码 profile 复得 10.30 / 8.39 / 6.82 / 1.79 s 与 530.42 s）、§11（决策 1–10、12）、§12.1、§12.2（含行号）、§12.3（180.8 MB / mask_moon / moon_phases / 图集不共享）、§14.1、§14.2（脚本存在与参数）、§15、§15.1 —— **均判「一致」**。
+
+### 3.1 需修正的断言（11 处）
+
+| # | 节 | 现状 | 实际 | 独立命中 |
+|---|---|---|---|---|
+| **D1** | §8.3 / §14.3 | 「全 jar 扫描 6316 个 `.java`：`setModelViewMatrix` 调用点为 0 ⇒ `modelViewMatrix` 恒为单位阵」 | 数字属实，但**该标识符在 21.1.236 中根本不存在**，故此论证无效。实际写者是 `RenderSystem.applyModelViewMatrix()`（`RenderSystem.java:779-786`，`modelViewMatrix = new Matrix4f(modelViewStack)`），全 jar ≥20 处调用（`LevelRenderer.java:1004,1243`、`GameRenderer.java:944,968,1058,1153`、`Minecraft.java:1527,1605`、`Gui.java:448,451`、`CubeMap.java:54,112`、`RenderStateShard.java:288,292`）。**结论仍成立**，但须换论据（见 3.2） | **批次 3 + 批次 4** |
+| **D2** | §5.2 / §8.4 | §5.2「`reset()` 清空**四个**字段」；§8.4「`reset()` 只清 alpha 与时间状态」 | `reset()`（`DramaticSkyRenderer.java:83-87`）只写 `initialized` / `lastDayTime` / `unexpectedTransitionActive`，**不触碰 `DISPLAY_ALPHAS`**。行为上等价（`initialized=false` 会让下次更新直接取目标值），但表述不符，且这个残留数组正是 M1 的数据来源 | **批次 2 + 批次 4** |
+| **D3** | §5.3 | 「DAY 与 SUNRISE 的**淡入**区间跨过 0 点」 | `DAY_FADE_IN` 23666→333 确实跨 0 ✓；但 SUNRISE 淡入是 22333→22666（**不跨**），跨 0 的是 `SUNRISE_FADE_OUT` 23666→333（`DramaticSkyRenderer.java:34-35,44-47`）。本节表格与 §14.1 标对了，仅此句写错 | 批次 4 |
+| **D4** | §5.3 | fadeAlpha 只描述「淡入 / 淡出」两支 | 实为**四段**（`:225-236`）：①`inInterval(time, endFadeIn, startFadeOut) → 1.0F`（**满 alpha 平台期**，是昼夜主体时段）②淡入 ③淡出 ④其余 `0.0F`；前两段各带 `duration == 0` 保护。**照文档实现会在两段之间得到恒 0** | 批次 4 |
+| **D5** | §9.5 / §12.3 | 「PNG 总量 **≈13.5 MB**」（两处） | 实测 9 张合计 12,107,347 B = **11.55 MiB**；文档自身 KB 列相加也只有 11,824 KB ⇒ 与自己的表都不符 | **批次 1 + 批次 4** |
+| **D6** | §12.3 | 「遗留贴图（非运行时）约 **24 MB**」 | 与 §9.6 自相矛盾：§9.6 列出的 8 个文件合计 **11.47 MiB**；`docs/pictures/` 全部 14 个文件 **15.97 MiB**。24 MiB 恰等于 `6×1024×1024×4`，疑为口径混用 | **批次 1 + 批次 4** |
+| **D7** | §8.1 | 「显存增量合计 **约 1.4 KB**（552 + 92 + 8×92）」 | `POSITION_TEX` = 20 B/顶点 ⇒ 天空盒 24 顶点 480 B + 太阳 80 B + 月亮 8×80 = 640 B ⇒ **合计 1200 B ≈ 1.17 KiB**。文档把 36/12 个 short 索引算进来了，但 QUADS 的索引来自 `RenderSystem` **共享**的 `AutoStorageIndexBuffer`（`VertexBuffer.java:136-149`），非本缓存独占 | 批次 4 |
+| **D8** | §13 | 「**2026-09-09** 上一轮修复：Night 由 ADD 改 SCREEN、fade 改循环区间、新增 `DECORATION_ROTATION`、移除禁雾、增加相机门控」；「天气策略反转日期未见记录」 | 上述修复全部落在 **`8c63c5e`（2026-09-10 00:02:47）**；天气三覆写在 **`eaa31eb`（2026-09-09 20:53）** 引入；`0841845`/`eaa31eb`/`647f866`/`d14a010` 期间 Night 一直是 `ADD`。另「初次迁移为 screen」**无据**（最早可查的 `0841845` 已是 ADD） | 批次 4 |
+| **D9** | §4 | 「因 fade 区间**互不重叠**，第 5/6 层与第 7/8 层不会同时绘制」 | 结论成立（SUNSET 活动窗 `[11666,13666]` 与 SUNRISE 活动窗 `[22333,22666]∪[23666,333]` 不相交），但「互不重叠」字面不成立——四组端点两两重合（NIGHT 淡入 ≡ SUNSET 淡出；NIGHT 淡出 ≡ SUNRISE 淡入；DAY 淡出 ≡ SUNSET 淡入；DAY 淡入 ≡ SUNRISE 淡出）。且 5/7、6/8 同源层**仍会**同时绘制 | 批次 4 |
+| **D10** | §9.6 | 「每张约 700–830 KB」；清单 6+2 张 | 实为 **658–834 KiB**；且**漏列** `docs/pictures/overworld_cubemap_0..5.png`（6 × 768 KB = 4.5 MiB，**文件头为 BMP `42 4D`，扩展名误作 `.png`**） | **批次 1 + 批次 4** |
+| **D11** | §14.2 | `python tools/spark_profile_analyze.py <profile> beloong` 可直接复用 | 本机 GBK 控制台下抛 `UnicodeEncodeError: 'gbk' codec can't encode '\u2713'`（`spark_profile_analyze.py:152` 输出 "✓"）⇒ 需 `PYTHONIOENCODING=utf-8` | 批次 4 |
+
+### 3.2 D1 的结论仍然成立——但论据要换
+
+我的论证无效，**但结论未被推翻**。可用的替代理据（批次 3 给出）：
+
+1. `applyModelViewMatrix()` 的**全部 ≥20 处调用点均成对 push/pop**（如 `GameRenderer.java:942-944/968`、`LevelRenderer.java:1002-1004/1242-1243`、`Minecraft.java:1524-1527/1604-1605`、`Gui.java:441-451`、`RenderStateShard.java:285-292`），栈顶回到单位阵。
+2. **更强的反证**：原版自己在 `renderSky` 里就用「顶点烘 `posestack.last().pose()` + `BufferUploader.drawWithShader`」（`LevelRenderer.java:1637-1668`，而 `BufferUploader._drawWithShader` 内部取全局 `RenderSystem.getModelViewMatrix()`）。若该时刻全局 MV 非单位阵，原版天空就会被双重变换而明显错位。**原版天空是正确的 ⇒ 该时刻全局 MV 为单位阵。**
+
+⇒ §8.3 应改写为以上两条，而不是引用一个不存在的标识符。
+
+### 3.3 无据的断言（范围外或出处已失）
+
+| 节 | 断言 | 说明 |
+|---|---|---|
+| §9.4 | 「来源 OptiFine 资源包 Dramatic Skys / 参考 `FlashyReese/nuit`」 | 仓库内无资源包或该参考仓库副本。**其唯一出处在已删除的两份文档中** ⇒ 建议在总设计里补注出处，或删去该断言 |
+| §9.1 / §11 决策 11 | 天灾维度 `effects: minecraft:overworld` | **按用户范围决策排除**，未核对 |
+| §12.4 | 全部验收状态 | 属人工验收结论，代码不可核验。**且「进出维度 ✅ 已确认」未覆盖 M1 的 ≤1 tick 窗口**，建议注明验收方法与局限 |
+
+### 3.4 文档自洽性问题（7 处）
+
+| # | 问题 |
+|---|---|
+| S1 | §12 交叉引用失效：写「见配套代码审查计划（`docs/reviews/`）」，实际计划在 **`docs/plans/2026-09-11-loong-palace-sky-code-review-plan.md`**；`docs/reviews/` 只是产出目录 |
+| S2 | §9.5 合计行与本节 KB 列自相矛盾（11,824 KB vs 13.5 MB） |
+| S3 | §12.3「遗留贴图约 24 MB」与 §9.6 清单（11.47 MiB）矛盾 |
+| S4 | §5.3 正文注记与本节表格矛盾（环绕标在 DAY 淡入与 SUNRISE **淡出**上，正文却说两者淡入） |
+| S5 | §4「fade 区间互不重叠」与 §5.3 表格中端点重合的区间冲突 |
+| S6 | §1 头部断言「不存在待修复的性能问题」与 §12.3 标题「优先级高于绘制调用」、§9.5「本子系统最大的一项资源开销」语气张力。建议在头部显式区分「**渲染耗时无问题 / 显存待治理**」 |
+| S7 | §13 两行「日期未记录」实为 **git 可考**（第一阶段 `0841845`、第二阶段九层 `eaa31eb`，均 2026-09-09），只是无决策文字记录 |
+
+---
+
+## 四、清理建议
+
+| 项 | 建议 |
+|---|---|
+| `docs/pictures/loong_palace_sky/*.png`（6 张，658–834 KiB）+ `nebula.png` / `nebula_bright.png`（3430 / 3798 KiB）+ `overworld_cubemap_0..5.png`（6 × 768 KiB，**BMP 伪装**） | 共 12 个文件 ≈ **15.97 MiB**（若含另 2 个则 14 个文件）。**不在运行时路径**，删除只省磁盘，与显存无关。可按需清理 |
+| `docs/superpowers/` 下龙宫非天空遗留文档（7 条） | 维度定义 / 传送能力 / 编辑交互 / 环境保护，与本子系统无重叠，但时效性同样存疑 ⇒ 建议后续单独清理 |
+| §9.4 的贴图来源断言 | 出处已随文档删除而消失 ⇒ 补注或删去 |
+
+---
+
+## 五、已核验为正确 / 非问题的部分（**请在后续工作中不再重复怀疑**）
+
+| 项 | 核验结论 |
+|---|---|
+| §6.3 的 12 步矩阵顺序 | 是标准共轭 `A·T·A⁻¹·S`；`Axis.XN/YP/ZN` 确为同角反向，逆矩阵精确；与参考模组 `TexturedSkybox#applyTimeRotation` **逐位同序同角** |
+| §6.2「五预设只有两组取值」 | 逐字段核实成立（`STAR = FLARE = DECORATION`；`DAY = SUN`） |
+| §7 三个混合模式 | 4 因子 / 方程 / 4 个 shader color 分量**逐字一致**；**图层间无 shader color 泄漏窗口**（每层 `apply()` 重设全部分量，复位在最后一次 draw 之后） |
+| §8.2 两条纪律 | **严格遵守**：三处缓存全用不带矩阵的 `addVertex`，矩阵只在 `drawWithShader` 传入，且用 `RenderSystem.getShader()` |
+| `VertexBuffer.upload` 自行 close `MeshData` | 属实（`VertexBuffer.java:35-73` 两条路径都 close） |
+| `FACES` 六面绕序 | 六面法线经叉积**全部朝内**（West +X / South −Z / East −X / North +Z / Top −Y / Bottom +Y）⇒ 即使 Iris 重新启用剔除也**不会丢面**；面命名与 §9.4 图集布局自洽；24 个 UV **逐面完全相符**；六面 (u,v) 均为不交叉矩形遍历、v 方向一致 |
+| 提前 `return true` 的副作用 | 只跳过 `skyFogSetup.run()`（`LevelRenderer.java:1598-1601`），而它在调用前刚执行过同样的 `setupFog(FOG_SKY)`；其唯一用途是撤销星空绘制里的 `setupNoFog()`，本模组不调用 ⇒ **无缺失恢复、无状态残留** |
+| `& 7` | `getMoonPhase()` 契约上恒在 `[0,7]`（`DimensionType.java:174-176`）⇒ **冗余但无害**，不是掩盖问题 |
+| biome `features` 数组索引 | 数组 **11 项** ↔ `GenerationStep.Decoration` 枚举 **11 项**（1.21.1 含 `STRONGHOLDS` 与 `UNDERGROUND_ORES`）⇒ index 10 = `TOP_LAYER_MODIFICATION`，**索引正确**，不存在越界 |
+| 边界场景矩阵（10 项） | 从未进过 / 进入 / 离开 / 离开后再进 / 离开时正处于 200 tick 长过渡 / 退出重进 / 同客户端两个世界 / 单人暂停 / 相机遮挡 / 专用服务器 —— **除 M1 的 ≤1 tick 窗口外全部无问题**；**专用服务器确认不加载该类**（`@Mod(dist=CLIENT)` + FML 按 dist 过滤） |
+| 四个静态字段的线程 | 全部只在客户端主线程（"Render thread"）被触碰；**无竞态**（`reset()` 与紧随的 `tick()` 在同一次事件回调内成对执行） |
+| §12.2「两处初始化」 | **无竞态、无有害重复**；`render` 分支是**必要兜底**（唯一可达条件为「首次渲染早于任何龙宫 tick」，否则会渲染出一帧「只有日月、无九层」的天空）。**可以结案为「无需修改」** |
+| `moveTowards` / `allReachedTarget` / 标志清除 | 无过冲（`Math.min/max` 夹紧）、有限步内精确到达、不抖动；`>0.001F` 判据可达；200 tick 期不会被提前解除 |
+| 时间跳变判据 | 在「循环跨天 / 客户端同步 / 反向小修正 / `/time set` 大跳变」四种情形下均符合意图 |
+| 「离开龙宫期间 alpha 冻结」与 `shouldRenderSky` 不对称 | **均良性**（重进在首个 tick 内 snap；不可见期间 alpha 继续收敛，重新可见时已就绪） |
+| 几何缓存「零视觉变化」的**结论** | 成立（论据需换，见 3.2） |
+| §10 性能数字 | 全部独立复核一致（含批次 4 独立解码 profile） |
+| §2.2 九个类行数 | **9/9 精确相符**（85/255/142/149/98/60/17/11/47） |
+
+---
+
+## 六、无法确认的事项（合并）
+
+1. **M2（日月滚转 90°）是否被贴图本身反向补偿** —— 需目视比对或资源包出处。本审查只断言矩阵层面的事实。
+2. **M1 的可见性**（状态陈旧性已由代码路径证明）—— 需实机帧级录制；`ReceivingLevelScreen` 的模糊背景可能使其不可见。建议固定站位 + 高帧率（>200 FPS）复现。
+3. **N8（两套「太阳」）是设计原意还是取值漂移** —— 原始 Dramatic Skys / celestial JSON 不在仓库，无法核对。
+4. **降采样后的观感** —— 结论来自像素统计 + 角尺寸推算（1080p / FOV 70 假设），**未做视觉 A/B**。
+5. **驱动是否精确按 RGBA8 分配**、**Iris/Sodium 是否改写采样器状态或重新启用剔除** —— 未实测（后者即使发生也不丢面，见第五节）。
+6. **N6 的目标帧缓冲 alpha 下游消费者**（Fabulous 透明链 / Iris）—— 只读审查无法定位。
+7. **`getPositionTexShader()` 返回 null 时 NPE 的可达性** —— 原版 `LevelRenderer.java:1618-1620` 与 `BufferUploader.java:34` 写法完全相同 ⇒ **非本模组回归**。
+8. **§12.4 各项验收所用的方法** —— 仓库无记录。
+9. **禁用剔除的入口状态** —— 取决于同帧前序渲染器，只读审查无法确定。
+
+---
+
+## 七、方法与基线
+
+- **4 个独立只读子代理并行**，各自自包含提示词、互不可见：批次 1 显存与贴图管线、批次 2 状态机与生命周期、批次 3 渲染正确性、批次 4 文档断言逐条核对。**全部声明未修改任何文件。**
+- **主线独立审计**：三个数据 JSON 的语义正确性（发现 M6、M3 与一条非问题）。
+- **基线**：`e548e19`；批次 2/3/4 均以 `git diff e548e19 HEAD -- src/` 为空独立确认代码未漂移。
+- **原版对照**：`build/moddev/artifacts/neoforge-21.1.236-sources.jar`（读 Java 原文）+ `javap`（读字节码）+ `neoforge-21.1.236-client-extra-aka-minecraft-resources.jar`（读原版贴图字节）。
+- **参考模组对照**：`D:\Minecraft\开源模组参考文件\NeoforgeSkyboxes-main`。
+- **本次审查踩到 / 记录的两个可复现陷阱**（避免后续重复浪费）：
+  1. **PowerShell 对 `[byte]` 做 `-shl` 会按字节宽度截断**（`0x0c -shl 24` 得 0）——读 PNG 尺寸必须先转 `[int]`。首次测量因此得出 6 张 `0×0`、`moon_phases` 假值 `160×208`。
+  2. **`Get-Content` 不带 `-Encoding utf8` 会把含中文的行数算少**——统计文件行数请用 `[System.IO.File]::ReadAllLines`，否则会把「行数一致」误判为漂移。
+- **本报告未落地任何修复。** §3.1 的改写文本与 §2 的修复建议均为**建议**，需另行立项执行。
