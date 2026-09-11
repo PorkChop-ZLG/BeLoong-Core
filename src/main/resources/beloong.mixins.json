@@ -21,7 +21,6 @@
     "dragonsurvival.BonemealEffectMixin",
     "dragonsurvival.MixinDragonGrowthHandler",
     "dragonsurvival.TreasureBlockMixin",
-    "CloneParameterListMixin",
     "cataclysm.AltarOfAmethystMixin",
     "cataclysm.BurningArenaStructureMixin",
     "cataclysm.RuinedCitadelStructureMixin",
