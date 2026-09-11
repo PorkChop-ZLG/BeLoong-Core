@@ -45,5 +45,8 @@ repo/
 ### Local agent memory ###
 memory/
 
+### Tools ###
+tools/
+
 ### Spyglass ###
 spyglass.json
