@@ -16,11 +16,13 @@
 >
 > - **不再从源头重建对照表**，改为在 TerraBlender 为维度**复印参数列表的瞬间**改写副本
 > - 生成层与查询层**分别**处理（本文只发现了前者，后者是后续排查才发现的）
-> - 保留了 14 个原版群系（9 海洋 + 2 河流 + 3 洞穴），而非本文目标中的「一个不留」
+> - 保留了原版群系（最初 14 个 = 9 海洋 + 2 河流 + 3 洞穴，验收前扩为 **21 个**），
+>   而非本文目标中的「一个不留」；剩余缺口由第二阶段的 `beloong:` 自制群系接管
 >
 > **本文的价值在于「教训」而非「方案」**：第五、六节的失败记录与教训已被
-> `docs/天灾维度群系剔除-两次尝试复盘.md` 吸收整理，第七、八节的建议方向已在
-> `docs/plans/2026-09-11-disaster-vanilla-biome-removal-design.md` 中落地。
+> `docs/天灾维度群系剔除-两次尝试复盘.md` 吸收整理；第七、八节的建议方向已在
+> `docs/plans/2026-09-11-disaster-vanilla-biome-removal-design.md` 中落地，
+> 并最终固化为 `docs/天灾维度总设计.md` 第四节。
 > 第四节列出的代码资产中，`DisasterBiomeMapping` 与 `CloneParameterListMixin` 已被沿用。
 >
 > **保留本文的原因**：它的失败记录是「哪些注入点根本不可用」的权威清单（`PUTFIELD` /
@@ -29,9 +31,9 @@
 >
 > ### 仍未完成的部分
 >
-> 本文追求的「天灾维度**一个原版群系都不留**」尚未达成——当前保留 14 个白名单原版群系。
+> 本文追求的「天灾维度**一个原版群系都不留**」尚未达成——当前保留 21 个白名单原版群系。
 > 后续计划用 `beloong:` 命名空间的自制群系接管，见
-> `docs/天灾维度总设计.md` 第十节。
+> `docs/天灾维度总设计.md` 第十节与 `docs/plans/2026-09-11-disaster-phase2-handover.md`。
 
 ---
 
@@ -222,12 +224,12 @@ B 的 `parameters()` 返回 preset（`Either.right`），与 A 毫无关系。
 
 | 文件 | 状态 | 说明 |
 |---|---|---|
-| `worldgen/DisasterBiomeMapping.java` | ✅ 可用 | **53 个原版群系 → BWG 群系**的气候对照表，另有 `isRetainedVanilla()`（3 个洞穴群系）与 `parse()`。映射依据是 `run/exported_vanilla_biomes.json`（7593 个参数点的权威导出，已确认是 BWG 接管**前**的状态）算出的气候中心 |
-| `tools/scan-biomes.js` | ✅ 可用 | 区块 NBT 群系调色板扫描工具。**验证必备**，用法见第八节 |
-| `Config.DisasterBiomes` | ✅ 可用 | `enabled` / `fallbackBiome` 两项配置（注意 3.6 的时序约束） |
-| `mixin/CloneParameterListMixin.java` | ✅ 保留 | TerraBlender 参数列表**隔离**职责，独立且已验证。**与群系接管无关，勿动** |
+| `worldgen/DisasterBiomeMapping.java` | ✅ 沿用 | **原版群系 → BWG 群系**的气候对照表（当时 53 项，现为 32 项 + 21 项白名单）。映射依据是 `run/exported_vanilla_biomes.json`（7593 个参数点的权威导出，已确认是 BWG 接管**前**的状态）算出的气候中心 |
+| `mixin/CloneParameterListMixin.java` | ✅ 沿用 | 当时只负责 TerraBlender 参数列表**隔离**；现已扩展为同时承担**生成层群系剔除**（见总设计文档 4.4） |
 | `mixin/PresetBiomeTakeoverMixin.java` | ❌ 已停用 | 已从 `beloong.mixins.json` 移除注册。文件保留，内部注释记录了 7 个已证伪的注入点 |
-| `run/exported_vanilla_biomes.json` | ✅ 有用 | 7593 个参数点的原版基线导出 |
+| `run/exported_vanilla_biomes.json` | ✅ 有用 | 7593 个参数点的原版基线导出（在 `.gitignore` 的 `run/` 内，未版本控制） |
+| ~~`tools/scan-biomes.js`~~ | ❌ **不要用它验证** | 它会把尚未生成群系的区块（`Status=minecraft:structure_starts`）计入统计，且量纲为 palette 出现次数而非群系体积，读数显著失真——**曾因此一度误判实现失败**。验证一律读游戏内存（`ServerLevel.getBiome()` / `chunk.getSection(i).getBiomes()`），详见总设计文档决策 17 |
+| ~~`Config.DisasterBiomes`~~ | ❌ **已删除** | `enabled` / `fallbackBiome` 两项配置连同整个 `[disaster_biomes]` 配置节已移除（无配置项，全硬编码），见总设计文档决策 19 |
 
 ### 映射表要点（`DisasterBiomeMapping`）
 
@@ -366,15 +368,16 @@ B 的 `parameters()` 返回 preset（`Either.right`），与 A 毫无关系。
 | `/locate biome minecraft:river`（天灾维度） | **立即**返回"无法搜到"（不是搜索很久后返回） | ✅ 已达成 |
 | 自然罗盘 | 原版群系**只显示主世界** | ✅ 已达成 |
 | 主世界 | `minecraft:` 10 种左右、`biomeswevegone:` **0 种** | ✅ 已达成（实测 53 种原版 / BWG 0 种） |
-| 天灾 | `minecraft:` **只剩 3 种洞穴群系**，`river`/`ocean`/`plains`/`forest`/`stony_shore` **必须为 0** | ⏳ **未达成**——保留 14 个（9 海洋 + 2 河流 + 3 洞穴）。`plains`/`forest`/`stony_shore` 已为 0 |
+| 天灾 | `minecraft:` **只剩 3 种洞穴群系**，`river`/`ocean`/`plains`/`forest`/`stony_shore` **必须为 0** | ⏳ **未达成**——保留 21 个（9 海洋 + 2 河流 + 3 洞穴 + 3 碎裂地形 + 4 保守项）。`plains`/`forest` 已为 0；`stony_shore`/`windswept_savanna` 在验收时被**主动**收进白名单（语义不搭的替身，刻意保守） |
 | 天灾 | `biomeswevegone:` 种类应从 4 种涨到 **20~33 种** | ✅ 已达成（`possibleBiomes` 中 BWG 有 55 种可选） |
 | 海洋 | 不结冰 | ✅ 已达成（海洋群系保留原版，结冰语义不变） |
-| 洞穴 | `dripstone_caves` / `lush_caves` / `deep_dark` 可 `/locate` 到且生成正常 | ✅ 已达成（三者均在白名单内） |
+| 洞穴 | `dripstone_caves` / `lush_caves` / `deep_dark` 可 `/locate` 到且生成正常 | ✅ 已达成（三者均在白名单内，且**第二阶段接管前必须一直保持可 locate**） |
 
-> **唯一未达成项的原因**：BWG **完全没有河流群系**（源码内 `river` 零命中，也不声明
-> `minecraft:is_river` 标签），海洋的寒/冷/中性三列它也主动留空（占海洋 60%）。
-> 强行用 BWG 地表群系填这些位置，会让水面/河道位置出现陆地群系。
-> 这 14 个需由 `beloong:` 命名空间的自制群系接管，属**第二阶段**——
+> **未达成项的原因**：BWG **完全没有河流群系**（源码内 `river` 零命中，也不声明
+> `minecraft:is_river` 标签），海洋的寒/冷/中性三列它也主动留空（占海洋 60%），
+> 洞穴所需的 `depth > 0` 区域 BWG 一格未占，`SHATTERED_BIOMES_*` 两个数组 25 格全空。
+> 强行用 BWG 地表群系填这些位置，会让水面/河道位置出现陆地群系、地下出现地表群系。
+> 这 21 个需由 `beloong:` 命名空间的自制群系接管，属**第二阶段**——
 > 见 `docs/天灾维度总设计.md` 第十节。
 
 ### 工具
@@ -423,6 +426,10 @@ src/main/resources/beloong.mixins.json           |   2 +-
 tools/scan-biomes.js                             | 171 +++  验证工具
 ```
 
+> 上表是 `disaster_test` 的**历史** diff，仅供追溯。其中 `Config.java` 的
+> `disaster_biomes` 配置节在 `disaster2` 上已被**整体删除**（决策 19），
+> `tools/scan-biomes.js` 也已被判定为不可用于验收（见第四节文件表）。
+
 ### 关于清理（原始建议，已被结案取代）
 
 原文建议：`PresetBiomeTakeoverMixin.java` 已停用但保留（注释是有价值的失败记录）；
@@ -442,11 +449,11 @@ tools/scan-biomes.js                             | 171 +++  验证工具
 | **目标** | 由 `disaster2` 分支实现，**第一阶段完成** |
 | **实现提交** | `6a77c0e`（生成层）→ `31230e9`（查询层 + 文档） |
 | **实际做法** | 在 TerraBlender 为维度复印参数列表的瞬间改写副本；生成层与查询层分别注入 |
-| **与原目标的差异** | 保留 14 个白名单原版群系（9 海洋 + 2 河流 + 3 洞穴），非「一个不留」 |
+| **与原目标的差异** | 保留 21 个白名单原版群系（9 海洋 + 2 河流 + 3 洞穴 + 3 碎裂地形 + 4 保守项），非「一个不留」 |
 | **本文第五节（12 次尝试）** | 全部结论有效，该路线确实走不通 |
 | **本文第七节（建议方向）** | 方向 A/B/C 未采用；实际走的是「换时机」而非「换注入点」 |
 | **本文第八节（验证方法论）** | 部分被推翻——`tools/scan-biomes.js` 读数失真，**不得再用于生成判定**，详见复盘文档 3.4 节 |
-| **后续** | 用 `beloong:` 自制群系接管那 14 个，见 `docs/天灾维度总设计.md` 第十节 |
+| **后续** | 用 `beloong:` 自制群系接管那 21 个，见 `docs/天灾维度总设计.md` 第十节与 `docs/plans/2026-09-11-disaster-phase2-handover.md` |
 
 **文档去向**：
 
@@ -455,5 +462,7 @@ tools/scan-biomes.js                             | 171 +++  验证工具
 | 失败的注入点清单（第五节） | 本文（权威清单，保留） |
 | 必须继承的教训（第六节） | `docs/天灾维度群系剔除-两次尝试复盘.md` 第二节 |
 | 代码资产（第四节） | `DisasterBiomeMapping` 与 `CloneParameterListMixin` 已被 `disaster2` 沿用 |
-| 成功方案 | `docs/plans/2026-09-11-disaster-vanilla-biome-removal-design.md` |
-| 现行群系设计 | `docs/天灾维度总设计.md` 第四节、第十节 |
+| 成功方案（施工依据） | `docs/plans/2026-09-11-disaster-vanilla-biome-removal-design.md` |
+| **现行群系设计（权威）** | `docs/天灾维度总设计.md` 第四节、第九节、第十节 |
+| 实现后的审查记录 | `docs/reviews/2026-09-11-disaster-biome-removal-review.md` |
+| 第二阶段交接 | `docs/plans/2026-09-11-disaster-phase2-handover.md` |

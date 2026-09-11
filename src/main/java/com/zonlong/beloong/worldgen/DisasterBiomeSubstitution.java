@@ -58,8 +58,13 @@ import java.util.Set;
  *   <tr><td>其他硬编码位置</td><td>2</td><td>{@code stony_shore} / {@code windswept_savanna} 由
  *       {@code OverworldBiomeBuilder} 中<b>未被 TerraBlender 覆写</b>的私有方法产生</td></tr>
  * </table>
- * 这 19 项是当前阶段的已知缺口，计划由 {@code beloong:} 命名空间的自制群系接管，
+ * 这 21 项是当前阶段的已知缺口，计划由 {@code beloong:} 命名空间的自制群系接管，
  * 详见 {@code docs/天灾维度总设计.md} 第十节。
+ * <p>
+ * <b>接管方式（第二阶段）</b>：把 {@link DisasterBiomeMapping} 中对应项的目标改为
+ * {@code beloong:} 群系，并从 {@link #WHITELIST} 中移除该项。{@code beloong:} 命名空间
+ * 既不被 {@link #isWhitelisted} 也不被 {@link #isBlocklisted} 命中，
+ * 且 {@code isBwgEnabled} 对非 BWG 命名空间直接放行，因此本类无需为第二阶段改动逻辑。
  *
  * @see DisasterBiomeMapping
  * @see com.zonlong.beloong.mixin.CloneParameterListMixin

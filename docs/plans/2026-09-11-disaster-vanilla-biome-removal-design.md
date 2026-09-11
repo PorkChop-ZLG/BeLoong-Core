@@ -1,10 +1,28 @@
 # 天灾维度剔除原版群系 设计文档
 
+> ## ⚠️ 状态：第一阶段已实现并验收 —— 本文是**施工依据**，不是现行说明
+>
+> **现行权威文档是 [`docs/天灾维度总设计.md`](../天灾维度总设计.md) 第四节。** 两者冲突时以总设计文档为准。
+>
+> 本文中以下内容**已作废**，仅保留作为"当时为什么这么选"的记录：
+>
+> | 本文中的说法 | 现状 |
+> |---|---|
+> | `[disaster_biomes]` 配置节（`enabled` 开关、`fallbackBiome`） | **整体移除**。本功能不提供任何配置项，白名单与映射表全部硬编码 |
+> | 白名单 14 项（9 海洋 + 2 河流 + 3 洞穴） | **扩为 21 项**（+3 碎裂地形、`stony_peaks`、`snowy_beach`、`stony_shore`、`windswept_savanna`） |
+> | `eroded_borealis` 需手工启用（D1） | **已废弃**。映射表刻意避开 BWG 默认禁用的群系，`grove → frosted_taiga` |
+> | fallback = `prairie`（D2） | **已废弃**。无兜底群系：映射不可用时保留原版 + 记 ERROR |
+> | 保留 `enabled` 开关（D4） | **已废弃**，见决策 19 |
+>
+> **仍然有效、值得阅读的部分**：注入点选择理由（为什么必须打在 `LevelUtils.initializeForTerraBlender`
+> 与 `appendDeferredBiomesList` 上）、以及"哪些注入点根本不可用"的排除过程。
+
 **Date:** 2026-09-11
 **Status:** Implemented & Verified（生成层与查询层均已验证；用户实机确认通过）
 **Branch:** `disaster2` · 基线提交 `6a77c0e`
 **Scope:** 仅修改 BeLoong-Core。不改 BWG 源码、不改 TerraBlender、不改 `overworld_regions` tag 语义
-**已决事项:** D1 启用 `eroded_borealis` · D2 fallback=`prairie` · D3 手写映射表 · D4 保留 `enabled` 开关（默认 true） · D5 总设计文档待实测通过后再改
+**已决事项（当时）:** ~~D1 启用 `eroded_borealis`~~ · ~~D2 fallback=`prairie`~~ · D3 手写映射表 · ~~D4 保留 `enabled` 开关~~ · D5 总设计文档待实测通过后再改
+（D1/D2/D4 均已在实现中推翻，理由见上方状态块）
 
 ---
 
@@ -29,6 +47,9 @@
 3. 被 BWG 配置禁用的群系也会被改写成占位符（`BWGTerraBlenderRegion:170`），进一步加厚原版回退。
 
 ### 需求
+
+> 下面第 1、2 条的数字是**当时的中间状态**（14 / 39）。最终为 **21 / 32**，
+> 21 项的完整清单与逐项理由见总设计文档 4.6 节。
 
 1. **白名单**：以下 14 个原版群系**允许**与 BWG 群系一同出现在天灾维度——9 个海洋、2 个河流、3 个洞穴：
    `frozen_ocean` `deep_frozen_ocean` `cold_ocean` `deep_cold_ocean` `ocean` `deep_ocean`
@@ -115,10 +136,16 @@ LevelUtils.initializeBiomes(维度=beloong:disaster)
 | `mixin/CloneParameterListMixin.java` | 修改 | 在 `@Redirect` 回调体内插入群系替换调用 |
 | `mixin/ParameterListAccessor.java` | **新建** | `@Mutable @Accessor` 暴露 `Climate.ParameterList` 的 `values` 字段（final） |
 | `worldgen/DisasterBiomeMapping.java` | **新建**（移植） | 原版 → BWG 映射表。取自 `disaster_test` 分支，本方案已逐项核对 |
-| `worldgen/DisasterBiomeFilter.java` | **新建** | 替换求解器：白名单判定 / 禁用目标跳级 / fallback 兜底 |
-| `Config.java` | 修改 | 新增 `[disaster_biomes]` 节：`enabled` + `fallbackBiome` |
+| `worldgen/DisasterBiomeSubstitution.java` | **新建** | 替换求解器：白名单判定 / 有效性校验 / 生效标志 |
+| ~~`Config.java`~~ | ~~修改~~ | ~~新增 `[disaster_biomes]` 节：`enabled` + `fallbackBiome`~~ **已作废——不提供任何配置项** |
+| `worldgen/DisasterBiomeMapping.java` | **新建**（移植） | 原版 → BWG 映射表。取自 `disaster_test` 分支，本方案已逐项核对 |
+| `mixin/PossibleBiomesFilterMixin.java` | **新建**（本文遗漏） | 查询层剔除。本文写作时**尚未发现**查询层是独立的一条路径，见总设计文档 4.5 |
+| `data/terrablender/tags/dimension_type/overworld_regions.json` | **新建**（本文遗漏） | `{"replace": true, "values": ["beloong:disaster"]}`——真正排除主世界的那一步 |
 | `beloong.mixins.json` | 修改 | 注册 `ParameterListAccessor` |
 | `docs/天灾维度总设计.md` | 修改 | 第四、八节更新为「原版基线已被替换」 |
+
+> 上表的**文件名**以本文为准、**配置项与 fallback 相关行**已作废。
+> 实际落地的文件清单以总设计文档第七节"资源清单"为准。
 
 > `DisasterBiomeMapping.java` 在 `disaster_test` 分支已存在，但**当时的 javadoc 引用了一个从未创建的
 > `DisasterBiomeSubstitutionMixin`，且其注释里"刻意保留三个洞穴群系"的说法现在升级为白名单机制。移植时必须重写文档注释。**
@@ -160,11 +187,16 @@ public interface ParameterListAccessor<T> {
     否则                                     → 替换为 target
 ```
 
-**`eroded_borealis` 已决启用（D1）**，因此 31 个替换目标落地后全部可用。实现仍须保留"查禁用则跳级"的防御逻辑——将来若有人再关掉某个 BWG 群系，不应导致参数列表里出现被禁用的群系。见【已决 D1】。
+**~~`eroded_borealis` 已决启用（D1）~~** → **已推翻**：映射表不使用 BWG 默认禁用的群系。
+但"查禁用则跳过"的防御逻辑**予以保留**（现为：保留原版 + 记 ERROR，无兜底群系）。
 
 ### 3. 白名单与黑名单（依据 `run/exported_vanilla_biomes.json`，7593 参数点 / 53 群系）
 
-**白名单（14，保留原版）：**
+> ⚠️ **本节数字已过时**（14 白名单 / 39 黑名单 / 31 目标）。最终为
+> **21 白名单 / 32 黑名单 / 25 个 BWG 目标**——`eroded_borealis` 被剔除出目标集，
+> 且新增 7 项白名单。权威版本见总设计文档 4.6 节与 `DisasterBiomeMapping` 源码。
+
+**白名单（当时 14，保留原版；最终 21）：**
 
 | 类别 | 群系 |
 |---|---|
@@ -211,6 +243,11 @@ public interface ParameterListAccessor<T> {
 ---
 
 ## 配置
+
+> ⚠️ **整节已作废。** 本功能最终**不提供任何配置项**——白名单与映射表是硬编码的结构性决策。
+> 移除 `[disaster_biomes]` 与 `fallbackBiome` 的理由见总设计文档决策 19。
+> 下面保留当时的取舍记录（尤其是"为什么必须是 COMMON 而非 SERVER"这一分析，
+> 它解释了**配置方案**为何在客户端/服务端一致性问题上是脆弱的——而这正是最终选择硬编码的原因之一）。
 
 `beloong-common.toml`（COMMON 类型，服务端与客户端行为需一致）：
 
@@ -443,18 +480,21 @@ minecraft:deep_dark=1966, minecraft:lush_caves=2780
 
 ### 环境改动（不入版本库）
 
+> ⚠️ **已作废。** 映射表最终**刻意避开** BWG 默认禁用的群系（`grove → frosted_taiga`），
+> 因此**不需要**任何 BWG 配置改动，干净部署即可生效。以下为当时的记录。
+
 `run/config/biomeswevegone/world_generation.json` 的 `biomeswevegone:eroded_borealis` 已由 `false` 改为 `true`（D1）。
 该路径在 `.gitignore` 内（`run/`），**不会随代码分发**——整合包需要单独应用这一项，否则 `grove` 会降级到 `prairie`。
 
 ---
 
-| # | 问题 | 决定 |
-|---|---|---|
-| **D1** | `grove → eroded_borealis`，但后者在 BWG 配置中被禁用 | **启用 `eroded_borealis`**。它是 BWG 唯一的覆雪山林群系，映射语义最准；被禁用看起来是随手关的——BWG 自己的 `igloo` / `village_snowy` 结构标签仍在引用它。落地方式：在 `run/config/biomeswevegone/world_generation.json` 与 `run/defaultconfigs/`（若存在）中把它改为 `true`。**注意这是改 BWG 配置，需在交付说明里注明。** |
-| **D2** | `fallbackBiome` 默认值 | `biomeswevegone:prairie`（中温中湿的气候中心，匹配失败时最不突兀） |
-| **D3** | 映射表精度：手写 vs 自动最近邻 | **先用手写版**上线并实测观感；若发现某群系出现在气候不协调处，再针对性修正。自动最近邻计算留作后续可选项 |
-| **D4** | 是否保留配置开关 | **保留 `enabled` 开关，默认 `true`**。语义：`false` = 跳过替换步骤，完全回到旧行为（原版基线 + BWG 叠加） |
-| **D5** | `docs/天灾维度总设计.md` 的更新时间点 | **等代码落地并新区块实测通过后再改**，避免出现"文档已改但代码未生效"的中间状态。本次只交付本设计文档，不产出配套 `*-plan.md` |
+| # | 问题 | 决定 | 最终结果 |
+|---|---|---|---|
+| **D1** | `grove → eroded_borealis`，但后者在 BWG 配置中被禁用 | **启用 `eroded_borealis`**。它是 BWG 唯一的覆雪山林群系，映射语义最准；被禁用看起来是随手关的——BWG 自己的 `igloo` / `village_snowy` 结构标签仍在引用它。落地方式：在 `run/config/biomeswevegone/world_generation.json` 与 `run/defaultconfigs/`（若存在）中把它改为 `true`。**注意这是改 BWG 配置，需在交付说明里注明。** | ❌ **推翻**：改配置的路径在 `.gitignore` 内、无法随代码分发，会变成"干净部署静默降级"。改为 `grove → frosted_taiga`（默认启用） |
+| **D2** | `fallbackBiome` 默认值 | `biomeswevegone:prairie`（中温中湿的气候中心，匹配失败时最不突兀） | ❌ **推翻**：无兜底群系，映射不可用时保留原版 + 记 ERROR |
+| **D3** | 映射表精度：手写 vs 自动最近邻 | **先用手写版**上线并实测观感；若发现某群系出现在气候不协调处，再针对性修正。自动最近邻计算留作后续可选项 | ✅ **采纳**（14 → 32 项） |
+| **D4** | 是否保留配置开关 | **保留 `enabled` 开关，默认 `true`**。语义：`false` = 跳过替换步骤，完全回到旧行为（原版基线 + BWG 叠加） | ❌ **推翻**：`false` 回不到旧行为（生成层关了、查询层还开着）。删除整个配置节 |
+| **D5** | `docs/天灾维度总设计.md` 的更新时间点 | **等代码落地并新区块实测通过后再改**，避免出现"文档已改但代码未生效"的中间状态。本次只交付本设计文档，不产出配套 `*-plan.md` | ✅ **已执行**（总设计文档已完成更新） |
 
 **所有阻塞项已关闭，代码已落地。**
 
@@ -464,27 +504,31 @@ minecraft:deep_dark=1966, minecraft:lush_caves=2780
 |---|---|
 | `mixin/ParameterListAccessor.java` | 新建（mixin，暴露 final 的 `values`） |
 | `mixin/PossibleBiomesFilterMixin.java` | 新建（查询路径：在 `appendDeferredBiomesList` 处过滤缓存） |
-| `worldgen/DisasterBiomeSubstitution.java` | 新建（求解器：白名单 + 映射 + 维度守卫 + 语义判据） |
-| `worldgen/DisasterBiomeMapping.java` | 新建（39 项映射表） |
-| `mixin/CloneParameterListMixin.java` | 修改（插入替换 + 维度守卫） |
-| `Config.java` | 修改（`[disaster_biomes]`：`enabled` / `fallbackBiome`） |
+| `worldgen/DisasterBiomeSubstitution.java` | 新建（求解器：白名单 + 映射 + 生效标志） |
+| `worldgen/DisasterBiomeMapping.java` | 新建（**32 项**映射表 / 25 个目标） |
+| `mixin/CloneParameterListMixin.java` | 修改（插入替换 + 异常安全） |
+| ~~`Config.java`~~ | ~~修改（`[disaster_biomes]`：`enabled` / `fallbackBiome`）~~ **不修改——配置节已删除** |
+| `src/main/templates/META-INF/neoforge.mods.toml` | 修改（`terrablender` / `biomeswevegone` 改为 `required`） |
+| `data/terrablender/tags/dimension_type/overworld_regions.json` | 新建（`replace: true`，只列 `beloong:disaster`） |
 | `beloong.mixins.json` | 修改（注册 3 个生产 mixin） |
 | `build.gradle` | 修改（BWG 升至 2.6.0；不加 `compileOnly`） |
-| `run/config/biomeswevegone/world_generation.json` | 修改（环境，`eroded_borealis = true`，**不入版本库**） |
+| ~~`run/config/biomeswevegone/world_generation.json`~~ | ~~修改（环境，`eroded_borealis = true`）~~ **不再需要** |
 
 ---
 
 ## 验收清单
 
-**已全部验证通过。**
+**已全部验证通过**（下表为**当时**的读数；白名单后来由 14 扩为 21，
+最终读数为 `7593 = 6782 替换 + 811 保留`、`possibleBiomes` 为 `21 白名单 + 55 BWG = 76`）。
+现行权威读数见总设计文档 4.8 节。
 
 运行期证据（`[VERIFY]` 探针 + 用户实机确认）：
 
-- [x] `eroded_borealis` 已在 BWG 配置中启用（D1，环境改动）
-- [x] 替换计数与白名单精确吻合（7552 替换 + 41 保留 = 7593，未求解 0）
-- [x] **天灾维度 `possibleBiomes` 黑名单残留 = 0**（109 → 70：14 白名单原版 + 55 BWG）
+- [x] ~~`eroded_borealis` 已在 BWG 配置中启用（D1，环境改动）~~ → 改为映射表避开，无需环境改动
+- [x] 替换计数与白名单精确吻合（当时 7552 替换 + 41 保留 = 7593，未求解 0）
+- [x] **天灾维度 `possibleBiomes` 黑名单残留 = 0**（当时 109 → 70：14 白名单原版 + 55 BWG）
 - [x] **天灾维度生成层黑名单 = 0**（内存读数与游戏序列化器读数双重确认）
-- [x] 主世界 `possibleBiomes` 完全不变（53 = 14 + 39，BWG = 0）
+- [x] 主世界 `possibleBiomes` 完全不变（53 = 21 + 32，BWG = 0）
 - [x] 下界 / 末地 / 龙宫完全不受影响
 - [x] 编译干净、无启动崩溃、无 Mixin 错误、无 `RTree` 异常
 - [x] 日志无残留诊断输出（全部探针已删除）
@@ -499,5 +543,8 @@ minecraft:deep_dark=1966, minecraft:lush_caves=2780
 剩余可选项（非阻塞）：
 
 - [ ] 天灾维度长期观感确认；若发现某替代群系出现在气候不协调处，再做 D3 的自动最近邻映射
-- [ ] `enabled = false` 的回退行为实测（D4）
-- [ ] 更新 `docs/天灾维度总设计.md` 第四 / 八 / 九节（D5）——**待用户确认是否现在做**
+- [x] ~~`enabled = false` 的回退行为实测（D4）~~ → 配置项已删除，无此行为
+- [x] ~~更新 `docs/天灾维度总设计.md` 第四 / 八 / 九节（D5）~~ → **已完成**，见该文档第四、六、八、九、十节
+
+> **下一步不在本文范围**：剩余 21 个白名单原版群系由 `beloong:` 自制群系接管，
+> 见 `docs/plans/2026-09-11-disaster-phase2-handover.md`。
