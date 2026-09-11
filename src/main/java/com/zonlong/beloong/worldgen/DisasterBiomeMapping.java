@@ -18,10 +18,9 @@ import net.minecraft.core.registries.Registries;
  * 不必逐一去填 BWG 自己的选择器数组（{@code OCEANS_BWG} 缺 60%、{@code SHATTERED_BIOMES_BWG} 缺 100%）。
  *
  * <h3>覆盖范围</h3>
- * 对 {@code run/exported_vanilla_biomes.json}（7593 参数点 / 53 群系）做全量比对：
- * <b>53/53 全覆盖，无遗漏</b>。其中 14 个由
- * {@link com.zonlong.beloong.mixin.DisasterBiomeSubstitution} 的白名单保留原版，
- * 其余 <b>39 个</b>映射到 <b>31 个</b> BWG 群系。
+ * 对原版参数空间基线（7593 参数点 / 53 群系）做全量比对：
+ * <b>53 = 白名单 21 + 本表 32，双向集合相等、无遗漏、无多余、无交集</b>。
+ * 32 个原版群系映射到 <b>25 个</b> BWG 群系。
  *
  * <h3>映射依据</h3>
  * 按 {@code run/exported_vanilla_biomes.json}（该导出为 BWG 接管<strong>之前</strong>的原版基线，
@@ -30,11 +29,23 @@ import net.minecraft.core.registries.Registries;
  * 都归 {@code baobab_savanna}），因为本表只负责气候对应，不负责保持原版多样性。
  *
  * <h3>维护提示</h3>
- * 新增/修改条目后必须核对该 BWG 群系在 {@code config/biomeswevegone/world_generation.json}
- * 中为 {@code true}——被禁用的目标会被 {@code DisasterBiomeSubstitution} 判为不可用并降级到兜底群系。
- * 当前 31 个目标全部启用。
+ * <ol>
+ *   <li>新增/修改条目后必须核对该 BWG 群系在 {@code config/biomeswevegone/world_generation.json}
+ *       中为 {@code true}。被禁用的目标会被 {@link DisasterBiomeSubstitution} 判为不可用，
+ *       结果是<b>该原版群系被保留</b>（无兜底群系）并在日志留 ERROR。</li>
+ *   <li><b>优先选 BWG 默认启用的群系。</b>BWG 在 {@code BWGWorldGenConfig.getDefaultBiomes()}
+ *       里硬编码禁用了 {@code biomeswevegone:eroded_borealis}，因此本表<b>刻意不使用它</b>——
+ *       否则在未手工改过 BWG 配置的环境上会静默失效。</li>
+ * </ol>
  *
- * @see com.zonlong.beloong.mixin.DisasterBiomeSubstitution
+ * <h3>距离指标说明</h3>
+ * 条目按其原版群系中心与目标群系中心的 5 维归一化欧氏距离挑选。
+ * 注意该指标对<b>跨度大的群系</b>会产生假阳性：中心可能落在它并不拥有的格上，
+ * 因此"格命中"（温度带 × 湿度档是否重合）优先于中心距离。
+ * 例如 {@code dark_forest} 与 {@code weeping_witch_forest} 中心完全重合（d=0.000），
+ * 这比中心距离看似更近但格不重合的候选更可靠。
+ *
+ * @see DisasterBiomeSubstitution
  * @see com.zonlong.beloong.mixin.CloneParameterListMixin
  */
 public final class DisasterBiomeMapping {
@@ -48,9 +59,8 @@ public final class DisasterBiomeMapping {
     /**
      * 把原版群系映射为气候最接近的 BWG 群系。
      * <p>
-     * 白名单群系（海洋 9 / 河流 2 / 洞穴 3）<strong>不会</strong>进入本表的任何 case，
-     * 由调用方在替换前先行放行；本表返回 {@code null} 仅表示「本表未覆盖」，
-     * 调用方应降级到兜底群系。
+     * 白名单群系（21 项，见 {@link DisasterBiomeSubstitution}）<strong>不会</strong>进入本表的
+     * 任何 case，由调用方在替换前先行放行。
      *
      * @param vanilla 原版群系的资源位置
      * @return 对应的 BWG 群系键；非 minecraft 命名空间或本表未覆盖时返回 {@code null}
@@ -62,12 +72,14 @@ public final class DisasterBiomeMapping {
         String bwgName = switch (vanilla.getPath()) {
             // ---------- 温带内陆 ----------
             case "plains" -> "prairie";
-            case "sunflower_plains" -> "amaranth_grassland";
+            // 干旱中性带；BWG 自己在 MIDDLE_BIOMES_BWG[2][0] 用的就是 prairie
+            case "sunflower_plains" -> "prairie";
             case "forest" -> "temperate_grove";
             case "flower_forest" -> "rose_fields";
             case "birch_forest" -> "aspen_boreal";
             case "old_growth_birch_forest" -> "aspen_boreal";
-            case "dark_forest" -> "black_forest";
+            // 原版独占 NEUTRAL/HUMID；weeping_witch_forest 同格，中心完全重合
+            case "dark_forest" -> "weeping_witch_forest";
 
             // ---------- 寒带 / 冰带内陆 ----------
             case "snowy_plains" -> "crimson_tundra";
@@ -76,22 +88,18 @@ public final class DisasterBiomeMapping {
             case "taiga" -> "coniferous_forest";
             case "old_growth_pine_taiga" -> "frosted_coniferous_forest";
             case "old_growth_spruce_taiga" -> "frosted_coniferous_forest";
-            case "grove" -> "eroded_borealis";
+            // 覆雪山林。刻意避开 BWG 默认禁用的 eroded_borealis
+            case "grove" -> "frosted_taiga";
             case "meadow" -> "coconino_meadow";
 
             // ---------- 山地 / 峰 / 坡 ----------
             case "snowy_slopes" -> "howling_peaks";
             case "frozen_peaks" -> "howling_peaks";
             case "jagged_peaks" -> "howling_peaks";
-            case "stony_peaks" -> "dacite_ridges";
-            case "windswept_hills" -> "dacite_ridges";
-            case "windswept_gravelly_hills" -> "canadian_shield";
-            case "windswept_forest" -> "black_forest";
 
             // ---------- 暖带 / 热带内陆 ----------
             case "savanna" -> "baobab_savanna";
             case "savanna_plateau" -> "baobab_savanna";
-            case "windswept_savanna" -> "firecracker_chaparral";
             case "jungle" -> "jacaranda_jungle";
             case "sparse_jungle" -> "fragment_jungle";
             case "bamboo_jungle" -> "tropical_rainforest";
@@ -106,16 +114,14 @@ public final class DisasterBiomeMapping {
             case "mangrove_swamp" -> "cypress_swamplands";
 
             // ---------- 海岸 ----------
-            case "beach" -> "dacite_shore";
-            case "snowy_beach" -> "basalt_barrera";
-            case "stony_shore" -> "basalt_barrera";
+            // basalt_barrera 覆盖 NEUTRAL 带全部湿度格，与 beach 中心距离 0.013
+            case "beach" -> "basalt_barrera";
 
             // ---------- 特殊 ----------
             case "mushroom_fields" -> "crag_gardens";
 
-            // 白名单以外的任何原版群系若落到这里，说明 exported_vanilla_biomes.json
-            // 出现了本表编写时未见过的新群系（例如原版更新）。返回 null 让调用方
-            // 降级到 fallbackBiome 并打 WARN，不要在这里抛异常。
+            // 走到这里说明出现了本表未覆盖的原版群系（例如 MC 升级）。返回 null 让调用方
+            // 保留原版群系并记 ERROR，不要在这里抛异常。
             default -> null;
         };
         if (bwgName == null) {

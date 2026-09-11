@@ -2,6 +2,7 @@ package com.zonlong.beloong.mixin;
 
 import com.mojang.datafixers.util.Either;
 import com.mojang.datafixers.util.Pair;
+import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
@@ -79,13 +80,24 @@ public class CloneParameterListMixin {
         // 由 this.values 构建的，晚于此处的任何修改都不会影响兜底树。
         //
         // 必须限定维度：本重定向对**所有**被 TerraBlender 判定为 OVERWORLD region 的
-        // 维度都会触发（实测 minecraft:the_nether 也会命中，因为 TerraBlender 按
-        // RegionType 而非维度身份处理）。不加守卫会把下界群系也换成 BWG 地表群系。
+        // 维度都会触发（实测 minecraft:the_nether 也会命中）。不加守卫会把下界群系
+        // 换成 BWG 地表群系——已由实机日志确认会发生。
+        //
+        // 异常安全：本功能**没有配置开关**，没有"关掉逃生"的退路，因此这里必须兜住异常。
+        // 失败时**继续**执行原有的 initializeForTerraBlender + setParameters，
+        // 让 TerraBlender 按原行为工作，而不是让异常穿透 initializeOnServerStart
+        // 的 level stem 循环（那会导致该维度之后的所有 level stem 全部不再初始化）。
         if (DisasterBiomeSubstitution.isTargetDimension(levelKey)) {
-            List<Pair<Climate.ParameterPoint, Holder<Biome>>> filtered =
-                    DisasterBiomeSubstitution.filter(targetRA,
-                            ((ParameterListAccessor) cloned).beloong$getValues());
-            ((ParameterListAccessor) cloned).beloong$setValues(filtered);
+            try {
+                List<Pair<Climate.ParameterPoint, Holder<Biome>>> filtered =
+                        DisasterBiomeSubstitution.filter(targetRA,
+                                ((ParameterListAccessor) cloned).beloong$getValues());
+                ((ParameterListAccessor) cloned).beloong$setValues(filtered);
+            } catch (Throwable t) {
+                BeLoongCore.LOGGER.error(
+                        "[BeLoong] 天灾群系替换失败，本次按 TerraBlender 原行为初始化"
+                                + "（天灾维度将保留原版群系）", t);
+            }
         }
 
         ((IExtendedParameterList) cloned).initializeForTerraBlender(targetRA, regionType, targetSeed);
