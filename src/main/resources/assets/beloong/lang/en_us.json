@@ -170,6 +170,7 @@
   "message.beloong.air_strike.actionbar": "§7「§eAir Strike§7」§r§bSpeed: %s km/h§r§7 | §r§cDamage: %s",
   "message.beloong.dimension_transport.dimension_not_found": "§cTarget dimension not found: %s",
   "message.beloong.dimension_transport.invalid_dimension": "§cInvalid target dimension ID: %s",
+  "message.beloong.disaster_portal.destination_timeout": "§cTeleport failed: destination chunk %s, %s could not be loaded",
   "message.beloong.flight_banned": "§cFlying is prohibited in this area!",
   "message.beloong.tp_loong_palace.dimension_not_found": "§cTarget dimension not found: %s",
   "message.beloong.tp_loong_palace.invalid_dimension": "§cInvalid target dimension ID: %s",

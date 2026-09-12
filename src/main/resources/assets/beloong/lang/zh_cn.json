@@ -170,6 +170,7 @@
   "message.beloong.air_strike.actionbar": "§7「§e龙击长空§7」§r§b速度：%s km/h§r§7 | §r§c伤害：%s",
   "message.beloong.dimension_transport.dimension_not_found": "§c找不到目标维度：%s",
   "message.beloong.dimension_transport.invalid_dimension": "§c无效的目标维度ID：%s",
+  "message.beloong.disaster_portal.destination_timeout": "§c传送失败：目标区块 %s, %s 未能加载，请稍后重试",
   "message.beloong.flight_banned": "§c此地禁止飞行！",
   "message.beloong.tp_loong_palace.dimension_not_found": "§c找不到目标维度：%s",
   "message.beloong.tp_loong_palace.invalid_dimension": "§c无效的目标维度ID：%s",
