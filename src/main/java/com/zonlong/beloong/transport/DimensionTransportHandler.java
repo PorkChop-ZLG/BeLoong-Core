@@ -3,6 +3,7 @@ package com.zonlong.beloong.transport;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.util.LandingY;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -10,7 +11,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
@@ -120,19 +120,9 @@ public class DimensionTransportHandler {
             player.stopRiding();
         }
 
-        // 确保目标区块已加载，否则 MOTION_BLOCKING 高度图查不到数据
-        int blockX = (int) Math.floor(targetX);
-        int blockZ = (int) Math.floor(targetZ);
-        targetLevel.getChunk(blockX >> 4, blockZ >> 4);
-
-        // 高度图查找安全落脚点（用 floor 而非直接截断，保证负坐标正确处理）
-        int topBlockY = targetLevel.getHeight(Heightmap.Types.MOTION_BLOCKING, blockX, blockZ);
-        double safeY;
-        if (topBlockY > targetLevel.getMinBuildHeight()) {
-            safeY = topBlockY + 1.0;
-        } else {
-            safeY = fallbackY;
-        }
+        // 非阻塞解析落脚点：命中内存中的区块才读高度图，未加载则直接用 fallbackY
+        // （旧实现在此处同步 getChunk + getHeight，会在主线程等待区块生成——不受支持的用法）
+        double safeY = LandingY.resolveOrFallback(targetLevel, targetX, targetZ, fallbackY);
 
         // 执行传送
         player.teleportTo(targetLevel,
@@ -168,8 +158,10 @@ public class DimensionTransportHandler {
             player.stopRiding();
         }
 
+        // 本方法的落点 Y 恒为世界出生点自身的 Y（从不使用高度图），因此旧实现里那行
+        // "确保目标区块已加载"的 getChunk 既不必要、又会在主线程阻塞——已删除。
+        // 落点区块由 teleportTo 自带的 TicketType.POST_TELEPORT 票据兜底加载。
         BlockPos spawnPos = overworld.getSharedSpawnPos();
-        overworld.getChunk(spawnPos.getX() >> 4, spawnPos.getZ() >> 4);
 
         double targetX = spawnPos.getX() + 0.5;
         double targetY = spawnPos.getY();

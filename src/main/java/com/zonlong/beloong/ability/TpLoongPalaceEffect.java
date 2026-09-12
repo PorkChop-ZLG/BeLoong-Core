@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import com.mojang.serialization.MapCodec;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.util.LandingY;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -15,7 +16,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.levelgen.Heightmap;
 import org.slf4j.Logger;
 
 import java.util.Set;
@@ -76,12 +76,9 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
         double targetZ = Config.DimensionTransport.owToLP_targetZ.get();
         double fallbackY = Config.DimensionTransport.owToLP_fallbackY.get();
 
-        int blockX = (int) Math.floor(targetX);
-        int blockZ = (int) Math.floor(targetZ);
-        targetLevel.getChunk(blockX >> 4, blockZ >> 4);
-
-        int topBlockY = targetLevel.getHeight(Heightmap.Types.MOTION_BLOCKING, blockX, blockZ);
-        double safeY = topBlockY > targetLevel.getMinBuildHeight() ? topBlockY + 1.0 : fallbackY;
+        // 非阻塞解析落脚点：命中内存中的区块才读高度图，未加载则直接用 fallbackY
+        // （旧实现在此处同步 getChunk + getHeight，会在主线程等待区块生成——不受支持的用法）
+        double safeY = LandingY.resolveOrFallback(targetLevel, targetX, targetZ, fallbackY);
 
         player.teleportTo(targetLevel, targetX, safeY, targetZ,
                 Set.of(), player.getYRot(), player.getXRot());
@@ -116,9 +113,9 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
             targetPos = overworld.getSharedSpawnPos();
         }
 
-        overworld.getChunk(targetPos.getX() >> 4, targetPos.getZ() >> 4);
-        int topBlockY = overworld.getHeight(Heightmap.Types.MOTION_BLOCKING, targetPos.getX(), targetPos.getZ());
-        double safeY = topBlockY > overworld.getMinBuildHeight() ? topBlockY + 1.0 : targetPos.getY() + 0.5;
+        // 非阻塞解析落脚点；未加载时沿用原有的 targetPos.getY() + 0.5 兜底（保持行为不变）
+        double safeY = LandingY.resolveOrFallback(overworld,
+                targetPos.getX() + 0.5, targetPos.getZ() + 0.5, targetPos.getY() + 0.5);
 
         player.teleportTo(overworld,
                 targetPos.getX() + 0.5, safeY, targetPos.getZ() + 0.5,
