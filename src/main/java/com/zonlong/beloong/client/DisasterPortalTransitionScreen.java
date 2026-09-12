@@ -22,6 +22,13 @@ import java.util.function.BooleanSupplier;
  * <p>
  * 由 {@code RegisterDimensionTransitionScreenEvent}（见 {@link BeLoongCoreClient}）
  * 注册为"进入/离开 {@code beloong:disaster} 时使用"，因此不依赖原版对维度 ID 的硬编码判断。
+ * <p>
+ * <b>取用优先级</b>（NeoForge {@code DimensionTransitionScreenManager}）：
+ * {@code conditional > 进入(to) > 离开(from) > 默认}。本类注册的是 to/from 两档，
+ * 因此"回程背景"可能被第三方对目的维度（主世界）的进入注册顶掉。
+ * <p>
+ * <b>不会生效的路径</b>：死亡重生时 {@code ClientPacketListener} 给
+ * {@code DimensionTransitionScreenManager#getScreen} 传 {@code (null, null)}，按原版设计走通用背景。
  */
 @OnlyIn(Dist.CLIENT)
 public class DisasterPortalTransitionScreen extends ReceivingLevelScreen {

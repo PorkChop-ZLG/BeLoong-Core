@@ -29,12 +29,13 @@
 触发点（enabled 判定 / 触发条件 / 维度校验 / stopRiding / 玩家消息 全部保持原样）
    → LandingY.resolveOrFallback(targetLevel, x, z, fallbackY)     // 非阻塞；唯一新增调用
    → player.teleportTo(ServerLevel, x, y, z, Set.of(), yRot, xRot)
-        （其内部：addRegionTicket(POST_TELEPORT, 落点区块, 1) → changeDimension(DimensionTransition)）
+        （其内部：addRegionTicket(POST_TELEPORT, 落点区块, 1)【寿命 5 tick】 → changeDimension(DimensionTransition)）
    → finishTransport / fallDistance = 0（原样）
 ```
 
 之所以不需要等待机制：`ServerPlayer#teleportTo(ServerLevel, …)`（`ServerPlayer.java:1535-1553`）
-**自带 `TicketType.POST_TELEPORT` 落点票据**，落点区块在传送后必然被加载。放弃的只是"传送前 Y 的精度"。
+自带 `TicketType.POST_TELEPORT` 落点票据（寿命 5 tick），而玩家到位后由 `TicketType.PLAYER`
+票据无限期加载该区块。放弃的只是"传送前 Y 的精度"。
 
 **明确不做**：异步线程（Approach C）、公共延迟传送服务/状态机（Approach A）、修改已验收的 `DisasterPortalBlock`。
 
@@ -47,7 +48,8 @@
 | `ability/TpLoongPalaceEffect.java` | 站点 3/4 改用 `LandingY`；清 `Heightmap` import |
 | `Config.java` | `owToLP_fallbackY` 默认 `64.5 → 65.0`（注释同步） |
 
-`LandingY` 语义（与旧代码**逐字等价**）：
+`LandingY` 语义（**公式与旧代码逐分支等价，但不是逐字等价**——旧实现会先 `getChunk` 强制加载，
+"未加载"分支不可达；且虚空列改为兜底，见该文件 javadoc）：
 
 ```java
 LevelChunk chunk = level.getChunkSource().getChunkNow(Mth.floor(x) >> 4, Mth.floor(z) >> 4);
@@ -65,15 +67,17 @@ return topBlockY > level.getMinBuildHeight() ? topBlockY + 1.0D : fallbackY;
 
 ### Data Flow
 
-无线程、无跨 tick、无状态：单次调用内完成"探测 → 取 Y → 传送"。落点区块的实际加载发生在传送之后
-（`POST_TELEPORT` 票据 + `changeDimension`），由客户端显示正常的维度切换加载界面。
+无线程、无跨 tick、无状态：单次调用内完成"探测 → 取 Y → 传送"。落点区块的实际加载发生在传送之后，
+由玩家自己的 `TicketType.PLAYER` 票据（无寿命）长期保证；
+`ServerPlayer#teleportTo(ServerLevel, …)` 另带的 `TicketType.POST_TELEPORT` 寿命**只有 5 tick**
+（`TicketType.java:18`），仅覆盖传送瞬间。客户端照常显示维度切换加载界面。
 
 ### Error Handling
 
 | 情形 | 行为 |
 |---|---|
 | 落点区块未加载 | 直接使用传入的 `fallbackY`（Palace → 配置值；重生点 → `targetPos.getY()+0.5`） |
-| 区块已加载但该列为虚空（模板未应用） | `getFirstAvailable == minBuildHeight` → 谓词为假 → 兜底 ✓（与旧代码一致） |
+| 区块已加载但该列为虚空（模板未应用） | `getFirstAvailable == minBuildHeight` → 谓词为假 → 兜底。**注意这是与旧实现的行为差异**：旧 `Level#getHeight` 在该情形返回 `minBuildHeight`、`+1` 后把人放到 `minBuildHeight + 1` 自由落体，本方案改为用 `fallbackY` |
 | 坐标越界（±3000 万） | 沿用 `Level#getHeight` 的 `seaLevel + 1` 分支 |
 | 非主线程调用 `LandingY` | `getChunkNow` 在非主线程恒返回 `null` ⇒ 静默走兜底；已在 javadoc 标注"仅服务端主线程" |
 | 目标维度/重生维度不存在 | 保持现有 early-return + 玩家消息，不变 |

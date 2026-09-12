@@ -83,7 +83,7 @@
 | 加载屏显示期间 | `LocalPlayer:728` 不处理扭曲 ⇒ 扭曲不会叠在加载屏上 |
 | 客户端登记对所有实体生效 | 与原版一致；`handlePortal()` 含 `ServerLevel` 判断 ⇒ 客户端不会传送 |
 | 专用服务器 | 新类仅在 `Dist.CLIENT` 加载（现有 `@EventBusSubscriber(value = Dist.CLIENT)` 保证）；方块改动为数据无关的纯客户端分支 |
-| 贴图缺失/异常尺寸 | `blit` 使用屏幕尺寸作为 UV 基准，任意尺寸 PNG 均可铺满；缺失时客户端会记 missing texture（不影响功能） |
+| 贴图缺失/异常尺寸 | `blit` 的 UV 基准取**贴图原始尺寸**（`TEXTURE_WIDTH/HEIGHT = 256`，必须与 PNG 一致）；`textureWidth/Height` 传原始尺寸 ⇒ uv>1 由 GL_REPEAT 平铺，传屏幕尺寸会被整张拉伸而发糊。贴图缺失时客户端会记 missing texture（不影响功能） |
 
 ## Decisions Made
 
@@ -93,10 +93,19 @@
 3. **进入/离开双向注册**：与 `determineLevelLoadingReason` 的双向判定对称，避免"回程没有主题背景"。
 4. **保留压暗层 `0x40000000`**：保证"加载地形中"白字可读。
 5. **不做 C（Mixin `Gui.renderPortalOverlay` 换叠色）**：全屏叠色仍是原版硬编码的下界门紫图，用户已确认接受；避免对 `Gui` 的 Mixin。
+6. **进门倒计时取 80 tick（2026-09-12 后续审查轮补做）**：本设计最初保留 `getPortalTransitionTime() == 0`，
+   但那样 `PortalProcessor` 的 `portalTime++ >= 0` 同 tick 成立 ⇒ 加载屏立刻接管，
+   `LocalPlayer` 的扭曲只累到约 `0.0125`（`LocalPlayer.java:925` 每 tick `+0.0125`）、紫幕停在 `Gui` 的
+   `0.2` alpha 下限，**视觉上等于没有过渡**。现改为 `80`（= 原版下界门默认
+   `playersNetherPortalDefaultDelay`），使"扭曲涨满"与"开始换维度"同步——这是本设计
+   "和下界传送门一样的过渡"之所以成立的前提。连带项与审查依据见
+   [`docs/reviews/2026-09-12-post-0.9.1-code-review.md`](../reviews/2026-09-12-post-0.9.1-code-review.md)。
 
 ## Non-Goals
 
 - 不改任何传送逻辑（冷却、落点、票据、超时、`DimensionTransition`）
+  （**例外**：2026-09-12 后续审查轮把 `getPortalTransitionTime()` 由 `0` 改为 `80` tick，见 Decisions 6——
+  这属于"门的过渡节奏"，不涉及冷却/落点/票据/超时语义）
 - 不改服务端行为与报文；不新增自定义渲染管线/着色器
 - 不做 Mixin；不替换原版全屏紫幕贴图
 - 不改 `ReceivingLevelScreen` 的 `levelReceived`/30 s 超时语义

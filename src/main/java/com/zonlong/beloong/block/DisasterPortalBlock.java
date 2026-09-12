@@ -38,7 +38,9 @@ import org.slf4j.Logger;
  * 采用<b>原版传送门范式</b>（{@link Portal} + {@link net.minecraft.world.entity.PortalProcessor}）：
  * <ol>
  *   <li>{@link #entityInside} <b>只登记</b>（{@code entity.setAsInsidePortal}），不做任何区块加载；</li>
- *   <li>原版 {@code Entity.handlePortal()} 在后续 tick 回调 {@link #getPortalDestination}；</li>
+ *   <li>进入后先走 <b>{@value #PORTAL_TRANSITION_TICKS} tick 倒计时</b>（与原版下界门默认值同源，
+ *       见 {@link #getPortalTransitionTime}）；倒计时期间每 tick 都在幂等地预热落点区块票据；</li>
+ *   <li>倒计时结束后，原版 {@code Entity.handlePortal()} 回调 {@link #getPortalDestination}；</li>
  *   <li>落点用<b>非阻塞</b>方式确定：{@code ServerChunkCache#getChunkNow} 探测内存中的区块，
  *       未就绪则申领 {@link TicketType#PORTAL} 区域票据后返回 {@code null}，下一 tick 重试；</li>
  *   <li>换维度由 {@link DimensionTransition} + {@code postDimensionTransition} 回调完成。</li>
@@ -52,8 +54,8 @@ import org.slf4j.Logger;
  * <p>
  * 双向行为：
  * <ul>
- *   <li><b>下行（任意维度 → 天灾维度）</b>：1:1 坐标（依赖维度定义 {@code coordinate_scale: 1.0}），
- *       Y 取目标点 MOTION_BLOCKING 高度 + 1 格；</li>
+ *   <li><b>下行（任意维度 → 天灾维度）</b>：1:1 坐标（与维度定义 {@code coordinate_scale: 1.0} 一致；
+ *       <b>本类自行保留 X/Z，不读该字段</b>），Y 取目标点 MOTION_BLOCKING 高度 + 1 格；</li>
  *   <li><b>上行（天灾维度 → 主世界）</b>：照搬原版末地返回逻辑，回到玩家重生点，
  *       无重生点回退世界出生点，再回退 {@code (0,64,0)}。</li>
  * </ul>
@@ -76,11 +78,28 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     private static final String COOLDOWN_KEY = "beloong_portal_cooldown";
 
     /**
-     * 落点区块等待上限（ticks）。
+     * 进入传送门后的倒计时长度（ticks）。<b>80</b> 与原版下界门默认值
+     * （gamerule {@code playersNetherPortalDefaultDelay} = 80）一致，因此"进门 → 扭曲渐强 → 换维度"
+     * 的节奏与原版下界门相同：客户端 {@code spinningEffectIntensity} 每 tick +0.0125
+     * （{@code LocalPlayer.java:925}），80 tick 恰好涨满 1.0，即<b>传送那一刻扭曲最强</b>。
      * <p>
-     * 超过该时长仍未就绪即放弃本轮传送并报错——这是替代「主线程永久卡死」的<b>有界失败</b>。
-     * 正常首次加载远小于 200 tick（10 s）；本阈值只用于兜住「生成永久失败」的场景
-     * （实机故障为即时的结构递归 StackOverflowError）。
+     * 判定发生在 {@code PortalProcessor.processPortalTeleportation}（{@code portalTime++ >= 80}），
+     * 即进门后第 <b>81</b> tick 才第一次询问落点——这 80 tick 里 {@link #entityInside} 每 tick 都在
+     * 幂等刷新落点票据，等于给区块生成留了约 4 秒预热时间。
+     * <p>
+     * 中途离开传送门时，原版 {@code PortalProcessor.decayTick} 每 tick −4，20 tick 内倒计时归零，
+     * 与原版行为一致。
+     */
+    public static final int PORTAL_TRANSITION_TICKS = 80;
+
+    /**
+     * 落点区块等待上限（ticks），<b>自倒计时结束（进门第 {@value #PORTAL_TRANSITION_TICKS}+1 tick）起算</b>。
+     * <p>
+     * 超过该时长仍未就绪即放弃本轮传送并报错。自进门起的最坏总时长约为
+     * {@code PORTAL_TRANSITION_TICKS + 200} tick（≈14 s）。
+     * <p>
+     * <b>注意</b>：单轮等待有界，且失败后会<b>停止重试直到玩家离开传送门</b>
+     * （见 {@link #failDestination} 的说明）——"有界失败"指的是不会永久阻塞主线程。
      */
     private static final int DESTINATION_WAIT_TIMEOUT_TICKS = 200;
 
@@ -150,11 +169,21 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         // 仅玩家可传送（保持既有行为：物品/生物穿过传送门不传送）
         if (!(entity instanceof ServerPlayer player)) return;
 
-        // 冷却检查：NBT 中存储冷却结束的游戏刻，当前游戏刻小于它则跳过
+        // 冷却检查：NBT 中存储冷却结束的游戏刻，当前游戏刻小于它则跳过。
+        // 同时刷新原版冷却（见下方注释）——否则 NBT 冷却一到期就会立刻重新登记并重试。
         long cooldownEnd = player.getPersistentData().getLong(COOLDOWN_KEY);
-        if (cooldownEnd > level.getGameTime()) return;
+        if (cooldownEnd > level.getGameTime()) {
+            // 原版玩家冷却只有 10 tick（Player#getDimensionChangingDelay 覆写），会在 NBT 冷却走完前归零；
+            // 而本分支不调用 setAsInsidePortal，原版冷却得不到刷新。这里显式把它顶到"比 NBT 冷却晚 1 tick 到期"，
+            // 使 NBT 到期那一 tick setAsInsidePortal 仍被 isOnPortalCooldown() 拦住（只刷新、不登记），
+            // 从而达到 failDestination javadoc 承诺的语义：失败后停止重试，直到玩家离开传送门。
+            player.setPortalCooldown((int) (cooldownEnd - level.getGameTime()) + 1);
+            return;
+        }
 
-        // 骑乘时先下车：原版 handlePortal 用 canUsePortal(false) 判定，仍骑乘的玩家永远不会被登记为可传送
+        // 骑乘时先下车。这是原版范式的必然要求：handlePortal 用 canUsePortal(false) 作闸门
+        // （Entity#canUsePortal 要求 !isPassenger()），玩家仍在骑乘时根本不会调用 getPortalDestination，
+        // 因此无法"等确定能传送了再下车"。副作用：本轮传送若失败，玩家已经被放下坐骑（坐骑留在原地）。
         if (player.isPassenger()) player.stopRiding();
 
         // 原版范式：这里只登记「玩家在传送门内」。
@@ -166,15 +195,14 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     }
 
     /**
-     * 进入传送门后的倒计时长度（ticks）。
+     * 进入传送门后的倒计时长度（ticks）：{@value #PORTAL_TRANSITION_TICKS}，与原版下界门默认值一致。
      * <p>
-     * 取 {@code 0}：保留旧实现的「即时传送」手感——进入后同一/下一 tick 即尝试传送。
-     * 落点区块未就绪时不需要固定延迟：由 {@link #getPortalDestination} 返回 {@code null}
-     * 并清除原版传送冷却来实现「下一 tick 重试」，因此无需引入额外等待时间。
+     * 客户端在同一段倒计时里把 {@code spinningEffectIntensity} 从 0 涨到 1，因此"扭曲最强"与"开始换维度"
+     * 恰好同步；落点区块的预热门票也在这段时间里被每 tick 刷新。
      */
     @Override
     public int getPortalTransitionTime(ServerLevel level, Entity entity) {
-        return 0;
+        return PORTAL_TRANSITION_TICKS;
     }
 
     /**
@@ -276,7 +304,8 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
                     new ChunkPos(chunkX, chunkZ), DESTINATION_TICKET_RADIUS, portalPos);
             // 关键：清掉原版在询问落点前设置的传送冷却，否则拿不到重试机会（见 getPortalDestination 注释）
             player.setPortalCooldown(0);
-            if (waitedTicks <= 1) {
+            // 首次询问落点发生在进门第 PORTAL_TRANSITION_TICKS + 1 tick，故"首轮"的判定要带上倒计时长度
+            if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
                 LOGGER.info("[BeLoongCore][DisasterPortal:wait] 落点区块 {} ({}, {}) 尚未就绪，已申领 ticket 预热，等待加载",
                         DISASTER_DIM, chunkX, chunkZ);
             } else {
@@ -307,17 +336,27 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     }
 
     /**
-     * 落点区块超时未就绪：放弃本轮传送、报错并通知玩家（<b>有界失败</b>，绝不阻塞主线程）。
+     * 落点区块超时未就绪：放弃本轮传送、报错并通知玩家（绝不阻塞主线程）。
      * <p>
-     * 会写入既有 NBT 冷却做限流；原版自身的 10 tick 传送冷却配合
-     * {@code setAsInsidePortal} 的冷却刷新语义，会让本轮停止重试，直到玩家离开传送门。
+     * 会写入 NBT 冷却（{@link Config.DisasterPortal#teleportCooldownTicks}，默认 100 tick）做限流，
+     * 并在该冷却期内由 {@link #entityInside} 把原版冷却顶住不归零，因此<b>停止重试直到玩家离开传送门</b>
+     * （离开后约 10 tick 即可重新进门再试）；"有界失败"指的是不会永久阻塞主线程。
+     * <p>
+     * 为什么必须顶住：原版<b>玩家</b>冷却只有 10 tick（{@code Player#getDimensionChangingDelay} 覆写
+     * {@code Entity} 的 300），远短于 NBT 冷却。若不管它，NBT 一到期 {@code setAsInsidePortal} 就会
+     * 重新登记 → 玩家站在门里时会无界重试（约每 {@code teleportCooldownTicks + 200} tick 一轮），
+     * 每轮都刷一次 error 日志与玩家消息。
+     * <p>
+     * 另注：客户端在这段时间里仍会显示完整的 CONFUSION 扭曲——原版冷却只在换维度时随
+     * {@code ClientboundRespawnPacket} 同步给客户端，而"不传送"没有这条包。
      */
     private static DimensionTransition failDestination(ServerPlayer player, int blockX, int blockZ, int waitedTicks) {
         LOGGER.error("[BeLoongCore][DisasterPortal:timeout] 落点区块 {} ({}, {}) 等待 {} tick 仍未就绪，放弃本次传送（玩家 {}，目标 {}({}, {})）",
                 DISASTER_DIM, blockX >> 4, blockZ >> 4, waitedTicks,
                 player.getName().getString(), DISASTER_DIM, blockX, blockZ);
+        // 提示文案说的是"目标区块"，因此必须传区块坐标（blockX/Z 是方块坐标，>> 4 才是区块）
         player.sendSystemMessage(Component.translatable(
-                "message.beloong.disaster_portal.destination_timeout", blockX, blockZ));
+                "message.beloong.disaster_portal.destination_timeout", blockX >> 4, blockZ >> 4));
         player.getPersistentData().putLong(COOLDOWN_KEY,
                 player.level().getGameTime() + Config.DisasterPortal.teleportCooldownTicks.get());
         return null;

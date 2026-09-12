@@ -49,7 +49,7 @@
   "beloong.configuration.eyeItems.button": "Configure",
   "beloong.configuration.eyeItems.tooltip": "The 12 eye items required to activate the portal",
   "beloong.configuration.fallbackY": "Fallback Y Coordinate",
-  "beloong.configuration.fallbackY.tooltip": "Fallback Y coordinate when heightmap lookup fails, defaults to searching top-down for the first non-air block",
+  "beloong.configuration.fallbackY.tooltip": "Fallback Y coordinate used when the destination chunk is not loaded (or the column is empty) and no heightmap can be read",
   "beloong.configuration.fixCataclysmStructureHeight": "Fix Cataclysm Structure Generation",
   "beloong.configuration.fixCataclysmStructureHeight.tooltip": "Fix Cataclysm structures ignoring datapack start_height config, generating at fixed Y coordinates",
   "beloong.configuration.fixDragonsurvivalProjectileCrash": "Fix Dragon Survival Projectile Crash",

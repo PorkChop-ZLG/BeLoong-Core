@@ -160,7 +160,8 @@ public class DimensionTransportHandler {
 
         // 本方法的落点 Y 恒为世界出生点自身的 Y（从不使用高度图），因此旧实现里那行
         // "确保目标区块已加载"的 getChunk 既不必要、又会在主线程阻塞——已删除。
-        // 落点区块由 teleportTo 自带的 TicketType.POST_TELEPORT 票据兜底加载。
+        // 落点区块的加载由玩家的 TicketType.PLAYER 票据长期保证；teleportTo 另带一张
+        // TicketType.POST_TELEPORT，但它的寿命只有 5 tick（TicketType.java:18），只覆盖传送瞬间。
         BlockPos spawnPos = overworld.getSharedSpawnPos();
 
         double targetX = spawnPos.getX() + 0.5;

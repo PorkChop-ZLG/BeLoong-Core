@@ -1,5 +1,6 @@
 package com.zonlong.beloong;
 
+import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
@@ -19,6 +20,7 @@ import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
 import net.neoforged.neoforge.client.event.RegisterDimensionTransitionScreenEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
+import org.slf4j.Logger;
 
 /**
  * 化龙核心模组的客户端初始化类。
@@ -39,6 +41,8 @@ import net.neoforged.neoforge.common.NeoForge;
 @Mod(value = BeLoongCore.MODID, dist = Dist.CLIENT)
 @EventBusSubscriber(modid = BeLoongCore.MODID, value = Dist.CLIENT)
 public class BeLoongCoreClient {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     /** 配置 GUI 扩展点注册。允许在 NeoForge 模组菜单中直接编辑配置。 */
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
@@ -82,11 +86,27 @@ public class BeLoongCoreClient {
      * 都换成 {@link DisasterPortalTransitionScreen}（天灾门贴图 + 轻压暗），与视角扭曲过渡配套。
      * <p>
      * 事件为 mod 总线、仅客户端（{@code IModBusEvent}），与本类其余注册方式一致。
+     * <p>
+     * <b>两个已知语义</b>（NeoForge {@code DimensionTransitionScreenManager#getScreen}）：
+     * <ul>
+     *   <li>取用优先级为 {@code conditional > 进入(to) > 离开(from) > 默认}，因此本模组的"回程背景"
+     *       会被第三方对<b>主世界</b>的 {@code registerIncomingEffect} 静默顶掉（进入优先于离开）；</li>
+     *   <li>两个注册方法的返回值是 {@code putIfAbsent} 的结果，冲突时返回 {@code false} 且不抛异常，
+     *       因此这里显式检查并告警，避免"背景没生效"无从排查。</li>
+     * </ul>
+     * 另注：死亡重生走 {@code ClientPacketListener} 的 {@code getScreen(null, null)} 分支，
+     * 按设计使用原版通用背景，不会套用本界面。
      */
     @SubscribeEvent
     static void registerDimensionTransitionScreens(RegisterDimensionTransitionScreenEvent event) {
-        event.registerIncomingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new);
-        event.registerOutgoingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new);
+        if (!event.registerIncomingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new)) {
+            LOGGER.warn("[BeLoongCore] 进入 {} 的过渡界面注册失败：该维度已被其它模组（或本模组重复注册）占用",
+                    DisasterPortalBlock.DISASTER_LEVEL.location());
+        }
+        if (!event.registerOutgoingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new)) {
+            LOGGER.warn("[BeLoongCore] 离开 {} 的过渡界面注册失败：该维度已被其它模组占用",
+                    DisasterPortalBlock.DISASTER_LEVEL.location());
+        }
     }
 
 

@@ -356,7 +356,8 @@ public class Config {
                 .comment("目标固定 Z 坐标")
                 .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
         DimensionTransport.owToLP_fallbackY = SERVER_BUILDER
-                .comment("高度图查找失败（落点区块未加载）时的回退 Y 坐标；龙宫落点地表实测为 Y=64.0")
+                .comment("高度图查找失败（落点区块未加载）时的回退 Y 坐标；龙宫落点地表实测为 Y=64.0。",
+                        "旧存档若已被写成 64.5，需手动改为 65.0——默认值只在首次生成配置时生效，不会覆盖已有值。")
                 .defineInRange("fallbackY", 65.0, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 

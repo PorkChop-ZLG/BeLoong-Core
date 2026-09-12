@@ -49,7 +49,7 @@
   "beloong.configuration.eyeItems.button": "配置",
   "beloong.configuration.eyeItems.tooltip": "激活传送门所需的12种眼球物品ID",
   "beloong.configuration.fallbackY": "回退Y轴坐标",
-  "beloong.configuration.fallbackY.tooltip": "高度图查找失败时的回退Y坐标，默认查找从上到下第一个非空气方块",
+  "beloong.configuration.fallbackY.tooltip": "落点区块未加载（或该列为虚空）无法查高度图时的回退Y坐标",
   "beloong.configuration.fixCataclysmStructureHeight": "修复灾变结构生成",
   "beloong.configuration.fixCataclysmStructureHeight.tooltip": "修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题",
   "beloong.configuration.fixDragonsurvivalProjectileCrash": "修复龙之生存弹射物崩溃",
