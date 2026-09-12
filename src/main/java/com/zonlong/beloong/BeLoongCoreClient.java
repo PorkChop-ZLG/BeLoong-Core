@@ -1,6 +1,8 @@
 package com.zonlong.beloong;
 
+import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
+import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
@@ -14,6 +16,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
+import net.neoforged.neoforge.client.event.RegisterDimensionTransitionScreenEvent;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -68,6 +71,22 @@ public class BeLoongCoreClient {
         event.register(
                 ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace"),
                 new LoongPalaceSkyEffects());
+    }
+
+
+    /**
+     * 注册天灾维度的「加载地形中」过渡界面。
+     * <p>
+     * 原版只对下界/末地提供专用背景（{@code ClientPacketListener#determineLevelLoadingReason}），
+     * 其余维度走通用模糊底图。这里用 NeoForge 的注册点把 {@code beloong:disaster} 的<b>进入与离开</b>
+     * 都换成 {@link DisasterPortalTransitionScreen}（天灾门贴图 + 轻压暗），与视角扭曲过渡配套。
+     * <p>
+     * 事件为 mod 总线、仅客户端（{@code IModBusEvent}），与本类其余注册方式一致。
+     */
+    @SubscribeEvent
+    static void registerDimensionTransitionScreens(RegisterDimensionTransitionScreenEvent event) {
+        event.registerIncomingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new);
+        event.registerOutgoingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new);
     }
 
 

@@ -63,6 +63,15 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     /** 天灾维度的硬编码 ID，所有非天灾维度的传送目标。 */
     private static final String DISASTER_DIM = "beloong:disaster";
 
+    /**
+     * 天灾维度的 {@link ResourceKey}。
+     * <p>
+     * 本类内部与客户端「维度过渡界面」注册（{@code RegisterDimensionTransitionScreenEvent}，
+     * 见 {@code BeLoongCoreClient}）共用，保证维度 ID 只有一处定义。
+     */
+    public static final ResourceKey<Level> DISASTER_LEVEL =
+            ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(DISASTER_DIM));
+
     /** 传送冷却在玩家持久化 NBT 中的键名。<b>不得更改</b>（跨维度/重登有效）。 */
     private static final String COOLDOWN_KEY = "beloong_portal_cooldown";
 
@@ -129,8 +138,15 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      */
     @Override
     protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity) {
-        // 仅服务端处理传送逻辑
-        if (level.isClientSide) return;
+        // 客户端：只登记「在门内」，供原版 CONFUSION 局部过渡使用（LocalPlayer 每 tick 读 portalProcess）。
+        // 与原版 NetherPortalBlock 同构：登记在两侧都做；真正传送的 Entity.handlePortal() 内含
+        // ServerLevel 判断，因此客户端不会传送。冷却、下车、票据预热、落点解析全部仅服务端。
+        if (level.isClientSide) {
+            if (entity.canUsePortal(false)) entity.setAsInsidePortal(this, pos);
+            return;
+        }
+
+        // 以下全部仅服务端处理
         // 仅玩家可传送（保持既有行为：物品/生物穿过传送门不传送）
         if (!(entity instanceof ServerPlayer player)) return;
 
@@ -159,6 +175,22 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     @Override
     public int getPortalTransitionTime(ServerLevel level, Entity entity) {
         return 0;
+    }
+
+    /**
+     * 使用原版「视角扭曲」局部过渡（与下界传送门同款）。
+     * <p>
+     * 该值只对客户端有意义：{@code LocalPlayer} 每 tick 读 {@code portalProcess.getPortalLocalTransition()}，
+     * 为 {@code CONFUSION} 时把 {@code spinningEffectIntensity} 渐增至 1 —— 由 {@code GameRenderer}
+     * 旋转投影矩阵产生画面扭曲、{@code Gui} 叠加全屏传送门紫幕，并在刚进门时播放
+     * {@code SoundEvents.PORTAL_TRIGGER} 环境音，离开后渐出；门内开着容器界面也会被自动关闭。
+     * <p>
+     * <b>前置条件</b>：客户端也必须登记 portalProcess（见 {@link #entityInside} 的客户端分支，
+     * 与原版 {@code NetherPortalBlock} 同构），否则本覆写不会产生任何视觉效果。
+     */
+    @Override
+    public Portal.Transition getLocalTransition() {
+        return Portal.Transition.CONFUSION;
     }
 
     /**
@@ -193,9 +225,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     @SuppressWarnings("resource")
     @Nullable
     private static ServerLevel disasterLevel(ServerPlayer player) {
-        ResourceLocation id = ResourceLocation.tryParse(DISASTER_DIM);
-        if (id == null) return null;
-        return player.server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
+        return player.server.getLevel(DISASTER_LEVEL);
     }
 
     /**
