@@ -58,7 +58,7 @@
 | # | 文件 | 改动 |
 |---|---|---|
 | 1 | `block/DisasterPortalBlock.java` | ①`entityInside` 增加**客户端分支**（仅 `setAsInsidePortal`；服务端分支一行不改）；②新增 `getLocalTransition() → CONFUSION`；③新增公开常量 `DISASTER_LEVEL`（`ResourceKey<Level>`）并让 `disasterLevel()` 复用它（单一事实来源） |
-| 2 | `client/DisasterPortalTransitionScreen.java` | **新增**：`@OnlyIn(Dist.CLIENT) extends ReceivingLevelScreen`；构造 `(BooleanSupplier, Reason)`；重写 `renderBackground`：`Reason.OTHER` 时 `blit(beloong:textures/disaster_portal.png, 0,0,-90, width,height, width,height)` + `fill(0,0,w,h, 0x40000000)` 压暗；非 `OTHER` 时回退 `super`（防止该界面被下界/末地过渡复用） |
+| 2 | `client/DisasterPortalTransitionScreen.java` | **新增**：`@OnlyIn(Dist.CLIENT) extends ReceivingLevelScreen`；构造 `(BooleanSupplier, Reason)`；重写 `renderBackground`：`Reason.OTHER` 时按**贴图原始尺寸 256×256 平铺**（`blit(..., -90, 0, 0, width, height, 256, 256)`，UV 基准取 256 ⇒ uv>1 由 GL_REPEAT 拼接，1 贴图像素 = 1 GUI 像素）+ `fill(0,0,w,h, 0x40000000)` 压暗；非 `OTHER` 时回退 `super`（防止该界面被下界/末地过渡复用） |
 | 3 | `BeLoongCoreClient.java` | 新增 mod-总线订阅：`registerIncomingEffect(DISASTER_LEVEL, …)` + `registerOutgoingEffect(DISASTER_LEVEL, …)`（进出天灾维度同款背景，与 `determineLevelLoadingReason` 的双向判定对称） |
 
 ### Data Flow
@@ -88,7 +88,8 @@
 ## Decisions Made
 
 1. **选 B（A + 专用背景）**：只做 A 的话"加载地形中"仍是通用模糊底；只做 B 则没有扭曲。
-2. **背景 = `disaster_portal.png` 铺满 + 轻压暗**，而非 `RenderType.endPortal()`：与"我们自己的门"观感一致，且不引入 end-portal 管线（与 Iris 兼容改造的既有取舍一致）。
+2. **背景 = `disaster_portal.png` 按原始尺寸平铺 + 轻压暗**，而非 `RenderType.endPortal()`：与"我们自己的门"观感一致，且不引入 end-portal 管线（与 Iris 兼容改造的既有取舍一致）。
+   **平铺而非拉伸**：该贴图是"四方连续"设计（256×256，POT）；`GuiGraphics#blit` 的 UV = `(uOffset+uWidth)/textureWidth`，把 `textureWidth/Height` 传成**贴图原始尺寸**即可让 uv>1、由 GL_REPEAT 天然拼接（与原版 `Screen#renderMenuBackgroundTexture` 的菜单底图同款做法）。若传屏幕尺寸，整张贴图被拉伸到全屏，画面明显发糊。
 3. **进入/离开双向注册**：与 `determineLevelLoadingReason` 的双向判定对称，避免"回程没有主题背景"。
 4. **保留压暗层 `0x40000000`**：保证"加载地形中"白字可读。
 5. **不做 C（Mixin `Gui.renderPortalOverlay` 换叠色）**：全屏叠色仍是原版硬编码的下界门紫图，用户已确认接受；避免对 `Gui` 的 Mixin。
