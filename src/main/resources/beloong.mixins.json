@@ -24,7 +24,7 @@
     "CloneParameterListMixin",
     "ParameterListAccessor",
     "PossibleBiomesFilterMixin",
-    "BwgRegionBiomeRewriteMixin",
+    "RegionsGetMixin",
     "cataclysm.AltarOfAmethystMixin",
     "cataclysm.BurningArenaStructureMixin",
     "cataclysm.RuinedCitadelStructureMixin",

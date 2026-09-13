@@ -1,7 +1,7 @@
 # 天灾维度「VB 群系封堵」+ 本模组日志英文化 设计文档
 
 **Date:** 2026-09-13
-**Status:** Approved（用户已逐节确认 Phase 4 的架构 / 组件 / 数据流 / 异常安全 / 验证方法）
+**Status:** **Implemented（2026-09-13）** —— 批次 A（日志英文化）已由用户验收并提交；批次 B（群系封堵）代码与静态门禁已完成（`gradlew.bat build` 通过、类结构/`mixins.json`/jar 内容核对通过），实机账目与存档取证待用户执行。
 **Approach:** **方案 A** —— 通用 TerraBlender region 装饰器（注入 `Regions.get`），替代 per-mod region mixin
 **范围:** 只出设计，**不改任何代码**（本文件与 `memory/` 除外）
 
@@ -57,8 +57,19 @@
 | # | 注入路径 | VB 的做法（源码） | 本模组现有覆盖 |
 |---|---|---|---|
 | ① | **共享原版参数表**（index-0 兜底树 + 主世界 preset 本身） | `common/.../integrations/worldgen/BiomeGeneration.java:46-52` 调 `BiomePlacement.registerBiomePlacements` 登记 11 个参数点（`pale_garden` 10 + `sulfur_caves` 1）；实际写入点是 **Platform** 的 `common/.../core/mixin/common/OverworldBiomeBuilderMixin.java:17-30`——在**原版 `OverworldBiomeBuilder.addBiomes` 的 TAIL** 注入并把监听器的点喂进 mapper，使 `minecraft:overworld` preset 由 **7593 → 7604** 点（与日志完全吻合）。开关为 VB 自身配置 `hasPaleGarden` / `hasSulfurCaves`（`CommonConfig.java:90,182`，默认 true） | ✅ 被 `CloneParameterListMixin` → `filter()` 看到，但 `DisasterBiomeMapping` 无对应项 ⇒ 走「保留原版 + 记 ERROR」（决策 19 的降级分支） |
-| ② | **VB 自己的 TerraBlender region** | `common/.../integrations/compat/terrablender/OverworldRegion.java:17-33`（`extends Region`），注册于 `neoforge/.../VanillaBackportTerrablender.java`：`Regions.register(new OverworldRegion(..., RegionType.OVERWORLD, 5))`，再吐一遍同样的点 | ❌ **完全没有覆盖**：第三条注入路径 `BwgRegionBiomeRewriteMixin` 的注入目标是 `@Mixin(targets = "net.potionstudios.biomeswevegone...BWGTerraBlenderRegion")`（`mixin/BwgRegionBiomeRewriteMixin.java:84`）——只管 BWG 自己的 region 类 |
+| ② | **VB 自己的 TerraBlender region** | `common/.../integrations/compat/terrablender/OverworldRegion.java:17-33`（`extends Region`），注册于 `neoforge/.../VanillaBackportTerrablender.java:11-14`：`Regions.register(new OverworldRegion(..., RegionType.OVERWORLD, 5))`，再吐一遍同样的点 | ❌ **完全没有覆盖**：第三条注入路径 `BwgRegionBiomeRewriteMixin` 的注入目标是 `@Mixin(targets = "net.potionstudios.biomeswevegone...BWGTerraBlenderRegion")`（`mixin/BwgRegionBiomeRewriteMixin.java:84`）——只管 BWG 自己的 region 类 |
 | ③ | 查询层 | — | ✅ `PossibleBiomesFilterMixin` 按命名空间过滤，已干净（这正是"地形有、`/locate` 无"的原因） |
+
+> **2026-09-13 复核补充（归因修正）**：路径①的影响面**比"只影响 VB 自己的 region"更大**。
+> Platform 的 TAIL 注入是对**原版 `OverworldBiomeBuilder.addBiomes`** 生效的，而 TerraBlender 的
+> `api/TerrablenderOverworldBiomeBuilder.java:9` 正是它的子类且不覆写 `addBiomes`，**BWG 的三个
+> region 都在用它**（`BWGTerraBlenderRegion.java:117-121`）。所以实测中 5 个 region
+> （`vanillabackport:overworld` + `biomeswevegone:region_0/1/2`）**每个**都输出
+> `minecraft: biomes 2 [pale_garden, sulfur_caves]`——这 2 项并非 BWG 数组自带
+> （BWG 自己的数组被 `BWGRegionUtils.filter` 清过，只清 THE_VOID），而是同一条 Platform 注入带来的。
+> <br>⇒ "只补映射表"不够有**两个独立原因**：㈠ region 树路径不读映射表口径之外的东西（BWG 三棵树
+> 虽被旧 mixin 包住，但当时映射表缺项 ⇒ `rewriteKey` 原样返回）；㈡ VB 自己的 region 类**根本没被包住**。
+> 本设计的通用装饰器 + 映射两项同时解决这两点。
 
 **因此：只补映射表治不好本泄漏**——必须同时覆盖路径②。这正是总设计 §九维护提示里警告过的坑（「不要只改 `DisasterBiomeMapping`…」）。
 

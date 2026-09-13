@@ -53,12 +53,17 @@ import java.util.TreeSet;
  *   <li><b>index 0 兜底树</b> —— {@link com.zonlong.beloong.mixin.CloneParameterListMixin}
  *       （生成层）</li>
  *   <li><b>查询层</b> —— {@link com.zonlong.beloong.mixin.PossibleBiomesFilterMixin}</li>
- *   <li><b>BWG region 树</b> —— {@link com.zonlong.beloong.mixin.BwgRegionBiomeRewriteMixin}。
- *       <b>第二阶段新增</b>：TerraBlender 为每个 region 各建一棵 RTree，且
+ *   <li><b>region 树（全部 region）</b> —— {@link RegionBiomeRewriter}（由
+ *       {@code com.zonlong.beloong.mixin.RegionsGetMixin} 注入 TerraBlender 的
+ *       {@code Regions.get} 出口来包装）。
+ *       TerraBlender 为每个 region 各建一棵 RTree，且
  *       {@code findValuePositional} <b>先查 region 树</b>，只有拿到
  *       {@code DEFERRED_PLACEHOLDER} 才回退到 index 0。<b>不加这条，被 region 树
  *       直接吐出的群系（河流 / 洞穴 / {@code stony_shore} / {@code windswept_savanna}）
- *       就无法接管</b>，且第一阶段会有 5 项黑名单群系持续泄漏</li>
+ *       就无法接管</b>，且第一阶段会有 5 项黑名单群系持续泄漏。
+ *       <b>2026-09-13 变更</b>：本路径原先是 per-mod 的 {@code BwgRegionBiomeRewriteMixin}
+ *       （只认 BWG 自己的 region 类），VanillaBackport 注册自己的 region 后完全绕开改写 ⇒
+ *       已改为通用装饰器（否则 VB 的 {@code minecraft:} 群系会泄漏）</li>
  * </ol>
  * 完整取证见 {@code docs/reviews/2026-09-11-disaster-region-tree-probe.md}。
  *
@@ -73,7 +78,7 @@ import java.util.TreeSet;
  * @see DisasterBiomeMapping
  * @see com.zonlong.beloong.mixin.CloneParameterListMixin
  * @see com.zonlong.beloong.mixin.PossibleBiomesFilterMixin
- * @see com.zonlong.beloong.mixin.BwgRegionBiomeRewriteMixin
+ * @see com.zonlong.beloong.mixin.RegionsGetMixin
  */
 public final class DisasterBiomeSubstitution {
 
@@ -176,7 +181,7 @@ public final class DisasterBiomeSubstitution {
      * 最近一次替换所用的群系注册表。
      * <p>
      * 由 {@link #filter} 在取得注册表后写入，供 region 树路径
-     * （{@code BwgRegionBiomeRewriteMixin}）解析映射目标使用。
+     * （{@link RegionBiomeRewriter}）解析映射目标使用。
      * <p>
      * <b>为什么可以共用静态状态：</b>与 {@link #substitutionApplied} 同属"两条注入路径
      * 共用同一信号"的做法（总设计决策 21）。<b>时序上安全</b>——
@@ -376,8 +381,8 @@ public final class DisasterBiomeSubstitution {
      * （{@code badlands} 系 / {@code mushroom_fields} / {@code beach}）长期未被发现的原因。
      * <p>
      * <b>为什么它读到的是改写后的结果：</b>本方法自行调用
-     * {@code region.addBiomes(registry, consumer)}，而 {@code BwgRegionBiomeRewriteMixin}
-     * 会在 {@code addBiomes} 的 HEAD 处<strong>包裹传入的 consumer</strong>。
+     * {@code region.addBiomes(registry, consumer)}，而 {@link RegionBiomeRewriter}
+     * 会在 {@code addBiomes} 内部<strong>包裹调用方传入的 mapper</strong>。
      * 因此本统计<strong>走的是真实代码路径</strong>，不是另起一套逻辑。
      * <p>
      * 纯读取：{@code addBiomes} 只把静态数组展开成参数对，无副作用。
@@ -519,7 +524,7 @@ public final class DisasterBiomeSubstitution {
      * 由调用方决定如何计数与记录。
      * <p>
      * <b>为什么需要这个入口：</b>index 0 兜底树（{@code CloneParameterListMixin}）与
-     * BWG 的 region 树（{@code BwgRegionBiomeRewriteMixin}）是两条独立路径，
+     * region 树（{@link RegionBiomeRewriter}）是两条独立路径，
      * 但必须使用<strong>完全相同的判据与映射</strong>。把口径收敛到一处，
      * 避免白名单缩小或映射表调整时两条路径漂移。
      *

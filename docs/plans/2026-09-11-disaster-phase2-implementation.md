@@ -1,6 +1,10 @@
 # 天灾维度第二阶段 实施计划
 
 > 注：本文引用的模组日志文本已于 2026-09-13 英文化（原为中文），语义与数值未变。
+> 另：本文描述的第三条注入路径（`BwgRegionBiomeRewriteMixin`）已于 **2026-09-13 被通用装饰器替代**
+> （`worldgen/RegionBiomeRewriter` + `mixin/RegionsGetMixin`），原因见
+> [`2026-09-13-vanillabackport-biome-ban-design.md`](2026-09-13-vanillabackport-biome-ban-design.md)：
+> per-mod 写法只认 BWG 的 region 类，VanillaBackport 的 region 会绕开它。
 
 **Goal:** 用 5 个 `beloong:` 自制群系接管 14 个白名单原版群系，另 7 项改指 BWG 群系，
 使天灾维度的群系里**不含任何 `minecraft:` 群系**。

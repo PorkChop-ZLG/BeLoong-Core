@@ -21,6 +21,14 @@ import net.minecraft.core.registries.Registries;
  * 对原版参数空间基线（7593 参数点 / 53 群系）做全量比对：本表<strong>覆盖全部 53 个</strong>
  * {@code minecraft:} 群系，<b>不再有白名单例外</b>（{@link DisasterBiomeSubstitution#WHITELIST} 已清空）。
  * <p>
+ * <b>2026-09-13 补充：第三方模组也会往同一参数空间里塞新的 {@code minecraft:} 群系。</b>
+ * VanillaBackport 通过 Platform 的 {@code OverworldBiomeBuilder} mixin 加了 11 个参数点
+ * （{@code pale_garden} ×10 + {@code sulfur_caves} ×1），使基线由 7593 变为
+ * <b>7604 点 / 55 群系</b>。本表已同步覆盖这 2 个新群系（见下方两处 2026-09-13 注释）。
+ * <b>维护规则：任何新增的 {@code minecraft:} 群系都必须在同一轮里补进本表</b>，
+ * 否则 {@code filter()} 会走「保留原版 + 记 ERROR」分支，让该群系在天灾维度生成
+ * （违反决策 24），启动日志出现 {@code unsolved > 0}。
+ * <p>
  * 目标分三类：
  * <ol>
  *   <li><b>{@code beloong:} 自制群系（14 项 → 5 个）</b>：海洋 2、河流 1、洞穴 1、碎裂地形 1。
@@ -43,6 +51,10 @@ import net.minecraft.core.registries.Registries;
  *       没有规则的群系会落到原版规则，而原版规则按 {@code minecraft:} ID 分支、一条都不命中
  *       ⇒ 掉到默认<b>草/土</b>。因此"地表本身就是其身份"的群系（如 {@code stony_peaks} 的方解石）
  *       绝不能指向无规则的 BWG 群系。已核对清单见逐项表 §6.2。</li>
+ *   <li><b>第三方模组新增 {@code minecraft:} 群系时</b>：{@code substitute} 的 default 分支返回
+ *       {@code null} ⇒ 该群系保留原版并在天灾维度生成。排查入口是启动日志的
+ *       {@code unsolved > 0}、{@code no mapping entry for X} 与 {@code disaster region tree audit}；
+ *       补表时优先选"同气候格 + BWG 默认启用 + 有地表规则"的目标（见上面三条）。</li>
  * </ol>
  *
  * <h3>距离指标说明</h3>
@@ -89,6 +101,9 @@ public final class DisasterBiomeMapping {
             case "old_growth_birch_forest" -> "biomeswevegone:aspen_boreal";
             // 原版独占 NEUTRAL/HUMID；weeping_witch_forest 同格，中心完全重合
             case "dark_forest" -> "biomeswevegone:weeping_witch_forest";
+            // VanillaBackport 新增（1.21.4 的 pale garden，本质是深色森林变体）：气候格与 dark_forest 相同，
+            // 故沿用同一目标。不补这一项会走「保留原版 + ERROR」，让 minecraft: 群系在天灾维度生成（违反决策 24）
+            case "pale_garden" -> "biomeswevegone:weeping_witch_forest";
 
             // ---------- 寒带 / 冰带内陆 ----------
             case "snowy_plains" -> "biomeswevegone:crimson_tundra";
@@ -161,6 +176,9 @@ public final class DisasterBiomeMapping {
             case "lush_caves" -> "beloong:caves";
             case "dripstone_caves" -> "beloong:caves";
             case "deep_dark" -> "beloong:caves";
+            // VanillaBackport 新增（Chaos Cubed 的硫磺洞穴，DEPTH=UNDERGROUND）：沿用"所有洞穴合并到
+            // 自制 beloong:caves"的第二阶段口径 —— BWG 没有任何 depth > 0 的群系可做目标
+            case "sulfur_caves" -> "beloong:caves";
 
             // ---------- 自制：碎裂地形 ----------
             // 三者 JSON 本就相同，差别只在地表规则；自制以保住"碎裂丘陵"地貌

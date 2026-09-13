@@ -118,8 +118,8 @@ public class CloneParameterListMixin {
      * 为整个 {@code initializeBiomes} 调用设置<strong>作用域</strong>维度标志。
      * <p>
      * <b>为什么需要它：</b>{@code PossibleBiomesFilterMixin}（注入在
-     * {@code appendDeferredBiomesList} 的 HEAD）与 {@code BwgRegionBiomeRewriteMixin}
-     * （注入在 {@code BWGTerraBlenderRegion.addBiomes} 的 HEAD）都<strong>拿不到维度身份</strong>。
+     * {@code appendDeferredBiomesList} 的 HEAD）与 {@code RegionsGetMixin}
+     * （注入在 TerraBlender {@code Regions.get} 的 RETURN）都<strong>拿不到维度身份</strong>。
      * 它们原先读全局的 {@link DisasterBiomeSubstitution#isSubstitutionApplied()}，
      * 于是产生了一个真实缺陷：{@code LevelUtils.initializeOnServerStart} 遍历
      * <strong>所有</strong> level stem，处理完天灾之后标志已为真，轮到

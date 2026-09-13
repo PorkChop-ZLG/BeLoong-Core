@@ -7,9 +7,9 @@
 **Approach:** 采纳设计文档的**方案 A**（通用 region 装饰器），按**方案 A2（分两批）**执行：先日志英文化（零运行时风险、可独立验收），再群系封堵。
 
 **Status（2026-09-13）:**
-- ✅ **批次 A（A1–A6）已完成并通过静态门禁**：8 个 Java 文件 32 处日志改英文（第 33 处随 `BwgRegionBiomeRewriteMixin` 在 B3 删除）；4 份文档 29 行日志原文同步 + 各加英文化注记；`gradlew.bat build` 通过；全模组 `LOGGER` 语句 CJK = 0；`[DisasterPortal:*]` 锚点 7 个保留；**占位符数量逐一比对一致**（17/33/3/13/0/2/0/0）、`String.format` 说明符 12→12。
-- ⏸ **批次 B（B1–B4、B7）待执行**（等用户验收批次 A 后开始）。
-- 👤 A7/B8（提交）与 B5/B6（实机验证）由用户执行。
+- ✅ **批次 A（A1–A6）已完成并通过静态门禁**：8 个 Java 文件 32 处日志改英文（第 33 处随 `BwgRegionBiomeRewriteMixin` 在 B3 删除）；4 份文档 29 行日志原文同步 + 各加英文化注记；`gradlew.bat build` 通过；全模组 `LOGGER` 语句 CJK = 0；`[DisasterPortal:*]` 锚点 7 个保留；**占位符数量逐一比对一致**（17/33/3/13/0/2/0/0）、`String.format` 说明符 12→12。**用户已验收并提交。**
+- ✅ **批次 B（B1–B4、B7）代码与静态门禁已完成**：`DisasterBiomeMapping` 53→55 项；新增 `worldgen/RegionBiomeRewriter` + `mixin/RegionsGetMixin`；删除 `BwgRegionBiomeRewriteMixin`（含 `beloong.mixins.json` 换名与 6 处失效 javadoc 引用修正）；`gradlew.bat build` 通过；编译产物与 jar 内 `mixins.json` 核对通过（含 `RegionsGetMixin`、不含旧 mixin）。
+- ⏳ **待用户执行**：B5 启动账目核对、B6 存档取证（新区域），以及 B8 提交。
 
 **设计依据:** `docs/plans/2026-09-13-vanillabackport-biome-ban-design.md`（已批准，含日志/存档双重取证、决策 D1–D7、异常安全表、账目预期值）
 
@@ -170,6 +170,15 @@ Test-Path src\main\java\com\zonlong\beloong\mixin\BwgRegionBiomeRewriteMixin.jav
 
 ### Task B5: 运行时账目核对（**需要你跑一次客户端**）
 
+**第 0 步（本次改动的唯一"无法静态验证"项）**：确认 mixin 真的应用了。在 `run/logs/debug.log`（DEBUG 级）里应出现：
+
+```
+[mixin/]: Mixing RegionsGetMixin from beloong.mixins.json into terrablender.api.Regions
+```
+
+- 若**没有**这行 ⇒ 说明注入未应用（`beloong.mixins.json` 的 `injectors.defaultRequire = 1` 本应让它在启动期直接报错；若既没报错也没这行，请把 debug.log 里 `beloong.mixins.json` 相关行发我）。
+- 若出现，再核对下面的账目表；若 `unsolved` 仍为 `11` 或 region 行仍显示 `minecraft: biomes 2`，看是否同时有 `target ... is unusable` 的 ERROR（那说明映射目标被判不可用，而非 mixin 没生效）。
+
 **Steps:** 进入天灾维度（触发维度初始化即可），核对下列行：
 
 | 账目 | 期望值 |
@@ -201,6 +210,26 @@ $lines | Select-String -Pattern 'substitution|region tree audit|possibleBiomes a
 #       "含 minecraft: 群系的区块" 只应出现在 status=minecraft:structure_starts（占位 plains）
 ```
 ⚠️ **已生成区块不会被追溯清理**：旧存档里既有区块仍可能显示 `sulfur_caves`（设计 D6），这是预期，不作为失败判据。
+
+### 批次 B 对抗复核结果（2026-09-13，独立 agent，只读）
+
+**7 项判定全部「未证伪」**，关键证据：
+- `javap -p` TB jar（`terrablender-neoforge-940057-6054947.jar`）确认 `Regions` 里 `get` **只有一个**（`public static List<Region> get(RegionType)`）⇒ 无重载歧义；handler 描述符不含 vanilla 类型 ⇒ 泛型擦除不影响匹配；TB 类未被混淆 ⇒ `remap=false` 正确。
+- `injectors.defaultRequire = 1` **确实保证响亮失败**：解析期 `TargetSelectors.validate` 抛 `InvalidInjectionException`、注入点数 0 时 `postInject` 抛 `InjectionError`。
+- TB 全量 grep：对 `Region` 的 `instanceof` / 强转 = **0 命中**；`regions`/`indices` 两个 map 里始终是原实例 ⇒ 装饰器不可见。
+- 作用域窗口精确：主世界因 tag 不在内而不触发重定向；下界/末地 HEAD 判定为假。
+- 映射目标可用：`run/config/biomeswevegone/world_generation.json:54` 为 `true`；`data/beloong/worldgen/biome/caves.json` 存在。
+- **无每区块开销**：每区块路径只走 `Regions.getIndex`，`Regions.get` 仅在初始化期约 4 轮被调用。
+
+**新发现（均未修，待你决策）**：
+
+| # | 严重度 | 内容 | 建议 |
+|---|---|---|---|
+| R1 | 中 | Platform 的 TAIL 注入经 TB 的 `TerrablenderOverworldBiomeBuilder` 也影响 **BWG 三个 region** ⇒ 5 个 region 全都输出那 2 个 `minecraft:` 群系；"只补映射"不够有**两个**独立原因 | ✅ 已写入设计文档 §1.1 的归因补充 |
+| R2 | 中 | 作用域标志 `isFilteringTargetBiomeList()` 用 HEAD/RETURN 成对置位，**异常退出不会执行 RETURN**（Mixin 语义）⇒ `initializeBiomes` 抛异常时标志可能永久为真。暴露面窄（下界 5 群系在映射表里全缺失 ⇒ 透传；主世界不在 tag 内），且属本次改动**之前就存在**的问题 | 可改为 try/finally 或在文档承认该例外 —— **需你确认是否纳入本轮** |
+| R3 | 低 | region 路径的"漏网"只有 INFO 级 `disaster region tree audit`，不报 ERROR ⇒ 未来若某 `minecraft:` 群系**只**由某 region 树输出，启动日志没有 ERROR | 可把该审计在 `index!=0` region 仍残留时升为 WARN —— **需你确认**（同样属既有行为） |
+
+> 另附一条仅记录：`activeBiomeRegistry` 是静态强引用且从不置回 null（单人反复换存档会多留一份注册表；作为"filter 是否跑过"的哨兵在第二次开世界后已失效，真正守护靠作用域标志）。
 
 ### Task B7: 文档与 memory 同步
 

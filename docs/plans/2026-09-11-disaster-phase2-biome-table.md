@@ -22,7 +22,7 @@
 | `beloong:frozen_ocean` | #1 `frozen_ocean`、#2 `deep_frozen_ocean` | 4 | `0.0` + `temperature_modifier: frozen` |
 | `beloong:ocean` | #3 `cold_ocean`、#4 `deep_cold_ocean`、#5 `ocean`、#6 `deep_ocean` | 8 | `0.5` |
 | `beloong:river` | #10 `river`、#11 `frozen_river` | 18 | `0.5`（不拆冻河，见 §5.3） |
-| `beloong:caves` | #12 `lush_caves`、#13 `dripstone_caves`、#14 `deep_dark` | 3 | 任意 |
+| `beloong:caves` | #12 `lush_caves`、#13 `dripstone_caves`、#14 `deep_dark`、#55 `sulfur_caves` | 4 | 任意 |
 | `beloong:windswept` | #15 `windswept_hills`、#16 `windswept_gravelly_hills`、#17 `windswept_forest` | 352 | `0.2` |
 
 ### 交给 BWG 的 7 项
@@ -97,6 +97,30 @@
 | 19 | `snowy_beach` | 110 | I0 | D | — | **交给 BWG** → `dacite_shore` |
 | 20 | `stony_shore` | 12 | RT | C | ✅ `basalt_barrera` | **交给 BWG** |
 | 21 | `windswept_savanna` | 216 | RT | C | ✅ `firecracker_chaparral` / `araucaria_savanna` | **交给 BWG** |
+
+### 2026-09-13 追加：VanillaBackport 新增的 2 项（#54 / #55）
+
+整合包加入 VanillaBackport（1.1.7.10）后，它通过 Platform 的 `OverworldBiomeBuilder` mixin 往**共享的
+`minecraft:overworld` 参数表**加了 11 个参数点（`pale_garden` ×10 + `sulfur_caves` ×1），使基线由
+7593 点 / 53 群系变为 **7604 点 / 55 群系**（实机账目确认）。这 2 项原本不在本表覆盖范围内，
+会让 `filter()` 走「保留原版 + ERROR」（`unsolved 11`）并在天灾维度生成（违反决策 24）。
+VB 另有一棵自己的 TerraBlender region（`vanillabackport:overworld`）会再吐一遍同样的点，
+因此这 2 项同时落在 **index-0 树与 region 树**两条路径上。
+
+| # | 原版群系 | 参数点 | 桶 | 组 | BWG 候选 | 建议 |
+|---|---|---|---|---|---|---|
+| 54 | `pale_garden` | 10 | I0 + region | — | ✅ `weeping_witch_forest` | **交给 BWG**（与 `dark_forest` 同目标、同气候格） |
+| 55 | `sulfur_caves` | 1 | I0 + region | — | ❌（BWG 无 `depth > 0` 群系） | **自制**（并入 `beloong:caves`，与 #12–14 同目标） |
+
+- **`pale_garden`**：1.21.4「The Garden Awakens」的深色森林变体，参数格（NEUTRAL/HUMID ×
+  FAR_INLAND 或 MID..FAR_INLAND × EROSION 1–3 × MID_SLICE/HIGH_SLICE/PEAK 三种 weirdness 切片）
+  与 `dark_forest` 同格 ⇒ 沿用其目标 `biomeswevegone:weeping_witch_forest`。该目标**已被 `dark_forest`
+  使用且实机账目无该目标的报错** ⇒ BWG 默认启用状态已实证；地表规则亦已核（逐项表 §6.2 的既有结论）。
+- **`sulfur_caves`**：Chaos Cubed 的地下硫磺洞穴（`DEPTH=UNDERGROUND`，温度/湿度全范围）。
+  BWG **没有任何 `depth > 0` 的群系**，故沿用第二阶段「所有洞穴合并到自制 `beloong:caves`」的口径
+  （该自制群系带自制地表规则，见 §4.1）。
+- **维护规则**：任何模组往参数空间新增 `minecraft:` 群系，都必须在同一轮补进 `DisasterBiomeMapping`；
+  启动日志的 `unsolved > 0`、`no mapping entry for X` 与 `disaster region tree audit` 是排查入口。
 
 ### 各组说明
 
