@@ -39,7 +39,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.AMPLIFICATION_CHARM);
                         output.accept(ModItems.DAWN_LIGHT);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
-                        // 元素魔源八件套：与 ElementType 的声明顺序（五行 + 冰风雷）一致。
+                        // 元素魔源：与 ElementType 的声明顺序（五行 + 冰风雷 + 光暗）一致。
                         output.accept(ModItems.METAL_ESSENCE);
                         output.accept(ModItems.WOOD_ESSENCE);
                         output.accept(ModItems.WATER_ESSENCE);
@@ -48,6 +48,8 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.ICE_ESSENCE);
                         output.accept(ModItems.WIND_ESSENCE);
                         output.accept(ModItems.THUNDER_ESSENCE);
+                        output.accept(ModItems.LIGHT_ESSENCE);
+                        output.accept(ModItems.DARK_ESSENCE);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
                         output.accept(ModItems.RED_YELLOW_BOARD);

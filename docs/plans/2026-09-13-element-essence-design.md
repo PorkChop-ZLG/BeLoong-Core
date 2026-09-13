@@ -9,25 +9,41 @@
 
 ## 1. 需求
 
-为 BeLoong-Core 添加 8 个基础物品「元素魔源」，对应五行（金木水火土）加冰风雷三种元素：
+为 BeLoong-Core 添加「元素魔源」系列基础物品。
+
+**初版需求（2026-09-13）**：8 件，对应五行（金木水火土）加冰风雷：
 
 1. 8 个物品，中文名「X魔源」，无任何额外效果；
 2. 每个物品有**动态贴图**（12 帧），贴图由本项目自行绘制；
 3. 每个物品有 tooltip，文本格式为「自然界的X元素凝聚成的魔源，可以为龙的成长提供魔力。」；
 4. 物品 ID 与英文名需与用户共同讨论定案。
 
+**后续增补（同日晚）**：追加**光**与**暗**两种元素，共 10 件：
+
+5. 光与暗按与其他八件完全相同的方式注册（同样的类、属性、tooltip 模板），**顺序排在雷之后**；
+6. 光与暗的**贴图暂不准备**，直接留空 → 见 §6.6 的"留空"具体含义与后果；
+7. 用户明确**雷的贴图不再改动**。
+
+**需求变更记录**：第 2 条（动态贴图）已被用户否决，改为静态图，见 §4。
+
 ## 2. 命名与属性（已定案）
 
-| 元素 | 物品 ID | en_us 名 | zh_cn 名 | tooltip 代入词（中 / 英） |
-|---|---|---|---|---|
-| 金 | `beloong:metal_essence` | Metal Essence | 金魔源 | 金属 / metal |
-| 木 | `beloong:wood_essence` | Wood Essence | 木魔源 | 木 / wood |
-| 水 | `beloong:water_essence` | Water Essence | 水魔源 | 水 / water |
-| 火 | `beloong:fire_essence` | Fire Essence | 火魔源 | 火 / fire |
-| 土 | `beloong:earth_essence` | Earth Essence | 土魔源 | 土 / earth |
-| 冰 | `beloong:ice_essence` | Ice Essence | 冰魔源 | 冰 / ice |
-| 风 | `beloong:wind_essence` | Wind Essence | 风魔源 | 风 / wind |
-| 雷 | `beloong:thunder_essence` | Thunder Essence | 雷魔源 | 雷 / thunder |
+| 元素 | 物品 ID | en_us 名 | zh_cn 名 | tooltip 代入词（中 / 英） | 贴图 |
+|---|---|---|---|---|---|
+| 金 | `beloong:metal_essence` | Metal Essence | 金魔源 | 金属 / metal | ✅ |
+| 木 | `beloong:wood_essence` | Wood Essence | 木魔源 | 木 / wood | ✅ |
+| 水 | `beloong:water_essence` | Water Essence | 水魔源 | 水 / water | ✅ |
+| 火 | `beloong:fire_essence` | Fire Essence | 火魔源 | 火 / fire | ✅ |
+| 土 | `beloong:earth_essence` | Earth Essence | 土魔源 | 土 / earth | ✅ |
+| 冰 | `beloong:ice_essence` | Ice Essence | 冰魔源 | 冰 / ice | ✅ |
+| 风 | `beloong:wind_essence` | Wind Essence | 风魔源 | 风 / wind | ✅ |
+| 雷 | `beloong:thunder_essence` | Thunder Essence | 雷魔源 | 雷 / thunder | ✅ |
+| 光 | `beloong:light_essence` | Light Essence | 光魔源 | 光 / light | ⬜ 待补 |
+| 暗 | `beloong:dark_essence` | Dark Essence | 暗魔源 | 暗 / dark | ⬜ 待补 |
+
+**声明顺序 = 创造模式页签顺序 = 语言文件条目顺序**：五行 → 冰风雷 → 光暗。不按字母序。
+
+**光的英文名用 `light` 而非 `holy`/`radiant`，暗用 `dark` 而非 `shadow`/`void`**：用户要求"和之前八种一样注册"，而既有约定是**英文名与物品 ID 等同**（D2），故取 `light`/`dark` 这两个最短且与中文「光/暗」直接对应的词。中文沿用「X魔源」体例。
 
 **属性**：`new Item.Properties().rarity(Rarity.UNCOMMON)`。
 
@@ -115,20 +131,22 @@ tooltipComponents.add(Component.translatable(
 
 色带层次（粗量化 32 级后）举例：土为 `#FFE1BC` 亮奶油心 → `#A08040` → `#402000` 棕边；水为 `#AAFDFE` 高光 → `#00C0E0` → `#0040A0` 深蓝；火为 `#600000` 暗红边 → `#C00000` → `#FF9D44` 亮橙心。剪影：金=矿块、木=斜向叶、水=水滴、火=火苗、土=**完美圆形卵石**（带中心十字高光）。
 
-### 5.2 八张成品与命名映射
+### 5.2 成品与来源映射
 
-物品 ID 保持 `_essence`（用户选定），而用户文件名用的是 `element`，且用户用 `gold`/`soil` 对应我们的 `metal`/`earth`——**映射无法机械推导，必须显式列出**（已写进 `tools/generate_element_sprites.py` 的 `ARTIST_SPRITES`）：
+物品 ID 保持 `_essence`（用户选定），而用户文件名用的是 `element`，且用户用 `gold`/`soil` 对应我们的 `metal`/`earth`——**映射无法机械推导，必须显式列出**：
 
-| 物品 ID | 用户文件名 | 来源 |
+| 物品 ID | 源文件 | 来源 |
 |---|---|---|
-| `metal_essence` | `goldelement.png` | 用户提供 |
-| `wood_essence` | `woodelement.png` | 用户提供 |
-| `water_essence` | `waterelement.png` | 用户提供 |
-| `fire_essence` | `fireelement.png` | 用户提供 |
-| `earth_essence` | `soilelement.png` | 用户提供 |
-| `ice_essence` | `iceelement.png` | **本项目绘制** |
-| `wind_essence` | `windelement.png` | **本项目绘制** |
-| `thunder_essence` | `thunderelement.png` | **本项目绘制** |
+| `metal_essence` | `goldelement.png` | 用户手绘 |
+| `wood_essence` | `woodelement.png` | 用户手绘 |
+| `water_essence` | `waterelement.png` | 用户手绘 |
+| `fire_essence` | `fireelement.png` | 用户手绘 |
+| `earth_essence` | `soilelement.png` | 用户手绘 |
+| `ice_essence` | `ChatGPT Image …19_43_05.png` | 用户 AI 生成 → 转换（后经用户手工微调） |
+| `wind_essence` | `ChatGPT Image …19_43_22.png` | 用户 AI 生成 → 转换（后经用户手工微调） |
+| `thunder_essence` | —（`tools/generate_thunder_sprite.py`） | 本项目绘制 |
+| `light_essence` | **（暂缺）** | **待补，见 §6.6** |
+| `dark_essence` | **（暂缺）** | **待补，见 §6.6** |
 
 ### 5.3 冰 / 风 / 雷的来源与做法
 
@@ -175,27 +193,27 @@ tooltipComponents.add(Component.translatable(
 | 项 | 状态 |
 |---|---|
 | 8 个物品 + 枚举 + 注册 + 创造页签 | ✅ 完成 |
-| 中英文语言文件（含 tooltip） | ✅ 完成，逐字校验通过 |
-| 8 个物品模型 JSON | ✅ 完成 |
-| **8 张贴图（静态 16×16）** | ✅ 完成并已装入资源目录（用户 5 张 + 本项目 3 张） |
+| 中英文语言文件（含 tooltip，各 200 条） | ✅ 完成，逐字校验通过（10 条 tooltip） |
+| 物品模型 JSON | ✅ 10 个（8 个有贴图 + 光暗 2 个空壳） |
+| **贴图（静态 16×16）** | ✅ 8 张已装入资源目录；**光暗 2 张待补** |
 | **`.mcmeta`** | ✅ 已全部移除（静态图不得保留动画元数据） |
-| `gradlew build` + jar 内容核对 | ✅ 通过（8 张 16×16 RGBA、无残留 mcmeta、8 个模型） |
+| `gradlew build` + jar 内容核对 | ✅ 通过（8 张 16×16 RGBA、无残留 mcmeta、10 个模型、10 个枚举常量） |
 
 ### 6.2 Java
 
 **新增（2）**
-- `src/main/java/com/zonlong/beloong/item/essence/ElementType.java`
+- `src/main/java/com/zonlong/beloong/item/essence/ElementType.java`（10 个枚举常量）
 - `src/main/java/com/zonlong/beloong/item/essence/ElementEssenceItem.java`
 
 **修改（2）**
-- `src/main/java/com/zonlong/beloong/item/ModItems.java`（+8 常量）
-- `src/main/java/com/zonlong/beloong/item/ModCreativeModeTabs.java`（+8 accept）
+- `src/main/java/com/zonlong/beloong/item/ModItems.java`（+10 常量）
+- `src/main/java/com/zonlong/beloong/item/ModCreativeModeTabs.java`（+10 accept，顺序同枚举声明）
 
 ### 6.3 资源
 
-**贴图（8）**：`src/main/resources/assets/beloong/textures/item/<元素>_essence.png`，全部 16×16 RGBA 静态图。
+**贴图（8/10）**：`src/main/resources/assets/beloong/textures/item/<元素>_essence.png`，已完成的 8 张为 16×16 RGBA 静态图；`light_essence.png` / `dark_essence.png` 暂缺。
 
-**模型（8）**：`src/main/resources/assets/beloong/models/item/<元素>_essence.json`，`parent: minecraft:item/generated` + 单层 `layer0`。
+**模型（10）**：`src/main/resources/assets/beloong/models/item/<元素>_essence.json`，`parent: minecraft:item/generated` + 单层 `layer0`。光暗的模型已就位并指向未来的贴图文件名，**补图时只需放入 PNG，无需改代码**。
 
 **修改（3）**：`assets/beloong/lang/en_us.json`、`assets/beloong/lang/zh_cn.json`、`.gitignore`（加 `preview/`）。
 
@@ -215,11 +233,37 @@ tooltipComponents.add(Component.translatable(
 | 水 | 12×13 | 105 | 102 | 用户手绘 |
 | 火 | 15×14 | 103 | 99 | 用户手绘 |
 | 土 | 11×14 | 126 | 101 | 用户手绘 |
-| 冰 | 12×15 | 111 | 111 | AI 图转换 |
-| 风 | 13×15 | 113 | 110 | AI 图转换 |
+| 冰 | 12×14 | 104 | 104 | AI 图转换（用户手改） |
+| 风 | 13×14 | 111 | 108 | AI 图转换（用户手改） |
 | 雷 | 10×13 | 101 | 54 | 本项目绘制 |
+| 光 | 14×14 | 96 | 64 | 本项目绘制 |
+| 暗 | 14×15 | 174 | 109 | 本项目绘制 |
 
-八件的 bbox（10–15）、不透明像素（101–142）、颜色数（54–136）都落在同一量级——这是"看起来是一套"的可量化近似判据。雷的颜色数偏低（54），但已在可接受范围；若要更接近，可再增加紫带的采样密度。
+十件的 bbox（10–15）、颜色数（54–136）都落在同一量级；不透明像素除光（96）与暗（174）外均在 101–142。
+这是"看起来是一套"的可量化近似判据。雷的颜色数偏低（54），但**用户明确要求不再改动雷**，故保持现状。
+
+### 6.6 光 / 暗的贴图（已补齐）
+
+**2026-09-13 最终状态**：光与暗的贴图由本项目绘制完毕（`tools/generate_light_dark_sprites.py`），十张全部就位。
+本节原先记录的"贴图留空"方案**已作废**，保留其技术结论如下（对将来"先注册、后补图"的场景仍然适用）：
+
+- 缺贴图**不会导致构建失败或崩溃**：`TextureManager.java:99` 的 `getTexture` 在找不到贴图时返回 `MissingTextureAtlasSprite`（原版紫黑格占位）。缺贴图是合法的运行时状态。
+- 当时仍把**模型 JSON 与语言条目**补齐了：不建模型会让客户端为每件打两条警告；不补语言条目会让 tooltip 显示原始翻译键。这套做法使"以后放进 PNG 即生效"成立。
+
+### 6.7 光 / 暗的画法
+
+| 元素 | 形象 | 做法 |
+|---|---|---|
+| 光 | 太阳 | 圆盘（径向渐变 + 边缘变暗）+ **4 长 4 短**的八向光芒 |
+| 暗 | 月亮 | 满月本体（右上受光的月牙形亮部 → 左下沉入近黑）+ **向外渐亮**的冷紫光环 |
+
+**暗为什么要用"向外渐亮的光环"**：用户要求"发着黑光的月亮"。纯黑在物品栏里**读作什么都没有**，所以本体取最深的紫（近黑但可辨轮廓），而"黑光"这个概念交给它外围那圈**由内向外变亮**的冷光来表达——发光的是那圈，本体保持暗。这是在 16×16 下同时满足"暗"与"可见"的唯一读法。
+
+**两处迭代（都只有渲染后才暴露）**：
+
+1. **太阳的光芒碎成了孤立小方块**——因为射线从内径 4.6 开始、而圆盘半径 4.4，中间留了空隙，2.7px 的短射线在 16 格下被离散热成单点。改为**射线直接从圆盘边缘长出**，并区分**4 长 4 短**（八条等长会读作八角星而不是太阳）。
+2. **月亮的月牙挖空挖成了黑洞/甜甜圈**——初版用第二个偏移圆去"挖"月牙，在 16px 下把中心挖掉，读作甜甜圈。改为**满月本体 + 受光侧塑形**（真实的球体明暗），这才是这个尺寸下能读出"月亮"的写法。
+3. **太阳的颜色数只有 32**（其余元素 54–136）——圆盘是大片平色。提高噪声幅度并加边缘变暗后为 **64**，进入区间。
 
 ## 7. 决策记录
 
@@ -241,6 +285,10 @@ tooltipComponents.add(Component.translatable(
 | **D18** | 未改动用户手绘的五张贴图，仅复制改名 | 已逐字节比对确认与原件一致 |
 | D19 | `stacksTo` 保持默认 64 | "最基础物品"即默认属性；未提出珍贵材料需求 |
 | D20 | 8 件在创造页签中按五行+冰风雷顺序排列 | 与语言文件、枚举声明顺序一致，便于对照 |
+| **D21** | 追加**光、暗**两种元素，顺序排在雷之后，共 10 件 | 用户要求"和之前八种一样注册"；见 §1 后续增补 |
+| **D22** | 光的英文名 `light`、暗用 `dark` | 既有约定是英文名与 ID 等同（D2），故取最短且与中文「光/暗」直接对应的词 |
+| **D23** | 光/暗**贴图留空**，但**补上模型 JSON 与语言条目** | 见 §6.6：留空不会崩（回退到原版缺失贴图占位）；补模型把警告减半并让"以后放 PNG 即生效"；语言条目不补会让 tooltip 显示原始键 |
+| **D24** | 雷的贴图**不再改动** | 用户明确要求 |
 | ~~D10–D13~~ | ~~贴图脚本程序化生成 / 保留 ASCII 诊断工具 / 金的色板与破对称 / 描边邻域规则~~ | **随动画方案作废**；相关教训记入 §5.5 |
 
 ## 8. Non-Goals
@@ -255,10 +303,10 @@ tooltipComponents.add(Component.translatable(
 ## 9. 验证计划
 
 1. `gradlew.bat build` 通过。
-2. 核对 jar 内容：8 个 `<元素>_essence.png`（**均须为 16×16、RGBA**）、**无任何 `*_essence.png.mcmeta`**、8 个模型 JSON、`item/essence/*.class`。
-3. `python tools/verify_essence_lang.py`：用**真实语言文件**重演 Minecraft 的占位符展开，打印两种语言下 8 件的最终 tooltip 文本，并断言中文字面与需求完全一致、无未解析的键泄漏。这条是必须的——D4 的初版实现（双参数）就是被它抓出中文渲染错误的。
-4. `python tools/generate_element_sprites.py --install`：安装时校验每张图为 16×16（不符则拒绝并报错），并清理残留 `.mcmeta`。这条把"尺寸错误"和"忘删 mcmeta"变成脚本负责的事，而不是靠人记得。
-5. 实机（由用户执行）：确认 8 件在创造页签可见、贴图显示正确、物品名显示为**黄色**、tooltip 文案正确。
+2. 核对 jar 内容：**8 个** `<元素>_essence.png`（已完成的八件，均须为 16×16、RGBA）、**无任何 `*_essence.png.mcmeta`**、**10 个**模型 JSON、`item/essence/*.class`，并用 `javap` 确认 `ElementType` 恰好有 **10 个**枚举常量（顺序为 五行 → 冰风雷 → 光暗）。
+3. `python tools/verify_essence_lang.py`：用**真实语言文件**重演 Minecraft 的占位符展开，打印两种语言下**10 件**的最终 tooltip 文本，并断言中文字面与需求完全一致、无未解析的键泄漏。这条是必须的——D4 的初版实现（双参数）就是被它抓出中文渲染错误的；光暗追加时也是靠把元素表从 8 扩到 10 来防"加了物品但漏了语言条目"。
+4. `python tools/convert_element_sources.py --install` / `tools/generate_thunder_sprite.py --install`：安装时校验每张图为 16×16（不符则拒绝并报错），并清理残留 `.mcmeta`。这条把"尺寸错误"和"忘删 mcmeta"变成脚本负责的事，而不是靠人记得。
+5. 实机（由用户执行）：确认 10 件在创造页签可见且顺序正确、已完成的 8 张贴图显示正确、物品名显示为**黄色**、tooltip 文案正确；光暗两件显示为原版缺失贴图占位（预期行为，见 §6.6）。
 
 ### 9.1 已作废：动画方案下关于"断言口径"的教训
 

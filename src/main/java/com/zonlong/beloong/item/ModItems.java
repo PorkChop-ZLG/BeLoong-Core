@@ -91,6 +91,14 @@ public class ModItems {
     public static final DeferredItem<Item> THUNDER_ESSENCE =
             Items.register("thunder_essence", () -> new ElementEssenceItem(ElementType.THUNDER));
 
+    /** 元素魔源（光）。贴图暂缺，进入游戏会显示原版缺失贴图占位。 */
+    public static final DeferredItem<Item> LIGHT_ESSENCE =
+            Items.register("light_essence", () -> new ElementEssenceItem(ElementType.LIGHT));
+
+    /** 元素魔源（暗）。贴图暂缺，进入游戏会显示原版缺失贴图占位。 */
+    public static final DeferredItem<Item> DARK_ESSENCE =
+            Items.register("dark_essence", () -> new ElementEssenceItem(ElementType.DARK));
+
     /**
      * 天灾传送门框架的 BlockItem。
      * 物品 ID：{@code beloong:disaster_portal_frame}

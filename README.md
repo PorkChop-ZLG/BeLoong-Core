@@ -16,22 +16,24 @@
 
 ## 功能特性
 
-### 元素魔源八件套
+### 元素魔源
 
-八种元素（金、木、水、火、土、冰、风、雷）各一件「元素魔源」，当前为纯材料物品，无任何使用效果，仅提供说明文本。物品 ID 为 `beloong:<元素>_essence`，中英文名见下表：
+十种元素各一件「元素魔源」，当前为纯材料物品，无任何使用效果，仅提供说明文本。物品 ID 为 `beloong:<元素>_essence`，中英文名见下表：
 
-| 元素 | 物品 ID | 中文名 | 英文名 |
-|---|---|---|---|
-| 金 | `beloong:metal_essence` | 金魔源 | Metal Essence |
-| 木 | `beloong:wood_essence` | 木魔源 | Wood Essence |
-| 水 | `beloong:water_essence` | 水魔源 | Water Essence |
-| 火 | `beloong:fire_essence` | 火魔源 | Fire Essence |
-| 土 | `beloong:earth_essence` | 土魔源 | Earth Essence |
-| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence |
-| 风 | `beloong:wind_essence` | 风魔源 | Wind Essence |
-| 雷 | `beloong:thunder_essence` | 雷魔源 | Thunder Essence |
+| 元素 | 物品 ID | 中文名 | 英文名 | 贴图 |
+|---|---|---|---|---|
+| 金 | `beloong:metal_essence` | 金魔源 | Metal Essence | ✅ |
+| 木 | `beloong:wood_essence` | 木魔源 | Wood Essence | ✅ |
+| 水 | `beloong:water_essence` | 水魔源 | Water Essence | ✅ |
+| 火 | `beloong:fire_essence` | 火魔源 | Fire Essence | ✅ |
+| 土 | `beloong:earth_essence` | 土魔源 | Earth Essence | ✅ |
+| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence | ✅ |
+| 风 | `beloong:wind_essence` | 风魔源 | Wind Essence | ✅ |
+| 雷 | `beloong:thunder_essence` | 雷魔源 | Thunder Essence | ✅ |
+| 光 | `beloong:light_essence` | 光魔源 | Light Essence | ✅ |
+| 暗 | `beloong:dark_essence` | 暗魔源 | Dark Essence | ✅ |
 
-八件的贴图均为 12 帧（16×16/帧，`frametime = 1`）的动态贴图，共用一套棱面宝石外形，差异来自配色与各自的元素动效。贴图由 `tools/generate_element_essence_textures.py` 程序化生成，可用同一脚本的 `--preview-dir` 参数先输出放大预览，确认后再写入正式路径。
+十张贴图均为 16×16 静态图，与整合包内其他物品贴图规格一致。光为太阳（圆盘 + 八向光芒），暗为月亮（受光月牙 + 向外渐亮的冷紫光环，用以表现"发着黑光"）。
 
 设计细节与取名依据见 `docs/plans/2026-09-13-element-essence-design.md`。
 
