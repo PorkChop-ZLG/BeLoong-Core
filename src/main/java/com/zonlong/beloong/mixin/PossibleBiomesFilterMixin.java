@@ -105,8 +105,8 @@ public abstract class PossibleBiomesFilterMixin {
             // 不要把"现有集合"整个丢掉——那会让白名单里的原版群系也从查询层消失，
             // 只留 BWG。保持原 supplier 不动，让 TerraBlender 按原逻辑追加（退化为未过滤）。
             BeLoongCore.LOGGER.error(
-                    "[BeLoong] 读取 possibleBiomes 现状失败，本次不做查询层过滤"
-                            + "（/locate 与自然罗盘会照旧显示原版群系）", t);
+                    "[BeLoong] failed to read the current possibleBiomes, skipping the query-layer filter"
+                            + " this time (/locate and the nature's compass will list vanilla biomes again)", t);
             return;
         }
         merged.addAll(biomesToAppend);

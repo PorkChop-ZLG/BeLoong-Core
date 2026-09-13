@@ -1,5 +1,7 @@
 # 天灾维度剔除原版群系 设计文档
 
+> 注：本文引用的模组日志文本已于 2026-09-13 英文化（原为中文），语义与数值未变。
+
 > ## ⚠️ 状态：第一阶段已实现并验收 —— 本文是**施工依据**，不是现行说明
 >
 > **现行权威文档是 [`docs/天灾维度总设计.md`](../天灾维度总设计.md) 第四节。** 两者冲突时以总设计文档为准。
@@ -342,7 +344,7 @@ git show disaster_test:tools/scan-biomes.js | node - "run\saves\<新存档>" --f
 
 ```
 [Server thread/INFO] [terrablender/]: Initialized TerraBlender biomes for level stem minecraft:the_nether
-[Server thread/INFO] [com.zonlong.beloong.BeLoongCore/]: [BeLoong] 天灾维度群系替换：参数点 7593 个，替换 7552 个，未能求解 0 个
+[Server thread/INFO] [com.zonlong.beloong.BeLoongCore/]: [BeLoong] disaster biome substitution: parameter points 7593, replaced 7552, unsolved 0
 [Server thread/INFO] [terrablender/]: Initialized TerraBlender biomes for level stem beloong:disaster
 ```
 
@@ -418,7 +420,7 @@ this.possibleBiomes = () -> new ObjectLinkedOpenHashSet<>(possibleBiomes.stream(
 [VERIFY] minecraft:the_end     白名单原版=0  黑名单残留=5  BWG=0    ← 正确
 [VERIFY] beloong:disaster      白名单原版=14 黑名单残留=0  BWG=55   ← ★ 目标达成
 [VERIFY] beloong:loong_palace  白名单原版=0  黑名单残留=0  BWG=0
-[BeLoong] 天灾维度群系替换：参数点 7593 个，替换 7552 个，未能求解 0 个
+[BeLoong] disaster biome substitution: parameter points 7593, replaced 7552, unsolved 0
 ```
 
 **生成路径**（更强的证据，非 NBT 扫描而是游戏内存中的群系容器）：强制生成 289 个全新区块

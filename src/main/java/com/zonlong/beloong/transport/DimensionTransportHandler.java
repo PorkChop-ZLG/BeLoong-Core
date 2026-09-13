@@ -131,7 +131,7 @@ public class DimensionTransportHandler {
 
         finishTransport(player);
 
-        LOGGER.debug("[BeLoongCore] {} 从 {} 传送到 {} ({}, {}, {})",
+        LOGGER.debug("[BeLoongCore] {} transported from {} to {} ({}, {}, {})",
                 player.getName().getString(), sourceDim, targetDimId,
                 targetX, safeY, targetZ);
     }
@@ -173,7 +173,7 @@ public class DimensionTransportHandler {
 
         finishTransport(player);
 
-        LOGGER.debug("[BeLoongCore] {} 从 {} 传送到主世界出生点 ({}, {}, {})",
+        LOGGER.debug("[BeLoongCore] {} transported from {} to the overworld spawn ({}, {}, {})",
                 player.getName().getString(), sourceDim,
                 targetX, targetY, targetZ);
     }

@@ -311,7 +311,7 @@ public final class DisasterBiomeSubstitution {
             activeBiomeRegistry = biomeRegistry;
         } catch (Throwable t) {
             BeLoongCore.LOGGER.error(
-                    "[BeLoong] 天灾群系替换：无法取得群系注册表，本次不替换", t);
+                    "[BeLoong] disaster biome substitution: cannot obtain the biome registry, skipping this pass", t);
             substitutionApplied = false;
             return original;
         }
@@ -339,7 +339,8 @@ public final class DisasterBiomeSubstitution {
                 // 单条失败不影响整体：保留原版群系，仅计数
                 unsolved++;
                 BeLoongCore.LOGGER.error(
-                        "[BeLoong] 天灾群系替换：单条处理失败，该参数点保留原版群系", t);
+                        "[BeLoong] disaster biome substitution: failed to process one entry,"
+                                + " keeping the vanilla biome for that parameter point", t);
             }
             out.add(current);
         }
@@ -351,15 +352,16 @@ public final class DisasterBiomeSubstitution {
         // 注：第二项是"原样放行的条目数"，即**非 minecraft: 命名空间**的条目（BWG / beloong:）。
         // 白名单已清空，故它现在等价于"非原版保留"，不再是"白名单保留"。
         BeLoongCore.LOGGER.info(
-                "[BeLoong] 天灾维度群系替换：参数点 {} 个 = 替换 {} + 非原版保留 {} + 未能求解 {}"
-                        + "（替换{}生效）",
+                "[BeLoong] disaster biome substitution: parameter points {} = replaced {} + non-vanilla kept {}"
+                        + " + unsolved {} (substitution {})",
                 out.size(), replaced, out.size() - replaced - unsolved, unsolved,
-                substitutionApplied ? "" : "未");
+                substitutionApplied ? "applied" : "NOT applied");
         if (unsolved > 0) {
             BeLoongCore.LOGGER.error(
-                    "[BeLoong] 天灾群系替换：有 {} 个参数点未能求解，这些位置会保留原版群系。"
-                            + "常见原因：映射目标被 BWG 的 world_generation.json 禁用，"
-                            + "或映射表未覆盖该群系", unsolved);
+                    "[BeLoong] disaster biome substitution: {} parameter points could not be resolved;"
+                            + " vanilla biomes will be kept there. Common causes: the mapping target is disabled"
+                            + " in BWG's world_generation.json, or the mapping table does not cover that biome",
+                    unsolved);
         }
 
         return out;
@@ -408,14 +410,14 @@ public final class DisasterBiomeSubstitution {
                 // 与标题「应为空集」看起来自相矛盾。
                 boolean isIndexZero =
                         Regions.getIndex(RegionType.OVERWORLD, region.getName()) == 0;
-                sb.append(String.format("%n    %s%s：参数点 %d，DEFERRED %d，minecraft: 群系 %d 种 %s",
+                sb.append(String.format("%n    %s%s: parameter points %d, DEFERRED %d, minecraft: biomes %d %s",
                         region.getName(),
-                        isIndexZero ? "（index 0，其树来自被改写的 values，非实际来源）" : "",
+                        isIndexZero ? " (index 0; its tree comes from the rewritten values, NOT a real source)" : "",
                         total[0], deferred[0], vanilla.size(), vanilla));
             }
             BeLoongCore.LOGGER.info(
-                    "[BeLoong] 天灾 region 树账目（index≠0 的 region 才是实际来源，其 minecraft: 应为空集）：{}",
-                    sb);
+                    "[BeLoong] disaster region tree audit (only regions with index!=0 are real sources;"
+                            + " their minecraft: biomes must be empty): {}", sb);
 
             // 自制群系是否真的注册成功——映射目标一旦指向未注册的群系，
             // filter() 会走"保留原版 + 记 ERROR"分支，账目出现「未能求解 > 0」。
@@ -429,15 +431,15 @@ public final class DisasterBiomeSubstitution {
                 }
             }
             if (missing.isEmpty()) {
-                BeLoongCore.LOGGER.info("[BeLoong] 自制群系注册情况：{} 个全部就绪 {}",
+                BeLoongCore.LOGGER.info("[BeLoong] custom biome registration: all {} ready {}",
                         CUSTOM_BIOMES.size(), CUSTOM_BIOMES);
             } else {
-                BeLoongCore.LOGGER.error("[BeLoong] 自制群系注册情况：以下 {} 个未注册，"
-                                + "映射到它们的原版群系将保留原版：{}",
+                BeLoongCore.LOGGER.error("[BeLoong] custom biome registration: the following {} are not registered,"
+                                + " vanilla biomes mapped to them will be kept: {}",
                         missing.size(), missing);
             }
         } catch (Throwable t) {
-            BeLoongCore.LOGGER.error("[BeLoong] region 树账目统计失败", t);
+            BeLoongCore.LOGGER.error("[BeLoong] region tree audit failed", t);
         }
     }
 
@@ -473,14 +475,14 @@ public final class DisasterBiomeSubstitution {
                         holder.unwrapKey().ifPresent(k -> vanilla.add(k.location().getPath()));
                     }
                 }
-                sb.append(String.format("%n    %s：共 %d 种 %s%s",
+                sb.append(String.format("%n    %s: %d biomes %s%s",
                         level.dimension().location(), biomes.size(), byNamespace,
-                        vanilla.isEmpty() ? "" : "  ⚠️ 残留 minecraft: " + vanilla));
+                        vanilla.isEmpty() ? "" : "  (!) residual minecraft: " + vanilla));
             }
             BeLoongCore.LOGGER.info(
-                    "[BeLoong] 各维度 possibleBiomes 账目（天灾的 minecraft: 应为空集）：{}", sb);
+                    "[BeLoong] per-dimension possibleBiomes audit (beloong:disaster minecraft: must be empty): {}", sb);
         } catch (Throwable t) {
-            BeLoongCore.LOGGER.error("[BeLoong] possibleBiomes 账目统计失败", t);
+            BeLoongCore.LOGGER.error("[BeLoong] possibleBiomes audit failed", t);
         }
     }
 
@@ -553,15 +555,16 @@ public final class DisasterBiomeSubstitution {
         if (mapped == null) {
             if (logErrors) {
                 BeLoongCore.LOGGER.error(
-                        "[BeLoong] 天灾群系替换：{} 在映射表中没有对应项，该群系将保留原版", from);
+                        "[BeLoong] disaster biome substitution: no mapping entry for {}, keeping the vanilla biome", from);
             }
             return null;
         }
         if (!isUsable(registry, mapped)) {
             if (logErrors) {
                 BeLoongCore.LOGGER.error(
-                        "[BeLoong] 天灾群系替换：{} 的目标 {} 不可用（未注册或被 BWG 配置禁用），"
-                                + "该群系将保留原版", from, mapped.location());
+                        "[BeLoong] disaster biome substitution: target {} for {} is unusable"
+                                + " (not registered or disabled in BWG config), keeping the vanilla biome",
+                        mapped.location(), from);
             }
             return null;
         }
@@ -614,7 +617,8 @@ public final class DisasterBiomeSubstitution {
         }
         if (!ModList.get().isLoaded(BWG_MOD_ID)) {
             BeLoongCore.LOGGER.error(
-                    "[BeLoong] 天灾群系替换：BWG（{}）未加载——这是硬依赖，功能无法工作", BWG_MOD_ID);
+                    "[BeLoong] disaster biome substitution: BWG ({}) is not loaded - it is a hard dependency,"
+                            + " the feature cannot work", BWG_MOD_ID);
             return false;
         }
         try {
@@ -630,8 +634,8 @@ public final class DisasterBiomeSubstitution {
             return !Boolean.FALSE.equals(map.get(id));
         } catch (Throwable t) {
             BeLoongCore.LOGGER.error(
-                    "[BeLoong] 天灾群系替换：无法读取 BWG 群系配置（{}），"
-                            + "相关目标将一律保留原版群系", t.toString());
+                    "[BeLoong] disaster biome substitution: cannot read the BWG biome config ({}),"
+                            + " affected targets will keep their vanilla biomes", t.toString());
             return false;
         }
     }

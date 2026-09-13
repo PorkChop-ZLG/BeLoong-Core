@@ -148,17 +148,18 @@ public final class BeloongSurfaceRules {
             if (probe instanceof NamespacedSurfaceRuleSource namespaced) {
                 Set<String> namespaces = namespaced.sources().keySet();
                 if (namespaces.contains("beloong")) {
-                    BeLoongCore.LOGGER.info("[BeLoong] 地表规则分发表命名空间：{} ✓ 含 beloong", namespaces);
+                    BeLoongCore.LOGGER.info("[BeLoong] surface rule dispatch table namespaces: {} (contains beloong)", namespaces);
                 } else {
                     BeLoongCore.LOGGER.error(
-                            "[BeLoong] 地表规则分发表里没有 beloong —— 自制群系的地表会掉到默认草/土。"
-                                    + "实际命名空间：{}", namespaces);
+                            "[BeLoong] the surface rule dispatch table has no beloong entry -"
+                                    + " custom biomes will fall back to default grass/dirt."
+                                    + " Actual namespaces: {}", namespaces);
                 }
             } else {
-                BeLoongCore.LOGGER.error("[BeLoong] 地表规则未按命名空间装配，得到 {}", probe);
+                BeLoongCore.LOGGER.error("[BeLoong] surface rules are not namespaced as expected, got {}", probe);
             }
         } catch (Throwable t) {
-            BeLoongCore.LOGGER.error("[BeLoong] 地表规则命名空间检查失败", t);
+            BeLoongCore.LOGGER.error("[BeLoong] surface rule namespace check failed", t);
         }
     }
 

@@ -228,6 +228,11 @@ dependencies {
     compileOnly "curse.maven:legendary-monsters-944035:8715533"
     localRuntime "curse.maven:legendary-monsters-944035:8715533"
 
+    // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
+    localRuntime "curse.maven:vanillabackport-417430:8229724"
+    // Platform — Vanilla Backport 的前置库；参考源在 开源模组参考文件\Platform
+    localRuntime "curse.maven:platform-997634:8075942"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

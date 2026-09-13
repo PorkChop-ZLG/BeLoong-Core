@@ -294,7 +294,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     private static DimensionTransition createDownwardTransition(ServerPlayer player, BlockPos portalPos, int waitedTicks) {
         ServerLevel target = disasterLevel(player);
         if (target == null) {
-            LOGGER.error("[BeLoongCore][DisasterPortal:error] 找不到维度 {}，无法下行传送（玩家 {}）",
+            LOGGER.error("[BeLoongCore][DisasterPortal:error] dimension {} not found, cannot teleport downward (player {})",
                     DISASTER_DIM, player.getName().getString());
             return null;
         }
@@ -316,10 +316,12 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
             player.setPortalCooldown(0);
             // "首轮"判定＝进门后第一次询问落点（第 PORTAL_TRANSITION_TICKS + 1 tick）；余下走 debug 免得刷屏
             if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
-                LOGGER.info("[BeLoongCore][DisasterPortal:wait] 落点区块 {} ({}, {}) 尚未就绪，已申领 ticket 预热，等待加载",
+                LOGGER.info("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) not ready yet,"
+                                + " PORTAL ticket claimed, waiting for load",
                         DISASTER_DIM, chunkX, chunkZ);
             } else {
-                LOGGER.debug("[BeLoongCore][DisasterPortal:wait] 落点区块 {} ({}, {}) 仍未就绪（已等待 {} tick）",
+                LOGGER.debug("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) still not ready"
+                                + " (waited {} ticks)",
                         DISASTER_DIM, chunkX, chunkZ, waitedTicks);
             }
             return null;
@@ -338,7 +340,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
 
         // X/Z 精确保留（1:1）；速度清零、朝向保留，等价旧 teleportTo(..., Set.of(), yRot, xRot)
         Vec3 destination = new Vec3(player.getX(), targetY, player.getZ());
-        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} 下行 {} -> {} ({}, {}, {}) waited={} tick",
+        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} downward {} -> {} ({}, {}, {}) waited={} ticks",
                 player.getName().getString(), player.level().dimension().location(), DISASTER_DIM,
                 destination.x, destination.y, destination.z, waitedTicks);
         return new DimensionTransition(target, destination, Vec3.ZERO,
@@ -361,7 +363,8 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      * {@code ClientboundRespawnPacket} 同步给客户端，而"不传送"没有这条包。
      */
     private static DimensionTransition failDestination(ServerPlayer player, int blockX, int blockZ, int waitedTicks) {
-        LOGGER.error("[BeLoongCore][DisasterPortal:timeout] 落点区块 {} ({}, {}) 等待 {} tick 仍未就绪，放弃本次传送（玩家 {}，目标 {}({}, {})）",
+        LOGGER.error("[BeLoongCore][DisasterPortal:timeout] destination chunk {} ({}, {}) still not ready after"
+                        + " {} ticks, giving up this attempt (player {}, target {}({}, {}))",
                 DISASTER_DIM, blockX >> 4, blockZ >> 4, waitedTicks,
                 player.getName().getString(), DISASTER_DIM, blockX, blockZ);
         // 提示文案说的是"目标区块"，因此必须传区块坐标（blockX/Z 是方块坐标，>> 4 才是区块）
@@ -393,14 +396,15 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         ServerLevel target = player.server.getLevel(respawnDim);
         if (target == null) target = overworld;   // 回退到主世界
         if (target == null) {
-            LOGGER.error("[BeLoongCore][DisasterPortal:error] 找不到重生维度 {}，无法上行传送（玩家 {}）",
+            LOGGER.error("[BeLoongCore][DisasterPortal:error] respawn dimension {} not found,"
+                            + " cannot teleport upward (player {})",
                     respawnDim.location(), player.getName().getString());
             return null;
         }
 
         // 传送到重生点（中心对齐 +0.5），保留朝向；不做任何高度图查询（与原行为一致）
         Vec3 destination = new Vec3(respawnPos.getX() + 0.5, respawnPos.getY(), respawnPos.getZ() + 0.5);
-        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} 上行 {} -> {} ({}, {}, {}) waited={} tick",
+        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} upward {} -> {} ({}, {}, {}) waited={} ticks",
                 player.getName().getString(), DISASTER_DIM, target.dimension().location(),
                 destination.x, destination.y, destination.z, waitedTicks);
         return new DimensionTransition(target, destination, Vec3.ZERO,

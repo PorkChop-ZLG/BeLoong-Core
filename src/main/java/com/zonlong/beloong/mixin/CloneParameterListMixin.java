@@ -97,8 +97,8 @@ public class CloneParameterListMixin {
                 ((ParameterListAccessor) cloned).beloong$setValues(filtered);
             } catch (Throwable t) {
                 BeLoongCore.LOGGER.error(
-                        "[BeLoong] 天灾群系替换失败，本次按 TerraBlender 原行为初始化"
-                                + "（天灾维度将保留原版群系）", t);
+                        "[BeLoong] disaster biome substitution failed, initializing with TerraBlender's"
+                                + " default behaviour this time (the disaster dimension will keep vanilla biomes)", t);
             }
 
             // 账目：region 树里还剩哪些 minecraft: 群系。

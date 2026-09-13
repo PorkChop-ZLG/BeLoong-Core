@@ -100,11 +100,13 @@ public class BeLoongCoreClient {
     @SubscribeEvent
     static void registerDimensionTransitionScreens(RegisterDimensionTransitionScreenEvent event) {
         if (!event.registerIncomingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new)) {
-            LOGGER.warn("[BeLoongCore] 进入 {} 的过渡界面注册失败：该维度已被其它模组（或本模组重复注册）占用",
+            LOGGER.warn("[BeLoongCore] failed to register the incoming transition screen for {}:"
+                            + " the dimension is already taken by another mod (or registered twice)",
                     DisasterPortalBlock.DISASTER_LEVEL.location());
         }
         if (!event.registerOutgoingEffect(DisasterPortalBlock.DISASTER_LEVEL, DisasterPortalTransitionScreen::new)) {
-            LOGGER.warn("[BeLoongCore] 离开 {} 的过渡界面注册失败：该维度已被其它模组占用",
+            LOGGER.warn("[BeLoongCore] failed to register the outgoing transition screen for {}:"
+                            + " the dimension is already taken by another mod",
                     DisasterPortalBlock.DISASTER_LEVEL.location());
         }
     }

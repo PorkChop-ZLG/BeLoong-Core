@@ -1,5 +1,7 @@
 # 天灾维度第二阶段 实施计划
 
+> 注：本文引用的模组日志文本已于 2026-09-13 英文化（原为中文），语义与数值未变。
+
 **Goal:** 用 5 个 `beloong:` 自制群系接管 14 个白名单原版群系，另 7 项改指 BWG 群系，
 使天灾维度的群系里**不含任何 `minecraft:` 群系**。
 
@@ -9,7 +11,7 @@
 >
 > | 断言 | 实测 |
 > |---|---|
-> | 账目 100% 替换 | `参数点 7593 个 = 替换 7593 + 非原版保留 0 + 未能求解 0（替换生效）` |
+> | 账目 100% 替换 | `parameter points 7593 = replaced 7593 + non-vanilla kept 0 + unsolved 0 (substitution applied)` |
 > | region 树 `minecraft:` 为 0 种 | `region_0/1/2` 三个 BWG region 全部 `[]` |
 > | 无 BeLoong 相关 ERROR | 无 |
 > | 服务器正常启动 | `Done (21.552s)!` |
@@ -147,9 +149,9 @@
 >   **并行分发**的而 `SurfaceRuleManager` 内部是普通 `HashMap`；**BWG 自己也是这么做的**
 >   （`BiomesWeveGoneNeoForge.onInitialize`），我原先的注释把它写错了。
 >   丢失更新会让规则被静默丢弃且不报错——正是本功能最怕的失效模式。
-> - region 树账目的标题与实际矛盾：index 0（`DefaultOverworldRegion`）的 `addBiomes` 输出恒为
+> - region tree audit 的标题与实际矛盾：index 0（`DefaultOverworldRegion`）的 `addBiomes` 输出恒为
 >   53 个原版群系，但它的**树**来自被改写的 `values`、并非实际取群系来源。已在该行显式标注。
-> - 账目里的 `白名单保留` 标签在白名单清空后已名不副实，改为 `非原版保留`。
+> - 账目里的 `whitelist kept` 标签在白名单清空后已名不副实，改为 `non-vanilla kept`。
 > - 删掉一处不可达分支（`rewriteKey` 返回不同键时 `getHolder` 必非空）。
 > - 修正三处文档/注释与实际不符：`araucaria_savanna` 是"无地表规则"的例外、
 >   `mushroom_fields → crag_gardens` 同样无规则（已显式记录为已知例外）、
@@ -162,7 +164,7 @@
 > | 断言 | 实测 |
 > |---|---|
 > | 两条 `@Inject` 已应用 | ✅ 日志可见 |
-> | 账目 | `替换 7593 + 非原版保留 0 + 未能求解 0` ✅ |
+> | 账目 | `replaced 7593 + non-vanilla kept 0 + unsolved 0` ✅ |
 > | region 树 `minecraft:` | 三个 BWG region 均 `0 种` ✅ |
 > | `possibleBiomes` | 天灾 `60 种 {beloong=5, biomeswevegone=55}`；**下界 `9 种 {minecraft=5}`** ✅ |
 > | 地表规则分发表 | `[minecraft, beloong, biomeswevegone]` ✅ |
@@ -263,7 +265,7 @@
 |---|---|---|
 | **编译** | `.\gradlew.bat compileJava` | 代码合法；**不能**证明注入点可用（复盘 M2） |
 | **服务器启动** | `.\gradlew.bat runServer` → `run/logs/latest.log` | 注入是否真的应用、账目是否逐点闭合 |
-| **region 树账目** | 新注入路径自己打的日志 | region 树里还剩多少 `minecraft:` 群系 |
+| **region tree audit** | 新注入路径自己打的日志 | region 树里还剩多少 `minecraft:` 群系 |
 
 > ⚠️ **`runServer` 的前置条件**：`run/mods` 里的 `sodium` / `iris` 是纯客户端模组，
 > 会让专用服务器在 bootstrap 阶段 `NoClassDefFoundError: org/lwjgl/Version`。
@@ -280,10 +282,10 @@
 **Files:** 无（使用现有代码）
 **Steps:**
 1. 临时移出 `run/mods/{sodium,iris}` 到 `run/mods.disabled-probe/`
-2. `.\gradlew.bat runServer`，等 `[BeLoong] 天灾维度群系替换` 出现后停服
+2. `.\gradlew.bat runServer`，等 `[BeLoong] disaster biome substitution` 出现后停服
 3. 记录基线数字
 **Verification:** 日志中应出现
-`参数点 7593 个 = 替换 6782 + 白名单保留 811 + 未能求解 0（替换生效）`
+`parameter points 7593 = replaced 6782 + whitelist kept 811 + unsolved 0 (substitution applied)`
 
 ---
 
@@ -328,14 +330,14 @@
 **Verification:** `.\gradlew.bat compileJava` 通过。
 ⚠️ **编译成功不代表注入可用**（复盘 M2），必须由 T3 实机确认
 
-#### T3：加 region 树账目日志
+#### T3：加 region tree audit 日志
 **Files:**
 - Modify: `src/main/java/com/zonlong/beloong/mixin/BwgRegionBiomeRewriteMixin.java`（或 `DisasterBiomeSubstitution`）
 
 **Steps:**
 1. 统计每次 `addBiomes` 调用中：改写条数、**未能改写而残留的 `minecraft:` 群系集合**
 2. 用 `BeLoongCore.LOGGER` 打一行，格式对齐现有账目日志风格
-3. 残留集合**非空时按 ERROR 级别报出**（与 `filter()` 的 `未能求解` 处理一致）
+3. 残留集合**非空时按 ERROR 级别报出**（与 `filter()` 的 `unsolved` 处理一致）
 
 **Verification:** 由 T4 一并确认
 
@@ -345,9 +347,9 @@
 1. `.\gradlew.bat runServer`
 2. 读日志
 **Verification:** 三条同时成立才算通过：
-- `[BeLoong] 天灾维度群系替换：参数点 7593 个 = 替换 6782 + 白名单保留 811 + 未能求解 0`
+- `[BeLoong] disaster biome substitution: parameter points 7593 = replaced 6782 + whitelist kept 811 + unsolved 0`
   （**数字应与 T0 完全相同**——本阶段还不改映射表与白名单）
-- region 树账目里 `minecraft:` 群系**从 12 种降到 7 种**
+- region tree audit 里 `minecraft:` 群系**从 12 种降到 7 种**
   （只应剩下白名单里那 7 个 region 树桶项：`river` `frozen_river` `lush_caves`
   `dripstone_caves` `deep_dark` `stony_shore` `windswept_savanna`）
 - 被修掉的应是这 5 个：`badlands` `eroded_badlands` `wooded_badlands` `mushroom_fields` `beach`
@@ -484,9 +486,9 @@
 **Steps:** `.\gradlew.bat runServer`，读日志
 **Verification:** 四条全部成立：
 1. 账目逐点闭合且**替换率为 100%**：
-   `参数点 7593 个 = 替换 7593 + 非原版保留 0 + 未能求解 0（替换生效）`
-2. region 树账目里 `minecraft:` 群系 **0 种**（残留集合为空、无 ERROR）
-3. 启动无 `天灾群系替换失败` 报错
+   `parameter points 7593 = replaced 7593 + non-vanilla kept 0 + unsolved 0 (substitution applied)`
+2. region tree audit 里 `minecraft:` 群系 **0 种**（残留集合为空、无 ERROR）
+3. 启动无 `disaster biome substitution failed` 报错
 4. 全流程无异常（服务器跑到 `Done`）
 
 ---
@@ -535,7 +537,7 @@ T11 ── T12 ── T13 ───────────┘
 |---|---|---|
 | **T2 注入点不可用** | 阶段 1 整体失败 | 复盘 M2：必须实机确认。备选注入点见总设计 §10.6（`Climate.ParameterList` 内 `@Redirect Region.addBiomes`，需 MixinExtras `@Local`） |
 | **T4 的 7 种数字对不上** | 说明 region 树构成与取证不符 | **停下来重新取证**，不要继续 |
-| **映射目标不可用** | 该项保留原版 + ERROR，账目 `未能求解 > 0` | 检查群系 ID 拼写与 JSON 是否真的加载；T16 的"未能求解 = 0"是硬门槛 |
+| **映射目标不可用** | 该项保留原版 + ERROR，账目 `unsolved > 0` | 检查群系 ID 拼写与 JSON 是否真的加载；T16 的"unsolved = 0"是硬门槛 |
 | **地表规则没生效** | 碎裂地形变草坡（观感损坏，不崩） | T17 客户端验收；`beloong:` 规则返回 `null` 时会落回原版，属安全降级 |
 | **无配置开关** | 出问题只能改代码 | 沿用决策 23：新注入路径必须 try/catch，失败时退化为"原样放行"而非抛异常 |
 | **动了主世界** | 灾难性 | region 树改写受 `isSubstitutionApplied()` 守卫；主世界不在 `overworld_regions` tag 内，`initializeBiomes` 提前 return，两者都不会触发 |
@@ -551,9 +553,9 @@ T11 ── T12 ── T13 ───────────┘
 > 状态截至 2026-09-11 第 3 轮。**服务端与文档部分已全部达成并附实测证据；客户端观感部分待用户执行。**
 
 **服务端（已达成）:**
-- [x] 账目：`替换 7593 + 非原版保留 0 + 未能求解 0 = 7593`
-      （标签由 `白名单保留` 改名——白名单已清空，该项现在指"原样放行的非 minecraft: 条目"）
-- [x] region 树账目：`biomeswevegone:region_0/1/2` 的 `minecraft:` 群系 **0 种**
+- [x] 账目：`replaced 7593 + non-vanilla kept 0 + unsolved 0 = 7593`
+      （标签由 `whitelist kept` 改名——白名单已清空，该项现在指"原样放行的非 minecraft: 条目"）
+- [x] region tree audit：`biomeswevegone:region_0/1/2` 的 `minecraft:` 群系 **0 种**
 - [x] 启动与运行期无 ERROR 级 `[BeLoong]` 日志
 - [x] **额外** — 查询层 `possibleBiomes()` 逐维度实测：
       天灾 `60 种 {beloong=5, biomeswevegone=55}`（`minecraft:` **0**）；

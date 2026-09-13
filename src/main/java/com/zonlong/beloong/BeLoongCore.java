@@ -141,7 +141,7 @@ public class BeLoongCore {
                     SurfaceRuleManager.RuleCategory.OVERWORLD,
                     "beloong",
                     BeloongSurfaceRules.makeRules());
-            LOGGER.info("[BeLoong] 已注册 beloong 命名空间地表规则（天灾维度自制群系）");
+            LOGGER.info("[BeLoong] registered beloong-namespaced surface rules (disaster-dimension custom biomes)");
         });
     }
 
