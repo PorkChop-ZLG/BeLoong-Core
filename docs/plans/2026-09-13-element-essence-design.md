@@ -72,35 +72,49 @@
 
 ## 3. 架构
 
-**一个参数化物品类 + 一个元素枚举**。8 件行为完全相同（无效果、仅 tooltip），分别写 8 个类没有任何收益；而项目现有 `item/effect/` 下每个物品一个类，是因为那 4 件各有独立行为。
+**十件物品就地写在 `ModItems` 里，不建类、不建枚举、不建基类。**
 
-```
-item/essence/ElementType.java        元素枚举：id 名 + 中英文代入词
-item/essence/ElementEssenceItem.java extends Item，唯一覆写 appendHoverText()
-ModItems.java                        8 个 DeferredItem<Item> 常量（显式逐个注册）
-ModCreativeModeTabs.java             8 个 output.accept(...)
-```
+**2026-09-13 两次回退记录**（用户连续两次指出抽象过度，最终形态如下）：
 
-**tooltip 用单一 key + 单一 `%s`**，8 件共用模板，代入词按元素翻译键解析：
+| 版本 | 结构 | 结局 |
+|---|---|---|
+| V1 | 一个参数化物品类 + `ElementType` 枚举 + 语言文件「共享模板 + 元素代入词」 | 用户否决："为了写 tooltip 专门写一个类保存各种元素，没有必要" |
+| V2 | 每件物品一个子类，tooltip 各写各的（10 个类文件 + 1 个只放属性的基类） | 用户否决："只是简单注册物品，可以直接在 ModItems 里面写，没必要额外写十个类" |
+| **V3（最终）** | **全部写在 `ModItems` 里**：一个私有工厂返回匿名 `Item` 子类，tooltip 键作为参数传入 | — |
 
 ```java
-tooltipComponents.add(Component.translatable(
-        "item.beloong.element_essence.tooltip",              // 模板
-        Component.translatable(element.tooltipNameKey())));   // 代入的词：元素词
+/** 元素魔源（金）。 */
+public static final DeferredItem<Item> METAL_ESSENCE =
+        Items.register("metal_essence", essenceSupplier("item.beloong.metal_essence.tooltip"));
+// …另外 9 件同形，仅 tooltip 键不同
+
+/**
+ * 构造一件元素魔源：唯一的行为变化是 tooltip，文案在语言文件里。
+ */
+private static Supplier<Item> essenceSupplier(String tooltipKey) {
+    return () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)) {
+        @Override
+        public void appendHoverText(ItemStack stack, TooltipContext context,
+                                    List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
+            tooltipComponents.add(Component.translatable(tooltipKey));
+        }
+    };
+}
 ```
 
-**为什么只传一个参数（元素词）**：`%s` 按出现顺序取参（`TranslatableContents.decomposeTemplate`：无显式序号时 `i++` 递增取 `args[i]`）。初版实现同时传了「物品名 + 元素词」两个参数，验证脚本立刻抓出中文被渲染成「自然界的**金魔源**元素凝聚成的魔源」——因为中文模板的第一个 `%s` 位于「自然界的…元素」中间，取到的是 `args[0]`（物品名）。
+**为什么工厂返回 `Supplier` 而不是 `Item`**：`DeferredRegister.Items.register` 是**懒加载**注册（要的是 `Supplier<Item>`），直接传实例编译不过。这是本次实测踩到的编译错误。
 
-中文需要元素词、英文需要物品名，而两者都落在 `args[0]`，**一个模板无法同时满足**。修正为只传元素词，英文侧的物品名改用固定的 `Elemental Essence` 表述：
+**匿名子类只有一个类文件**：jar 里只有 `ModItems$1.class`，10 件物品共用同一份类字节码，只是各自持有不同的 `tooltipKey`。
 
-| 语言 | 模板 | 渲染结果 |
-|---|---|---|
-| zh_cn | `自然界的%s元素凝聚成的魔源，可以为龙的成长提供魔力。` | 自然界的**金属**元素凝聚成的魔源，可以为龙的成长提供魔力。 |
-| en_us | `An Elemental Essence condensed from the %s element; it provides mana for a dragon's growth.` | An Elemental Essence condensed from the **metal** element; … |
+**语言文件**：每件一条完整句子（共 10 条），没有 `%s`、没有共享模板、没有元素代入词。
 
-英文用 `An Elemental Essence` 而非 `A %s Essence` 的两个理由：① 八种元素的英文词首音全为元音（earth/fire/ice/…），`An` 一律成立，不必按元素选冠词；② 避免 "Metal Essence … the metal element" 在一句里把 metal 重复三遍（用户已定「英文名与 ID 等同」，物品名本身含元素词）。
+| 键 | 值 |
+|---|---|
+| `item.beloong.metal_essence.tooltip` | 自然界的**金属**元素凝聚成的魔源，可以为龙的成长提供魔力。 |
+| `item.beloong.light_essence.tooltip` | 自然界的光元素凝聚成的魔源，可以为龙的成长提供魔力。 |
+| …（其余 8 条同理） | |
 
-为什么不把完整句子拆成 8 条独立 tooltip 键：模板 + 代入词的写法让「金→金属」这类单点差异集中在一处；同时把元素词做成独立键（`element.beloong.*`）后，资源包作者可以单独覆盖某一个元素词而不必重写整句。
+**被回退方案留下的技术结论（仍有价值）**：`%s` 按出现顺序取参（`TranslatableContents.decomposeTemplate`：无显式序号时 `i++` 递增取 `args[i]`）。曾经因为传了「物品名 + 元素词」两个参数，中文模板的第一个 `%s` 位于「自然界的…元素」中间而取到物品名，渲染出「自然界的**金魔源**元素凝聚成的魔源」——这类位置错配只有在**用真实语言文件重演展开**时才会暴露（见 §9）。现在改成每件一条完整句子后，这个失败模式不再存在。
 
 ## 4. 贴图规格（已从 12 帧动态改为静态单帧）
 
@@ -201,13 +215,17 @@ tooltipComponents.add(Component.translatable(
 
 ### 6.2 Java
 
-**新增（2）**
-- `src/main/java/com/zonlong/beloong/item/essence/ElementType.java`（10 个枚举常量）
-- `src/main/java/com/zonlong/beloong/item/essence/ElementEssenceItem.java`
+**新增：无独立类文件。**
+
+十件物品全部写在 `src/main/java/com/zonlong/beloong/item/ModItems.java` 里（一个私有工厂 + 10 行注册）。
 
 **修改（2）**
-- `src/main/java/com/zonlong/beloong/item/ModItems.java`（+10 常量）
-- `src/main/java/com/zonlong/beloong/item/ModCreativeModeTabs.java`（+10 accept，顺序同枚举声明）
+- `src/main/java/com/zonlong/beloong/item/ModItems.java`（+10 常量 + 1 个私有工厂）
+- `src/main/java/com/zonlong/beloong/item/ModCreativeModeTabs.java`（+10 accept）
+
+**已删除**
+- `item/essence/ElementType.java` — 初版的元素枚举（V1，见 §3、§7 D25）
+- `item/essence/ElementEssenceItem.java` 与 10 个 `<Element>EssenceItem.java` — V2 的子类方案（见 §3、§7 D28）；**整个 `item/essence/` 包已不存在**
 
 ### 6.3 资源
 
@@ -287,8 +305,13 @@ tooltipComponents.add(Component.translatable(
 | D20 | 8 件在创造页签中按五行+冰风雷顺序排列 | 与语言文件、枚举声明顺序一致，便于对照 |
 | **D21** | 追加**光、暗**两种元素，顺序排在雷之后，共 10 件 | 用户要求"和之前八种一样注册"；见 §1 后续增补 |
 | **D22** | 光的英文名 `light`、暗用 `dark` | 既有约定是英文名与 ID 等同（D2），故取最短且与中文「光/暗」直接对应的词 |
-| **D23** | 光/暗**贴图留空**，但**补上模型 JSON 与语言条目** | 见 §6.6：留空不会崩（回退到原版缺失贴图占位）；补模型把警告减半并让"以后放 PNG 即生效"；语言条目不补会让 tooltip 显示原始键 |
+| **D23** | 光/暗**贴图留空**，但**补上模型 JSON 与语言条目** | 见 §6.6：留空不会崩（回退到原版缺失贴图占位）；补模型把警告减半并让"以后放 PNG 即生效"；语言条目不补会让 tooltip 显示原始键。**该条已被 D26 取代**（贴图已补齐） |
 | **D24** | 雷的贴图**不再改动** | 用户明确要求 |
+| **D25** | **删除 `ElementType` 枚举**（V1 → V2） | 用户指出：为写 tooltip 专门建一个类保存元素信息没有必要。见 §3 |
+| **D26** | 语言文件改为**每件一条完整句子**（原"共享模板 + 元素代入词"作废） | 与 D25 配套；删除了 `item.beloong.element_essence.tooltip` 模板与 10 条 `element.beloong.*` 代入词 |
+| ~~D27~~ | ~~保留 `ElementEssenceItem` 作为只放属性的基类~~ | **已作废**（D28 连基类一并去掉） |
+| **D28** | **十件物品全部就地写在 `ModItems` 里**，不建任何独立类文件（V2 → V3） | 用户指出："只是简单注册物品，可以直接在 ModItems 里面写，没必要额外写十个类"。一个私有工厂返回匿名 `Item` 子类，tooltip 键作为参数传入 |
+| **D29** | 工厂返回 `Supplier<Item>` 而非 `Item` | `DeferredRegister.Items.register` 是懒加载注册，要的是 `Supplier<Item>`；直接传实例编译不过（实测） |
 | ~~D10–D13~~ | ~~贴图脚本程序化生成 / 保留 ASCII 诊断工具 / 金的色板与破对称 / 描边邻域规则~~ | **随动画方案作废**；相关教训记入 §5.5 |
 
 ## 8. Non-Goals
@@ -303,10 +326,10 @@ tooltipComponents.add(Component.translatable(
 ## 9. 验证计划
 
 1. `gradlew.bat build` 通过。
-2. 核对 jar 内容：**8 个** `<元素>_essence.png`（已完成的八件，均须为 16×16、RGBA）、**无任何 `*_essence.png.mcmeta`**、**10 个**模型 JSON、`item/essence/*.class`，并用 `javap` 确认 `ElementType` 恰好有 **10 个**枚举常量（顺序为 五行 → 冰风雷 → 光暗）。
-3. `python tools/verify_essence_lang.py`：用**真实语言文件**重演 Minecraft 的占位符展开，打印两种语言下**10 件**的最终 tooltip 文本，并断言中文字面与需求完全一致、无未解析的键泄漏。这条是必须的——D4 的初版实现（双参数）就是被它抓出中文渲染错误的；光暗追加时也是靠把元素表从 8 扩到 10 来防"加了物品但漏了语言条目"。
-4. `python tools/convert_element_sources.py --install` / `tools/generate_thunder_sprite.py --install`：安装时校验每张图为 16×16（不符则拒绝并报错），并清理残留 `.mcmeta`。这条把"尺寸错误"和"忘删 mcmeta"变成脚本负责的事，而不是靠人记得。
-5. 实机（由用户执行）：确认 10 件在创造页签可见且顺序正确、已完成的 8 张贴图显示正确、物品名显示为**黄色**、tooltip 文案正确；光暗两件显示为原版缺失贴图占位（预期行为，见 §6.6）。
+2. 核对 jar 内容：**10 个** `<元素>_essence.png`（均须为 16×16、RGBA）、**无任何 `*_essence.png.mcmeta`**、**10 个**模型 JSON、**不存在 `item/essence/` 包下的任何 class**（十件物品全部写在 `ModItems` 里）。
+3. `python tools/verify_essence_lang.py`：核对两种语言下 10 件各自的**物品名与 tooltip**——断言中文逐字匹配约定文案、断言文案里**不含 `%`**（现在是字面句子，混入格式符会在渲染时抛错）、并断言**已退役的键确实不存在**（`item.beloong.element_essence.tooltip` 与 10 条 `element.beloong.*`），防止资源包里的旧键与代码静默不一致。这条是必须的——早期"双参数 `%s`"的位置错配就是被同类检查抓出来的（见 §3）。
+4. `python tools/convert_element_sources.py --install` / `tools/generate_thunder_sprite.py --install` / `tools/generate_light_dark_sprites.py --install`：安装时校验每张图为 16×16（不符则拒绝并报错），并清理残留 `.mcmeta`。这条把"尺寸错误"和"忘删 mcmeta"变成脚本负责的事，而不是靠人记得。
+5. 实机（由用户执行）：确认 10 件在创造页签可见且顺序正确、贴图显示正确、物品名显示为**黄色**、tooltip 文案正确。
 
 ### 9.1 已作废：动画方案下关于"断言口径"的教训
 

@@ -39,7 +39,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.AMPLIFICATION_CHARM);
                         output.accept(ModItems.DAWN_LIGHT);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
-                        // 元素魔源：与 ElementType 的声明顺序（五行 + 冰风雷 + 光暗）一致。
+                        // 元素魔源：按五行 + 冰风雷 + 光暗的顺序展示，与语言文件条目顺序一致。
                         output.accept(ModItems.METAL_ESSENCE);
                         output.accept(ModItems.WOOD_ESSENCE);
                         output.accept(ModItems.WATER_ESSENCE);
