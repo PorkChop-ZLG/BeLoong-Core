@@ -16,6 +16,25 @@
 
 ## 功能特性
 
+### 元素魔源八件套
+
+八种元素（金、木、水、火、土、冰、风、雷）各一件「元素魔源」，当前为纯材料物品，无任何使用效果，仅提供说明文本。物品 ID 为 `beloong:<元素>_essence`，中英文名见下表：
+
+| 元素 | 物品 ID | 中文名 | 英文名 |
+|---|---|---|---|
+| 金 | `beloong:metal_essence` | 金魔源 | Metal Essence |
+| 木 | `beloong:wood_essence` | 木魔源 | Wood Essence |
+| 水 | `beloong:water_essence` | 水魔源 | Water Essence |
+| 火 | `beloong:fire_essence` | 火魔源 | Fire Essence |
+| 土 | `beloong:earth_essence` | 土魔源 | Earth Essence |
+| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence |
+| 风 | `beloong:wind_essence` | 风魔源 | Wind Essence |
+| 雷 | `beloong:thunder_essence` | 雷魔源 | Thunder Essence |
+
+八件的贴图均为 12 帧（16×16/帧，`frametime = 1`）的动态贴图，共用一套棱面宝石外形，差异来自配色与各自的元素动效。贴图由 `tools/generate_element_essence_textures.py` 程序化生成，可用同一脚本的 `--preview-dir` 参数先输出放大预览，确认后再写入正式路径。
+
+设计细节与取名依据见 `docs/plans/2026-09-13-element-essence-design.md`。
+
 ### 旧存档模板维度自动迁移
 
 配合 LockDown 的“固定指定维度”模式使用。当存档内的版本标记缺失或与配置中的 `template_update.templateVersion` 不一致时，BeLoong Core 会在服务器启动早期自动用模板世界覆盖固定的维度数据（例如 `beloong:loong_palace`），让旧存档也能更新到新版地图。

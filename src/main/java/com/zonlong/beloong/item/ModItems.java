@@ -4,6 +4,8 @@ import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
 import com.zonlong.beloong.item.effect.DawnLightEffect;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
+import com.zonlong.beloong.item.essence.ElementEssenceItem;
+import com.zonlong.beloong.item.essence.ElementType;
 import com.zonlong.beloong.registry.ModBlocks;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -51,6 +53,43 @@ public class ModItems {
     /** 黎明曙光 */
     public static final DeferredItem<Item> DAWN_LIGHT =
             Items.register("dawn_light", DawnLightEffect::new);
+
+    // ==================== 元素魔源八件套 ====================
+    // 注册顺序刻意与 ElementType 的声明顺序（五行 + 冰风雷）一致，不按字母序，
+    // 以便与创造模式页签的展示顺序、以及中英文语言文件的条目顺序互相对照。
+    // 8 件共用 ElementEssenceItem 这一个类，差异只在 ElementType 与动态贴图。
+
+    /** 元素魔源（金）。 */
+    public static final DeferredItem<Item> METAL_ESSENCE =
+            Items.register("metal_essence", () -> new ElementEssenceItem(ElementType.METAL));
+
+    /** 元素魔源（木）。 */
+    public static final DeferredItem<Item> WOOD_ESSENCE =
+            Items.register("wood_essence", () -> new ElementEssenceItem(ElementType.WOOD));
+
+    /** 元素魔源（水）。 */
+    public static final DeferredItem<Item> WATER_ESSENCE =
+            Items.register("water_essence", () -> new ElementEssenceItem(ElementType.WATER));
+
+    /** 元素魔源（火）。 */
+    public static final DeferredItem<Item> FIRE_ESSENCE =
+            Items.register("fire_essence", () -> new ElementEssenceItem(ElementType.FIRE));
+
+    /** 元素魔源（土）。 */
+    public static final DeferredItem<Item> EARTH_ESSENCE =
+            Items.register("earth_essence", () -> new ElementEssenceItem(ElementType.EARTH));
+
+    /** 元素魔源（冰）。 */
+    public static final DeferredItem<Item> ICE_ESSENCE =
+            Items.register("ice_essence", () -> new ElementEssenceItem(ElementType.ICE));
+
+    /** 元素魔源（风）。 */
+    public static final DeferredItem<Item> WIND_ESSENCE =
+            Items.register("wind_essence", () -> new ElementEssenceItem(ElementType.WIND));
+
+    /** 元素魔源（雷）。 */
+    public static final DeferredItem<Item> THUNDER_ESSENCE =
+            Items.register("thunder_essence", () -> new ElementEssenceItem(ElementType.THUNDER));
 
     /**
      * 天灾传送门框架的 BlockItem。

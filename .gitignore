@@ -48,5 +48,8 @@ memory/
 ### Tools ###
 tools/
 
+### Texture preview renders ###
+preview/
+
 ### Spyglass ###
 spyglass.json
