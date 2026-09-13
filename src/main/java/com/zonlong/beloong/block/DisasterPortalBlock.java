@@ -38,9 +38,8 @@ import org.slf4j.Logger;
  * 采用<b>原版传送门范式</b>（{@link Portal} + {@link net.minecraft.world.entity.PortalProcessor}）：
  * <ol>
  *   <li>{@link #entityInside} <b>只登记</b>（{@code entity.setAsInsidePortal}），不做任何区块加载；</li>
- *   <li>进入后先走 <b>{@value #PORTAL_TRANSITION_TICKS} tick 倒计时</b>（与原版下界门默认值同源，
- *       见 {@link #getPortalTransitionTime}）；倒计时期间每 tick 都在幂等地预热落点区块票据；</li>
- *   <li>倒计时结束后，原版 {@code Entity.handlePortal()} 回调 {@link #getPortalDestination}；</li>
+ *   <li>紧接着（下一 tick）原版 {@code Entity.handlePortal()} 回调 {@link #getPortalDestination}——
+ *       倒计时取 {@value #PORTAL_TRANSITION_TICKS}（即"接触即开始"，见 {@link #getPortalTransitionTime}）；</li>
  *   <li>落点用<b>非阻塞</b>方式确定：{@code ServerChunkCache#getChunkNow} 探测内存中的区块，
  *       未就绪则申领 {@link TicketType#PORTAL} 区域票据后返回 {@code null}，下一 tick 重试；</li>
  *   <li>换维度由 {@link DimensionTransition} + {@code postDimensionTransition} 回调完成。</li>
@@ -78,30 +77,37 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     private static final String COOLDOWN_KEY = "beloong_portal_cooldown";
 
     /**
-     * 进入传送门后的倒计时长度（ticks）。<b>80</b> 与原版下界门默认值
-     * （gamerule {@code playersNetherPortalDefaultDelay} = 80）一致，因此"进门 → 扭曲渐强 → 换维度"
-     * 的节奏与原版下界门相同：客户端 {@code spinningEffectIntensity} 每 tick +0.0125
-     * （{@code LocalPlayer.java:925}），80 tick 恰好涨满 1.0，即<b>传送那一刻扭曲最强</b>。
+     * 进门倒计时长度（ticks），取 <b>0</b> = 接触即开始传送尝试。
      * <p>
-     * 判定发生在 {@code PortalProcessor.processPortalTeleportation}（{@code portalTime++ >= 80}），
-     * 即进门后第 <b>81</b> tick 才第一次询问落点——这 80 tick 里 {@link #entityInside} 每 tick 都在
-     * 幂等刷新落点票据，等于给区块生成留了约 4 秒预热时间。
+     * <b>为什么是 0（2026-09-13 实机回归后的结论）</b>：本维度首次生成地形很慢（实测 122–130 tick，
+     * 约 6–6.5 s），因此<b>响应速度优先</b>——玩家一碰到门就开始「非阻塞探测 + 票据预热 + 重试」，
+     * 落点一就绪立刻传送；此时落点票据也会从进门第一 tick 起被 {@link #entityInside} 持续刷新，
+     * 生成越早开始越好。
      * <p>
-     * 中途离开传送门时，原版 {@code PortalProcessor.decayTick} 每 tick −4，20 tick 内倒计时归零，
-     * 与原版行为一致。
+     * 曾一度取 80（= 原版下界门默认 {@code playersNetherPortalDefaultDelay}），目的是让客户端
+     * {@code spinningEffectIntensity}（每 tick +0.0125，{@code LocalPlayer.java:925}）在换维度前涨满，
+     * 但实机证明代价不可接受：<b>落点已就绪时也要白等 81 tick（≈4 s）</b>
+     * （日志：`debug-2.log` 连续 4 次 `waited=81 tick`），而落点未就绪时它又并不能让传送提前。
+     * <p>
+     * 取舍：回到 0 后，落点<b>立即就绪</b>时玩家几乎看不到扭曲过渡（加载屏会马上接管）；
+     * 但只要落点未就绪（本维度的常态），玩家会在门里停留足够久，扭曲仍会涨满——
+     * 即"扭曲可见性"交给了慢路径，"响应速度"得到了保证。
      */
-    public static final int PORTAL_TRANSITION_TICKS = 80;
+    public static final int PORTAL_TRANSITION_TICKS = 0;
 
     /**
-     * 落点区块等待上限（ticks），<b>自倒计时结束（进门第 {@value #PORTAL_TRANSITION_TICKS}+1 tick）起算</b>。
+     * 落点区块等待上限（ticks），与 {@link #PORTAL_TRANSITION_TICKS} 一样<b>自进门起算</b>
+     * （{@code waitedTicks} 取自 {@code portalProcess.getPortalTime()}，该计数器从进门第一 tick 开始累加，
+     * 与倒计时长度无关）。
      * <p>
-     * 超过该时长仍未就绪即放弃本轮传送并报错。自进门起的最坏总时长约为
-     * {@code PORTAL_TRANSITION_TICKS + 200} tick（≈14 s）。
+     * 超过该时长仍未就绪即放弃本轮传送并报错。取 <b>600</b>（≈30 s）的依据：本维度地形生成实测
+     * 122–130 tick（约 6–6.5 s，见 `run/logs/debug-4.log` 的 `waited=122`、`latest.log` 的 `waited=130`），
+     * 原值 200 只剩约 1.5 倍余量，稍慢一次即失败；600 给出约 4.6 倍余量。
      * <p>
      * <b>注意</b>：单轮等待有界，且失败后会<b>停止重试直到玩家离开传送门</b>
      * （见 {@link #failDestination} 的说明）——"有界失败"指的是不会永久阻塞主线程。
      */
-    private static final int DESTINATION_WAIT_TIMEOUT_TICKS = 200;
+    private static final int DESTINATION_WAIT_TIMEOUT_TICKS = 600;
 
     /** 落点预热票据的半径：0 = 只加载落点所在的那一个区块（原版下界门落点用 3，我们只需要 1 个区块的高度图）。 */
     private static final int DESTINATION_TICKET_RADIUS = 0;
@@ -195,10 +201,14 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     }
 
     /**
-     * 进入传送门后的倒计时长度（ticks）：{@value #PORTAL_TRANSITION_TICKS}，与原版下界门默认值一致。
+     * 进门倒计时长度（ticks）：{@value #PORTAL_TRANSITION_TICKS}（0 ⇒ 接触即尝试传送）。
      * <p>
-     * 客户端在同一段倒计时里把 {@code spinningEffectIntensity} 从 0 涨到 1，因此"扭曲最强"与"开始换维度"
-     * 恰好同步；落点区块的预热门票也在这段时间里被每 tick 刷新。
+     * 判定在 {@code PortalProcessor.processPortalTeleportation}（{@code portalTime++ >= transitionTime}）：
+     * 取 0 时进门第 1 tick 就成立，落点一就绪立刻换维度；本来就没就绪时不会因此损失任何等待时间
+     * （等待上限自进门起算，见 {@link #DESTINATION_WAIT_TIMEOUT_TICKS}）。
+     * <p>
+     * 这里<b>不</b>用原版下界门的 80 tick：本维度首次生成地形慢（6–6.5 s），那 4 秒死等待
+     * 在落点已就绪时也会发生，实机不可接受（详见 {@link #PORTAL_TRANSITION_TICKS}）。
      */
     @Override
     public int getPortalTransitionTime(ServerLevel level, Entity entity) {
@@ -304,7 +314,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
                     new ChunkPos(chunkX, chunkZ), DESTINATION_TICKET_RADIUS, portalPos);
             // 关键：清掉原版在询问落点前设置的传送冷却，否则拿不到重试机会（见 getPortalDestination 注释）
             player.setPortalCooldown(0);
-            // 首次询问落点发生在进门第 PORTAL_TRANSITION_TICKS + 1 tick，故"首轮"的判定要带上倒计时长度
+            // "首轮"判定＝进门后第一次询问落点（第 PORTAL_TRANSITION_TICKS + 1 tick）；余下走 debug 免得刷屏
             if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
                 LOGGER.info("[BeLoongCore][DisasterPortal:wait] 落点区块 {} ({}, {}) 尚未就绪，已申领 ticket 预热，等待加载",
                         DISASTER_DIM, chunkX, chunkZ);
@@ -344,8 +354,8 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      * <p>
      * 为什么必须顶住：原版<b>玩家</b>冷却只有 10 tick（{@code Player#getDimensionChangingDelay} 覆写
      * {@code Entity} 的 300），远短于 NBT 冷却。若不管它，NBT 一到期 {@code setAsInsidePortal} 就会
-     * 重新登记 → 玩家站在门里时会无界重试（约每 {@code teleportCooldownTicks + 200} tick 一轮），
-     * 每轮都刷一次 error 日志与玩家消息。
+     * 重新登记 → 玩家站在门里时会无界重试（每轮 = 等待至多 {@link #DESTINATION_WAIT_TIMEOUT_TICKS} tick
+     * + NBT 冷却），每轮都刷一次 error 日志与玩家消息。
      * <p>
      * 另注：客户端在这段时间里仍会显示完整的 CONFUSION 扭曲——原版冷却只在换维度时随
      * {@code ClientboundRespawnPacket} 同步给客户端，而"不传送"没有这条包。
