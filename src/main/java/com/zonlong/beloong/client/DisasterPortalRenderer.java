@@ -3,29 +3,22 @@ package com.zonlong.beloong.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.zonlong.beloong.block.DisasterPortalBlockEntity;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
-import org.joml.Matrix4f;
-
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.zonlong.beloong.BeLoongCoreClient;
-import net.minecraft.client.renderer.RenderStateShard;
-import net.minecraft.resources.ResourceLocation;
-
-import java.util.function.Supplier;
+import org.joml.Vector3f;
 
 /**
  * 天灾传送门方块的自定义 BlockEntity 渲染器。
  * <p>
  * 该渲染器是原版 {@code TheEndPortalRenderer} 的重新实现，
- * 使用自定义着色器（{@code rendertype_disaster_portal}）和自定义贴图，
- * 通过投影纹理产生隧道透视效果，单张贴图快速滚动。
+ * 使用标准实体渲染管线绘制自定义贴图，以兼容原版和第三方光影管线。
  * <p>
  * <b>渲染逻辑：</b>
  * <ol>
@@ -46,29 +39,6 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
     private static final ResourceLocation DISASTER_PORTAL_LOCATION =
             ResourceLocation.fromNamespaceAndPath("beloong", "textures/disaster_portal.png");
 
-    /**
-     * 自定义 {@link RenderType}，使用单张贴图 + 快速滚动投影纹理。
-     */
-    private static final Supplier<RenderType> DISASTER_PORTAL = () -> RenderType.create(
-            "disaster_portal",
-            DefaultVertexFormat.POSITION,
-            VertexFormat.Mode.QUADS,
-            1536,
-            false,
-            false,
-            RenderType.CompositeState.builder()
-                    .setShaderState(new RenderStateShard.ShaderStateShard(
-                            () -> BeLoongCoreClient.disasterPortalShader))
-                    .setTextureState(
-                            RenderStateShard.MultiTextureStateShard.builder()
-                                    .add(DISASTER_PORTAL_LOCATION, false, false)
-                                    .build())
-                    .createCompositeState(false)
-    );
-
-    /** 缓存的 RenderType 实例，避免每次调用 renderType() 都重新创建。 */
-    private static RenderType disasterPortalRenderType;
-
     public DisasterPortalRenderer(BlockEntityRendererProvider.Context ctx) {
     }
 
@@ -79,16 +49,15 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
      * @param partialTick   当前帧的部分 tick 插值（用于平滑动画）
      * @param poseStack     变换矩阵栈（用于旋转、缩放、位移）
      * @param bufferSource  渲染缓冲区源（用于获取 VertexConsumer）
-     * @param packedLight   打包的亮度信息（天空光 + 方块光）
+     * @param packedLight   接口提供的打包亮度（传送门固定使用全亮）
      * @param packedOverlay 打包的叠加层信息（破坏动画等）
      */
     @Override
     public void render(DisasterPortalBlockEntity blockEntity, float partialTick, PoseStack poseStack,
                        MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
-        // 获取当前帧的模型视图投影矩阵
-        Matrix4f matrix4f = poseStack.last().pose();
-        // 获取 endPortal 着色器对应的顶点消费者，开始绘制
-        this.renderCube(blockEntity, matrix4f, bufferSource.getBuffer(this.renderType()));
+        PoseStack.Pose pose = poseStack.last();
+        VertexConsumer consumer = bufferSource.getBuffer(RenderType.entitySolid(DISASTER_PORTAL_LOCATION));
+        this.renderCube(blockEntity, pose, consumer, packedOverlay);
     }
 
     /**
@@ -101,15 +70,16 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
      * 上表面向内收进 0.75 格，下表面提高 0.375 格，
      * 使传送门效果在方块内部形成一个略微收窄的立方体视觉效果。
      */
-    private void renderCube(DisasterPortalBlockEntity blockEntity, Matrix4f pose, VertexConsumer consumer) {
+    private void renderCube(DisasterPortalBlockEntity blockEntity, PoseStack.Pose pose,
+                            VertexConsumer consumer, int packedOverlay) {
         float down = getOffsetDown();  // 0.375F — 下表面距方块底部的距离
         float up = getOffsetUp();      // 0.75F  — 上表面距方块顶部的距离
-        this.renderFace(blockEntity, pose, consumer, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, Direction.SOUTH);
-        this.renderFace(blockEntity, pose, consumer, 0.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, Direction.NORTH);
-        this.renderFace(blockEntity, pose, consumer, 1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F, Direction.EAST);
-        this.renderFace(blockEntity, pose, consumer, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F, 0.0F, Direction.WEST);
-        this.renderFace(blockEntity, pose, consumer, 0.0F, 1.0F, down, down, 0.0F, 0.0F, 1.0F, 1.0F, Direction.DOWN);
-        this.renderFace(blockEntity, pose, consumer, 0.0F, 1.0F, up, up, 1.0F, 1.0F, 0.0F, 0.0F, Direction.UP);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F, 1.0F, 1.0F, 1.0F, Direction.SOUTH);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 0.0F, 1.0F, 1.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, Direction.NORTH);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 1.0F, 1.0F, 1.0F, 0.0F, 0.0F, 1.0F, 1.0F, 0.0F, Direction.EAST);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F, 1.0F, 1.0F, 0.0F, Direction.WEST);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 0.0F, 1.0F, down, down, 0.0F, 0.0F, 1.0F, 1.0F, Direction.DOWN);
+        this.renderFace(blockEntity, pose, consumer, packedOverlay, 0.0F, 1.0F, up, up, 1.0F, 1.0F, 0.0F, 0.0F, Direction.UP);
     }
 
     /**
@@ -119,16 +89,33 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
      * 参数顺序为顶点 0 (x0, y0, z0) → 顶点 1 (x1, y0, z1)
      * → 顶点 2 (x1, y1, z2) → 顶点 3 (x0, y1, z3)。
      */
-    private void renderFace(DisasterPortalBlockEntity blockEntity, Matrix4f pose, VertexConsumer consumer,
+    private void renderFace(DisasterPortalBlockEntity blockEntity, PoseStack.Pose pose,
+                            VertexConsumer consumer, int packedOverlay,
                             float x0, float x1, float y0, float y1,
                             float z0, float z1, float z2, float z3,
                             Direction direction) {
         if (blockEntity.shouldRenderFace(direction)) {
-            consumer.addVertex(pose, x0, y0, z0);  // 左下角
-            consumer.addVertex(pose, x1, y0, z1);  // 右下角
-            consumer.addVertex(pose, x1, y1, z2);  // 右上角
-            consumer.addVertex(pose, x0, y1, z3);  // 左上角
+            this.addVertex(consumer, pose, packedOverlay, direction, x0, y0, z0);
+            this.addVertex(consumer, pose, packedOverlay, direction, x1, y0, z1);
+            this.addVertex(consumer, pose, packedOverlay, direction, x1, y1, z2);
+            this.addVertex(consumer, pose, packedOverlay, direction, x0, y1, z3);
         }
+    }
+
+    /**
+     * 写入标准实体顶点格式。UV 使用变换后的 Position，与旧核心着色器保持一致，
+     * 从而让相邻传送门方块共享连续纹理坐标。
+     */
+    private void addVertex(VertexConsumer consumer, PoseStack.Pose pose, int packedOverlay,
+                           Direction direction, float x, float y, float z) {
+        Vector3f transformedPosition = pose.pose().transformPosition(x, y, z, new Vector3f());
+        consumer.addVertex(transformedPosition.x(), transformedPosition.y(), transformedPosition.z())
+                .setColor(1.0F, 1.0F, 1.0F, 1.0F)
+                .setUv(transformedPosition.x() / 3.0F + 1.0F / 3.0F,
+                        transformedPosition.z() / 3.0F + 1.0F / 3.0F)
+                .setOverlay(packedOverlay)
+                .setLight(LightTexture.FULL_BRIGHT)
+                .setNormal(pose, direction.getStepX(), direction.getStepY(), direction.getStepZ());
     }
 
     /** 上表面的 Y 偏移因子。值越大，上表面越靠近方块中心（越收窄）。 */
@@ -141,13 +128,4 @@ public class DisasterPortalRenderer implements BlockEntityRenderer<DisasterPorta
         return 0.375F;
     }
 
-    /**
-     * 获取自定义 {@link RenderType}，使用单张贴图 + 投影纹理着色器。
-     */
-    protected RenderType renderType() {
-        if (disasterPortalRenderType == null) {
-            disasterPortalRenderType = DISASTER_PORTAL.get();
-        }
-        return disasterPortalRenderType;
-    }
 }

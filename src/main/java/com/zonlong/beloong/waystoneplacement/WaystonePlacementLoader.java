@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 龙宫预设传送石碑数据加载器。
+ * 龙宫预设传送石碑数据
  * <p>
  * 从 {@code data/beloong/beloong/waystone_placement/*.json} 读取石碑清单，
  * 在服务端数据重载时刷新。数据文件为 JSON 数组，每个元素是一个

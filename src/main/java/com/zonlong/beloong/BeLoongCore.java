@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
+
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -90,6 +91,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
+
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());
         }

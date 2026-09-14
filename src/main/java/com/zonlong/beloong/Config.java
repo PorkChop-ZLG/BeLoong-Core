@@ -27,11 +27,6 @@ public class Config {
             .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
-    /** 隐藏未专门绘制的龙盔甲（默认启用） */
-    public static final ModConfigSpec.BooleanValue HIDE_UNDEVELOPED_DRAGON_ARMOR = CLIENT_BUILDER
-            .comment("当龙盔甲没有专门贴图时，不显示通用默认回退盔甲")
-            .define("hideUndevelopedDragonArmor", true);
-
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
 
     // ==================== 通用配置 ====================
@@ -67,6 +62,18 @@ public class Config {
     public static final ModConfigSpec.BooleanValue FIX_FSWEEP_CONTAINER_CRASH = COMMON_BUILDER
             .comment("修复Fsweep打开部分容器崩溃")
             .define("fixFsweepContainerCrash", true);
+
+    /** Mowzie's Mobs 钢铁守护者：允许原版重锤伤害（默认启用） */
+    public static final ModConfigSpec.BooleanValue ENABLE_MOWZIE_MACE_DAMAGE = COMMON_BUILDER
+            .comment("Enable Ferrous Wroughtnaut damage by vanilla mace",
+                    "允许使用原版重锤对已激活的钢铁守护者造成伤害")
+            .define("enableMowzieMaceDamage", true);
+
+    /** Mowzie's Mobs 通臂大师：移除跑酷试炼中的飞行/水中/持续上升反作弊（默认启用） */
+    public static final ModConfigSpec.BooleanValue REMOVE_SCULPTOR_ANTI_CHEAT = COMMON_BUILDER
+            .comment("Remove Sculptor anti-cheat",
+                    "移除通臂大师跑酷试炼中的飞行、水中和持续上升反作弊；保留距离、低于石柱和传送检测")
+            .define("removeSculptorAntiCheat", true);
 
     // ==================== 旧存档模板维度迁移 ====================
 

@@ -5,8 +5,6 @@
   "client": [
     "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
-    "dragonsurvival.LivingEntityStableHoverMixin",
-    "dragonsurvival.DragonArmorRenderLayerMixin",
     "dragonsurvival.DamageEffectMixin",
     "dragonsurvival.ModifierMixin",
     "fdbosses.BossClientEventsMixin",
@@ -39,7 +37,10 @@
     "dragonsurvival.DragonStateHandlerMixin",
     "dragonsurvival.ProjectileDamageEffectMixin",
     "betterendisland.DragonSummonMixin",
-    "betterendisland.ExitPortalUtilsMixin"
+    "betterendisland.ExitPortalUtilsMixin",
+    "legendarymonsters.AnnihilationPursuerDamageCapMixin",
+    "mowziesmobs.EntityWroughtnautMaceMixin",
+    "mowziesmobs.EntitySculptorCanFlyMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
