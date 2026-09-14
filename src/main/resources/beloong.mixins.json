@@ -5,6 +5,7 @@
   "client": [
     "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
+    "dragonsurvival.LivingEntityStableHoverMixin",
     "dragonsurvival.DamageEffectMixin",
     "dragonsurvival.ModifierMixin",
     "fdbosses.BossClientEventsMixin",
