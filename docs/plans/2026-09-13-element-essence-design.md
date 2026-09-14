@@ -35,13 +35,15 @@
 | 水 | `beloong:water_essence` | Water Essence | 水魔源 | 水 / water | ✅ |
 | 火 | `beloong:fire_essence` | Fire Essence | 火魔源 | 火 / fire | ✅ |
 | 土 | `beloong:earth_essence` | Earth Essence | 土魔源 | 土 / earth | ✅ |
-| 冰 | `beloong:ice_essence` | Ice Essence | 冰魔源 | 冰 / ice | ✅ |
 | 风 | `beloong:wind_essence` | Wind Essence | 风魔源 | 风 / wind | ✅ |
 | 雷 | `beloong:thunder_essence` | Thunder Essence | 雷魔源 | 雷 / thunder | ✅ |
-| 光 | `beloong:light_essence` | Light Essence | 光魔源 | 光 / light | ⬜ 待补 |
-| 暗 | `beloong:dark_essence` | Dark Essence | 暗魔源 | 暗 / dark | ⬜ 待补 |
+| 冰 | `beloong:ice_essence` | Ice Essence | 冰魔源 | 冰 / ice | ✅ |
+| 光 | `beloong:light_essence` | Light Essence | 光魔源 | 光 / light | ✅ |
+| 暗 | `beloong:dark_essence` | Dark Essence | 暗魔源 | 暗 / dark | ✅ |
 
-**声明顺序 = 创造模式页签顺序 = 语言文件条目顺序**：五行 → 冰风雷 → 光暗。不按字母序。
+**声明顺序 = 创造模式页签顺序 = 校验脚本的报告顺序**：五行（金木水火土）→ 风雷冰 → 光暗。不按字母序。
+**冰在雷之后是用户 2026-09-14 的指定顺序**（原为冰风雷）。语言文件本身仍按**键名**排序（那是它自己的约定），只有页签与报告按此顺序。
+顺序的权威来源有三处，必须同步：`ModItems` 的声明、`ModCreativeModeTabs` 的 `accept` 调用、`tools/verify_essence_lang.py` 的 `ELEMENT_IDS`。
 
 **光的英文名用 `light` 而非 `holy`/`radiant`，暗用 `dark` 而非 `shadow`/`void`**：用户要求"和之前八种一样注册"，而既有约定是**英文名与物品 ID 等同**（D2），故取 `light`/`dark` 这两个最短且与中文「光/暗」直接对应的词。中文沿用「X魔源」体例。
 
@@ -158,9 +160,13 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 | `earth_essence` | `soilelement.png` | 用户手绘 |
 | `ice_essence` | `ChatGPT Image …19_43_05.png` | 用户 AI 生成 → 转换（后经用户手工微调） |
 | `wind_essence` | `ChatGPT Image …19_43_22.png` | 用户 AI 生成 → 转换（后经用户手工微调） |
-| `thunder_essence` | —（`tools/generate_thunder_sprite.py`） | 本项目绘制 |
-| `light_essence` | **（暂缺）** | **待补，见 §6.6** |
-| `dark_essence` | **（暂缺）** | **待补，见 §6.6** |
+| `thunder_essence` | `ChatGPT Image …9月14日 13_19_39.png` | **用户 AI 生成 → 转换**（2026-09-14 替换掉本项目绘制版） |
+| `light_essence` | —（`tools/generate_light_dark_sprites.py`） | 本项目绘制 |
+| `dark_essence` | —（`tools/generate_light_dark_sprites.py`） | 本项目绘制 |
+
+**雷的贴图于 2026-09-14 被用户提供的新图替换**：源图 1254×1254 RGBA（透明背景），`alpha>127` 包围盒 589×947（宽高比 0.622，偏高）。按用户要求**高度锁定 14px**（上下各留 1px），等比得 **9×14**，居中于 (3,1)。旧的程序化绘制版（10×13 / 101 像素 / 54 色）已弃用，`tools/generate_thunder_sprite.py` 随之作废。
+
+**尺寸上限已参数化**：`tools/convert_element_sources.py` 的 `SOURCES` 现在每项带 `max_width`/`max_height`。冰/风用 15×15，雷用 15×**14**（高度上限 14）。**取整方向很重要**：宽度必须向下取整——若按四舍五入算宽度，会把内容顶出调用方要的高度上限（要 14px 高却出来 15px）。
 
 ### 5.3 冰 / 风 / 雷的来源与做法
 
@@ -168,9 +174,9 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 |---|---|---|
 | 冰 | 用户用 AI 生成的 1254×1254 雪花图（`preview/ChatGPT Image 2026年9月13日 19_43_05.png`） | `tools/convert_element_sources.py` 转成 16×16 |
 | 风 | 用户用 AI 生成的 1254×1254 气旋图（`preview/ChatGPT Image 2026年9月13日 19_43_22.png`） | 同上 |
-| 雷 | 本项目绘制（`tools/generate_thunder_sprite.py`） | 程序化：径向渐变 + 金色电弧 + 硬边 |
+| 雷 | 用户用 AI 生成的 1254×1254 闪电图（`preview/ChatGPT Image 2026年9月14日 13_19_39.png`） | 同上，**高度上限 14** |
 
-**两张 AI 图的转换（`convert_element_sources.py`）**：源图是**平滑渲染图，没有可还原的像素格**——实测完全不透明连续段长度为 745 / 201 / 164 / 260… 完全无周期，所以脚本不假装能对齐网格，而是按内容区缩放。三条关键决定，每条都来自前一次尝试的实测失败：
+**三张 AI 图的转换（`convert_element_sources.py`）**：源图是**平滑渲染图，没有可还原的像素格**——实测完全不透明连续段长度为 745 / 201 / 164 / 260… 完全无周期，所以脚本不假装能对齐网格，而是按内容区缩放。三条关键决定，每条都来自前一次尝试的实测失败：
 
 1. **内容区取自 alpha 通道**，而不是"判断是否白色"。该图背景是**透明**的，而全透明像素的 RGB 是**黑色**（四角采样 `(0,0,0)`）——按颜色判背景会把整张画布都算成内容，于是精灵被缩放到了整图上。
 2. **输出 alpha 二值化**（覆盖率 ≥0.45 即全实、否则全空）。保留面积平均出的半透明覆盖率会在边缘留下一圈半透明格，在 16×16 下读作**发虚的边**而不是像素画的硬边。
@@ -237,10 +243,10 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 
 ### 6.4 工具（本地，`tools/` 已在 `.gitignore` 内）
 
-- `tools/convert_element_sources.py` — 把用户提供的两张 AI 大图（冰/风）转成 16×16 并安装；含 alpha 定内容区、二值化边缘、格中心取色、预乘 alpha、孤立暗格清理
-- `tools/generate_thunder_sprite.py` — 绘制雷的 16×16 精灵并安装
-- `tools/verify_essence_lang.py` — 用真实语言文件重演占位符展开，断言 tooltip 最终文本正确（见 §9）
-- 已删除的作废工具：`generate_element_essence_textures.py`（12 帧动画条生成）、`dump_essence_ascii.py`（动画帧校验）、`generate_element_sprites.py`（早期画冰/风/雷的掩码版，已被转换脚本与雷脚本取代；留着会在下次 `--install` 时把冰/风/雷覆盖回旧版）
+- `tools/convert_element_sources.py` — 把用户提供的 AI 大图（**冰 / 风 / 雷**）转成 16×16 并安装；含 alpha 定内容区、二值化边缘、格中心取色、预乘 alpha、孤立暗格清理；每项的尺寸上限由 `SOURCES` 里的 `max_width`/`max_height` 指定
+- `tools/generate_light_dark_sprites.py` — 绘制光、暗两张 16×16 精灵并安装
+- `tools/verify_essence_lang.py` — 核对两种语言下 10 件的物品名与 tooltip 文案（见 §9）
+- 已删除/作废的工具：`generate_element_essence_textures.py`（12 帧动画条生成）、`dump_essence_ascii.py`（动画帧校验）、`generate_element_sprites.py`（早期画冰/风/雷的掩码版）、`generate_thunder_sprite.py`（雷的程序化版，**已被用户提供的 AI 图替换而作废**）
 
 ### 6.5 八张成品的量化核对
 
@@ -251,14 +257,14 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 | 水 | 12×13 | 105 | 102 | 用户手绘 |
 | 火 | 15×14 | 103 | 99 | 用户手绘 |
 | 土 | 11×14 | 126 | 101 | 用户手绘 |
-| 冰 | 12×14 | 104 | 104 | AI 图转换（用户手改） |
-| 风 | 13×14 | 111 | 108 | AI 图转换（用户手改） |
-| 雷 | 10×13 | 101 | 54 | 本项目绘制 |
+| 风 | 13×14 | 111 | 108 | AI 图转换 |
+| 雷 | 9×14 | 68 | 68 | AI 图转换（2026-09-14 替换） |
+| 冰 | 12×14 | 104 | 104 | AI 图转换 |
 | 光 | 14×14 | 96 | 64 | 本项目绘制 |
 | 暗 | 14×15 | 174 | 109 | 本项目绘制 |
 
-十件的 bbox（10–15）、颜色数（54–136）都落在同一量级；不透明像素除光（96）与暗（174）外均在 101–142。
-这是"看起来是一套"的可量化近似判据。雷的颜色数偏低（54），但**用户明确要求不再改动雷**，故保持现状。
+表格顺序 = 页签展示顺序。十件的 bbox 宽度 9–15、内容高度 13–15，颜色数 64–136。
+**雷是其中像素最少的一件（68）**，因为它细长（9 宽）且源图本身断口较多；这是用户所选源图的形态。
 
 ### 6.6 光 / 暗的贴图（已补齐）
 
@@ -302,7 +308,7 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 | **D17** | 雷保持本项目绘制，但**改造成与其余七张同构**（实心团块 + 渐变 + 硬边） | 初版 70 像素/13 色与其余七张（103–142/99–136）差距过大，见 §5.3 |
 | **D18** | 未改动用户手绘的五张贴图，仅复制改名 | 已逐字节比对确认与原件一致 |
 | D19 | `stacksTo` 保持默认 64 | "最基础物品"即默认属性；未提出珍贵材料需求 |
-| D20 | 8 件在创造页签中按五行+冰风雷顺序排列 | 与语言文件、枚举声明顺序一致，便于对照 |
+| D20 | 物品按固定顺序排列（**五行 → 风雷冰 → 光暗**） | 顺序由用户 2026-09-14 指定（初版为冰风雷）。三处必须同步：`ModItems` 声明、`ModCreativeModeTabs` 的 `accept`、校验脚本的 `ELEMENT_IDS` |
 | **D21** | 追加**光、暗**两种元素，顺序排在雷之后，共 10 件 | 用户要求"和之前八种一样注册"；见 §1 后续增补 |
 | **D22** | 光的英文名 `light`、暗用 `dark` | 既有约定是英文名与 ID 等同（D2），故取最短且与中文「光/暗」直接对应的词 |
 | **D23** | 光/暗**贴图留空**，但**补上模型 JSON 与语言条目** | 见 §6.6：留空不会崩（回退到原版缺失贴图占位）；补模型把警告减半并让"以后放 PNG 即生效"；语言条目不补会让 tooltip 显示原始键。**该条已被 D26 取代**（贴图已补齐） |

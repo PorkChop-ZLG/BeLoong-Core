@@ -27,11 +27,13 @@
 | 水 | `beloong:water_essence` | 水魔源 | Water Essence | ✅ |
 | 火 | `beloong:fire_essence` | 火魔源 | Fire Essence | ✅ |
 | 土 | `beloong:earth_essence` | 土魔源 | Earth Essence | ✅ |
-| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence | ✅ |
 | 风 | `beloong:wind_essence` | 风魔源 | Wind Essence | ✅ |
 | 雷 | `beloong:thunder_essence` | 雷魔源 | Thunder Essence | ✅ |
+| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence | ✅ |
 | 光 | `beloong:light_essence` | 光魔源 | Light Essence | ✅ |
 | 暗 | `beloong:dark_essence` | 暗魔源 | Dark Essence | ✅ |
+
+上表的顺序即创造模式页签中的展示顺序（五行 → 风雷冰 → 光暗）。
 
 十张贴图均为 16×16 静态图，与整合包内其他物品贴图规格一致。光为太阳（圆盘 + 八向光芒），暗为月亮（受光月牙 + 向外渐亮的冷紫光环，用以表现"发着黑光"）。
 

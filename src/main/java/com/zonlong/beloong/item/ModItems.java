@@ -62,6 +62,7 @@ public class ModItems {
     // 只是十件普通物品，就地注册（沿用本类既有的"一个物品一行"写法），不额外建类。
     // 每个元素一个文件、或一个枚举、或一个参数化基类，用来省下那几行都是多余的抽象。
     // 十件的属性完全相同，差异只有 tooltip 键，因此统一走下面这个私有工厂。
+    // 声明顺序 = 创造模式页签的展示顺序：五行 + 风雷冰 + 光暗。
 
     /** 元素魔源（金）。 */
     public static final DeferredItem<Item> METAL_ESSENCE =
@@ -83,10 +84,6 @@ public class ModItems {
     public static final DeferredItem<Item> EARTH_ESSENCE =
             Items.register("earth_essence", essenceSupplier("item.beloong.earth_essence.tooltip"));
 
-    /** 元素魔源（冰）。 */
-    public static final DeferredItem<Item> ICE_ESSENCE =
-            Items.register("ice_essence", essenceSupplier("item.beloong.ice_essence.tooltip"));
-
     /** 元素魔源（风）。 */
     public static final DeferredItem<Item> WIND_ESSENCE =
             Items.register("wind_essence", essenceSupplier("item.beloong.wind_essence.tooltip"));
@@ -94,6 +91,10 @@ public class ModItems {
     /** 元素魔源（雷）。 */
     public static final DeferredItem<Item> THUNDER_ESSENCE =
             Items.register("thunder_essence", essenceSupplier("item.beloong.thunder_essence.tooltip"));
+
+    /** 元素魔源（冰）。 */
+    public static final DeferredItem<Item> ICE_ESSENCE =
+            Items.register("ice_essence", essenceSupplier("item.beloong.ice_essence.tooltip"));
 
     /** 元素魔源（光）。 */
     public static final DeferredItem<Item> LIGHT_ESSENCE =
