@@ -2,7 +2,11 @@ package com.zonlong.beloong.teleport;
 
 import com.zonlong.beloong.Config;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -61,15 +65,25 @@ public sealed interface TeleportTarget {
     }
 
     /**
+     * 龙宫维度（编译期常量，不配置）。
+     * <p>
+     * <b>为什么放在本接口里</b>：龙宫维度 ID 曾被复制到多处（技能、Y&lt;0 兜底、以及后来的传送门方块）
+     * 各写一份；本包本就因 {@link #toLoongPalace} 而"认识龙宫"，故把常量收口在这里，
+     * 所有调用方（`ability.TpLoongPalaceEffect`、`transport.DimensionTransportHandler`、
+     * `block.LoongPalacePortal*`）统一引用它，避免再出现第四份。
+     */
+    ResourceKey<Level> LOONG_PALACE_LEVEL = ResourceKey.create(
+            Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("beloong", "loong_palace"));
+
+    /**
      * ③ 其他世界 → 龙宫的落点：读
      * {@code [dimension_transport.overworldToLoongPalace]} 的 {@code targetX} / {@code targetZ} /
      * {@code fallbackY}。
      * <p>
      * 这是本包内<b>唯一读配置</b>的目标，也是"龙宫入口落点可调"这一需求的落点。
-     * 龙宫维度 ID <b>不在配置里</b>（编译期常量，与天灾门的 {@code DISASTER_LEVEL} 同一取向），
-     * 故由调用方把 {@code loongPalace} 传进来。
+     * 龙宫维度 ID <b>不在配置里</b>（见 {@link #LOONG_PALACE_LEVEL}）。
      *
-     * @param loongPalace 龙宫维度（由调用方解析维度常量后给出）
+     * @param loongPalace 龙宫维度（由调用方用 {@link #LOONG_PALACE_LEVEL} 解析后给出）
      */
     static TeleportTarget toLoongPalace(ServerLevel loongPalace) {
         return new At(loongPalace,

@@ -1,11 +1,9 @@
 package com.zonlong.beloong.transport;
 
 import com.mojang.logging.LogUtils;
-import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.teleport.DimensionTeleport;
 import com.zonlong.beloong.teleport.TeleportTarget;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -43,10 +41,6 @@ public class DimensionTransportHandler {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** 龙宫维度 ID（与技能 {@code TpLoongPalaceEffect} 里那个常量同源）。 */
-    private static final ResourceLocation LOONG_PALACE_ID =
-            ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace");
-
     /** 触发线（硬编码）：玩家在龙宫的 Y 低于此值即送回主世界。 */
     private static final int TRIGGER_Y = 0;
 
@@ -83,7 +77,7 @@ public class DimensionTransportHandler {
     // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
     @SuppressWarnings("resource")
     private void tryTransportToOverworldSpawn(ServerPlayer player) {
-        if (!LOONG_PALACE_ID.equals(player.level().dimension().location())) return;
+        if (!TeleportTarget.LOONG_PALACE_LEVEL.location().equals(player.level().dimension().location())) return;
         if (player.getY() >= TRIGGER_Y) return;
 
         ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
@@ -111,7 +105,7 @@ public class DimensionTransportHandler {
         TICK_COUNTERS.remove(player.getUUID());
 
         LOGGER.debug("[BeLoongCore] {} fell out of {} and was returned to the overworld spawn ({}, {}, {})",
-                player.getName().getString(), LOONG_PALACE_ID,
+                player.getName().getString(), TeleportTarget.LOONG_PALACE_LEVEL.location(),
                 transition.pos().x, transition.pos().y, transition.pos().z);
     }
 

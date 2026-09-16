@@ -7,6 +7,7 @@ import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.block.DisasterPortalBlockEntity;
 import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
+import com.zonlong.beloong.block.LoongPalacePortalBlock;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -101,6 +102,17 @@ public class ModBlocks {
                     .sound(SoundType.WOOL)
                     .noCollission()
                     .noOcclusion()));
+
+    /**
+     * 龙宫传送门方块。
+     * <p>
+     * 荧石框架内注水点亮（见 {@link com.zonlong.beloong.block.LoongPalacePortalActivation}），
+     * 走进即传送：非龙宫维度 → 龙宫（配置固定坐标）／龙宫 → 主世界（世界出生点 + 扩散）。
+     * <b>仅主世界 ↔ 龙宫</b>，且只允许龙玩家。
+     * 方块 ID：{@code beloong:loong_palace_portal}
+     */
+    public static final DeferredBlock<LoongPalacePortalBlock> LOONG_PALACE_PORTAL =
+            BLOCKS.register("loong_palace_portal", LoongPalacePortalBlock::new);
 
     // ==================== BlockEntity 注册 ====================
 

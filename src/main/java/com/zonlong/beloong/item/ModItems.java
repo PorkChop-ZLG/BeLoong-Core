@@ -140,6 +140,16 @@ public class ModItems {
             Items.register("red_yellow_board",
                     () -> new BlockItem(ModBlocks.RED_YELLOW_BOARD.get(), new Item.Properties()));
 
+    /**
+     * 龙宫传送门方块的 BlockItem。
+     * <p>
+     * 物品 ID：{@code beloong:loong_palace_portal}。放下去只是一块"门方块"（玩家正常玩法里
+     * 用荧石框架注水点亮，不需要这个物品）；它的主要用途是创造模式搭建与结构引用。
+     */
+    public static final DeferredItem<BlockItem> LOONG_PALACE_PORTAL =
+            Items.register("loong_palace_portal",
+                    () -> new BlockItem(ModBlocks.LOONG_PALACE_PORTAL.get(), new Item.Properties()));
+
     /** 将物品注册到 Mod 事件总线 */
     public static void register(IEventBus eventBus) {
         Items.register(eventBus);

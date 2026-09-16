@@ -1,0 +1,22 @@
+{
+  "block.beloong.loong_palace_portal.ambient": {
+    "subtitle": "subtitles.beloong.block.loong_palace_portal.ambient",
+    "sounds": [
+      {
+        "name": "beloong:portal/portal",
+        "attenuation_distance": 10
+      }
+    ]
+  },
+  "block.beloong.loong_palace_portal.travel": {
+    "sounds": [
+      "beloong:portal/travel"
+    ]
+  },
+  "block.beloong.loong_palace_portal.trigger": {
+    "subtitle": "subtitles.beloong.block.loong_palace_portal.trigger",
+    "sounds": [
+      "beloong:portal/trigger"
+    ]
+  }
+}

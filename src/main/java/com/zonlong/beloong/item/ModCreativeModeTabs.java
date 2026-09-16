@@ -52,6 +52,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.DARK_ESSENCE);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
+                        output.accept(ModItems.LOONG_PALACE_PORTAL);
                         output.accept(ModItems.RED_YELLOW_BOARD);
                     }).build());
 

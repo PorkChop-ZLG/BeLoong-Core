@@ -7,10 +7,8 @@ import com.mojang.serialization.MapCodec;
 import com.zonlong.beloong.teleport.DimensionTeleport;
 import com.zonlong.beloong.teleport.TeleportCooldown;
 import com.zonlong.beloong.teleport.TeleportTarget;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -40,9 +38,7 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** 龙宫维度（编译期常量，不配置）。 */
-    private static final ResourceKey<Level> LOONG_PALACE_LEVEL = ResourceKey.create(
-            Registries.DIMENSION, ResourceLocation.fromNamespaceAndPath("beloong", "loong_palace"));
+    // 龙宫维度常量收口在 teleport/TeleportTarget.LOONG_PALACE_LEVEL（原先此处各写一份）
 
     public static final MapCodec<TpLoongPalaceEffect> CODEC = MapCodec.unit(new TpLoongPalaceEffect());
 
@@ -65,16 +61,16 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
         TeleportTarget destination;
         if (Level.OVERWORLD.equals(currentDim)) {
             // 主世界 → 龙宫
-            ServerLevel loongPalace = player.server.getLevel(LOONG_PALACE_LEVEL);
+            ServerLevel loongPalace = player.server.getLevel(TeleportTarget.LOONG_PALACE_LEVEL);
             if (loongPalace == null) {
-                LOGGER.warn("[BeLoongCore] Target dimension not found: {}", LOONG_PALACE_LEVEL.location());
+                LOGGER.warn("[BeLoongCore] Target dimension not found: {}", TeleportTarget.LOONG_PALACE_LEVEL.location());
                 player.sendSystemMessage(Component.translatable(
                         "message.beloong.tp_loong_palace.dimension_not_found",
-                        LOONG_PALACE_LEVEL.location().toString()));
+                        TeleportTarget.LOONG_PALACE_LEVEL.location().toString()));
                 return;
             }
             destination = TeleportTarget.toLoongPalace(loongPalace);
-        } else if (LOONG_PALACE_LEVEL.equals(currentDim)) {
+        } else if (TeleportTarget.LOONG_PALACE_LEVEL.equals(currentDim)) {
             // 龙宫 → 主世界（恒为世界出生点）
             ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
             if (overworld == null) {
@@ -100,7 +96,7 @@ public record TpLoongPalaceEffect() implements AbilityEntityEffect {
             // 唯一会返回 null 的情形：At 目标既拿不到高度图、又没有兜底 Y。
             // 龙宫落点的兜底来自配置（默认 65.0），配置被改成极端值时才可能触发。
             LOGGER.warn("[BeLoongCore] teleport to {} is not possible right now (no landing point)",
-                    LOONG_PALACE_LEVEL.location());
+                    TeleportTarget.LOONG_PALACE_LEVEL.location());
             return;
         }
 
