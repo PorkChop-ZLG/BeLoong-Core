@@ -2,6 +2,8 @@ package com.zonlong.beloong.block;
 
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.teleport.CoordinateLanding;
+import com.zonlong.beloong.teleport.DimensionTeleport;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -9,10 +11,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.level.TicketType;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -22,8 +22,6 @@ import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.level.portal.DimensionTransition;
@@ -51,13 +49,15 @@ import org.slf4j.Logger;
  * {@code managedBlock} 中<b>永久自旋</b>且不产生 crash report
  * （2026-09-12 实机取证，见 {@code docs/天灾传送门主线程死锁-根因与修复复盘.md}）。
  * <p>
- * 双向行为：
+ * 双向行为（两端都是 <b>1:1 坐标 + 高度图落点</b>，见 {@code teleport/DimensionTeleport}）：
  * <ul>
- *   <li><b>下行（任意维度 → 天灾维度）</b>：1:1 坐标（与维度定义 {@code coordinate_scale: 1.0} 一致；
+ *   <li><b>下行（任意非天灾维度 → 天灾维度）</b>：1:1 坐标（与维度定义 {@code coordinate_scale: 1.0} 一致；
  *       <b>本类自行保留 X/Z，不读该字段</b>），Y 取目标点 MOTION_BLOCKING 高度 + 1 格；</li>
- *   <li><b>上行（天灾维度 → 主世界）</b>：照搬原版末地返回逻辑，回到玩家重生点，
- *       无重生点回退世界出生点，再回退 {@code (0,64,0)}。</li>
+ *   <li><b>上行（天灾维度 → 主世界）</b>：同样 1:1 坐标 + 高度图。
+ *       <b>不回玩家重生点、不回世界出生点，也不生成任何返回门</b>；
+ *       与下行的唯一差别是"等满上限仍拿不到高度图时用玩家当前 Y 兜底"（下行则报错放弃）。</li>
  * </ul>
+ * 方向只由"当前维度是否是天灾维度"决定，目标维度是编译期常量，无配置项。
  */
 public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
 
@@ -104,13 +104,12 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      * 122–130 tick（约 6–6.5 s，见 `run/logs/debug-4.log` 的 `waited=122`、`latest.log` 的 `waited=130`），
      * 原值 200 只剩约 1.5 倍余量，稍慢一次即失败；600 给出约 4.6 倍余量。
      * <p>
-     * <b>注意</b>：单轮等待有界，且失败后会<b>停止重试直到玩家离开传送门</b>
+     * <b>注意</b>：单轮等待有界，且失败后会<b>在 NBT 冷却期内停止重试</b>
      * （见 {@link #failDestination} 的说明）——"有界失败"指的是不会永久阻塞主线程。
+     * <p>
+     * <b>本上限现为双向共用</b>（原为仅下行；上行改为 1:1 坐标后同样需要等落点区块）。
      */
     private static final int DESTINATION_WAIT_TIMEOUT_TICKS = 600;
-
-    /** 落点预热票据的半径：0 = 只加载落点所在的那一个区块（原版下界门落点用 3，我们只需要 1 个区块的高度图）。 */
-    private static final int DESTINATION_TICKET_RADIUS = 0;
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -182,7 +181,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
             // 原版玩家冷却只有 10 tick（Player#getDimensionChangingDelay 覆写），会在 NBT 冷却走完前归零；
             // 而本分支不调用 setAsInsidePortal，原版冷却得不到刷新。这里显式把它顶到"比 NBT 冷却晚 1 tick 到期"，
             // 使 NBT 到期那一 tick setAsInsidePortal 仍被 isOnPortalCooldown() 拦住（只刷新、不登记），
-            // 从而达到 failDestination javadoc 承诺的语义：失败后停止重试，直到玩家离开传送门。
+            // 从而达到 failDestination javadoc 承诺的语义：在 NBT 冷却期内不再重试。
             player.setPortalCooldown((int) (cooldownEnd - level.getGameTime()) + 1);
             return;
         }
@@ -196,8 +195,13 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         // 禁止在此处做任何跨维度同步区块加载（旧实现即在此 getChunk 导致主线程永久卡死）。
         entity.setAsInsidePortal(this, pos);
 
-        // 下行方向：非阻塞地预热落点区块（只申领区域票据，不等待、不 join、不看返回值）
-        if (!isDisasterDimension(level)) requestDestinationChunk(player, pos);
+        // 双向都做非阻塞预热：只申领区域票据，不等待、不 join、不看返回值
+        ServerLevel target = isDisasterDimension(level)
+                ? player.server.getLevel(Level.OVERWORLD)
+                : player.server.getLevel(DISASTER_LEVEL);
+        if (target != null) {
+            CoordinateLanding.requestChunk(target, Mth.floor(player.getX()), Mth.floor(player.getZ()), pos);
+        }
     }
 
     /**
@@ -234,10 +238,17 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     /**
      * 由 {@code PortalProcessor} 在原版流程中回调，返回本次传送的目标描述。
      * <p>
-     * 返回 {@code null} 表示「本 tick 不传送」。下行落点区块未就绪时会返回 {@code null}，
-     * 此时必须清除原版在询问落点前设置的传送冷却，否则
+     * 返回 {@code null} 表示「本 tick 不传送」，由本类决定下一 tick 重试还是放弃：
+     * <ol>
+     *   <li>落点未就绪（区块不在内存，或该列为虚空）→ 见 {@link #waitForDestination}；</li>
+     *   <li>已等满 {@link #DESTINATION_WAIT_TIMEOUT_TICKS} → 见 {@link #failDestination}。</li>
+     * </ol>
+     * 返回 {@code null} 前<b>必须</b>清除原版在询问落点前设置的传送冷却，否则
      * {@code setAsInsidePortal} 会在冷却期内每 tick 刷新冷却且不登记 {@code insidePortalThisTick}，
      * 玩家站在门里将<b>永远拿不到重试机会</b>。
+     * <p>
+     * 落点解析与 transition 构造全部委托给 {@code teleport/DimensionTeleport}；
+     * 本类只负责方向、登记、冷却、超时与提示。
      */
     @Nullable
     @Override
@@ -245,9 +256,79 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         if (!(entity instanceof ServerPlayer player)) return null;
         // 门内已等待刻数：用于超时判定与日志（PortalProcessor 的公开状态，无需自建状态）
         int waitedTicks = player.portalProcess != null ? player.portalProcess.getPortalTime() : 0;
-        return isDisasterDimension(level)
-                ? createUpwardTransition(player, waitedTicks)
-                : createDownwardTransition(player, pos, waitedTicks);
+
+        // 方向与目标维度：门是「非天灾 ⇄ 天灾」的双向通道（维度 ID 是编译期常量，不受配置控制）。
+        // 上行目标是主世界（不是"上一个维度"、也不是玩家重生点）。
+        boolean upward = isDisasterDimension(level);
+        ServerLevel target = upward
+                ? player.server.getLevel(Level.OVERWORLD)
+                : player.server.getLevel(DISASTER_LEVEL);
+        String direction = upward ? "upward" : "downward";
+
+        int blockX = Mth.floor(player.getX());
+        int blockZ = Mth.floor(player.getZ());
+
+        if (target == null) {
+            // 目标维度不在（本模组里不可能发生：天灾随数据包强绑、主世界必然存在）。
+            // 仍走统一的"等待 → 超时"路径：不申领票据，只在进门首轮记一条 ERROR 免得刷屏。
+            if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
+                LOGGER.error("[BeLoongCore][DisasterPortal:error] target dimension not found,"
+                                + " cannot teleport {} (player {})",
+                        direction, player.getName().getString());
+            }
+            return waitedTicks > DESTINATION_WAIT_TIMEOUT_TICKS
+                    ? failDestination(player, blockX, blockZ, waitedTicks, direction)
+                    : null;
+        }
+
+        // 兜底 Y：下行不用兜底（保持既有"必须拿到高度图"的行为）；上行用玩家当前 Y
+        // （即传送所依据的那个 Y；等满上限仍拿不到高度图时直接用它过去，用户已确认接受）。
+        @Nullable Double fallbackY = upward ? player.getY() : null;
+        DimensionTransition transition = DimensionTeleport.toTarget(player,
+                new DimensionTeleport.Target(target, player.getX(), player.getZ(), fallbackY),
+                postTransition());
+        if (transition != null) {
+            LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} {} {} -> {} ({}, {}, {}) waited={} ticks",
+                    player.getName().getString(), direction, player.level().dimension().location(),
+                    target.dimension().location(), transition.pos().x, transition.pos().y, transition.pos().z,
+                    waitedTicks);
+            return transition;
+        }
+
+        if (waitedTicks > DESTINATION_WAIT_TIMEOUT_TICKS) {
+            return failDestination(player, blockX, blockZ, waitedTicks, direction);
+        }
+        return waitForDestination(player, target, blockX, blockZ, pos, waitedTicks, direction);
+    }
+
+    /**
+     * 落点尚未就绪：刷新票据 + 清掉原版在询问落点前设置的冷却 + 返回 {@code null}（下一 tick 重试）。
+     * <p>
+     * <b>为什么必须清冷却</b>：原版 {@code handlePortal} 先设传送冷却再问落点，而
+     * {@code setAsInsidePortal} 在冷却期只刷新冷却、不登记 {@code insidePortalThisTick}——
+     * 不清掉就永远拿不到重试机会。
+     *
+     * @return 恒为 {@code null}（便于在 {@code getPortalDestination} 里直接 return）
+     */
+    @Nullable
+    private static DimensionTransition waitForDestination(ServerPlayer player, ServerLevel target,
+                                                          int blockX, int blockZ, BlockPos portalPos,
+                                                          int waitedTicks, String direction) {
+        int chunkX = blockX >> 4;
+        int chunkZ = blockZ >> 4;
+        CoordinateLanding.requestChunk(target, blockX, blockZ, portalPos);
+        player.setPortalCooldown(0);
+        // "首轮"判定＝进门后第一次询问落点（第 PORTAL_TRANSITION_TICKS + 1 tick）；余下走 debug 免得刷屏
+        if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
+            LOGGER.info("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) not ready yet,"
+                            + " PORTAL ticket claimed, waiting for load",
+                    target.dimension().location(), chunkX, chunkZ);
+        } else {
+            LOGGER.debug("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) still not ready"
+                            + " in direction {} (waited {} ticks)",
+                    target.dimension().location(), chunkX, chunkZ, direction, waitedTicks);
+        }
+        return null;
     }
 
     // ==================================================================
@@ -259,100 +340,13 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         return level.dimension().location().toString().equals(DISASTER_DIM);
     }
 
-    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
-    @SuppressWarnings("resource")
-    @Nullable
-    private static ServerLevel disasterLevel(ServerPlayer player) {
-        return player.server.getLevel(DISASTER_LEVEL);
-    }
-
-    /**
-     * 下行落点区块的<b>非阻塞</b>预热。
-     * <p>
-     * 落点区块已在内存中则什么都不做；否则申领一张原版传送门区域票据（{@link TicketType#PORTAL}，
-     * 寿命 300 tick、重复申领幂等并刷新寿命），由区块系统在后台完成生成/加载。
-     * 本方法不等待、不 join、不检查返回值，绝不会阻塞主线程。
-     */
-    @SuppressWarnings("resource")
-    private static void requestDestinationChunk(ServerPlayer player, BlockPos portalPos) {
-        ServerLevel target = disasterLevel(player);
-        if (target == null) return;
-
-        int chunkX = Mth.floor(player.getX()) >> 4;
-        int chunkZ = Mth.floor(player.getZ()) >> 4;
-        // getChunkNow 只查内存/缓存，不触发加载（ServerChunkCache#getChunkNow 不阻塞）
-        if (target.getChunkSource().getChunkNow(chunkX, chunkZ) != null) return;
-        target.getChunkSource().addRegionTicket(TicketType.PORTAL,
-                new ChunkPos(chunkX, chunkZ), DESTINATION_TICKET_RADIUS, portalPos);
-    }
-
-    /**
-     * 下行：任意维度 → 天灾维度。X/Z 1:1 保留，Y = 目标点地表上方 1 格。
-     */
-    @SuppressWarnings("resource")
-    @Nullable
-    private static DimensionTransition createDownwardTransition(ServerPlayer player, BlockPos portalPos, int waitedTicks) {
-        ServerLevel target = disasterLevel(player);
-        if (target == null) {
-            LOGGER.error("[BeLoongCore][DisasterPortal:error] dimension {} not found, cannot teleport downward (player {})",
-                    DISASTER_DIM, player.getName().getString());
-            return null;
-        }
-
-        int blockX = Mth.floor(player.getX());
-        int blockZ = Mth.floor(player.getZ());
-        int chunkX = blockX >> 4;
-        int chunkZ = blockZ >> 4;
-
-        LevelChunk chunk = target.getChunkSource().getChunkNow(chunkX, chunkZ);
-        if (chunk == null) {
-            // 落点区块尚未就绪：有界等待 + 预热 + 下一 tick 重试（全程不阻塞主线程）
-            if (waitedTicks > DESTINATION_WAIT_TIMEOUT_TICKS) {
-                return failDestination(player, blockX, blockZ, waitedTicks);
-            }
-            target.getChunkSource().addRegionTicket(TicketType.PORTAL,
-                    new ChunkPos(chunkX, chunkZ), DESTINATION_TICKET_RADIUS, portalPos);
-            // 关键：清掉原版在询问落点前设置的传送冷却，否则拿不到重试机会（见 getPortalDestination 注释）
-            player.setPortalCooldown(0);
-            // "首轮"判定＝进门后第一次询问落点（第 PORTAL_TRANSITION_TICKS + 1 tick）；余下走 debug 免得刷屏
-            if (waitedTicks <= PORTAL_TRANSITION_TICKS + 1) {
-                LOGGER.info("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) not ready yet,"
-                                + " PORTAL ticket claimed, waiting for load",
-                        DISASTER_DIM, chunkX, chunkZ);
-            } else {
-                LOGGER.debug("[BeLoongCore][DisasterPortal:wait] destination chunk {} ({}, {}) still not ready"
-                                + " (waited {} ticks)",
-                        DISASTER_DIM, chunkX, chunkZ, waitedTicks);
-            }
-            return null;
-        }
-
-        // 区块已在内存中：直读高度图，等价于 Level#getHeight(MOTION_BLOCKING, x, z)（Level 版本 = chunk 版本 + 1），
-        // 但不会触发任何区块加载
-        double targetY;
-        if (blockX >= -30000000 && blockZ >= -30000000 && blockX < 30000000 && blockZ < 30000000) {
-            int topY = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, blockX & 15, blockZ & 15) + 1;
-            targetY = topY + 1.0D;   // 地表上方 1 格
-        } else {
-            // 与旧实现（Level#getHeight 越界分支返回 seaLevel + 1，再 +1）保持一致
-            targetY = target.getSeaLevel() + 2.0D;
-        }
-
-        // X/Z 精确保留（1:1）；速度清零、朝向保留，等价旧 teleportTo(..., Set.of(), yRot, xRot)
-        Vec3 destination = new Vec3(player.getX(), targetY, player.getZ());
-        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} downward {} -> {} ({}, {}, {}) waited={} ticks",
-                player.getName().getString(), player.level().dimension().location(), DISASTER_DIM,
-                destination.x, destination.y, destination.z, waitedTicks);
-        return new DimensionTransition(target, destination, Vec3.ZERO,
-                player.getYRot(), player.getXRot(), postTransition());
-    }
-
     /**
      * 落点区块超时未就绪：放弃本轮传送、报错并通知玩家（绝不阻塞主线程）。
      * <p>
      * 会写入 NBT 冷却（{@link Config.DisasterPortal#teleportCooldownTicks}，默认 100 tick）做限流，
-     * 并在该冷却期内由 {@link #entityInside} 把原版冷却顶住不归零，因此<b>停止重试直到玩家离开传送门</b>
-     * （离开后约 10 tick 即可重新进门再试）；"有界失败"指的是不会永久阻塞主线程。
+     * 并在该冷却期内由 {@link #entityInside} 把原版冷却顶住不归零，因此真实语义是
+     * <b>"在 NBT 冷却期内不再重试"</b>——玩家若一直站在门里，每约（冷却 + 等待上限）tick 会再失败一次；
+     * 离开传送门后约 10 tick 即可重新进门再试。"有界失败"指的是不会永久阻塞主线程。
      * <p>
      * 为什么必须顶住：原版<b>玩家</b>冷却只有 10 tick（{@code Player#getDimensionChangingDelay} 覆写
      * {@code Entity} 的 300），远短于 NBT 冷却。若不管它，NBT 一到期 {@code setAsInsidePortal} 就会
@@ -361,54 +355,21 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      * <p>
      * 另注：客户端在这段时间里仍会显示完整的 CONFUSION 扭曲——原版冷却只在换维度时随
      * {@code ClientboundRespawnPacket} 同步给客户端，而"不传送"没有这条包。
+     *
+     * @param direction 日志用的方向词（{@code "upward"} / {@code "downward"}）；玩家提示文案不含方向，故不变
      */
-    private static DimensionTransition failDestination(ServerPlayer player, int blockX, int blockZ, int waitedTicks) {
+    private static DimensionTransition failDestination(ServerPlayer player, int blockX, int blockZ,
+                                                       int waitedTicks, String direction) {
         LOGGER.error("[BeLoongCore][DisasterPortal:timeout] destination chunk {} ({}, {}) still not ready after"
-                        + " {} ticks, giving up this attempt (player {}, target {}({}, {}))",
+                        + " {} ticks, giving up this attempt (player {}, direction {}, at {}({}, {}))",
                 DISASTER_DIM, blockX >> 4, blockZ >> 4, waitedTicks,
-                player.getName().getString(), DISASTER_DIM, blockX, blockZ);
+                player.getName().getString(), direction, DISASTER_DIM, blockX, blockZ);
         // 提示文案说的是"目标区块"，因此必须传区块坐标（blockX/Z 是方块坐标，>> 4 才是区块）
         player.sendSystemMessage(Component.translatable(
                 "message.beloong.disaster_portal.destination_timeout", blockX >> 4, blockZ >> 4));
         player.getPersistentData().putLong(COOLDOWN_KEY,
                 player.level().getGameTime() + Config.DisasterPortal.teleportCooldownTicks.get());
         return null;
-    }
-
-    /**
-     * 上行：天灾维度 → 主世界。照搬原版末地返回逻辑——重生点（床/重生锚）→
-     * 无重生点回退世界出生点 → 最终兜底 {@code (0, 64, 0)}；坐标中心对齐 +0.5。
-     */
-    // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
-    @SuppressWarnings("resource")
-    @Nullable
-    private static DimensionTransition createUpwardTransition(ServerPlayer player, int waitedTicks) {
-        BlockPos respawnPos = player.getRespawnPosition();            // 床或重生锚位置
-        ResourceKey<Level> respawnDim = player.getRespawnDimension(); // 重生维度
-        ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
-
-        // 如果玩家没有设置重生点（例如从未睡过觉），回退到世界出生点
-        if (respawnPos == null || respawnDim == null) {
-            respawnPos = overworld != null ? overworld.getSharedSpawnPos() : new BlockPos(0, 64, 0);
-            respawnDim = Level.OVERWORLD;
-        }
-
-        ServerLevel target = player.server.getLevel(respawnDim);
-        if (target == null) target = overworld;   // 回退到主世界
-        if (target == null) {
-            LOGGER.error("[BeLoongCore][DisasterPortal:error] respawn dimension {} not found,"
-                            + " cannot teleport upward (player {})",
-                    respawnDim.location(), player.getName().getString());
-            return null;
-        }
-
-        // 传送到重生点（中心对齐 +0.5），保留朝向；不做任何高度图查询（与原行为一致）
-        Vec3 destination = new Vec3(respawnPos.getX() + 0.5, respawnPos.getY(), respawnPos.getZ() + 0.5);
-        LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} upward {} -> {} ({}, {}, {}) waited={} ticks",
-                player.getName().getString(), DISASTER_DIM, target.dimension().location(),
-                destination.x, destination.y, destination.z, waitedTicks);
-        return new DimensionTransition(target, destination, Vec3.ZERO,
-                player.getYRot(), player.getXRot(), postTransition());
     }
 
     /**
