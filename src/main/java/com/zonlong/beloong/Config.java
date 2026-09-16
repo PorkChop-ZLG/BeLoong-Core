@@ -154,9 +154,6 @@ public class Config {
         public static ModConfigSpec.DoubleValue loongPalace_targetX;
         public static ModConfigSpec.DoubleValue loongPalace_targetZ;
         public static ModConfigSpec.DoubleValue loongPalace_fallbackY;
-
-        public static ModConfigSpec.BooleanValue lpToOw_enabled;
-        public static ModConfigSpec.IntValue lpToOw_triggerY;
     }
 
     // ==================== treasure_growth ====================
@@ -183,8 +180,6 @@ public class Config {
 
         /** 激活传送门所需的 12 种眼球物品 ID（固定列表，不可扩展） */
         public static ModConfigSpec.ConfigValue<List<? extends String>> eyeItems;
-        /** 传送后的冷却时间（ticks），防止玩家在传送门中来回弹跳 */
-        public static ModConfigSpec.IntValue teleportCooldownTicks;
     }
 
     // ==================== structure_effects ====================
@@ -340,8 +335,8 @@ public class Config {
                 .comment("玩家 Y 坐标检查间隔（ticks），默认 20 = 每秒一次")
                 .defineInRange("checkIntervalTicks", 20, 1, 1200);
 
-        // 传送冷却不在这里配置：全模组统一用 [disaster_portal].teleportCooldownTicks
-        // （见 teleport/TeleportCooldown）。
+        // 传送冷却不在这里配置：统一传送路径的冷却由 teleport/TeleportCooldown 硬编码（60 tick）。
+        // 龙宫 Y<0 兜底传送是该冷却的<b>特例</b>——既不检查也不写它，故也没有配置项。
 
         // 「其他世界 → 龙宫」的落点。节名保持原样（历史沿用），但内容只服务落点：
         // 原先驱动它的「主世界飞到 Y > 8848 自动传送」已于 2026-09-16 删除（该条件在主世界恒为假）。
@@ -359,14 +354,8 @@ public class Config {
                 .defineInRange("fallbackY", 65.0, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
-        SERVER_BUILDER.push("loongPalaceToOverworld");
-        DimensionTransport.lpToOw_enabled = SERVER_BUILDER
-                .comment("是否启用 龙宫 → 主世界 的传送")
-                .define("enabled", true);
-        DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
-                .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
-                .defineInRange("triggerY", 0, -2032, 2032);
-        SERVER_BUILDER.pop();
+        // 「龙宫 → 主世界」的兜底安全网已于 2026-09-16 改为硬编码：恒启用、触发线固定为 Y < 0，
+        // 落点恒为世界出生点。故本节不再有配置项。
 
         SERVER_BUILDER.pop(); // dimension_transport
 
@@ -392,10 +381,6 @@ public class Config {
                         ),
                         () -> "",
                         s -> s instanceof String str && str.contains(":"));
-
-        DisasterPortal.teleportCooldownTicks = SERVER_BUILDER
-                .comment("传送冷却时间（ticks），防止循环传送")
-                .defineInRange("teleportCooldownTicks", 100, 0, 72000);
 
         SERVER_BUILDER.pop(); // disaster_portal
 

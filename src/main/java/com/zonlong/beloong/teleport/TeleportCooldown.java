@@ -1,17 +1,20 @@
 package com.zonlong.beloong.teleport;
 
-import com.zonlong.beloong.Config;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 
 /**
- * 传送冷却：<b>本模组所有跨维度传送共用的那一份</b>。
+ * 传送冷却：<b>本模组统一传送路径共用的那一份</b>（天灾门、龙宫技能、将来的传送门方块）。
  * <p>
- * 键名与语义都沿用天灾传送门既有实现（<b>键名不得更改</b>：它写在玩家持久化 NBT 里，跨维度、跨重登有效）。
- * 三条调用方——天灾门、龙宫技能、龙宫 Y&lt;0 兜底——读/写<b>同一个键</b>，
- * 因此它们互不绕过：刚用技能去过龙宫，紧接着进门也会被拦住（反之亦然）。
+ * 键名与语义沿用天灾传送门既有实现（<b>键名不得更改</b>：它写在玩家持久化 NBT 里，跨维度、跨重登有效）。
+ * 读/写<b>同一个键</b>的调用方互不绕过：刚用技能去过龙宫，紧接着进门也会被拦住（反之亦然）。
  * <p>
- * 时长取 {@link Config.DisasterPortal#teleportCooldownTicks}（默认 100 tick）。
+ * <b>时长硬编码为 {@value #TICKS} tick（3 秒）</b>，不再有配置项（原
+ * {@code [disaster_portal].teleportCooldownTicks} 已删除，冷却属结构性内容，不进配置）。
+ * <p>
+ * <b>特例：龙宫 Y&lt;0 兜底传送不走本冷却。</b>那是防止玩家掉出龙宫虚空的安全网，
+ * 既不检查也不写这份冷却（见 {@code transport/DimensionTransportHandler}）——
+ * 它不该被"刚用技能/刚从门出来"延迟，也不该占用统一冷却。
  * <p>
  * <b>前提（时间基准）</b>：本类用 {@code player.level().getGameTime()} 作为时间基准，
  * 而跨维度后 {@code player.level()} 已切到目标维度。当前三个相关维度（主世界、龙宫、天灾）
@@ -28,6 +31,9 @@ public final class TeleportCooldown {
     /** NBT 键名。<b>不得更改</b>：改了等于让所有已存在的冷却失效。 */
     public static final String KEY = "beloong_portal_cooldown";
 
+    /** 统一传送冷却时长（ticks）。硬编码，无配置项。 */
+    public static final int TICKS = 60;
+
     private TeleportCooldown() {}
 
     /** 玩家是否仍在冷却中。 */
@@ -35,10 +41,9 @@ public final class TeleportCooldown {
         return player.getPersistentData().getLong(KEY) > player.level().getGameTime();
     }
 
-    /** 记一次冷却：从现在起 {@code teleportCooldownTicks} 内不再允许传送。 */
+    /** 记一次冷却：从现在起 {@value #TICKS} tick 内不再允许传送。 */
     public static void mark(ServerPlayer player) {
-        player.getPersistentData().putLong(KEY,
-                player.level().getGameTime() + Config.DisasterPortal.teleportCooldownTicks.get());
+        player.getPersistentData().putLong(KEY, player.level().getGameTime() + TICKS);
     }
 
     /**

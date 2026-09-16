@@ -339,7 +339,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
     /**
      * 落点区块超时未就绪：放弃本轮传送、报错并通知玩家（绝不阻塞主线程）。
      * <p>
-     * 会写入 NBT 冷却（{@link Config.DisasterPortal#teleportCooldownTicks}，默认 100 tick）做限流，
+     * 会写入 NBT 冷却（{@link TeleportCooldown#TICKS} tick，硬编码）做限流，
      * 并在该冷却期内由 {@link #entityInside} 把原版冷却顶住不归零，因此真实语义是
      * <b>"在 NBT 冷却期内不再重试"</b>——玩家若一直站在门里，每约（冷却 + 等待上限）tick 会再失败一次；
      * 离开传送门后约 10 tick 即可重新进门再试。"有界失败"指的是不会永久阻塞主线程。

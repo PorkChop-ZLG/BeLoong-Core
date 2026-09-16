@@ -4,10 +4,8 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.teleport.DimensionTeleport;
-import com.zonlong.beloong.teleport.TeleportCooldown;
 import com.zonlong.beloong.teleport.TeleportTarget;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -22,20 +20,24 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 龙宫传送的<b>兜底安全网</b>：玩家在龙宫掉到触发 Y 以下时，送返主世界出生点。
+ * 龙宫传送的<b>兜底安全网</b>：玩家在龙宫掉到 Y &lt; 0 以下时，送返主世界出生点。
  * <p>
- * 这是 Y 阈值轮询实现（每 {@code checkIntervalTicks} 检查一次，非事件驱动）。
+ * <b>这是统一传送冷却的特例</b>：本路径<b>既不检查也不写</b>
+ * {@link com.zonlong.beloong.teleport.TeleportCooldown}——
+ * 它是"玩家掉出虚空"的抢救机制，不该被"刚用技能 / 刚从门出来"延迟，
+ * 也不该占用那份统一冷却（否则掉一次虚空，3 秒内连技能都用不了）。
  * <p>
- * <b>2026-09-16 变更</b>：
+ * <b>2026-09-16 变更汇总</b>：
  * <ul>
- *   <li>原先还有"主世界飞到 Y &gt; 8848 → 龙宫"的反方向，已连同其 6 个配置项一并删除
- *       ——该条件在主世界恒为假（{@code maxBuildHeight = 320}），属死配置；</li>
- *   <li>落点与传送流程改走 {@code teleport} 包（与技能、天灾门同一套 API），
+ *   <li>原先还有"主世界飞到 Y &gt; 8848 → 龙宫"的反方向，已连同其配置一并删除
+ *       （该条件在主世界恒为假，属死配置）；</li>
+ *   <li>触发条件改为<b>硬编码</b>：恒启用、触发线固定 {@code Y < 0}（原先由
+ *       {@code [dimension_transport.loongPalaceToOverworld]} 的 {@code enabled}/{@code triggerY} 控制）；</li>
+ *   <li>落点与传送改走 {@code teleport} 包（与技能、天灾门同一套 API），
  *       落点策略为 {@link TeleportTarget.Spawn}（恒为世界出生点）；</li>
- *   <li>冷却由本类的静态 {@code Map} 改为 {@link TeleportCooldown}（NBT，与技能/天灾门共用）。
- *       原先的 {@code cooldownTicks} 配置键随之废弃。</li>
+ *   <li>冷却由静态 {@code Map} → 统一 NBT → <b>最终完全移除</b>（本类是特例）。</li>
  * </ul>
- * 本类只负责"多久查一次 Y、什么条件下触发"，传送本身交给 API。
+ * 本类只负责"多久查一次 Y、低于 0 就送回"，传送本身交给 API。
  */
 public class DimensionTransportHandler {
 
@@ -44,6 +46,9 @@ public class DimensionTransportHandler {
     /** 龙宫维度 ID（与技能 {@code TpLoongPalaceEffect} 里那个常量同源）。 */
     private static final ResourceLocation LOONG_PALACE_ID =
             ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "loong_palace");
+
+    /** 触发线（硬编码）：玩家在龙宫的 Y 低于此值即送回主世界。 */
+    private static final int TRIGGER_Y = 0;
 
     /** 每个玩家的检查间隔计数器 */
     private static final Map<UUID, Integer> TICK_COUNTERS = new HashMap<>();
@@ -62,12 +67,7 @@ public class DimensionTransportHandler {
             return;
         }
 
-        // 冷却检查：与技能、天灾门共用同一份 NBT 冷却
-        if (TeleportCooldown.isOnCooldown(player)) {
-            return;
-        }
-
-        // 间隔检查
+        // 间隔检查（唯一保留的配置项：多久查一次 Y）
         UUID uuid = player.getUUID();
         int interval = Config.DimensionTransport.checkIntervalTicks.get();
         int counter = TICK_COUNTERS.getOrDefault(uuid, 0) + 1;
@@ -77,22 +77,14 @@ public class DimensionTransportHandler {
         }
         TICK_COUNTERS.put(uuid, 0);
 
-        // 检查方向：龙宫 → 主世界（主世界 → 龙宫那条已在 2026-09-16 删除）
-        tryTransportToOverworldSpawn(player,
-                player.level().dimension().location().toString(),
-                LOONG_PALACE_ID.toString(),
-                Config.DimensionTransport.lpToOw_enabled.get(),
-                Config.DimensionTransport.lpToOw_triggerY.get());
+        tryTransportToOverworldSpawn(player);
     }
 
     // ServerLevel 实现 AutoCloseable；此处仅作世界引用，不可关闭（close() 会关闭区块源），抑制 resource 检查
     @SuppressWarnings("resource")
-    private void tryTransportToOverworldSpawn(ServerPlayer player,
-            String currentDim, String sourceDim,
-            boolean enabled, int triggerY) {
-        if (!enabled) return;
-        if (!currentDim.equals(sourceDim)) return;
-        if (player.getY() >= triggerY) return;
+    private void tryTransportToOverworldSpawn(ServerPlayer player) {
+        if (!LOONG_PALACE_ID.equals(player.level().dimension().location())) return;
+        if (player.getY() >= TRIGGER_Y) return;
 
         ServerLevel overworld = player.server.getLevel(Level.OVERWORLD);
         if (overworld == null) {
@@ -109,7 +101,7 @@ public class DimensionTransportHandler {
         // changeDimension 另带一张 TicketType.POST_TELEPORT，寿命只有 5 tick（TicketType.java:18），
         // 只覆盖传送瞬间。
         DimensionTransition transition = DimensionTeleport.toTarget(player,
-                new TeleportTarget.Spawn(overworld), postTeleport());
+                new TeleportTarget.Spawn(overworld), teleport -> teleport.fallDistance = 0);
         if (transition == null) {
             // Spawn 目标不会返回 null（不依赖高度图），保留分支仅为防御
             return;
@@ -118,19 +110,9 @@ public class DimensionTransportHandler {
         player.changeDimension(transition);
         TICK_COUNTERS.remove(player.getUUID());
 
-        LOGGER.debug("[BeLoongCore] {} transported from {} to the overworld spawn ({}, {}, {})",
-                player.getName().getString(), sourceDim,
+        LOGGER.debug("[BeLoongCore] {} fell out of {} and was returned to the overworld spawn ({}, {}, {})",
+                player.getName().getString(), LOONG_PALACE_ID,
                 transition.pos().x, transition.pos().y, transition.pos().z);
-    }
-
-    /** 传送完成后的收尾：清零摔落距离 + 记一次共用冷却。 */
-    private static DimensionTransition.PostDimensionTransition postTeleport() {
-        return entity -> {
-            entity.fallDistance = 0;
-            if (entity instanceof ServerPlayer player) {
-                TeleportCooldown.mark(player);
-            }
-        };
     }
 
     @SubscribeEvent
