@@ -35,35 +35,44 @@ public final class DimensionTeleport {
     private DimensionTeleport() {}
 
     /**
-     * 传送目标描述。
-     *
-     * @param level     目标维度（服务端）
-     * @param x         目标 X（保留玩家原值，1:1）
-     * @param z         目标 Z（保留玩家原值，1:1）
-     * @param fallbackY 精确落点拿不到时使用的脚底 Y；{@code null} 表示"不接受兜底、拿不到就不传"
-     */
-    public record Target(ServerLevel level, double x, double z, @Nullable Double fallbackY) {}
-
-    /**
      * 解析并构造本次传送。
      *
      * @param entity 被传送的实体（用于取朝向）
-     * @param target 目标描述
+     * @param target 落点目标（见 {@link TeleportTarget}：坐标+高度图 / 世界出生点 / 读配置的龙宫落点）
      * @param post   传送完成后的回调（由调用方提供，例如清零摔落距离与写冷却；
      *               本类刻意不认识任何具体业务键）
      * @return 可直接交给 {@code Entity#changeDimension} 的过渡；<b>{@code null} = 本 tick 不传送</b>
      */
     @Nullable
-    public static DimensionTransition toTarget(Entity entity, Target target,
+    public static DimensionTransition toTarget(Entity entity, TeleportTarget target,
                                                DimensionTransition.PostDimensionTransition post) {
-        Double y = CoordinateLanding.resolve(target.level(), Mth.floor(target.x()), Mth.floor(target.z()));
-        if (y == null) y = target.fallbackY();
-        if (y == null) return null;
+        Vec3 pos = switch (target) {
+            case TeleportTarget.At at -> {
+                Double y = CoordinateLanding.resolve(at.level(), Mth.floor(at.x()), Mth.floor(at.z()));
+                if (y == null) y = at.fallbackY();
+                if (y == null) yield null;          // 拿不到精确落点且无兜底 ⇒ 本 tick 不传送
+                yield new Vec3(at.x(), y, at.z());
+            }
+            // 世界出生点：XZ 与 Y 全部直取出生点自身，不查高度图（见 TeleportTarget.Spawn 的说明）
+            case TeleportTarget.Spawn spawn -> new Vec3(spawn.centerX(), spawn.fixedY(), spawn.centerZ());
+        };
+        if (pos == null) return null;
 
-        return new DimensionTransition(target.level(),
-                new Vec3(target.x(), y, target.z()),
+        return new DimensionTransition(target.level(), pos,
                 Vec3.ZERO,                       // 速度清零，等价旧 teleportTo(..., Set.of(), yRot, xRot)
                 entity.getYRot(), entity.getXRot(),
                 post);
+    }
+
+    /**
+     * 便捷入口：直取<b>实体当前坐标</b>作为落点（{@link TeleportTarget.At} 的最常见用法）。
+     *
+     * @param fallbackY 高度图取不到时的兜底 Y；{@code null} ⇒ 拿不到就不传送
+     */
+    @Nullable
+    public static DimensionTransition toCurrentCoords(Entity entity, ServerLevel level,
+                                                      @Nullable Double fallbackY,
+                                                      DimensionTransition.PostDimensionTransition post) {
+        return toTarget(entity, new TeleportTarget.At(level, entity.getX(), entity.getZ(), fallbackY), post);
     }
 }

@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.teleport.CoordinateLanding;
 import com.zonlong.beloong.teleport.DimensionTeleport;
+import com.zonlong.beloong.teleport.TeleportCooldown;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -72,9 +73,6 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
      */
     public static final ResourceKey<Level> DISASTER_LEVEL =
             ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(DISASTER_DIM));
-
-    /** 传送冷却在玩家持久化 NBT 中的键名。<b>不得更改</b>（跨维度/重登有效）。 */
-    private static final String COOLDOWN_KEY = "beloong_portal_cooldown";
 
     /**
      * 进门倒计时长度（ticks），取 <b>0</b> = 接触即开始传送尝试。
@@ -174,15 +172,14 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         // 仅玩家可传送（保持既有行为：物品/生物穿过传送门不传送）
         if (!(entity instanceof ServerPlayer player)) return;
 
-        // 冷却检查：NBT 中存储冷却结束的游戏刻，当前游戏刻小于它则跳过。
-        // 同时刷新原版冷却（见下方注释）——否则 NBT 冷却一到期就会立刻重新登记并重试。
-        long cooldownEnd = player.getPersistentData().getLong(COOLDOWN_KEY);
-        if (cooldownEnd > level.getGameTime()) {
+        // 冷却检查：与龙宫传送共用同一份 NBT 冷却（见 TeleportCooldown）。
+        // 同时把原版冷却顶住——否则 NBT 冷却一到期就会立刻重新登记并重试。
+        if (TeleportCooldown.isOnCooldown(player)) {
             // 原版玩家冷却只有 10 tick（Player#getDimensionChangingDelay 覆写），会在 NBT 冷却走完前归零；
-            // 而本分支不调用 setAsInsidePortal，原版冷却得不到刷新。这里显式把它顶到"比 NBT 冷却晚 1 tick 到期"，
+            // 而本分支不调用 setAsInsidePortal，原版冷却得不到刷新。这里显式顶住，
             // 使 NBT 到期那一 tick setAsInsidePortal 仍被 isOnPortalCooldown() 拦住（只刷新、不登记），
             // 从而达到 failDestination javadoc 承诺的语义：在 NBT 冷却期内不再重试。
-            player.setPortalCooldown((int) (cooldownEnd - level.getGameTime()) + 1);
+            TeleportCooldown.refreshVanillaToOutlastNbt(player, level);
             return;
         }
 
@@ -284,8 +281,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         // 兜底 Y：下行不用兜底（保持既有"必须拿到高度图"的行为）；上行用玩家当前 Y
         // （即传送所依据的那个 Y；等满上限仍拿不到高度图时直接用它过去，用户已确认接受）。
         @Nullable Double fallbackY = upward ? player.getY() : null;
-        DimensionTransition transition = DimensionTeleport.toTarget(player,
-                new DimensionTeleport.Target(target, player.getX(), player.getZ(), fallbackY),
+        DimensionTransition transition = DimensionTeleport.toCurrentCoords(player, target, fallbackY,
                 postTransition());
         if (transition != null) {
             LOGGER.info("[BeLoongCore][DisasterPortal:teleport] {} {} {} -> {} ({}, {}, {}) waited={} ticks",
@@ -367,8 +363,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         // 提示文案说的是"目标区块"，因此必须传区块坐标（blockX/Z 是方块坐标，>> 4 才是区块）
         player.sendSystemMessage(Component.translatable(
                 "message.beloong.disaster_portal.destination_timeout", blockX >> 4, blockZ >> 4));
-        player.getPersistentData().putLong(COOLDOWN_KEY,
-                player.level().getGameTime() + Config.DisasterPortal.teleportCooldownTicks.get());
+        TeleportCooldown.mark(player);
         return null;
     }
 
@@ -380,8 +375,7 @@ public class DisasterPortalBlock extends Block implements EntityBlock, Portal {
         return entity -> {
             entity.fallDistance = 0;   // 防止传送前的坠落伤害带到目标维度
             if (entity instanceof ServerPlayer player) {
-                player.getPersistentData().putLong(COOLDOWN_KEY,
-                        player.level().getGameTime() + Config.DisasterPortal.teleportCooldownTicks.get());
+                TeleportCooldown.mark(player);
             }
         };
     }

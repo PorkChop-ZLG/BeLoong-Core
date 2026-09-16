@@ -8,7 +8,16 @@ import net.minecraft.world.level.levelgen.Heightmap;
 /**
  * 落点 Y 的<b>非阻塞</b>解析（仅服务端主线程）。
  * <p>
- * 供"目标坐标已固定"的传送使用（龙宫 ↔ 主世界）：它们只需要一个安全的落脚 Y，
+ * ⚠️ <b>2026-09-16 起本类没有调用方</b>：原先使用它的两处（龙宫 ↔ 主世界的技能传送、
+ * 龙宫 Y&lt;0 兜底）都已改走 {@code teleport} 包——前者用
+ * {@code TeleportTarget.toLoongPalace}（走 {@link com.zonlong.beloong.teleport.CoordinateLanding}），
+ * 后者用 {@code TeleportTarget.Spawn}（不查高度图）。本类<b>刻意保留</b>，供将来
+ * "落点坐标固定、但不介意 Y 精度、也不想引入等待状态"的场景使用。
+ * <p>
+ * 与 {@link com.zonlong.beloong.teleport.CoordinateLanding} 的分工见其类 javadoc；
+ * 新代码若需要"精确落点、可以等一 tick"，请用 {@code CoordinateLanding}。
+ * <p>
+ * 供"目标坐标已固定"的传送使用：它们只需要一个安全的落脚 Y，
  * <b>不需要</b>为了拿高度图而同步加载目的地区块。
  * <p>
  * <b>与旧实现的关系</b>：公式逐分支等价，但<b>不是</b>逐字等价——旧实现在取高度图之前会
