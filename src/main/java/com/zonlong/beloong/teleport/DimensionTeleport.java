@@ -1,6 +1,7 @@
 package com.zonlong.beloong.teleport;
 
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.portal.DimensionTransition;
@@ -53,8 +54,14 @@ public final class DimensionTeleport {
                 if (y == null) yield null;          // 拿不到精确落点且无兜底 ⇒ 本 tick 不传送
                 yield new Vec3(at.x(), y, at.z());
             }
-            // 世界出生点：XZ 与 Y 全部直取出生点自身，不查高度图（见 TeleportTarget.Spawn 的说明）
-            case TeleportTarget.Spawn spawn -> new Vec3(spawn.centerX(), spawn.fixedY(), spawn.centerZ());
+            // 世界出生点：XZ 与 Y 取出生点自身；**玩家**还会在出生点周围扩散一个安全落点
+            // （复刻原版登录/无床出生的行为，见 SpawnSpreadResolver）。
+            // 非玩家实体没有"扩散"这一说（原版对非玩家走 adjustSpawnLocation 的出生点分支），
+            // 直接落在出生点坐标。
+            case TeleportTarget.Spawn spawn ->
+                    (entity instanceof ServerPlayer player && !spawn.level().isClientSide())
+                            ? SpawnSpreadResolver.resolve(spawn.level(), player).getBottomCenter()
+                            : new Vec3(spawn.centerX(), spawn.fixedY(), spawn.centerZ());
         };
         if (pos == null) return null;
 
