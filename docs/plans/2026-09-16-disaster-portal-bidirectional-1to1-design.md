@@ -1,7 +1,8 @@
 # 天灾传送门：双向 1:1 传送 + 传送 API 预留 设计文档
 
 **Date:** 2026-09-16
-**Status:** **Implemented（2026-09-16，静态验证通过；实机验收待用户执行）**
+**Status:** **Implemented & Accepted（2026-09-16）** —— 静态验证通过（§7.3）、实机验收通过（§7.2）；
+未覆盖三条边界/失败分支，已登记在总设计 §九
 **Approach:** A —— 抽出「1:1 落点解析层」+「传送门面层」，方块退化为薄适配器
 **Applies to:** Minecraft 1.21.1 / NeoForge 21.1.236 / BeLoong-Core 0.9.3（`disaster2` 分支）
 
@@ -262,7 +263,7 @@ DimensionTransition transition = DimensionTeleport.toTarget(entity, target);   /
 | 双向共用落点 | 读 `getPortalDestination` | 只剩"选 `ServerLevel`"一处分支 + 一次 `toTarget` |
 | API 面 | `javap` 检查两个类的公开签名 | 与 §2.2 一致；`CoordinateLanding` 无实例字段 |
 
-### 7.2 实机（用户执行）
+### 7.2 实机（**已验收通过 2026-09-16**；取证与逐条数据见 `docs/天灾维度总设计.md` §3.6）
 
 **V1 接口自证**：成功日志一条同时给出方向与目标坐标
 ```
@@ -288,7 +289,21 @@ DimensionTransition transition = DimensionTeleport.toTarget(entity, target);   /
 
 **V6 文档同步**：`docs/天灾维度总设计.md` §3.6 / §六常量表 / §九 + 决策 35。
 
-**实例日志按 GBK 解码**（`[System.Text.Encoding]::GetEncoding(936)`）。
+实例日志按 GBK 解码（`[System.Text.Encoding]::GetEncoding(936)`）。
+
+**验收结果（2026-09-16，开发环境 `run/logs/latest.log`，存档「天灾传送门再测试」）**
+
+| 项 | 结果 |
+|---|---|
+| 传送次数 | **11 次全部成功**（downward 6 / upward 5），`timeout` 0、`error` 0，每次都与随之而来的维度切换一一配对 |
+| V1 日志格式 | ✅ 方向 + `(x, y, z)` + `waited` 齐备，例：`upward beloong:disaster -> minecraft:overworld (894.511…, 64.0, 10217.297…) waited=1 ticks` |
+| V2 双向 1:1 | ✅ **逐位可复现**：`13:46:53` 下行落点 `x=966.571772562373 z=10033.143531158414` 与 `13:46:25` 上行起点逐位相等（用户确认完整测试通过，含此前多轮往返） |
+| V3 落点来源 | ✅ 出现 `76.49520087700593` 这类值 ⇒ 来自 `getHeight(MOTION_BLOCKING)+1+1`，**非兜底**（兜底与玩家 Y 同源，必为整数/半整数） |
+| V3' 兜底分支 | ⚠️ **未触发**（`resolve` 11 次全部成功）——只有静态审查 |
+| V4 死锁回归 | ✅ 全程无 `Thread Dump:` / watchdog 转储 / `StackOverflowError`；3 条 `Can't keep up` 均在新区块生成期，与本模组无关 |
+| V5 既有语义 | 用户确认完整测试通过（不再回床边 / 冷却拦住连传 / 骑乘下车 / 非玩家不传） |
+| 水面落点 | ⚠️ **未覆盖**：11 次落点全在陆地；"水面就放水面"待补一次海洋列测试 |
+| 下行超时 | ⚠️ **未触发**：`waited` 最大 82 tick，离 600 上限很远（余量充足本身是好消息） |
 
 ### 7.3 静态验证结果（2026-09-16 实测）
 
