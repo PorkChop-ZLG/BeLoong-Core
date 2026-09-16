@@ -238,3 +238,22 @@ DamageEffect.apply(dragon, ability, target)
 ## Next Steps
 
 实施计划见 `docs/plans/2026-09-16-claw-sword-advancement-plan.md`（v2）。
+
+---
+
+## 结项说明（2026-09-16，实施与实测之后）
+
+**状态：已完成并通过实机验证。** 生存模式下两条路径（玩家攻击、龙技能）均能触发两个进度。
+创造模式不触发已定位为 **DS 上游设计**（`ClawInventoryData.swapStart`/`swapFinish` 开头的
+`isCreative()` 守卫，字节码级确认 + DS 源码 TODO + 无配置开关），非本模组缺陷；用户裁定不修复
+——创造模式下换手本身就没发生，让进度亮起来等于"教一件假事"。
+
+**架构澄清：本模组只提供触发器，不提供进度。** 文中那两个进度 JSON 与对应的 4 条 lang 条目
+**属于验证载体，已按要求删除**；正式的进度写在**整合包侧**（数据包 / KubeJS）。
+保留的是判据本身——`ModCriteria` + 两个判据类 + `ClawSwordAdvancementHandler` + `BeLoongCore` 接线。
+
+⇒ 阅读本文时请注意：**D2 / D3 / D4 / D5 / D6 是关于那个已删除的测试进度的决策**，
+对整合包侧的正式进度不构成约束（尤其 D3 的"原版占位图标/背景"、D5 的"不带 entity 谓词"
+都是为测试而做的取舍）。**仍然有效的是 D1、D8、D9 以及 F1–F12** —— 它们描述的是
+**触发器**的行为与边界。若整合包侧需要 entity 谓词来筛选"用爪剑杀特定怪"，
+需要回来扩展判据的 `TriggerInstance`（即 D5 的 Non-Goal）。
