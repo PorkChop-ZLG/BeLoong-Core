@@ -2,13 +2,15 @@ package com.zonlong.beloong.block;
 
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
 import com.zonlong.beloong.teleport.DimensionTeleport;
 import com.zonlong.beloong.teleport.TeleportCooldown;
 import com.zonlong.beloong.teleport.TeleportTarget;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -77,6 +79,12 @@ public class LoongPalacePortalBlock extends Block implements Portal {
 
     /** 环境音播放概率的倒数（1/100，取自天境；原版下界门是 1/2000）。 */
     private static final int AMBIENT_SOUND_CHANCE = 100;
+
+    /** 环境音音量（天境的原值为 0.5，此处照抄）。 */
+    private static final float AMBIENT_VOLUME = 0.5F;
+
+    /** 点亮与传送音效的音量（天境的原值为 0.25，原实现误用 1.0 ⇒ 偏响 4 倍）。 */
+    private static final float EVENT_SOUND_VOLUME = 0.25F;
 
     /** 碰撞箱：与下界门逐字相同（X 轴薄板在 z=6..10，Z 轴薄板在 x=6..10）。 */
     private static final VoxelShape X_AXIS_SHAPE = Block.box(0.0D, 0.0D, 6.0D, 16.0D, 16.0D, 10.0D);
@@ -237,7 +245,8 @@ public class LoongPalacePortalBlock extends Block implements Portal {
             if (entity instanceof ServerPlayer player) {
                 TeleportCooldown.mark(player);
                 player.level().playSound(null, player.blockPosition(),
-                        ModSounds.LOONG_PALACE_PORTAL_TRAVEL.get(), SoundSource.BLOCKS, 1.0F, 1.0F);
+                        ModSounds.LOONG_PALACE_PORTAL_TRAVEL.get(), SoundSource.BLOCKS,
+                        EVENT_SOUND_VOLUME, 1.0F);
             }
         };
     }
@@ -263,15 +272,25 @@ public class LoongPalacePortalBlock extends Block implements Portal {
     }
 
     /**
-     * 客户端效果：低频环境音 + 粒子（照抄原版下界门的 {@code animateTick}，环境音换成我们的音效）。
+     * 客户端效果：低频环境音 + 粒子。
+     * <p>
+     * 粒子改用本模组自己的 {@link ModParticles#LOONG_PALACE_PORTAL}（贴图与原版下界门相同，
+     * 但配色复刻天境：红绿压到 20%，偏冷蓝青——见 {@code client/particle/LoongPalacePortalParticle}）。
+     * <p>
+     * <b>环境音为什么不用 {@code playLocalSound}</b>：那条路径是原版下界门用的"本地环境音"
+     * （{@code Attenuation.NONE}），贴着门听会明显偏响；而且它只接受 {@code SoundEvent}、
+     * 无法传入自定义的 {@link SoundInstance}。这里改为客户端直接播放
+     * （与天境 {@code AetherPortalBlock#animateTick} 同一写法）：
+     * {@link SimpleSoundInstance} 的公开构造器默认<b>线性衰减</b>，音量取 {@value #AMBIENT_VOLUME}（与天境一致）。
      */
     @OnlyIn(Dist.CLIENT)
     @Override
     public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
         if (random.nextInt(AMBIENT_SOUND_CHANCE) == 0) {
-            level.playLocalSound(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D,
+            Minecraft.getInstance().getSoundManager().play(new SimpleSoundInstance(
                     ModSounds.LOONG_PALACE_PORTAL_AMBIENT.get(), SoundSource.BLOCKS,
-                    0.5F, random.nextFloat() * 0.4F + 0.8F, false);
+                    AMBIENT_VOLUME, random.nextFloat() * 0.4F + 0.8F, random,
+                    pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D));
         }
 
         for (int i = 0; i < 4; i++) {
@@ -289,7 +308,7 @@ public class LoongPalacePortalBlock extends Block implements Portal {
                 z = pos.getZ() + 0.5D + 0.25D * side;
                 dz = random.nextFloat() * 2.0F * side;
             }
-            level.addParticle(ParticleTypes.PORTAL, x, y, z, dx, dy, dz);
+            level.addParticle(ModParticles.LOONG_PALACE_PORTAL.get(), x, y, z, dx, dy, dz);
         }
     }
 

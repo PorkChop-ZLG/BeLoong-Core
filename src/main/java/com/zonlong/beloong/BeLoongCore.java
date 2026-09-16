@@ -14,6 +14,7 @@ import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModMobEffects;
+import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
@@ -87,6 +88,7 @@ public class BeLoongCore {
         ModItems.register(modEventBus);              // 物品
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
         ModSounds.register(modEventBus);             // 音效
+        ModParticles.register(modEventBus);          // 粒子类型
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);

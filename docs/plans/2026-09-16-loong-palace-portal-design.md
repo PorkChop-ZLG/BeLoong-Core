@@ -145,7 +145,19 @@ entityInside（客户端也登记，为 CONFUSION 扭曲供数；服务端仅放
 
 **音效播放点**：`ambient` → `animateTick` 低频（天境 1/100；原版下界门 1/2000，**取天境的 1/100**）；`trigger` → 点亮瞬间（广播附近玩家）；`travel` → 传送成功后的 `post` 回调。
 
-**粒子**：`animateTick` 用**原版 `ParticleTypes.PORTAL`**（天境用自定义粒子类型 + 原版 `generic_0..7` 贴图；为省一个新粒子类型注册，改用原版粒子，观感同族）。
+**粒子**：`animateTick` 用**本模组自己的粒子类型** `beloong:loong_palace_portal`——
+贴图与原版下界门**完全相同**（`minecraft:generic_0..7`），差别只在**配色**。
+
+### 4.1 实机验收反馈后的两项修正（2026-09-16）
+
+首次实机验收（功能正常）反馈了两处**观感**问题，均已修：
+
+| # | 问题 | 根因 | 修法 |
+|---|---|---|---|
+| **S1** | 音效**太大** | ① `trigger`/`travel` 音量用了 `1.0`，天境是 **`0.25`**（响 4 倍）；② `ambient` 用了 `level.playLocalSound`——那是原版下界门的**本地环境音**路径（`Attenuation.NONE`），贴着门听不衰减 | `trigger`/`travel` → `0.25`；`ambient` 改为**客户端直接播放 `SimpleSoundInstance`**（其公开构造器默认 `Attenuation.LINEAR`，音量 `0.5` 与天境一致）。**注意**：`Level#playLocalSound` 只接受 `SoundEvent`、无法传入自定义 `SoundInstance`，所以必须走客户端路径（天境也是这样） |
+| **P1** | 粒子**像下界门** | 贴图本来就相同；真差异是**配色**：原版 `PortalParticle` 是 `r=f*0.9, g=f*0.3, b=f`（暖橙红），天境是 `r=g=b=f` 再 `r*=0.2, g*=0.2`（冷蓝青、更暗） | 新增 `registry/ModParticles` + `client/particle/LoongPalacePortalParticle`（`extends PortalParticle`，只覆写那 3 行配色）+ `assets/beloong/particles/loong_palace_portal.json`；`BeLoongCoreClient` 加 `RegisterParticleProvidersEvent` 绑定 |
+
+**两处都只改观感，不动传送逻辑、不影响已通过的验收结论。**
 
 ---
 

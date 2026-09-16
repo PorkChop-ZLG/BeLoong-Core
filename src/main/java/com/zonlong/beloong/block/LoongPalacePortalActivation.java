@@ -43,8 +43,9 @@ public class LoongPalacePortalActivation {
 
         LoongPalacePortalShape.findEmpty(level, pos, Direction.Axis.X).ifPresent(shape -> {
             shape.createPortalBlocks();
+            // 音量与天境一致（0.25）：原实现误用 1.0，实机反馈偏响 4 倍
             level.playSound(null, pos, ModSounds.LOONG_PALACE_PORTAL_TRIGGER.get(),
-                    SoundSource.BLOCKS, 1.0F, 1.0F);
+                    SoundSource.BLOCKS, 0.25F, 1.0F);
             LOGGER.debug("[BeLoongCore] loong palace portal lit at {} in {}", pos, level.dimension().location());
         });
     }
