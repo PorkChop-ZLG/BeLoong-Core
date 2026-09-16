@@ -3,6 +3,7 @@ package com.zonlong.beloong;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
+import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
@@ -13,6 +14,7 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModCriteria;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
@@ -92,6 +94,7 @@ public class BeLoongCore {
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
+        ModCriteria.REGISTRY.register(modEventBus);  // 进度判据
 
         // === 事件处理器 ===
         NeoForge.EVENT_BUS.register(this);
@@ -101,6 +104,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
+        NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());

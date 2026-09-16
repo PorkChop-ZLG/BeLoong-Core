@@ -1,4 +1,8 @@
 {
+  "advancements.beloong.claw_sword.kill.description": "Kill a mob with the sword swapped into your claw",
+  "advancements.beloong.claw_sword.kill.title": "Claw and Fang",
+  "advancements.beloong.claw_sword.swap.description": "A sword in your claw slot is swapped into your claw when you attack empty-handed",
+  "advancements.beloong.claw_sword.swap.title": "Blade in the Claw",
   "attribute.beloong.growth_speed": "Growth Speed",
   "attribute.dragonsurvival.flight_level": "Flight Level",
   "beloong.configuration.amplifierStep": "Value Per Level",

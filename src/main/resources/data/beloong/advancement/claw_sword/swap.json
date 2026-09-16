@@ -1,0 +1,30 @@
+{
+  "criteria": {
+    "swap": {
+      "trigger": "beloong:claw_sword_swap"
+    }
+  },
+  "display": {
+    "title": {
+      "translate": "advancements.beloong.claw_sword.swap.title"
+    },
+    "description": {
+      "translate": "advancements.beloong.claw_sword.swap.description"
+    },
+    "icon": {
+      "id": "minecraft:diamond_sword",
+      "count": 1
+    },
+    "frame": "task",
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "show_toast": true,
+    "announce_to_chat": false,
+    "hidden": false
+  },
+  "requirements": [
+    [
+      "swap"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,4 +1,8 @@
 {
+  "advancements.beloong.claw_sword.kill.description": "用换入爪中的剑击杀一只生物",
+  "advancements.beloong.claw_sword.kill.title": "爪牙的锋芒",
+  "advancements.beloong.claw_sword.swap.description": "爪牙槽里的剑，会在你空手攻击时自动换入爪中",
+  "advancements.beloong.claw_sword.swap.title": "爪中之刃",
   "attribute.beloong.growth_speed": "成长速度",
   "attribute.dragonsurvival.flight_level": "飞行等级",
   "beloong.configuration.amplifierStep": "每级所需财宝价值",
