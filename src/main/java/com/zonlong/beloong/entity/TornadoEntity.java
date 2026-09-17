@@ -15,6 +15,7 @@ import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -23,7 +24,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 龙卷风实体：匀速直线飞行，每 tick 把周围敌人吸向中心，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。
+ * 龙卷风实体：匀速飞行、**撞方块镜面反弹**、**穿透生物**，每 tick 把周围敌人吸向中心，
+ * 每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。
  * <p>
  * <b>关键设计：位移与玩法逻辑只在服务端跑，客户端只额外外推一次。</b>
  * 本类继承 {@link Projectile}（不是 {@code LivingEntity}），因此客户端侧的
@@ -36,8 +38,12 @@ import net.minecraft.world.phys.Vec3;
  * 而吸附点恰好等于上一 tick 外推后的位置，故随后的吸附是空操作，不产生抖动或速度翻倍。
  * 反过来，若客户端不外推，{@code setOldPosAndRot()} 发生在 {@code tick()} 之前，
  * 吸附又只改位置不改 {@code xOld}，于是渲染时 {@code xOld == getX()}，
- * {@code Mth.lerp(partialTick, xOld, getX())} 退化成常量——0.45 格/tick 会肉眼可见地每秒跳 20 次。
+ * {@code Mth.lerp(partialTick, xOld, getX())} 退化成常量——0.30 格/tick 会肉眼可见地每秒跳 20 次。
  * 外推的目的正是让 {@code xOld != getX()}，使原版渲染插值重新生效。
+ * <p>
+ * <b>移动会撞方块反弹</b>（见 {@link #advance()}）：逐轴碰撞检测 + 该轴速度取反，不衰减、不设弹跳上限；
+ * 但<b>不撞生物</b>——生物必须能穿过风柱，否则没法把它们吸到身上。客户端也执行同样的碰撞位移，
+ * 否则服务端已经弹回来时它还在沿直线外推，视觉上会穿墙。
  * <p>
  * <b>「无视攻击冷却」靠伤害类型 tag 实现</b>，不是 hack {@code invulnerableTime}：
  * {@code minecraft:bypasses_cooldown} 让 {@code LivingEntity#hurt} 跳过
@@ -135,7 +141,7 @@ public class TornadoEntity extends Projectile {
             if (this.getDeltaMovement().lengthSqr() < 1.0E-7D) {
                 return;
             }
-            this.setPos(this.position().add(this.getDeltaMovement()));
+            this.advance();
             return;
         }
 
@@ -144,8 +150,8 @@ public class TornadoEntity extends Projectile {
             return;
         }
 
-        // 匀速直线穿透：不调用 move()，所以不与方块碰撞
-        this.setPos(this.position().add(this.getDeltaMovement()));
+        // 逐轴碰撞 + 镜面反弹（见 advance()）：撞方块反射，生物可穿透
+        this.advance();
         // 把上面这个速度下发给客户端，客户端才能自行外推（见类注释）。
         // ServerEntity#sendChanges 会消费 hurtMarked 并发一个 ClientboundSetEntityMotionPacket。
         this.hurtMarked = true;
@@ -156,6 +162,39 @@ public class TornadoEntity extends Projectile {
         }
 
         this.applyPullAndDamage();
+    }
+
+    /**
+     * 向前推进一步；撞到方块时按碰撞轴做镜面反射。
+     * <p>
+     * 用 {@link Entity#move} 而不是 {@code setPos}：前者会做碰撞解算，于是可以拿
+     * 「实际位移 vs 意图位移」<b>逐轴</b>判断是哪一轴被挡住。刻意不用
+     * {@code horizontalCollision} 之类的水位标志——它把 x/z 合并成一个布尔，
+     * 撞一面墙会错误地同时翻转两个水平轴。
+     * <p>
+     * <b>只撞方块，不撞生物</b>：不走 {@code ProjectileUtil} 的命中检测、也不触发 {@code onHit}，
+     * 所以生物可以穿过风柱。速度不因反弹衰减，保持恒定速率便于预判；弹跳次数不设上限，
+     * 仍由寿命决定消亡。
+     * <p>
+     * 客户端与服务端都调用本方法：服务端是权威，客户端若不自行碰撞，服务端已经弹回来时
+     * 它还在沿直线外推，视觉上会穿墙。
+     */
+    private void advance() {
+        Vec3 delta = this.getDeltaMovement();
+        if (delta.lengthSqr() < 1.0E-7D) {
+            return;
+        }
+
+        Vec3 before = this.position();
+        this.move(MoverType.SELF, delta);
+        Vec3 moved = this.position().subtract(before);
+
+        // 某轴实际位移明显小于意图位移 => 该轴撞到了方块，把该分量取反
+        double tolerance = 1.0E-4D;
+        this.setDeltaMovement(
+                Math.abs(moved.x - delta.x) > tolerance ? -delta.x : delta.x,
+                Math.abs(moved.y - delta.y) > tolerance ? -delta.y : delta.y,
+                Math.abs(moved.z - delta.z) > tolerance ? -delta.z : delta.z);
     }
 
     /** 收集范围内的候选目标：每 tick 按 3D 距离决定吸引，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。 */
