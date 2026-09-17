@@ -288,10 +288,13 @@ public TornadoRenderer(EntityRendererProvider.Context ctx) {
 public void render(TornadoEntity e, float yaw, float partial, PoseStack pose,
                    MultiBufferSource buf, int light) {
     pose.pushPose();
-    // 灾变是 scale(-0.5) + translate(0,-1.5,0)；放大到 3x 时平移量会被 scale 一起放大，
-    // 照抄会飘，所以改成「把模型底面（模型 y=24）对齐到实体位置」。
+    // 【已修正】单位：模型空间 1 单位 = pose 栈 1/16 单位
+    // （ModelPart#translateAndRotate:149 与 Cube#compile:358-360 都做 /16）。
+    // 所以模型 y=24 的地面平面到达 pose 栈时是 1.5，平移量必须是 -1.5，而不是 -24。
+    // 该平移是缩放无关的：v_world_y = S * (v_pose_y + t_y)，底面 v_pose_y = 1.5，
+    // t_y = -1.5 对任意 S 都把它归零——所以灾变原版的 -1.5 在 3x 下照抄即可。
     pose.scale(-0.5F * MODEL_SCALE, -0.5F * MODEL_SCALE, 0.5F * MODEL_SCALE);
-    pose.translate(0.0F, -24.0F, 0.0F);
+    pose.translate(0.0F, -MODEL_ROOT_Y / 16.0F, 0.0F);   // MODEL_ROOT_Y = 24.0F（模型空间的地面 y）
     this.model.setupAnim(e, e.tickCount + partial);
     this.model.renderToBuffer(pose,
             buf.getBuffer(RenderType.entityCutoutNoCull(TEXTURE)),
@@ -300,6 +303,8 @@ public void render(TornadoEntity e, float yaw, float partial, PoseStack pose,
     super.render(e, yaw, partial, pose, buf, light);
 }
 ```
+
+> **勘误（实测修正）**：本节初稿写的是 `pose.translate(0.0F, -24.0F, 0.0F)`，并把理由写成「灾变的 -1.5 在 3x 下会漂移，所以改成按模型单位平移」。**这个理由是错的，代码也因此错了 16 倍**：`-24` 会把龙卷风放到实体上方 **33.75 格**处（实测 `v_world_y ∈ [33.75, 37.03]`），而 `-1.5` 得到 `[0.00, 3.28]`，正好等于本 spec 声称的「约 3.28 格高、底面锚在实体位置」。是实施子代理用 `ModelPart`/`Cube` 的一手源码发现的，控制器已独立复核三种方式。教训：**模型空间与 pose 栈空间差 16 倍，跨过这条边界时必须显式写单位换算**。
 
 - **`entityCutoutNoCull`**：贴图 alpha 二值，cutout 保镂空且**不进半透明排序队列**；`NoCull` 必须带，风柱空心需要看到内壁。
 - **锚点后果（需知晓）**：底面锚在实体位置 + `眼高 − 0.5` 发射，站立玩家（眼高≈1.62）时底面约在 **1.12 格**、顶面约 **4.40 格**——整根沙尘柱是悬空的。若要改成贴地，只需给 renderer 加一个 `MODEL_Y_OFFSET` 常数并调整第 3 步的发射高度。

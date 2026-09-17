@@ -796,9 +796,16 @@ import net.minecraft.resources.ResourceLocation;
  * 龙卷风渲染器。
  * <p>
  * <b>缩放与锚点</b>：灾变原本是 {@code scale(-0.5,-0.5,0.5)} + {@code translate(0,-1.5,0)}。
- * 放大到 3x 时不能再照抄平移量——PoseStack 后调用的 translate 会被先调用的 scale 一起放大，
- * 照抄会让龙卷风飘走。这里改成「把模型底面（模型 y=24，即模型空间的地面平面）
- * 对齐到实体位置」，语义明确且与缩放无关。
+ * <b>单位是关键</b>：模型空间 1 单位 = pose 栈 1/16 单位（{@code ModelPart#translateAndRotate} 与
+ * {@code Cube#compile} 都对坐标做 /16），所以模型 y=24 的地面平面到达 pose 栈时是 <b>1.5</b>，
+ * 平移量必须是 {@code -1.5}。<b>该平移是缩放无关的</b>：{@code v_world_y = S * (v_pose_y + t_y)}，
+ * 底面 {@code v_pose_y = 1.5}，{@code t_y = -1.5} 对任意 S 都把它归零——所以灾变原版的 -1.5
+ * 在 3x 下照抄即可，不会漂移。
+ * <p>
+ * <b>勘误</b>：本节初稿曾写 {@code translate(0,-24,0)}，理由是「照抄 -1.5 会被 scale 放大而漂移」。
+ * 该理由与代码都是错的：{@code -24} 会把龙卷风放到实体上方 33.75 格（实测 v_world_y ∈ [33.75, 37.03]），
+ * 而 {@code -1.5} 得到 [0.00, 3.28]，正是设计文档声称的 3.28 格高、底面锚在实体位置。
+ * 由实施子代理以 {@code ModelPart}/{@code Cube} 一手源码发现，控制器三路复核确认。
  * <p>
  * <b>RenderType</b>：{@code entityCutoutNoCull}。贴图 alpha 是二值的（实测 3030 个不透明、
  * 13354 个全透明、无半透明），cutout 既保住镂空又不会进半透明排序队列；{@code NoCull}
@@ -811,8 +818,10 @@ public class TornadoRenderer extends EntityRenderer<TornadoEntity> {
 
     /** 在灾变原尺寸基础上再放大的倍数 */
     private static final float MODEL_SCALE = 3.0F;
-    /** 模型根枢轴 y，即模型空间的地面平面 */
+    /** 模型根枢轴 y，即模型空间的地面平面（模型空间单位，使用时需 /16 换算到 pose 栈空间） */
     private static final float MODEL_ROOT_Y = 24.0F;
+    /** 模型空间到 pose 栈空间的比例：模型 1 单位 = pose 栈 1/16 单位 */
+    private static final float MODEL_UNITS_PER_POSE_UNIT = 16.0F;
     /** 动画时间取模上限，避免长时间累加导致浮点精度下降 */
     private static final float ANIM_MODULO = 3600.0F;
 
@@ -828,8 +837,12 @@ public class TornadoRenderer extends EntityRenderer<TornadoEntity> {
     public void render(TornadoEntity entity, float entityYaw, float partialTick, PoseStack pose,
                        MultiBufferSource buffer, int packedLight) {
         pose.pushPose();
+        // 【勘误后修正】模型空间 1 单位 = pose 栈 1/16 单位（ModelPart#translateAndRotate:149
+        // 与 Cube#compile:358-360 都做 /16），所以模型 y=24 的地面平面到达 pose 栈时是 1.5。
+        // 该平移缩放无关：v_world_y = S * (v_pose_y + t_y)，底面 v_pose_y = 1.5，
+        // t_y = -1.5 对任意 S 都归零 —— 灾变原版的 -1.5 在 3x 下照抄即可。
         pose.scale(-0.5F * MODEL_SCALE, -0.5F * MODEL_SCALE, 0.5F * MODEL_SCALE);
-        pose.translate(0.0F, -MODEL_ROOT_Y, 0.0F);
+        pose.translate(0.0F, -MODEL_ROOT_Y / MODEL_UNITS_PER_POSE_UNIT, 0.0F);
 
         float ageInTicks = (entity.tickCount + partialTick) % ANIM_MODULO;
         this.model.setupAnim(ageInTicks);
