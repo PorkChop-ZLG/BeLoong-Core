@@ -10,6 +10,21 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-17-tornado-ability-design.md`
 
+> ## 勘误（实施后修订，2026-09-17）
+>
+> 本计划执行期间有几处偏离计划正文的改动，均已在独立审查后合并。**正文中所有相冲突的表述以本节为准**：
+>
+> 1. **Task 4 渲染器锚点平移量**：计划原文的 `-MODEL_ROOT_Y`（= −24）**错了 16 倍**。模型空间 1 单位 = pose 栈 1/16 单位（`ModelPart.translateAndRotate:149` 与 `Cube.compile:358-360` 都做 /16），实际交付为 `-MODEL_ROOT_Y / 16.0F`（= −1.5）。文档勘误提交 `df45772`。
+> 2. **Task 6 之后的最终修复波**（提交 `49f3459`）：
+>    - 伤害字段 `damage_per_tick` 端到端改名 **`damage_per_hit`**，数值重标定为 **2.0 / 3.0 / 4.0 / 5.0 / 6.0**（`linear base 2.0, per_level 1.0`）。
+>    - 伤害频率由「每 tick 结算」改为**每 4 刻结算 1 次、每次 4 倍伤害**（用户裁决）。DPS 逐级不变；**吸引仍是每 tick**。
+>    - 客户端改为**每 tick 外推一次位移**，服务端每 tick `hurtMarked = true` 发布速度。本计划原文中「客户端不自己跑位移」与「平滑由 `partialTick` 插值提供」的说法**均已作废**（后者理由是错的）。
+>    - `experience_cost.values[0]` 由 `1.0` 改为 **`0.0`**。
+>    - `exhaustion` 由 `0.1` 改为 **`0.02`**。
+>    - `TornadoEffect` 的 self-only 契约已补文档；候选盒改用 `Math.max(pullRadius, damageRadius)`。
+>
+> 因此正文 Task 2/4/5/6 中出现的 `damage_per_tick`、`每 tick 结算伤害`、`客户端不跑位移`、「`partialTick` 插值提供平滑」等表述，一律以本节为准。
+
 ## Global Constraints
 
 - 模组 ID `beloong`，Java 包根 `com.zonlong.beloong`，主类 `BeLoongCore`。
