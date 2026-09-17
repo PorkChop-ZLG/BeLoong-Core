@@ -3,8 +3,11 @@ package com.zonlong.beloong;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
+import com.zonlong.beloong.client.TornadoRenderer;
+import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModEntities;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -69,6 +72,19 @@ public class BeLoongCoreClient {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
+        event.registerEntityRenderer(ModEntities.TORNADO.get(), TornadoRenderer::new);
+    }
+
+    /**
+     * 注册实体模型层。
+     * <p>
+     * 必须在 {@link #registerRenderers} 之前或同时完成，否则
+     * {@code context.bakeLayer(TornadoModel.LAYER)} 会抛
+     * {@code IllegalArgumentException: Model layer ... not registered}。
+     */
+    @SubscribeEvent
+    static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(TornadoModel.LAYER, TornadoModel::createBodyLayer);
     }
 
     @SubscribeEvent
