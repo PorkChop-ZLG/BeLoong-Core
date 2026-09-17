@@ -146,6 +146,13 @@ public class TornadoEntity extends Projectile {
      * 最后按「离中心越近、允许速度越小」封顶。
      */
     private void pull(LivingEntity target) {
+        // pullStrength 非正数（0 或负数）视为「关闭吸引」：既不拉也不减速。
+        // 若没有这道守卫，maxSpeed = pullStrength * PULL_SPEED_FACTOR * min(1, 距离/2) <= 0，
+        // 末尾的 normalize().scale(maxSpeed) 会把目标的水平速度清零（0）甚至反向（负数）。
+        if (this.pullStrength <= 0.0D) {
+            return;
+        }
+
         Vec3 toCenter = new Vec3(this.getX() - target.getX(), 0.0D, this.getZ() - target.getZ());
         double distance = toCenter.length();
         if (distance <= 0.05D) {
