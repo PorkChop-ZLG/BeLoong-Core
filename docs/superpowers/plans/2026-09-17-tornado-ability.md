@@ -23,7 +23,9 @@
 >    - `exhaustion` 由 `0.1` 改为 **`0.02`**。
 >    - `TornadoEffect` 的 self-only 契约已补文档；候选盒改用 `Math.max(pullRadius, damageRadius)`。
 >
-> 因此正文 Task 2/4/5/6 中出现的 `damage_per_tick`、`每 tick 结算伤害`、`客户端不跑位移`、「`partialTick` 插值提供平滑」等表述，一律以本节为准。
+> 3. **移动方式改为反弹**（用户试玩反馈）：`speed` 由 `0.45` 下调至 **`0.30`**；「匀速直线穿透方块」改为**撞方块镜面反弹**（`Entity#move` 逐轴碰撞检测 + 该轴速度取反，不衰减；不设弹跳上限），**生物仍可穿透**；客户端与服务端**都**执行该碰撞位移。这推翻了正文中 Task 2 的「不调用 move()，所以不与方块碰撞」。
+>
+> 因此正文 Task 2/4/5/6 中出现的 `damage_per_tick`、`每 tick 结算伤害`、`客户端不跑位移`、「`partialTick` 插值提供平滑」、以及「穿透方块」等表述，一律以本节为准。
 
 ## Global Constraints
 

@@ -16,12 +16,13 @@
 > 4. **`exhaustion`**：`0.1` → **`0.02`**（按新频率表达「≈0.1/秒」的原意图）。
 > 5. **`experience_cost.values[0]`**：`1.0` → **`0.0`**，否则生存模式 0 经验下授予的技能不可用（`MIN_LEVEL = 0`，`isUsable()` 要求 `level > 0`）。
 > 6. **技能图标**：Task 6 生成的 6 张为**占位图**，用户将自行绘制替换；JSON 路径无需改动。
+> 7. **移动方式改为反弹（试玩反馈）**：用户实测后反馈「速度偏快、穿透方块手感不好」，故 `speed` 由 **0.45 下调至 0.30**（6 格/秒），并把「穿透方块」改为**撞方块镜面反弹**（`Entity#move` 逐轴碰撞检测 + 该轴速度取反，不衰减）；**生物仍可穿透**（否则无法把敌人吸到身上），也不设弹跳次数上限。这**推翻了决策 2 与决策 10 中关于穿墙的表述**，正文相关处已同步更新。
 ## 已确认的决策
 
 | # | 决策点 | 结论 |
 |---|---|---|
 | 1 | 技能获取 | 只做技能本体，不加 species tag（同 `air_strike`） |
-| 2 | 移动与消亡 | 匀速直线**穿透**方块与敌人，寿命到即消散 |
+| 2 | 移动与消亡 | 匀速直线，**撞方块镜面反弹**、**穿透生物**，寿命到即消散（**试玩后由用户改为反弹**，见勘误；原为「穿透方块」）|
 | 3 | 影响目标 | 除施法者 / 队友 / 宠物 / 召唤物外的所有活体；**创造模式玩家免疫** |
 | 4 | 数值 | 见下表；等级上限 5，`experience_points` 升级 |
 | 5 | 贴图色调 | 青色，色相 **187°** |
@@ -29,7 +30,7 @@
 | 7 | 模型朝向 | **严格照抄灾变**：窄底宽顶（`storm` 8 宽贴地，`storm4` 30 宽在顶） |
 | 8 | 发射高度 | **照抄灾变**：`眼高 − 0.5` 发射，模型底面锚在实体位置 |
 | 9 | 击退 | 伤害类型加入 `no_knockback`，不被击退（避免和吸引互相顶） |
-| 10 | 视线检测 | 不做。穿墙飞行 + 穿墙 AoE |
+| 10 | 视线检测 | 不做。龙卷风**本身不再穿墙**（改为撞墙反弹，见决策 2），但吸引/伤害的 AoE 仍不做视线检测 |
 
 ### 数值表
 
@@ -39,7 +40,7 @@
 | `lifetime` | 100 | 160 | `linear base 100, per_level 15` |
 | `pull_radius` | 8 | 12 | `linear base 8, per_level 1` |
 | `damage_radius` | 4 | 6 | `linear base 4, per_level 0.5` |
-| `speed` | 0.45 | 0.45 | 固定 |
+| `speed` | 0.30 | 0.30 | 固定（**试玩后由 0.45 下调**，见勘误）|
 | `pull_strength` | 0.35 | 0.35 | 固定 |
 
 施法：`cast_time 20` / `cooldown 200` / `initial_mana_cost 2`。
@@ -104,7 +105,7 @@ public static final DeferredHolder<EntityType<?>, EntityType<TornadoEntity>> TOR
 1. super.tick()                                    // Projectile.tick 会 gameEvent + checkLeftOwner
 2. if (level().isClientSide) return;               // 客户端什么都不做，位置完全由同步包决定
 3. if (--life <= 0) { discard(); return; }
-4. setPos(position().add(getDeltaMovement()))      // 仅服务端
+4. advance()                                       // 仅服务端：逐轴碰撞 + 镜面反弹
 5. if (getY() < level().getMinBuildHeight() - 8) { discard(); return; }
 6. applyPullAndDamage();
 ```
@@ -113,7 +114,8 @@ public static final DeferredHolder<EntityType<?>, EntityType<TornadoEntity>> TOR
 > `this.setPos(x, y, z); this.setRot(yRot, xRot);` —— 对**非 LivingEntity** 是**硬吸附**；
 > 只有 `LivingEntity.lerpTo`（第 2971 行）才存 `lerpX/lerpY/lerpZ/lerpSteps` 做插值。
 > `TornadoEntity extends Projectile`（不是 LivingEntity），所以客户端每 tick 会被位置包硬吸附。
-> 若客户端再自己 `setPos(+deltaMovement)`，两者会互相覆盖 → 抖动 + 速度翻倍。
+> 若客户端不做同样的碰撞位移，服务端已经反弹回来时它还在沿直线外推 → 视觉上穿墙。
+> （**勘误后**：客户端与服务端都调用 `advance()`，即同样的逐轴碰撞 + 反弹。）
 > 客户端渲染的平滑由原版的 `partialTick` 插值（`xOld`→`getX()`）提供，不需要我们插手。
 
 构造函数两个（`Projectile` **只有** `protected Projectile(EntityType<? extends Projectile>, Level)` 一个构造函数，没有 `(type, owner, level)` 版本，所以 owner 只能自己 `setOwner`）：
@@ -348,7 +350,7 @@ public void render(TornadoEntity e, float yaw, float partial, PoseStack pose,
               "lifetime":        { "type": "minecraft:linear", "base": 100,  "per_level_above_first": 15 },
               "pull_radius":     { "type": "minecraft:linear", "base": 8,    "per_level_above_first": 1 },
               "damage_radius":   { "type": "minecraft:linear", "base": 4,    "per_level_above_first": 0.5 },
-              "speed": 0.45,
+              "speed": 0.30,
               "pull_strength": 0.35
             }
           ],
@@ -468,7 +470,7 @@ tag 在数据包之间是**合并**的，所以这两个文件只会往原版 ta
    - 无视冷却：伤害数字/血条不是每 0.5 秒一跳
    - 友军免疫：驯服的狼、同队玩家、DS 召唤物不被吸不被伤害
    - 创造模式玩家免疫
-   - 穿透：对墙后的僵尸同样生效
+   - 视线：龙卷风**本身撞墙反弹、不再穿墙**；但**吸引/伤害的 AoE 仍不做视线检测** —— 墙后 4 格内的僵尸照样会被吸（刻意保留）
 4. **渲染**：按 `minecraft-rendering-pitfalls` 清单走一遍；额外在 `/tp 3000 70 3000` 处复现一次（实体渲染走标准管线，风险低但仍要测）。
 
 ## 明确不做（Out of scope）
