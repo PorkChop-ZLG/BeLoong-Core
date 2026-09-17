@@ -6,6 +6,8 @@ import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -31,6 +33,10 @@ import net.minecraft.world.phys.Vec3;
  * 本类继承 {@link Projectile}（不是 {@code LivingEntity}），因此客户端侧的
  * {@code Entity#lerpTo} 是硬吸附（{@code setPos}）而不是插值——客户端位置由服务端的
  * {@code ClientboundMoveEntityPacket} 决定，服务端位置始终是权威的。
+ * <p>
+ * <b>唯一同步到客户端的自定义数据是「生成时的初始寿命」</b>（{@link #DATA_INITIAL_LIFE}），
+ * 供渲染器倒推剩余寿命、在消散阶段缩小模型。它一生只同步一次（跨区块重载时再同步一次），
+ * <b>不</b>每 tick 更新。伤害/半径/引力等玩法字段仍然不同步——渲染器不得读取它们。
  * <p>
  * 服务端每 tick 把速度写进 {@code hurtMarked}，由 {@code ServerEntity#sendChanges} 收成
  * {@code ClientboundSetEntityMotionPacket} 下发；客户端收到后每 tick 用这个速度外推一 tick。
@@ -90,6 +96,17 @@ public class TornadoEntity extends Projectile {
      */
     private static final int DAMAGE_INTERVAL_TICKS = 4;
 
+    /**
+     * 生成时同步给客户端的初始寿命（刻）；{@code -1} 表示尚未同步。
+     * <p>
+     * 客户端据此<b>倒推</b>剩余寿命，而不是每 tick 同步剩余值——两端每 tick 都自增
+     * {@code tickCount}，相减即可，一生只需一个数据包（跨区块重载时
+     * {@link #readAdditionalSaveData} 会用恢复出的剩余寿命再同步一次）。唯一偏差是生成包
+     * 到达客户端的那一点延迟，不到一 tick，20 刻的缩小过程看不出来。
+     */
+    private static final EntityDataAccessor<Integer> DATA_INITIAL_LIFE =
+            SynchedEntityData.defineId(TornadoEntity.class, EntityDataSerializers.INT);
+
     private float damagePerHit;
     private double pullRadius;
     private double damageRadius;
@@ -115,6 +132,7 @@ public class TornadoEntity extends Projectile {
         this.damageRadius = damageRadius;
         this.pullStrength = pullStrength;
         this.life = lifetime;
+        this.entityData.set(DATA_INITIAL_LIFE, lifetime);
     }
 
     /**
@@ -124,7 +142,10 @@ public class TornadoEntity extends Projectile {
      */
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
-        // 无自定义同步数据
+        // 只同步「生成时的初始寿命」这一个值：渲染器要靠它倒推剩余寿命才能做消散缩小。
+        // -1 表示尚未同步（客户端实体刚创建、数据包还没到），渲染器据此按“寿命充足”处理，
+        // 免得刚生成就被缩成 0。伤害/半径/引力等玩法字段一律不同步。
+        builder.define(DATA_INITIAL_LIFE, -1);
     }
 
     @Override
@@ -324,6 +345,22 @@ public class TornadoEntity extends Projectile {
         this.damageRadius = compound.getDouble("DamageRadius");
         this.pullStrength = compound.getDouble("PullStrength");
         this.life = compound.getInt("Life");
+        // 跨区块重载后 tickCount 归零，故把恢复出的剩余寿命当作「初始寿命」重新同步一次
+        this.entityData.set(DATA_INITIAL_LIFE, this.life);
+    }
+
+    /**
+     * 还剩多少刻消散。渲染器用它做消散阶段的缩小。
+     * <p>
+     * 由「生成时的初始寿命 − 本地 {@code tickCount}」推出，因此不需要每 tick 同步；
+     * 尚未同步时返回 {@link Integer#MAX_VALUE}，渲染器按「寿命充足」处理。
+     */
+    public int getRemainingLife() {
+        int initial = this.entityData.get(DATA_INITIAL_LIFE);
+        if (initial < 0) {
+            return Integer.MAX_VALUE;
+        }
+        return Math.max(0, initial - this.tickCount);
     }
 
     @Override
