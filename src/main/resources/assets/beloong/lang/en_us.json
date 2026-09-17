@@ -171,5 +171,7 @@
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.beloong.treasure_limit": "Treasure Limit: %d",
+  "death.attack.beloong.tornado": "%s was shredded by a tornado",
+  "death.attack.beloong.tornado.player": "%s was shredded by a tornado whilst trying to escape %s",
   "tooltip.beloong.treasure_value": "Treasure Value: %s"
 }

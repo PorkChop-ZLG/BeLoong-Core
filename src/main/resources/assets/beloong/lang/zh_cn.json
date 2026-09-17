@@ -171,5 +171,7 @@
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.beloong.treasure_limit": "数量限制：%d",
+  "death.attack.beloong.tornado": "%s被龙卷风撕碎",
+  "death.attack.beloong.tornado.player": "%s在试图逃离%s时被龙卷风撕碎",
   "tooltip.beloong.treasure_value": "财宝价值：%s"
 }
