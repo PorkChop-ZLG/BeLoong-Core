@@ -76,6 +76,11 @@ public class TornadoEntity extends Projectile {
      * 分支，且没有任何伤害类型 tag 能压掉音效）；10 只生物 = 约 200 次/秒。改为每 4 刻结算
      * 1 次、每次 4 倍伤害后 DPS 不变（无视冷却靠的是 {@code bypasses_cooldown} tag，
      * 不是结算频率），开销降到 1/4。吸引仍是每 tick 生效，不受本间隔影响。
+     * <p>
+     * 实际节奏：每 {@code DAMAGE_INTERVAL_TICKS} 刻命中一次，即 20 / 4 = 5 次/秒；
+     * 首次命中在生成后的第一个 tick，此后间隔恒为本值。{@link #damageTimer} 的自减与重置
+     * 写法必须与这一节奏配套，改动时要连同重新推演——历史实现曾因命中后重置成 {@code N - 1}，
+     * 使间隔变成 5 刻（4 次/秒、DPS 低 20%）。
      */
     private static final int DAMAGE_INTERVAL_TICKS = 4;
 
@@ -85,7 +90,7 @@ public class TornadoEntity extends Projectile {
     private double pullStrength;
     private int life;
 
-    /** 距离下一次伤害结算还剩多少刻；0 表示本 tick 结算（生成后立刻打第一次） */
+    /** 伤害计时器：在 {@code applyPullAndDamage} 里先自减再判定，减到 0 的那一 tick 结算并重置为 {@link #DAMAGE_INTERVAL_TICKS}。 */
     private int damageTimer;
 
     /** EntityFactory 与反序列化用。 */
@@ -155,7 +160,12 @@ public class TornadoEntity extends Projectile {
 
     /** 收集范围内的候选目标：每 tick 按 3D 距离决定吸引，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。 */
     private void applyPullAndDamage() {
-        boolean dealDamage = this.damageTimer <= 0;
+        // 先自减再判定，命中后重置为完整的 N：这样两次命中之间恰好经过 N 个 tick
+        // （重置成 N-1 会让间隔变成 N+1，即 5 刻 / 4 次/秒、DPS 低 20%）。
+        boolean dealDamage = --this.damageTimer <= 0;
+        if (dealDamage) {
+            this.damageTimer = DAMAGE_INTERVAL_TICKS;
+        }
 
         // 候选盒的水平边长取两者较大值。只按 pullRadius 取的话，damageRadius 更大时
         // 多出来的那一圈实体连候选都进不来，永远打不到；各自的距离判定维持不变。
@@ -172,12 +182,6 @@ public class TornadoEntity extends Projectile {
             if (dealDamage && distance <= this.damageRadius) {
                 this.hurtTarget(target, this.damagePerHit);
             }
-        }
-
-        if (dealDamage) {
-            this.damageTimer = DAMAGE_INTERVAL_TICKS;
-        } else {
-            this.damageTimer--;
         }
     }
 
