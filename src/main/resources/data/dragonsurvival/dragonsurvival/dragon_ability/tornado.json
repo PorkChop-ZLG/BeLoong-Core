@@ -26,7 +26,7 @@
                 "base": 6,
                 "per_level_above_first": 0.5
               },
-              "speed": 0.22,
+              "speed": 0.15,
               "pull_strength": 0.45
             }
           ],
