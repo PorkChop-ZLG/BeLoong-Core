@@ -29,7 +29,7 @@
 
 - 模组 ID `beloong`，Java 包根 `com.zonlong.beloong`，主类 `BeLoongCore`。
 - 目标版本固定 **Minecraft 1.21.1 / NeoForge 21.1.236 / Java 21**，不要引用其它版本的 API。
-- **本仓库不是 git 仓库**（根目录无 `.git`）。因此本计划**没有 commit 步骤**；每个任务末尾用「编译 + 落盘检查」代替提交，作为该任务的检查点。
+- ~~**本仓库不是 git 仓库**（根目录无 `.git`）。因此本计划**没有 commit 步骤**~~ **【已作废，见上方勘误】** 执行期间已 `git init` 并建立特性分支，每个任务都产出提交；「编译 + 落盘检查」仍作为每任务的检查点保留。
 - Windows 下构建命令一律 `.\gradlew.bat`（不是 `./gradlew`）。**若遇到权限不足，先向用户请求权限**，不要改 `GRADLE_USER_HOME` 或换目录绕路。
 - 新写入的 `.java` 与 `.json` 一律 **UTF-8**（`build.gradle` 已设 `options.encoding = 'UTF-8'`）。中文注释保留。
 - 面向玩家的文本**不硬编码**，一律走 `assets/beloong/lang/{zh_cn,en_us}.json`。
