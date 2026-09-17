@@ -47,3 +47,6 @@ memory/
 
 ### Spyglass ###
 spyglass.json
+
+### SDD / 可视化对照板 暂存目录 ###
+.superpowers/
