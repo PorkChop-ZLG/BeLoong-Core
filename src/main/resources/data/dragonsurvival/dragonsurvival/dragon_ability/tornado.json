@@ -18,16 +18,16 @@
               },
               "pull_radius": {
                 "type": "minecraft:linear",
-                "base": 8,
+                "base": 12,
                 "per_level_above_first": 1
               },
               "damage_radius": {
                 "type": "minecraft:linear",
-                "base": 4,
+                "base": 6,
                 "per_level_above_first": 0.5
               },
-              "speed": 0.30,
-              "pull_strength": 0.35
+              "speed": 0.22,
+              "pull_strength": 0.45
             }
           ],
           "targeting_mode": "all"
