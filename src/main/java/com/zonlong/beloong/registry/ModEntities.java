@@ -31,10 +31,13 @@ public final class ModEntities {
     /**
      * 龙卷风实体。
      * <p>
-     * 碰撞箱设为 3x 模型的视觉包围盒（约 2.8 格宽 × 3.3 格高）；
+     * 碰撞箱设为 3x 模型的视觉包围盒（约 2.8 格宽 × 3.3 格高）。
+     * <p>
      * {@code updateInterval(1)} 让服务端每 tick 都下发位置包——因为本实体是
      * {@link net.minecraft.world.entity.projectile.Projectile} 的子类，
-     * 客户端侧 {@code Entity#lerpTo} 是硬吸附而非插值，客户端不自己跑位移。
+     * 客户端侧 {@code Entity#lerpTo} 是硬吸附而非插值。客户端并非「不跑位移」：
+     * 它在两次硬吸附之间用同步下来的速度自行外推一 tick（否则渲染插值退化成每秒 20 次跳变），
+     * 且外推同样做方块碰撞，见 {@code TornadoEntity#advance()}。
      */
     public static final DeferredHolder<EntityType<?>, EntityType<TornadoEntity>> TORNADO =
             ENTITIES.register("tornado", () -> EntityType.Builder

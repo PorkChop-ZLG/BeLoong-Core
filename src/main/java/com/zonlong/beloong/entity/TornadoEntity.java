@@ -11,6 +11,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
@@ -44,7 +45,8 @@ import net.minecraft.world.phys.Vec3;
  * 而吸附点恰好等于上一 tick 外推后的位置，故随后的吸附是空操作，不产生抖动或速度翻倍。
  * 反过来，若客户端不外推，{@code setOldPosAndRot()} 发生在 {@code tick()} 之前，
  * 吸附又只改位置不改 {@code xOld}，于是渲染时 {@code xOld == getX()}，
- * {@code Mth.lerp(partialTick, xOld, getX())} 退化成常量——0.30 格/tick 会肉眼可见地每秒跳 20 次。
+ * {@code Mth.lerp(partialTick, xOld, getX())} 退化成常量——本技能的 speed 在 0.15～0.3 格/tick 量级，
+ * 会肉眼可见地每秒跳 20 次。
  * 外推的目的正是让 {@code xOld != getX()}，使原版渲染插值重新生效。
  * <p>
  * <b>移动会撞方块反弹</b>（见 {@link #advance()}）：逐轴碰撞检测 + 该轴速度取反，不衰减、不设弹跳上限；
@@ -136,7 +138,9 @@ public class TornadoEntity extends Projectile {
     }
 
     /**
-     * 本实体不同步任何自定义数据：客户端渲染只需要位置与 {@code tickCount}，原版自动同步。
+     * 本实体<b>只</b>同步一个自定义值：{@link #DATA_INITIAL_LIFE}（生成时的初始寿命），
+     * 供渲染器倒推剩余寿命、在消散阶段缩小模型。伤害/半径/引力等玩法字段一律不同步——
+     * 渲染器不得读取它们，它只能读位置、{@code tickCount} 与 {@link #getRemainingLife()}。
      * <p>
      * 必须实现——{@code Entity} 把它声明为 {@code protected abstract}，而 {@link Projectile} 没有实现。
      */
@@ -206,6 +210,14 @@ public class TornadoEntity extends Projectile {
             return;
         }
 
+        // 【审查修正】清掉「卡在方块里」的速度倍率：蜘蛛网 makeStuckInBlock(0.25,0.05,0.25)、
+        // 细雪 (0.9,1.5,0.9)。它由上一次 move() 末尾的 checkInsideBlocks → Block#entityInside 写入，
+        // 并在本次 move() 开头（Entity.java:632-634）缩放置移、随后清零。若不清，下面
+        // 「实际位移 vs 意图位移」的逐轴判据会把这个缩放假当成碰撞，把每一轴都取反 ——
+        // 实测表现为龙卷风在蜘蛛网里以 0.055 / 0 的位移原地振荡到寿命结束。
+        // 顺带也符合直觉：一阵风不该被蛛网粘住。
+        this.stuckSpeedMultiplier = Vec3.ZERO;
+
         Vec3 before = this.position();
         this.move(MoverType.SELF, delta);
         Vec3 moved = this.position().subtract(before);
@@ -216,6 +228,31 @@ public class TornadoEntity extends Projectile {
                 Math.abs(moved.x - delta.x) > tolerance ? -delta.x : delta.x,
                 Math.abs(moved.y - delta.y) > tolerance ? -delta.y : delta.y,
                 Math.abs(moved.z - delta.z) > tolerance ? -delta.z : delta.z);
+    }
+
+    /**
+     * 关掉移动音效与游戏事件。
+     * <p>
+     * 【审查修正】原先用 {@code setPos} 直推时不会触发这些；改用 {@link Entity#move} 后，原版会在
+     * 落地那一 tick 通过 {@code getMovementEmission()} 播方块踩踏音并发 {@code GameEvent.STEP}，
+     * 另外 {@code checkFallDamage} 会发 {@code GameEvent.HIT_GROUND}。一个飞行中的风柱不该一路
+     * 踩出声响，也不该被幽匿感测体当成脚步。
+     */
+    @Override
+    protected Entity.MovementEmission getMovementEmission() {
+        return Entity.MovementEmission.NONE;
+    }
+
+    /**
+     * 玩家重新进入追踪范围（或跨维度返回）时，客户端会新建实体、{@code tickCount} 从 0 开始，
+     * 而同步数据里的初始寿命仍是生成时那个值——照用会让模型突然跳到 {@code life / 20} 的缩放。
+     * <p>
+     * 【审查修正】这里按当前剩余寿命重发一次；{@code force = true} 才会在值未变化时也下发。
+     */
+    @Override
+    public void startSeenByPlayer(ServerPlayer player) {
+        super.startSeenByPlayer(player);
+        this.entityData.set(DATA_INITIAL_LIFE, this.life, true);
     }
 
     /** 收集范围内的候选目标：每 tick 按 3D 距离决定吸引，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。 */
@@ -230,9 +267,11 @@ public class TornadoEntity extends Projectile {
         // 候选盒的水平边长取两者较大值。只按 pullRadius 取的话，damageRadius 更大时
         // 多出来的那一圈实体连候选都进不来，永远打不到；各自的距离判定维持不变。
         double radius = Math.max(this.pullRadius, this.damageRadius);
+        // 【审查修正】竖直上探也要跟着半径走：半径调到 12~16 格后，固定上探 4 格会把
+        // 「水平在半径内、但高了 5 格以上」的实体排除在候选之外（距离判定用的是 3D 距离）。
         AABB area = new AABB(
                 this.getX() - radius, this.getY() - AREA_DOWN, this.getZ() - radius,
-                this.getX() + radius, this.getY() + AREA_UP, this.getZ() + radius);
+                this.getX() + radius, this.getY() + Math.max(AREA_UP, radius), this.getZ() + radius);
 
         for (LivingEntity target : this.level().getEntitiesOfClass(LivingEntity.class, area, this::canAffect)) {
             double distance = Math.sqrt(target.distanceToSqr(this));
