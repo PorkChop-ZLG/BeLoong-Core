@@ -173,5 +173,9 @@
   "tooltip.beloong.treasure_limit": "Treasure Limit: %d",
   "death.attack.beloong.tornado": "%s was shredded by a tornado",
   "death.attack.beloong.tornado.player": "%s was shredded by a tornado whilst trying to escape %s",
+  "entity.beloong.tornado": "Tornado",
+  "dragon_ability.dragonsurvival.tornado": "Tornado",
+  "dragon_ability.dragonsurvival.tornado.desc": "§7■ Fires a §btornado§r§7 in the direction you are looking.\n\n■ It §bpulls in§r§7 nearby enemies and deals §cdamage every tick§r§7, ignoring attack cooldown.\n\n■ Cooldown: §b10s§r§7 | Mana: §b2§r",
+  "dragon_ability.beloong.tornado.dynamic_desc": "Base damage per tick: §b%s§r§7\nDuration: §b%s§r§7 ticks\nPull radius: §b%s§r§7 blocks\nDamage radius: §b%s§r§7 blocks\n\n§6Actual damage per tick = Base Damage x Dragon Ability Damage§r",
   "tooltip.beloong.treasure_value": "Treasure Value: %s"
 }

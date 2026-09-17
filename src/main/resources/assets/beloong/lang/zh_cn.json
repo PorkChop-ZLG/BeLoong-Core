@@ -173,5 +173,9 @@
   "tooltip.beloong.treasure_limit": "数量限制：%d",
   "death.attack.beloong.tornado": "%s被龙卷风撕碎",
   "death.attack.beloong.tornado.player": "%s在试图逃离%s时被龙卷风撕碎",
+  "entity.beloong.tornado": "龙卷风",
+  "dragon_ability.dragonsurvival.tornado": "龙卷风",
+  "dragon_ability.dragonsurvival.tornado.desc": "§7■向准星方向发射一道§b龙卷风§r§7。\n\n■龙卷风会§b吸引§r§7周围的敌人，并§c每刻持续造成伤害§r§7（无视攻击冷却）。\n\n■冷却：§b10秒§r§7｜法力：§b2§r",
+  "dragon_ability.beloong.tornado.dynamic_desc": "每刻基础伤害：§b%s§r§7\n持续时间：§b%s§r§7 刻\n吸引半径：§b%s§r§7 格\n伤害半径：§b%s§r§7 格\n\n§6实际每刻伤害 = 基础伤害 × 龙技能伤害属性§r",
   "tooltip.beloong.treasure_value": "财宝价值：%s"
 }
