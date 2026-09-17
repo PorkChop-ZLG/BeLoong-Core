@@ -25,9 +25,19 @@ import java.util.List;
  * 与 {@code AirStrikeEffect} 同构：{@code record implements AbilityEntityEffect} + {@code MapCodec}，
  * 所有数值字段都是 {@link LevelBasedValue}，让 6 个玩法参数全部随技能等级缩放。
  * 伤害在<b>这里</b>乘上 {@code DSAttributes.DRAGON_ABILITY_DAMAGE}，实体本身不碰属性系统。
+ * <p>
+ * <b>调用契约：一次调用恰好生成一个龙卷风，因此必须配合单目标行动使用
+ * （出货 JSON 用的是 {@code dragonsurvival:self}）。</b>
+ * {@link #apply} 故意不使用它的 {@code Entity target} 参数——龙卷风总是从施法者自身的位置
+ * 与准星方向生成，与命中的是谁无关；在 {@code dragonsurvival:self} 下 DS 的 {@code SelfTarget}
+ * 只会调用 {@code apply} 一次，所以忽略该参数是安全的。危险在于本效果类型
+ * {@code beloong:tornado} 是数据包可派发的公开类型：换用 {@code area} / {@code disc} /
+ * {@code dragon_breath} 等多目标行动时，每个匹配到的实体都会调用一次 {@code apply}，
+ * 一次施法就会放出 N 个龙卷风。这是数据包作者需要知道的契约，代码里不做拦截：
+ * 加运行时守卫会让「单目标复用」这条路也付出代价。
  */
 public record TornadoEffect(
-        LevelBasedValue damagePerTick,
+        LevelBasedValue damagePerHit,
         LevelBasedValue lifetime,
         LevelBasedValue pullRadius,
         LevelBasedValue damageRadius,
@@ -45,7 +55,7 @@ public record TornadoEffect(
     );
 
     public static final MapCodec<TornadoEffect> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
-            FLEXIBLE_LBV.fieldOf("damage_per_tick").forGetter(TornadoEffect::damagePerTick),
+            FLEXIBLE_LBV.fieldOf("damage_per_hit").forGetter(TornadoEffect::damagePerHit),
             FLEXIBLE_LBV.fieldOf("lifetime").forGetter(TornadoEffect::lifetime),
             FLEXIBLE_LBV.fieldOf("pull_radius").forGetter(TornadoEffect::pullRadius),
             FLEXIBLE_LBV.fieldOf("damage_radius").forGetter(TornadoEffect::damageRadius),
@@ -58,7 +68,7 @@ public record TornadoEffect(
         int level = ability.level();
 
         double abilityScale = dragon.getAttributeValue(DSAttributes.DRAGON_ABILITY_DAMAGE);
-        float damage = (float) (this.damagePerTick.calculate(level) * abilityScale);
+        float damage = (float) (this.damagePerHit.calculate(level) * abilityScale);
         int life = (int) this.lifetime.calculate(level);
         double pullR = this.pullRadius.calculate(level);
         double damageR = this.damageRadius.calculate(level);
@@ -92,7 +102,7 @@ public record TornadoEffect(
         int level = Math.max(DragonAbilityInstance.MIN_LEVEL_FOR_CALCULATIONS, ability.level());
         return List.of(
                 Component.translatable("dragon_ability.beloong.tornado.dynamic_desc",
-                        String.format("%.1f", this.damagePerTick.calculate(level)),
+                        String.format("%.1f", this.damagePerHit.calculate(level)),
                         String.format("%d", (int) this.lifetime.calculate(level)),
                         String.format("%.1f", this.pullRadius.calculate(level)),
                         String.format("%.1f", this.damageRadius.calculate(level))));

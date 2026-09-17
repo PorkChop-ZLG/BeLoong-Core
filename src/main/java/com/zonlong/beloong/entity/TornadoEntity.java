@@ -23,19 +23,29 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * 龙卷风实体：匀速直线飞行，持续把周围敌人吸向中心，并每 tick 结算一次伤害。
+ * 龙卷风实体：匀速直线飞行，每 tick 把周围敌人吸向中心，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。
  * <p>
- * <b>关键设计：位移与玩法逻辑只在服务端跑。</b>
+ * <b>关键设计：位移与玩法逻辑只在服务端跑，客户端只额外外推一次。</b>
  * 本类继承 {@link Projectile}（不是 {@code LivingEntity}），因此客户端侧的
- * {@code Entity#lerpTo} 是硬吸附（{@code setPos}）而不是插值——客户端位置完全由
- * 服务端的 {@code ClientboundMoveEntityPacket} 决定。若客户端再自己
- * {@code setPos(position().add(getDeltaMovement()))}，两者会互相覆盖，表现为抖动 + 速度翻倍。
- * 渲染所需的平滑由原版 {@code partialTick} 插值（{@code xOld} → {@code getX()}）提供。
+ * {@code Entity#lerpTo} 是硬吸附（{@code setPos}）而不是插值——客户端位置由服务端的
+ * {@code ClientboundMoveEntityPacket} 决定，服务端位置始终是权威的。
  * <p>
- * <b>「每 tick 伤害、无视攻击冷却」靠伤害类型 tag 实现</b>，不是 hack {@code invulnerableTime}：
+ * 服务端每 tick 把速度写进 {@code hurtMarked}，由 {@code ServerEntity#sendChanges} 收成
+ * {@code ClientboundSetEntityMotionPacket} 下发；客户端收到后每 tick 用这个速度外推一 tick。
+ * 这不会与硬吸附打架：原版客户端的包队列在实体 {@code tick()} <b>之前</b>就被排空，
+ * 而吸附点恰好等于上一 tick 外推后的位置，故随后的吸附是空操作，不产生抖动或速度翻倍。
+ * 反过来，若客户端不外推，{@code setOldPosAndRot()} 发生在 {@code tick()} 之前，
+ * 吸附又只改位置不改 {@code xOld}，于是渲染时 {@code xOld == getX()}，
+ * {@code Mth.lerp(partialTick, xOld, getX())} 退化成常量——0.45 格/tick 会肉眼可见地每秒跳 20 次。
+ * 外推的目的正是让 {@code xOld != getX()}，使原版渲染插值重新生效。
+ * <p>
+ * <b>「无视攻击冷却」靠伤害类型 tag 实现</b>，不是 hack {@code invulnerableTime}：
  * {@code minecraft:bypasses_cooldown} 让 {@code LivingEntity#hurt} 跳过
- * {@code invulnerableTime > 10.0F} 的差额分支，每 tick 都走全额伤害；
+ * {@code invulnerableTime > 10.0F} 的差额分支，每次命中都走全额伤害；
  * {@code minecraft:no_knockback} 则压掉击退，避免和吸引力互相顶。
+ * 注意该 tag <b>同时</b>使每次命中都播一次受伤音效并广播一个伤害事件包，且没有任何
+ * tag 能压掉音效，故伤害按 {@link #DAMAGE_INTERVAL_TICKS} 刻批量结算、单次伤害等比例放大，
+ * 详见该常量的注释。
  */
 public class TornadoEntity extends Projectile {
 
@@ -60,12 +70,23 @@ public class TornadoEntity extends Projectile {
     private static final double AREA_UP = 4.0D;
     /** 低于世界最低建筑高度这么多格就自行销毁 */
     private static final int VOID_MARGIN = 8;
+    /**
+     * 每次结算的间隔（刻）。每 tick 结算会让 {@code LivingEntity.hurt} 每 tick 都播一次
+     * 受伤音效并广播一个伤害事件包（{@code bypasses_cooldown} 使其每次都走 {@code flag1 = true}
+     * 分支，且没有任何伤害类型 tag 能压掉音效）；10 只生物 = 约 200 次/秒。改为每 4 刻结算
+     * 1 次、每次 4 倍伤害后 DPS 不变（无视冷却靠的是 {@code bypasses_cooldown} tag，
+     * 不是结算频率），开销降到 1/4。吸引仍是每 tick 生效，不受本间隔影响。
+     */
+    private static final int DAMAGE_INTERVAL_TICKS = 4;
 
-    private float damagePerTick;
+    private float damagePerHit;
     private double pullRadius;
     private double damageRadius;
     private double pullStrength;
     private int life;
+
+    /** 距离下一次伤害结算还剩多少刻；0 表示本 tick 结算（生成后立刻打第一次） */
+    private int damageTimer;
 
     /** EntityFactory 与反序列化用。 */
     public TornadoEntity(EntityType<TornadoEntity> type, Level level) {
@@ -74,11 +95,11 @@ public class TornadoEntity extends Projectile {
 
     /** 技能发射用。 */
     public TornadoEntity(EntityType<TornadoEntity> type, Level level, LivingEntity owner,
-                         float damagePerTick, double pullRadius, double damageRadius,
+                         float damagePerHit, double pullRadius, double damageRadius,
                          double pullStrength, int lifetime) {
         this(type, level);
         this.setOwner(owner);
-        this.damagePerTick = damagePerTick;
+        this.damagePerHit = damagePerHit;
         this.pullRadius = pullRadius;
         this.damageRadius = damageRadius;
         this.pullStrength = pullStrength;
@@ -99,8 +120,17 @@ public class TornadoEntity extends Projectile {
     public void tick() {
         super.tick();
 
-        // 客户端什么都不做：位置完全由服务端的位置包决定（见类注释）
+        // 客户端不做玩法逻辑，但要用同步下来的速度外推一 tick（见类注释）：
+        // 服务端每 tick 都会用真实位置硬吸附一次（Entity#lerpTo 对非 LivingEntity 就是 setPos），
+        // 而吸附发生在 tick() 之前，所以 xOld == getX()，渲染插值等于没做。
+        // 让客户端用同步下来的速度自行外推一 tick：吸附点恰好等于上一 tick 外推后的位置，
+        // 因此不会来回抖，同时渲染插值有了 xOld != getX()，运动变连续。
         if (this.level().isClientSide()) {
+            // 没有收到过运动包（速度仍为 0）时保持原样：宁可不外推，也不要凭空传送
+            if (this.getDeltaMovement().lengthSqr() < 1.0E-7D) {
+                return;
+            }
+            this.setPos(this.position().add(this.getDeltaMovement()));
             return;
         }
 
@@ -111,6 +141,9 @@ public class TornadoEntity extends Projectile {
 
         // 匀速直线穿透：不调用 move()，所以不与方块碰撞
         this.setPos(this.position().add(this.getDeltaMovement()));
+        // 把上面这个速度下发给客户端，客户端才能自行外推（见类注释）。
+        // ServerEntity#sendChanges 会消费 hurtMarked 并发一个 ClientboundSetEntityMotionPacket。
+        this.hurtMarked = true;
 
         if (this.getY() < this.level().getMinBuildHeight() - VOID_MARGIN) {
             this.discard();
@@ -120,9 +153,13 @@ public class TornadoEntity extends Projectile {
         this.applyPullAndDamage();
     }
 
-    /** 收集范围内的候选目标，按 3D 距离分别决定吸引与伤害。 */
+    /** 收集范围内的候选目标：每 tick 按 3D 距离决定吸引，每 {@link #DAMAGE_INTERVAL_TICKS} 刻结算一次伤害。 */
     private void applyPullAndDamage() {
-        double radius = this.pullRadius;
+        boolean dealDamage = this.damageTimer <= 0;
+
+        // 候选盒的水平边长取两者较大值。只按 pullRadius 取的话，damageRadius 更大时
+        // 多出来的那一圈实体连候选都进不来，永远打不到；各自的距离判定维持不变。
+        double radius = Math.max(this.pullRadius, this.damageRadius);
         AABB area = new AABB(
                 this.getX() - radius, this.getY() - AREA_DOWN, this.getZ() - radius,
                 this.getX() + radius, this.getY() + AREA_UP, this.getZ() + radius);
@@ -132,9 +169,15 @@ public class TornadoEntity extends Projectile {
             if (distance <= this.pullRadius) {
                 this.pull(target);
             }
-            if (distance <= this.damageRadius) {
-                this.hurtTarget(target);
+            if (dealDamage && distance <= this.damageRadius) {
+                this.hurtTarget(target, this.damagePerHit);
             }
+        }
+
+        if (dealDamage) {
+            this.damageTimer = DAMAGE_INTERVAL_TICKS;
+        } else {
+            this.damageTimer--;
         }
     }
 
@@ -177,12 +220,12 @@ public class TornadoEntity extends Projectile {
         target.hurtMarked = true;
     }
 
-    private void hurtTarget(LivingEntity target) {
+    private void hurtTarget(LivingEntity target, float damage) {
         Holder<DamageType> type = this.level().registryAccess()
                 .registryOrThrow(Registries.DAMAGE_TYPE)
                 .getHolderOrThrow(TORNADO_DAMAGE);
         // 直接实体 = 龙卷风，间接实体 = 施法者
-        target.hurt(new DamageSource(type, this, this.getOwner()), this.damagePerTick);
+        target.hurt(new DamageSource(type, this, this.getOwner()), damage);
     }
 
     /**
@@ -223,7 +266,7 @@ public class TornadoEntity extends Projectile {
     @Override
     protected void addAdditionalSaveData(CompoundTag compound) {
         super.addAdditionalSaveData(compound);
-        compound.putFloat("DamagePerTick", this.damagePerTick);
+        compound.putFloat("DamagePerHit", this.damagePerHit);
         compound.putDouble("PullRadius", this.pullRadius);
         compound.putDouble("DamageRadius", this.damageRadius);
         compound.putDouble("PullStrength", this.pullStrength);
@@ -233,7 +276,7 @@ public class TornadoEntity extends Projectile {
     @Override
     protected void readAdditionalSaveData(CompoundTag compound) {
         super.readAdditionalSaveData(compound);
-        this.damagePerTick = compound.getFloat("DamagePerTick");
+        this.damagePerHit = compound.getFloat("DamagePerHit");
         this.pullRadius = compound.getDouble("PullRadius");
         this.damageRadius = compound.getDouble("DamageRadius");
         this.pullStrength = compound.getDouble("PullStrength");

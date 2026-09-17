@@ -6,10 +6,10 @@
           "entity_effect": [
             {
               "effect_type": "beloong:tornado",
-              "damage_per_tick": {
+              "damage_per_hit": {
                 "type": "minecraft:linear",
-                "base": 0.5,
-                "per_level_above_first": 0.25
+                "base": 2.0,
+                "per_level_above_first": 1.0
               },
               "lifetime": {
                 "type": "minecraft:linear",
@@ -91,7 +91,7 @@
         "per_level_above_first": 100
       },
       "values": [
-        1.0,
+        0.0,
         10.0,
         100.0,
         1000.0,
