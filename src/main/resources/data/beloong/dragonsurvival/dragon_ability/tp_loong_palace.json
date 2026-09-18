@@ -42,11 +42,11 @@
     "texture_entries": [
       {
         "from_level": 0,
-        "texture_resource": "dragonsurvival:abilities/beloong/tp_loong_palace_0"
+        "texture_resource": "beloong:abilities/tp_loong_palace_0"
       },
       {
         "from_level": 1,
-        "texture_resource": "dragonsurvival:abilities/beloong/tp_loong_palace_1"
+        "texture_resource": "beloong:abilities/tp_loong_palace_1"
       }
     ]
   },

@@ -58,27 +58,27 @@
     "texture_entries": [
       {
         "from_level": 0,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_0"
+        "texture_resource": "beloong:abilities/air_strike_0"
       },
       {
         "from_level": 1,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_1"
+        "texture_resource": "beloong:abilities/air_strike_1"
       },
       {
         "from_level": 2,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_2"
+        "texture_resource": "beloong:abilities/air_strike_2"
       },
       {
         "from_level": 3,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_3"
+        "texture_resource": "beloong:abilities/air_strike_3"
       },
       {
         "from_level": 4,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_4"
+        "texture_resource": "beloong:abilities/air_strike_4"
       },
       {
         "from_level": 5,
-        "texture_resource": "dragonsurvival:abilities/beloong/air_strike_5"
+        "texture_resource": "beloong:abilities/air_strike_5"
       }
     ]
   },
