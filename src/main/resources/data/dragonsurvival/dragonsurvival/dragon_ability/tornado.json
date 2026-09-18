@@ -40,10 +40,17 @@
     "activation_type": "dragonsurvival:simple",
     "animations": {
       "start_and_charging": {
-        "animation_key": "spell_charge",
+        "animation_key": "cast_mass_buff",
         "layer": "BREATH",
         "locks_neck": false,
         "locks_tail": false,
+        "transition_length": 5
+      },
+      "end": {
+        "animation_key": "idle",
+        "layer": "BASE",
+        "locks_neck": false,
+        "locks_tail": true,
         "transition_length": 5
       }
     },
@@ -51,6 +58,7 @@
     "cooldown": 200.0,
     "initial_mana_cost": 2.0,
     "sound": {
+      "start": "minecraft:item.elytra.flying",
       "end": "minecraft:entity.breeze.wind_burst"
     }
   },
@@ -66,39 +74,44 @@
       },
       {
         "from_level": 2,
-        "texture_resource": "dragonsurvival:abilities/beloong/tornado_2"
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
       },
       {
         "from_level": 3,
-        "texture_resource": "dragonsurvival:abilities/beloong/tornado_3"
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
       },
       {
         "from_level": 4,
-        "texture_resource": "dragonsurvival:abilities/beloong/tornado_4"
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
       },
       {
         "from_level": 5,
-        "texture_resource": "dragonsurvival:abilities/beloong/tornado_5"
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
+      },
+      {
+        "from_level": 6,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
       }
     ]
   },
   "upgrade": {
-    "experience_cost": {
+    "upgrade_type": "dragonsurvival:dragon_growth",
+    "maximum_level": 6,
+    "growth_requirement": {
       "type": "minecraft:lookup",
       "fallback": {
         "type": "minecraft:linear",
-        "base": 100,
-        "per_level_above_first": 100
+        "base": 50.0,
+        "per_level_above_first": 50.0
       },
       "values": [
-        0.0,
-        10.0,
+        20.0,
+        50.0,
         100.0,
-        1000.0,
-        10000.0
+        150.0,
+        200.0,
+        250.0
       ]
-    },
-    "maximum_level": 5,
-    "upgrade_type": "dragonsurvival:experience_points"
+    }
   }
 }
