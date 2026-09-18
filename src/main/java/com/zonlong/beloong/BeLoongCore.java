@@ -16,6 +16,7 @@ import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModCriteria;
+import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
@@ -90,6 +91,7 @@ public class BeLoongCore {
         // === 注册阶段 ===
         ModItems.register(modEventBus);              // 物品
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
+        ModEntities.register(modEventBus);           // 实体
         ModSounds.register(modEventBus);             // 音效
         ModParticles.register(modEventBus);          // 粒子类型
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页

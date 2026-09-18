@@ -5,9 +5,12 @@ import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
+import com.zonlong.beloong.client.TornadoRenderer;
+import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModParticles;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -35,6 +38,7 @@ import org.slf4j.Logger;
  * <ul>
  *   <li>配置文件 GUI（NeoForge 模组菜单集成）</li>
  *   <li>{@link DisasterPortalRenderer} — 天灾传送门方块的 BlockEntity 渲染器绑定</li>
+ *   <li>{@link TornadoRenderer} — 龙卷风实体渲染器（几何由 {@link TornadoModel} 提供）</li>
  *   <li>{@link LoongPalaceSkyEffects} — 龙宫维度天空特效</li>
  * </ul>
  *
@@ -61,7 +65,7 @@ public class BeLoongCoreClient {
     }
 
     /**
-     * 注册 BlockEntity 渲染器（BER）。
+     * 注册渲染器：天灾传送门的 BlockEntity 渲染器（BER）+ 龙卷风实体渲染器。
      * <p>
      * 将自定义的 {@link DisasterPortalRenderer} 绑定到
      * {@link ModBlocks#DISASTER_PORTAL_BLOCK_ENTITY}，
@@ -72,12 +76,28 @@ public class BeLoongCoreClient {
      * 因此兼容原版与 Iris 等第三方光影管线。
      * 由于原版渲染器内部将 BlockEntity 硬转型为 {@code TheEndPortalBlockEntity}，
      * 无法直接复用，因此需要自定义实现。
+     * <p>
+     * 龙卷风那一行把 {@link ModEntities#TORNADO} 绑到 {@link TornadoRenderer}；
+     * 它依赖 {@link #registerLayerDefinitions} 先注册好模型层，见该方法的说明。
      */
     @SubscribeEvent
     static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
+        event.registerEntityRenderer(ModEntities.TORNADO.get(), TornadoRenderer::new);
+    }
+
+    /**
+     * 注册实体模型层。
+     * <p>
+     * 必须在 {@link #registerRenderers} 之前或同时完成，否则
+     * {@code context.bakeLayer(TornadoModel.LAYER)} 会抛
+     * {@code IllegalArgumentException: Model layer ... not registered}。
+     */
+    @SubscribeEvent
+    static void registerLayerDefinitions(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(TornadoModel.LAYER, TornadoModel::createBodyLayer);
     }
 
     @SubscribeEvent

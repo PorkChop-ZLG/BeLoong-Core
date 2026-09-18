@@ -1,0 +1,104 @@
+{
+  "actions": [
+    {
+      "target_selection": {
+        "applied_effects": {
+          "entity_effect": [
+            {
+              "effect_type": "beloong:tornado",
+              "damage_per_hit": {
+                "type": "minecraft:linear",
+                "base": 2.0,
+                "per_level_above_first": 1.0
+              },
+              "lifetime": {
+                "type": "minecraft:linear",
+                "base": 100,
+                "per_level_above_first": 15
+              },
+              "pull_radius": {
+                "type": "minecraft:linear",
+                "base": 12,
+                "per_level_above_first": 1
+              },
+              "damage_radius": {
+                "type": "minecraft:linear",
+                "base": 6,
+                "per_level_above_first": 0.5
+              },
+              "speed": 0.15,
+              "pull_strength": 0.45
+            }
+          ],
+          "targeting_mode": "all"
+        },
+        "target_type": "dragonsurvival:self"
+      }
+    }
+  ],
+  "activation": {
+    "activation_type": "dragonsurvival:simple",
+    "animations": {
+      "start_and_charging": {
+        "animation_key": "spell_charge",
+        "layer": "BREATH",
+        "locks_neck": false,
+        "locks_tail": false,
+        "transition_length": 5
+      }
+    },
+    "cast_time": 20.0,
+    "cooldown": 200.0,
+    "initial_mana_cost": 2.0,
+    "sound": {
+      "end": "minecraft:entity.breeze.wind_burst"
+    }
+  },
+  "icon": {
+    "texture_entries": [
+      {
+        "from_level": 0,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_0"
+      },
+      {
+        "from_level": 1,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_1"
+      },
+      {
+        "from_level": 2,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_2"
+      },
+      {
+        "from_level": 3,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_3"
+      },
+      {
+        "from_level": 4,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_4"
+      },
+      {
+        "from_level": 5,
+        "texture_resource": "dragonsurvival:abilities/beloong/tornado_5"
+      }
+    ]
+  },
+  "upgrade": {
+    "experience_cost": {
+      "type": "minecraft:lookup",
+      "fallback": {
+        "type": "minecraft:linear",
+        "base": 100,
+        "per_level_above_first": 100
+      },
+      "values": [
+        0.0,
+        10.0,
+        100.0,
+        1000.0,
+        10000.0
+      ]
+    },
+    "maximum_level": 5,
+    "upgrade_type": "dragonsurvival:experience_points"
+  }
+}
