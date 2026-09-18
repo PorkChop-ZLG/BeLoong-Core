@@ -16,6 +16,29 @@
 
 ## 功能特性
 
+### 元素魔源
+
+十种元素各一件「元素魔源」，当前为纯材料物品，无任何使用效果，仅提供说明文本。物品 ID 为 `beloong:<元素>_essence`，中英文名见下表：
+
+| 元素 | 物品 ID | 中文名 | 英文名 | 贴图 |
+|---|---|---|---|---|
+| 金 | `beloong:metal_essence` | 金魔源 | Metal Essence | ✅ |
+| 木 | `beloong:wood_essence` | 木魔源 | Wood Essence | ✅ |
+| 水 | `beloong:water_essence` | 水魔源 | Water Essence | ✅ |
+| 火 | `beloong:fire_essence` | 火魔源 | Fire Essence | ✅ |
+| 土 | `beloong:earth_essence` | 土魔源 | Earth Essence | ✅ |
+| 风 | `beloong:wind_essence` | 风魔源 | Wind Essence | ✅ |
+| 雷 | `beloong:thunder_essence` | 雷魔源 | Thunder Essence | ✅ |
+| 冰 | `beloong:ice_essence` | 冰魔源 | Ice Essence | ✅ |
+| 光 | `beloong:light_essence` | 光魔源 | Light Essence | ✅ |
+| 暗 | `beloong:dark_essence` | 暗魔源 | Dark Essence | ✅ |
+
+上表的顺序即创造模式页签中的展示顺序（五行 → 风雷冰 → 光暗）。
+
+十张贴图均为 16×16 静态图，与整合包内其他物品贴图规格一致。光为太阳（圆盘 + 八向光芒），暗为月亮（受光月牙 + 向外渐亮的冷紫光环，用以表现"发着黑光"）。
+
+设计细节与取名依据见 `docs/plans/2026-09-13-element-essence-design.md`。
+
 ### 旧存档模板维度自动迁移
 
 配合 LockDown 的“固定指定维度”模式使用。当存档内的版本标记缺失或与配置中的 `template_update.templateVersion` 不一致时，BeLoong Core 会在服务器启动早期自动用模板世界覆盖固定的维度数据（例如 `beloong:loong_palace`），让旧存档也能更新到新版地图。

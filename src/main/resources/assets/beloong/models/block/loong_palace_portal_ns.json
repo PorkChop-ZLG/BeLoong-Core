@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/nether_portal_ns",
+  "render_type": "minecraft:translucent",
+  "textures": {
+    "particle": "beloong:block/loong_palace_portal",
+    "portal": "beloong:block/loong_palace_portal"
+  }
+}

@@ -194,9 +194,11 @@ dependencies {
     localRuntime "curse.maven:beyonddimensions-1222890:7866935"
 
     // BWG + TerraBlender — 可选依赖
+    // 注意：BWG 不设 compileOnly。群系启用状态通过反射读取 BWGWorldGenConfig，
+    // 以避免方法校验期解析该类导致 BWG 缺席时 NoClassDefFoundError（见 DisasterBiomeSubstitution）
     compileOnly "curse.maven:terrablender-neoforge-940057:6054947"
     localRuntime "curse.maven:terrablender-neoforge-940057:6054947"
-    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:7745142"
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:8245253"
 
     // Waystones — 必选依赖（龙宫预设传送石碑）
     implementation "curse.maven:waystones-245755:8568526"
@@ -225,6 +227,11 @@ dependencies {
     // Legendary Monsters — 可选兼容（湮灭猎影伤害上限修复）
     compileOnly "curse.maven:legendary-monsters-944035:8715533"
     localRuntime "curse.maven:legendary-monsters-944035:8715533"
+
+    // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
+    localRuntime "curse.maven:vanillabackport-417430:8229724"
+    // Platform — Vanilla Backport 的前置库；参考源在 开源模组参考文件\Platform
+    localRuntime "curse.maven:platform-997634:8075942"
 
 }
 

@@ -1,7 +1,9 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
+import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
@@ -12,7 +14,10 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
+import com.zonlong.beloong.registry.ModCriteria;
 import com.zonlong.beloong.registry.ModMobEffects;
+import com.zonlong.beloong.registry.ModParticles;
+import com.zonlong.beloong.registry.ModSounds;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
@@ -20,6 +25,8 @@ import com.zonlong.beloong.transport.DimensionTransportHandler;
 import com.zonlong.beloong.treasure.TreasureGrowthLoader;
 import com.zonlong.beloong.waystoneplacement.WaystonePlacementHandler;
 import com.zonlong.beloong.waystoneplacement.WaystonePlacementLoader;
+import com.zonlong.beloong.worldgen.BeloongSurfaceRules;
+import terrablender.api.SurfaceRuleManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -33,6 +40,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import org.slf4j.Logger;
@@ -80,17 +89,22 @@ public class BeLoongCore {
         // === 注册阶段 ===
         ModItems.register(modEventBus);              // 物品
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
+        ModSounds.register(modEventBus);             // 音效
+        ModParticles.register(modEventBus);          // 粒子类型
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
+        ModCriteria.REGISTRY.register(modEventBus);  // 进度判据
 
         // === 事件处理器 ===
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new DimensionTransportHandler());
+        NeoForge.EVENT_BUS.register(new LoongPalacePortalActivation());   // 龙宫门：注水激活 + 提示节流清理
         NeoForge.EVENT_BUS.register(new StructureEffectHandler());
         NeoForge.EVENT_BUS.register(new ManaLossHandler());
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
+        NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());
@@ -118,6 +132,27 @@ public class BeLoongCore {
     /** FML 通用设置（双端都执行）。 */
     private void commonSetup(FMLCommonSetupEvent event) {
         LOGGER.info("BeLoong Launch!");
+
+        // 天灾维度的 beloong: 命名空间地表规则。
+        //
+        // 时机要求：TerraBlender 的 MixinNoiseGeneratorSettings 会在**首次** surfaceRule() 调用时
+        // 一次性构建并缓存 namespacedSurfaceRuleSource（含当时的规则表快照），
+        // 那发生在服务端启动（LevelUtils.initializeBiomes）之后。
+        // 因此在 common setup 注册即可——早于服务端启动。
+        //
+        // 必须用 enqueueWork 包起来：FMLCommonSetupEvent 是**并行分发**的，而
+        // SurfaceRuleManager 内部是普通 HashMap（SurfaceRuleManager.java:35）。
+        // BWG 自己也是这么做的（BiomesWeveGoneNeoForge.onInitialize 里
+        // event.enqueueWork(() -> TerraBlenderRegister.register())）。
+        // 若发生丢失更新，本规则会被静默丢弃——正是本功能最怕的失效模式
+        // （windswept 变成草坡），且不会有任何报错。
+        event.enqueueWork(() -> {
+            SurfaceRuleManager.addSurfaceRules(
+                    SurfaceRuleManager.RuleCategory.OVERWORLD,
+                    "beloong",
+                    BeloongSurfaceRules.makeRules());
+            LOGGER.info("[BeLoong] registered beloong-namespaced surface rules (disaster-dimension custom biomes)");
+        });
     }
 
     /** 注册服务器资源重载监听器。 */
@@ -133,6 +168,20 @@ public class BeLoongCore {
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("BeLoong Launch!");
+    }
+
+    /**
+     * 服务端完全启动后，输出天灾维度的 worldgen 账目。
+     * <p>
+     * 三条注入路径各有一条对应的观测（见 {@link DisasterBiomeSubstitution}）：
+     * index 0 兜底树的替换账目（初始化期打印）、region 树账目（初始化期打印）、
+     * 以及此处的 <b>查询层 {@code possibleBiomes()} 账目</b>——
+     * 它必须等到各维度的 {@code ServerLevel} 都建好才拿得到。
+     */
+    @SubscribeEvent
+    public void onServerStarted(ServerStartedEvent event) {
+        DisasterBiomeSubstitution.logPossibleBiomes(event.getServer());
+        BeloongSurfaceRules.logRegisteredNamespaces();
     }
 
     /**

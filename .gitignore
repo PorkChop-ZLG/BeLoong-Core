@@ -45,5 +45,14 @@ repo/
 ### Local agent memory ###
 memory/
 
+### Tools ###
+tools/
+
+### Texture preview renders ###
+preview/
+
+### Local backups written by the texture tooling before it overwrites a sprite ###
+**/.backup-before-convert/
+
 ### Spyglass ###
 spyglass.json
