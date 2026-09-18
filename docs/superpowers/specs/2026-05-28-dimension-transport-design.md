@@ -58,7 +58,7 @@ src/main/java/com/zonlong/beloong/
 | `targetDimension` | string | — | 目标维度 ID（`ResourceLocation` 格式） |
 | `targetX` | double | 0.0 | 目标固定 X 坐标 |
 | `targetZ` | double | 0.0 | 目标固定 Z 坐标 |
-| `fallbackY` | double | 64.0 | 高度图查找失败时的回退 Y 坐标 |
+| `fallbackY` | double | 64.5 → 65.0 | 高度图查找失败（落点区块未加载，或该列为虚空）时的回退 Y 坐标。**本表是 2026-05-28 的设计快照**，当前默认值与语义以 `Config.java` 与 `util/LandingY` 的 javadoc 为准（2026-09-12 对齐：龙宫落点地表实测 Y=64.0，故默认值改为 65.0；旧存档仍需手动修改） |
 | `checkIntervalTicks` | int | 20 | 检查间隔（ticks），防止每 tick 性能开销 |
 | `cooldownTicks` | int | 100 | 传送后冷却时间（ticks），防止循环传送 |
 

@@ -5,8 +5,14 @@ import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
 import com.zonlong.beloong.item.effect.DawnLightEffect;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import com.zonlong.beloong.registry.ModBlocks;
+import java.util.List;
+import java.util.function.Supplier;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.TooltipFlag;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -52,6 +58,67 @@ public class ModItems {
     public static final DeferredItem<Item> DAWN_LIGHT =
             Items.register("dawn_light", DawnLightEffect::new);
 
+    // ==================== 元素魔源十件套 ====================
+    // 只是十件普通物品，就地注册（沿用本类既有的"一个物品一行"写法），不额外建类。
+    // 每个元素一个文件、或一个枚举、或一个参数化基类，用来省下那几行都是多余的抽象。
+    // 十件的属性完全相同，差异只有 tooltip 键，因此统一走下面这个私有工厂。
+    // 声明顺序 = 创造模式页签的展示顺序：五行 + 风雷冰 + 光暗。
+
+    /** 元素魔源（金）。 */
+    public static final DeferredItem<Item> METAL_ESSENCE =
+            Items.register("metal_essence", essenceSupplier("item.beloong.metal_essence.tooltip"));
+
+    /** 元素魔源（木）。 */
+    public static final DeferredItem<Item> WOOD_ESSENCE =
+            Items.register("wood_essence", essenceSupplier("item.beloong.wood_essence.tooltip"));
+
+    /** 元素魔源（水）。 */
+    public static final DeferredItem<Item> WATER_ESSENCE =
+            Items.register("water_essence", essenceSupplier("item.beloong.water_essence.tooltip"));
+
+    /** 元素魔源（火）。 */
+    public static final DeferredItem<Item> FIRE_ESSENCE =
+            Items.register("fire_essence", essenceSupplier("item.beloong.fire_essence.tooltip"));
+
+    /** 元素魔源（土）。 */
+    public static final DeferredItem<Item> EARTH_ESSENCE =
+            Items.register("earth_essence", essenceSupplier("item.beloong.earth_essence.tooltip"));
+
+    /** 元素魔源（风）。 */
+    public static final DeferredItem<Item> WIND_ESSENCE =
+            Items.register("wind_essence", essenceSupplier("item.beloong.wind_essence.tooltip"));
+
+    /** 元素魔源（雷）。 */
+    public static final DeferredItem<Item> THUNDER_ESSENCE =
+            Items.register("thunder_essence", essenceSupplier("item.beloong.thunder_essence.tooltip"));
+
+    /** 元素魔源（冰）。 */
+    public static final DeferredItem<Item> ICE_ESSENCE =
+            Items.register("ice_essence", essenceSupplier("item.beloong.ice_essence.tooltip"));
+
+    /** 元素魔源（光）。 */
+    public static final DeferredItem<Item> LIGHT_ESSENCE =
+            Items.register("light_essence", essenceSupplier("item.beloong.light_essence.tooltip"));
+
+    /** 元素魔源（暗）。 */
+    public static final DeferredItem<Item> DARK_ESSENCE =
+            Items.register("dark_essence", essenceSupplier("item.beloong.dark_essence.tooltip"));
+
+    /**
+     * 构造一件元素魔源：唯一的行为变化是 tooltip，文案在语言文件里。
+     *
+     * @param tooltipKey 该物品的 tooltip 翻译键
+     */
+    private static Supplier<Item> essenceSupplier(String tooltipKey) {
+        return () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)) {
+            @Override
+            public void appendHoverText(ItemStack stack, TooltipContext context,
+                                        List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
+                tooltipComponents.add(Component.translatable(tooltipKey));
+            }
+        };
+    }
+
     /**
      * 天灾传送门框架的 BlockItem。
      * 物品 ID：{@code beloong:disaster_portal_frame}
@@ -72,6 +139,16 @@ public class ModItems {
     public static final DeferredItem<BlockItem> RED_YELLOW_BOARD =
             Items.register("red_yellow_board",
                     () -> new BlockItem(ModBlocks.RED_YELLOW_BOARD.get(), new Item.Properties()));
+
+    /**
+     * 龙宫传送门方块的 BlockItem。
+     * <p>
+     * 物品 ID：{@code beloong:loong_palace_portal}。放下去只是一块"门方块"（玩家正常玩法里
+     * 用荧石框架注水点亮，不需要这个物品）；它的主要用途是创造模式搭建与结构引用。
+     */
+    public static final DeferredItem<BlockItem> LOONG_PALACE_PORTAL =
+            Items.register("loong_palace_portal",
+                    () -> new BlockItem(ModBlocks.LOONG_PALACE_PORTAL.get(), new Item.Properties()));
 
     /** 将物品注册到 Mod 事件总线 */
     public static void register(IEventBus eventBus) {

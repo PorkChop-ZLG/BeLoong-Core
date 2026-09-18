@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "beloong:block/loong_palace_portal_ns"
+    },
+    "axis=z": {
+      "model": "beloong:block/loong_palace_portal_ew"
+    }
+  }
+}

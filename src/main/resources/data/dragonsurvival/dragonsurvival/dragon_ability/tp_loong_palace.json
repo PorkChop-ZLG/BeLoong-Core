@@ -32,7 +32,7 @@
       }
     },
     "cast_time": 60.0,
-    "cooldown": 0.0,
+    "cooldown": 5.0,
     "initial_mana_cost": 0.0,
     "sound": {
       "end": "minecraft:entity.enderman.teleport"

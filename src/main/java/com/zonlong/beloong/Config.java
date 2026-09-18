@@ -86,6 +86,11 @@ public class Config {
         public static ModConfigSpec.IntValue templateVersion;
     }
 
+    // ==================== 天灾维度群系剔除 ====================
+    // 本功能**没有任何配置项**：白名单与映射表都是硬编码的结构性决策。
+    // 实现见 worldgen/DisasterBiomeSubstitution.java + worldgen/DisasterBiomeMapping.java
+    // + mixin/CloneParameterListMixin.java（生成层）+ mixin/PossibleBiomesFilterMixin.java（查询层）。
+
     static {
         COMMON_BUILDER.push("template_update");
         TemplateUpdate.enabled = COMMON_BUILDER
@@ -139,17 +144,16 @@ public class Config {
         private DimensionTransport() {}
 
         public static ModConfigSpec.IntValue checkIntervalTicks;
-        public static ModConfigSpec.IntValue cooldownTicks;
 
-        public static ModConfigSpec.BooleanValue owToLP_enabled;
-        public static ModConfigSpec.IntValue owToLP_triggerY;
-        public static ModConfigSpec.ConfigValue<String> owToLP_targetDimension;
-        public static ModConfigSpec.DoubleValue owToLP_targetX;
-        public static ModConfigSpec.DoubleValue owToLP_targetZ;
-        public static ModConfigSpec.DoubleValue owToLP_fallbackY;
-
-        public static ModConfigSpec.BooleanValue lpToOw_enabled;
-        public static ModConfigSpec.IntValue lpToOw_triggerY;
+        /**
+         * 「其他世界 → 龙宫」的落点参数（供 {@code teleport/TeleportTarget#toLoongPalace} 读取）。
+         * <p>
+         * 这三个值<b>只</b>描述落点；触发方式由调用方决定（技能、将来的传送门方块等）。
+         * 目标维度 {@code beloong:loong_palace} 是编译期常量，不在这里配置。
+         */
+        public static ModConfigSpec.DoubleValue loongPalace_targetX;
+        public static ModConfigSpec.DoubleValue loongPalace_targetZ;
+        public static ModConfigSpec.DoubleValue loongPalace_fallbackY;
     }
 
     // ==================== treasure_growth ====================
@@ -169,15 +173,13 @@ public class Config {
     // 天灾传送门配置节。
     // 传送逻辑说明：
     //   - 在任意非天灾维度进入传送门 → 1:1 坐标传送到 beloong:disaster
-    //   - 在天灾维度进入传送门 → 传送到主世界玩家重生点（原版末地逻辑）
+    //   - 在天灾维度进入传送门 → 1:1 坐标传送到主世界（见《天灾维度总设计》决策 35）
 
     public static final class DisasterPortal {
         private DisasterPortal() {}
 
         /** 激活传送门所需的 12 种眼球物品 ID（固定列表，不可扩展） */
         public static ModConfigSpec.ConfigValue<List<? extends String>> eyeItems;
-        /** 传送后的冷却时间（ticks），防止玩家在传送门中来回弹跳 */
-        public static ModConfigSpec.IntValue teleportCooldownTicks;
     }
 
     // ==================== structure_effects ====================
@@ -324,45 +326,36 @@ public class Config {
         SERVER_BUILDER.pop(); // treasure_growth
 
         // ========== dimension_transport ==========
+        // 龙宫传送的<b>兜底安全网</b>：玩家在龙宫掉到触发 Y 以下时送返主世界出生点。
+        // 主世界 → 龙宫的方向已于 2026-09-16 移除（原为"飞到 Y > 8848 自动传送"，
+        // 而主世界 maxBuildHeight = 320 ⇒ 该条件永假，是死配置）。
         SERVER_BUILDER.push("dimension_transport");
 
         DimensionTransport.checkIntervalTicks = SERVER_BUILDER
                 .comment("玩家 Y 坐标检查间隔（ticks），默认 20 = 每秒一次")
                 .defineInRange("checkIntervalTicks", 20, 1, 1200);
 
-        DimensionTransport.cooldownTicks = SERVER_BUILDER
-                .comment("传送后冷却时间（ticks），防止循环传送")
-                .defineInRange("cooldownTicks", 100, 0, 72000);
+        // 传送冷却不在这里配置：统一传送路径的冷却由 teleport/TeleportCooldown 硬编码（60 tick）。
+        // 龙宫 Y<0 兜底传送是该冷却的<b>特例</b>——既不检查也不写它，故也没有配置项。
 
+        // 「其他世界 → 龙宫」的落点。节名保持原样（历史沿用），但内容只服务落点：
+        // 原先驱动它的「主世界飞到 Y > 8848 自动传送」已于 2026-09-16 删除（该条件在主世界恒为假）。
         SERVER_BUILDER.push("overworldToLoongPalace");
-        DimensionTransport.owToLP_enabled = SERVER_BUILDER
-                .comment("是否启用 主世界 → 龙宫 的传送")
-                .define("enabled", true);
-        DimensionTransport.owToLP_triggerY = SERVER_BUILDER
-                .comment("触发传送的 Y 轴高度（玩家 Y > 此值时传送）")
-                .defineInRange("triggerY", 8848, -4064, 100000);
-        DimensionTransport.owToLP_targetDimension = SERVER_BUILDER
-                .comment("目标维度 ID")
-                .define("targetDimension", "beloong:loong_palace");
-        DimensionTransport.owToLP_targetX = SERVER_BUILDER
-                .comment("目标固定 X 坐标")
+        DimensionTransport.loongPalace_targetX = SERVER_BUILDER
+                .comment("龙宫侧落点的固定 X 坐标",
+                        "本节的三个值只描述「其他世界 → 龙宫」的落点；触发方式由技能或传送门方块决定。")
                 .defineInRange("targetX", 0.5, -3.0E7, 3.0E7);
-        DimensionTransport.owToLP_targetZ = SERVER_BUILDER
-                .comment("目标固定 Z 坐标")
+        DimensionTransport.loongPalace_targetZ = SERVER_BUILDER
+                .comment("龙宫侧落点的固定 Z 坐标")
                 .defineInRange("targetZ", 0.5, -3.0E7, 3.0E7);
-        DimensionTransport.owToLP_fallbackY = SERVER_BUILDER
-                .comment("高度图查找失败时的回退 Y 坐标")
-                .defineInRange("fallbackY", 64.5, -2032.0, 2032.0);
+        DimensionTransport.loongPalace_fallbackY = SERVER_BUILDER
+                .comment("高度图取不到落点时的兜底 Y 坐标（龙宫是纯虚空维度，该列没有方块，",
+                        "因此高度图必然取不到——实际落点恒为该值）。")
+                .defineInRange("fallbackY", 65.0, -2032.0, 2032.0);
         SERVER_BUILDER.pop();
 
-        SERVER_BUILDER.push("loongPalaceToOverworld");
-        DimensionTransport.lpToOw_enabled = SERVER_BUILDER
-                .comment("是否启用 龙宫 → 主世界 的传送")
-                .define("enabled", true);
-        DimensionTransport.lpToOw_triggerY = SERVER_BUILDER
-                .comment("触发传送的 Y 轴高度（玩家 Y < 此值时传送）")
-                .defineInRange("triggerY", 0, -2032, 2032);
-        SERVER_BUILDER.pop();
+        // 「龙宫 → 主世界」的兜底安全网已于 2026-09-16 改为硬编码：恒启用、触发线固定为 Y < 0，
+        // 落点恒为世界出生点。故本节不再有配置项。
 
         SERVER_BUILDER.pop(); // dimension_transport
 
@@ -388,10 +381,6 @@ public class Config {
                         ),
                         () -> "",
                         s -> s instanceof String str && str.contains(":"));
-
-        DisasterPortal.teleportCooldownTicks = SERVER_BUILDER
-                .comment("传送冷却时间（ticks），防止循环传送")
-                .defineInRange("teleportCooldownTicks", 100, 0, 72000);
 
         SERVER_BUILDER.pop(); // disaster_portal
 

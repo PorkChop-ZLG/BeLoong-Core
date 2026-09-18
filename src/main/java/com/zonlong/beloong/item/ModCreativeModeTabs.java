@@ -39,8 +39,20 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.AMPLIFICATION_CHARM);
                         output.accept(ModItems.DAWN_LIGHT);
                         output.accept(ModItems.ETERNAL_PORKCHOP);
+                        // 元素魔源：按五行 + 风雷冰 + 光暗的顺序展示。
+                        output.accept(ModItems.METAL_ESSENCE);
+                        output.accept(ModItems.WOOD_ESSENCE);
+                        output.accept(ModItems.WATER_ESSENCE);
+                        output.accept(ModItems.FIRE_ESSENCE);
+                        output.accept(ModItems.EARTH_ESSENCE);
+                        output.accept(ModItems.WIND_ESSENCE);
+                        output.accept(ModItems.THUNDER_ESSENCE);
+                        output.accept(ModItems.ICE_ESSENCE);
+                        output.accept(ModItems.LIGHT_ESSENCE);
+                        output.accept(ModItems.DARK_ESSENCE);
                         output.accept(ModItems.DISASTER_PORTAL_FRAME);
                         output.accept(ModItems.DISASTER_PORTAL_BLOCK);
+                        output.accept(ModItems.LOONG_PALACE_PORTAL);
                         output.accept(ModItems.RED_YELLOW_BOARD);
                     }).build());
 
