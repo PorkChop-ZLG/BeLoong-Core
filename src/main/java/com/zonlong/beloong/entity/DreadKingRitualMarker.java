@@ -4,6 +4,7 @@ import com.zonlong.beloong.Config;
 import io.redspace.ironsspellbooks.capabilities.magic.MagicManager;
 import io.redspace.ironsspellbooks.entity.mobs.dead_king_boss.DeadKingBoss;
 import io.redspace.ironsspellbooks.registries.SoundRegistry;
+import io.redspace.ironsspellbooks.util.ParticleHelper;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -21,9 +22,11 @@ import org.slf4j.LoggerFactory;
  * <h2>职责</h2>
  * 由 {@code dreadking/DreadKingRitualStarter} 在黯影宝库顶部生成，然后：
  * <ol>
- *   <li>首个 tick：向周围广播一次 {@code irons_spellbooks:entity.dead_king.music.intro}
+ *   <li>首个 tick：向周围广播一次 {@code irons_spellbooks:entity.dead_king.music.suspense}
  *       （半径与响度由 {@link Config.DreadKingRitual#musicVolume} 同时决定）</li>
- *   <li>之后每 tick 倒数 {@link #LIFETIME_TICKS}</li>
+ *   <li>之后每 tick 倒数 {@link #LIFETIME_TICKS}，并每 {@link #PARTICLE_INTERVAL_TICKS} tick
+ *       在自身周围半径 {@link #PARTICLE_RADIUS} 格的圆盘内铺一层
+ *       {@code irons_spellbooks:blood_ground} 血渍</li>
  *   <li>倒数归零：在自身位置召唤<b>不祥</b>状态的死者之王，然后移除自身</li>
  * </ol>
  *
@@ -71,13 +74,26 @@ public class DreadKingRitualMarker extends Marker {
     private static final Logger LOGGER = LoggerFactory.getLogger(DreadKingRitualMarker.class);
 
     /**
-     * 仪式时长，单位 tick，等于 intro 音乐的长度。
+     * 仪式时长，单位 tick，等于仪式音乐
+     * {@code irons_spellbooks:entity.dead_king.music.suspense} 的长度。
      * <p>
-     * 取值依据（两路独立取证）：铁魔法 {@code DeadKingMusicHandler.INTRO_LENGTH_MILIS = 17600}
-     * （17.600 s）；实际依赖 jar 内 {@code dead_king/music/intro.ogg} 的 Ogg 末页 granule
-     * 778368 @ 44100 Hz（17.650 s）。本条是<b>客观音乐长度</b>而非玩法参数，故硬编码、不做配置。
+     * 取值依据：实际依赖 jar 内 {@code dead_king/music/suspense.ogg} 的 Ogg <b>完整页扫描</b>
+     * （57 页、末页 type=4 即 EOS）—— 实测 <b>7.01 s</b>（granule / 44100 = 140.2 tick）。
+     * 用户要求「凑整数」⇒ 取 {@code 140}（与实测差 0.01 s，不可闻）。
+     * 本条是<b>客观音频长度</b>而非玩法参数，故硬编码、不做配置。
+     * <p>
+     * ⚠️ <b>换音轨时必须同步改这里</b>，否则「仪式时长 = 音效长度」这条设计前提就断了（设计文档 D3）。
      */
-    public static final int LIFETIME_TICKS = 352;
+    public static final int LIFETIME_TICKS = 140;
+
+    /** 仪式期间铺血粒子的发射间隔（tick）。140 / 5 = 28 次，约 32 颗/秒。 */
+    private static final int PARTICLE_INTERVAL_TICKS = 5;
+
+    /** 每次发射的粒子数。 */
+    private static final int PARTICLES_PER_BURST = 8;
+
+    /** 血渍圆盘半径（格）。用户指定「以标记实体为中心、半径 3 格的圆」。 */
+    private static final double PARTICLE_RADIUS = 3.0D;
 
     /** 剩余 tick 数。必须落 NBT，见类 javadoc「计时」。 */
     private int lifeTicks = LIFETIME_TICKS;
@@ -101,8 +117,14 @@ public class DreadKingRitualMarker extends Marker {
         }
 
         if (!musicPlayed) {
-            playIntroMusic();
+            playRitualAudio();
             musicPlayed = true;
+        }
+
+        // 仪式全程在周围铺血。用 lifeTicks 取模而不是另开计数器：它就是本次仪式的进度，
+        // 且读档后仍连续（lifeTicks 落 NBT）。
+        if (lifeTicks % PARTICLE_INTERVAL_TICKS == 0) {
+            emitRitualParticles();
         }
 
         if (--lifeTicks > 0) {
@@ -127,19 +149,60 @@ public class DreadKingRitualMarker extends Marker {
     }
 
     /**
-     * 广播仪式音乐。
+     * 广播仪式音乐（{@code entity.dead_king.music.suspense}），在实体生命周期内<b>只播一次</b>。
+     * <p>
+     * 选这条音轨的理由：IS 的 Dead King 音轨里**每一条可用的都被 IS 自己用了**，而 suspense 的
+     * 重复频率最低 —— 它只在「阶段转换（半血）」时作为 {@code transitionMusic} 播放
+     * （{@code DeadKingMusicHandler:42}），因此不会与 Boss <b>出场</b>时的 {@code intro} 撞车。
+     * 全部候选音轨的实测长度与使用点盘点见设计文档 §一 与 §八。
      * <p>
      * 用 {@code Level.playSound} 而非 {@code ServerPlayer.playNotifySound}：本仪式面向
      * 「周围所有玩家」（唱片机语义），只有开启者听得到是不对的。
      * <p>
+     * <b>已知并接受的局限</b>：音效包只在生成瞬间发一次 ⇒ 迟到或重进的玩家听不到。
+     * 这是结构性的（{@code SoundInstance} 只有 {@code getDelay()}、<b>没有 seek</b>，任何"补发"
+     * 都只能从头重播），用户已确认接受。**不要**试图靠"重发"来修它。
+     * <p>
      * ⚠️ {@code musicVolume} 同时决定响度与可闻半径，二者无法解耦，推导见设计文档 §五。
      */
-    private void playIntroMusic() {
+    private void playRitualAudio() {
         level().playSound(null, getX(), getY(), getZ(),
-                SoundRegistry.DEAD_KING_MUSIC_INTRO.get(),
+                SoundRegistry.DEAD_KING_SUSPENSE.get(),
                 SoundSource.RECORDS,
                 Config.DreadKingRitual.musicVolume.get().floatValue(),
                 1.0F);
+    }
+
+    /**
+     * 在自身周围半径为 {@link #PARTICLE_RADIUS} 格的<b>圆盘</b>内铺一层
+     * {@code irons_spellbooks:blood_ground} 血渍。
+     * <p>
+     * 两个刻意的实现选择：
+     * <ul>
+     *   <li><b>逐颗定点发送（{@code count = 1}）</b>而不是一次发 {@code count = N} —— 因为
+     *       {@code ServerLevel.sendParticles} 对 {@code count > 1} 的处理是「在 ±offset 的
+     *       <b>长方体</b>内随机」，那会摊成一个方阵而不是圆。逐颗发送才能保证落在半径 3 以内。</li>
+     *   <li><b>半径取 {@code R × sqrt(u)}</b> 而非 {@code R × u} —— 前者才保证圆盘内<b>面密度均匀</b>；
+     *       后者会让粒子向圆心堆积。</li>
+     * </ul>
+     * Y 直接取标记实体自身的 Y，<b>不做高度图采样</b>：{@code BloodGroundParticle} 继承
+     * {@code TextureSheetParticle}，而 {@code Particle.hasPhysics} 默认为 {@code true}，
+     * 每颗血会各自落到自己脚下的表面并停住 ⇒ 地形不平也自然。
+     */
+    private void emitRitualParticles() {
+        if (!(level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        double cx = getX();
+        double cy = getY();
+        double cz = getZ();
+        for (int i = 0; i < PARTICLES_PER_BURST; i++) {
+            double angle = getRandom().nextDouble() * Math.PI * 2.0D;
+            double radius = PARTICLE_RADIUS * Math.sqrt(getRandom().nextDouble());
+            serverLevel.sendParticles(ParticleHelper.BLOOD_GROUND,
+                    cx + Math.cos(angle) * radius, cy, cz + Math.sin(angle) * radius,
+                    1, 0.0D, 0.0D, 0.0D, 0.0D);
+        }
     }
 
     /**

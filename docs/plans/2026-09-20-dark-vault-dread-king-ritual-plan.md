@@ -1,7 +1,7 @@
 # 黯影宝库「死王仪式」实施计划
 
 **目标：** 在 `dragonsurvival:dragon_hunters_castle` 内开启黯影宝库时，于宝库顶生成一个不可见的标记实体，
-播放 intro 音乐 352 tick 后召唤**不祥**死者之王。
+播放 `suspense` 音效 140 tick 后召唤**不祥**死者之王。
 
 **架构：** 三层单向依赖 —— 检测层（1 个 mixin 注入原版 `unlock(...)`）/ 编排层（结构判定 + 刷怪点）/
 执行层（`Marker` 子类：计时 + 音乐 + 召唤）。三层只通过数据耦合，每层可独立替换与验证。
@@ -108,7 +108,10 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
 
    ```java
    public class DreadKingRitualMarker extends Marker {
-       public static final int LIFETIME_TICKS = 352;   // = IS DeadKingMusicHandler.INTRO_LENGTH_MILIS 17600ms
+       public static final int LIFETIME_TICKS = 140;   // = suspense.ogg 实测 7.010s（140.2 tick），用户要求取整
+       private static final int PARTICLE_INTERVAL_TICKS = 5;
+       private static final int PARTICLES_PER_BURST = 8;
+       private static final double PARTICLE_RADIUS = 3.0D;
        private int lifeTicks = LIFETIME_TICKS;
        private boolean musicPlayed;
        public DreadKingRitualMarker(EntityType<? extends DreadKingRitualMarker> type, Level level) { super(type, level); }
@@ -122,9 +125,10 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
    public void tick() {
        if (level().isClientSide) return;                 // 理论不可达（本实体不发客户端），防御性保留
        if (!musicPlayed) {
-           playIntroMusic();
+           playRitualAudio();
            musicPlayed = true;
        }
+       if (lifeTicks % PARTICLE_INTERVAL_TICKS == 0) emitRitualParticles();   // D22
        if (--lifeTicks > 0) return;
        try {
            summonDeadKing();
@@ -144,19 +148,35 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
      `removeErroringEntities`（**默认 `false`**）下会 `throw new ReportedException` ⇒ **崩整个服务端**；
      若管理员设为 `true` ⇒ **静默 `discard()`、仪式无声消失**。自己兜住把两种坏结局都换成
      「恰好一次 + 可诊断的 ERROR 日志」。
-   - `--lifeTicks` 必须先减后判（`> 0` 才 return），保证第 352 tick 那一次一定会执行召唤。
+   - `--lifeTicks` 必须先减后判（`> 0` 才 return），保证第 140 tick 那一次一定会执行召唤。
    - **`lifeTicks` 是唯一合法计时源**：`tickCount` 虽然照常自增（它在 `ServerLevel.tickNonPassenger:772`，
      不在 `baseTick()`），但 `Entity.saveWithoutId`（`Entity.java:1737` 起）**不写 `tickCount`** ⇒ 读档归零。
 
-3. `playIntroMusic()`（**唯一一处音量语义**）：
+3. `playRitualAudio()`（**唯一一处音量语义**）：
    ```java
    level().playSound(null, getX(), getY(), getZ(),
-           SoundRegistry.DEAD_KING_MUSIC_INTRO.get(),
+           SoundRegistry.DEAD_KING_SUSPENSE.get(),
            SoundSource.RECORDS,
            Config.DreadKingRitual.musicVolume.get().floatValue(), 1.0F);
    ```
    import：`io.redspace.ironsspellbooks.registries.SoundRegistry`（铁魔法已是 `required` 依赖，直接引用，**不加** `isLoaded` 守卫）。
    注释里写明音量**同时决定可闻半径**（半径 = `16 × max(volume, 1)` 格），并指向设计文档 §五 的推导。
+   ⚠️ **不要**加「重进补发」逻辑 —— `SoundInstance` 没有 seek，补发只能从头重播；该局限是结构性的且用户已接受（D4）。
+
+   `emitRitualParticles()`（D22）—— 每 `PARTICLE_INTERVAL_TICKS` tick 调一次：
+   ```java
+   for (int i = 0; i < PARTICLES_PER_BURST; i++) {
+       double angle = getRandom().nextDouble() * Math.PI * 2.0D;
+       double radius = PARTICLE_RADIUS * Math.sqrt(getRandom().nextDouble());   // sqrt 才保证面密度均匀
+       serverLevel.sendParticles(ParticleHelper.BLOOD_GROUND,
+               getX() + Math.cos(angle) * radius, getY(), getZ() + Math.sin(angle) * radius,
+               1, 0.0D, 0.0D, 0.0D, 0.0D);                                        // count=1 才能落在圆内
+   }
+   ```
+   import：`io.redspace.ironsspellbooks.util.ParticleHelper`（其 `BLOOD_GROUND` 就是 `ParticleRegistry` 里那个
+   `SimpleParticleType`）。⚠️ 两个要点**不能改**：`count = 1`（`sendParticles` 对 `count > 1` 是「±offset
+   **长方体**随机」，会摊成方阵而不是圆）、`R × sqrt(u)`（否则粒子向圆心堆积）。Y 用标记实体自身 Y 即可 ——
+   粒子自带物理（`Particle.hasPhysics` 默认 `true`）会各自落到脚下表面并停住，**不需要**高度图采样。
 
 4. `summonDeadKing()` —— **逐字复刻 `DeadKingCorpseEntity.java:75-90` 的序列**：
 
@@ -190,7 +210,7 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
 **Verification:**
 ```powershell
 .\gradlew.bat build     # exit 0
-# 静态探针：class 已产出，且常量池含 352 与该类名
+# 静态探针：class 已产出，且常量池含 140 与该类名
 $jar='build\libs\beloong-0.9.6.jar'
 # （用 jar tf 确认 entity/DreadKingRitualMarker.class 存在）
 ```
@@ -236,12 +256,13 @@ javap -p -c -classpath build\libs\beloong-0.9.6.jar com.zonlong.beloong.registry
 **实机（关键闸门）：** 启动游戏 → `/summon beloong:dread_king_ritual_marker ~ ~ ~`
 - ✅ 命令不报错（说明已注册、`MobCategory.MISC` 合法、`summon` 不需要 `noSummon()`）
 - ✅ **看不到任何实体**（`clientTrackingRange(0)` + `getAddEntityPacket` throw 生效）
-- ✅ 立刻听到 intro 音乐（`musicVolume = 0.5` ⇒ 16 格内可闻）
-- ✅ **352 tick（17.6 秒）后**听到 `dead_king_spawn` 音效并出现死者之王
+- ✅ 立刻听到 suspense 音效（`musicVolume = 0.5` ⇒ 16 格内可闻）
+- ✅ **140 tick（7 秒）后**听到 `dead_king_spawn` 音效并出现死者之王
+- ✅ 仪式期间周围半径 3 格内出现 `blood_ground` 血渍，且圆外四角没有（D22）
 - ✅ 该死王是**不祥**态（环绕 `TRIAL_OMEN` 粒子 / 血量 1000）
 - ✅ 打死它 → **不生成灵魂**（D20：`spawnPos` 为 null）—— 反过来若生成了灵魂，说明 D20 失效
 
-> 这条闸门一次性覆盖设计文档 §七 B 的用例 1、2、7a。三条都过再进 T4。
+> 这条闸门一次性覆盖设计文档 §七 B 的用例 1、2、7a、10。四条都过再进 T4。
 
 **Commit:** `注册死王仪式标记实体（beloong:dread_king_ritual_marker）`
 
@@ -382,21 +403,22 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 
 | # | 操作 | 期望 |
 |---|---|---|
-| 1 | `/summon beloong:dread_king_ritual_marker`（宝库顶） | 音乐 + 352 tick 后原地出现死王 —— **T3 已过** |
+| 1 | `/summon beloong:dread_king_ritual_marker`（宝库顶） | 音效 + 140 tick 后原地出现死王 —— **T3 已过** |
 | 2 | 检查死王为不祥态 | **T3 已过** |
 | 3 | 城堡内用暗影钥匙开黯影宝库 | 与 1 相同 |
 | 4 | **非**城堡处放置黯影宝库并开启 | **不触发** |
 | 5 | 用**备用**暗影钥匙对**同一已开过**的宝库再右键 | **不触发**（方案 C 的核心收益） |
-| 6 | 16 格外 / 音乐响起后进场 | 听不到 / 只听到剩余部分 |
+| 6 | 16 格外 / 音效响起后进场 | 听不到 / 只听到剩余部分（D4 已知局限） |
 | 7a | 打死**仪式召唤**的不祥死王 | **不生成**灵魂 —— **T3 已过** |
 | 7b | 打死**尸体复活**途径的死王（普通/不祥各一次） | **仍生成**灵魂 —— 回归闸门，证明 D20 没把灵魂全局弄没 |
-| 8 | 仪式中走远至区块卸载，再回来 | 倒计时从暂停处继续，无音乐 |
+| 8 | 仪式中走远至区块卸载，再回来 | 倒计时从暂停处继续，音效可能已放完 |
 | 9 | `/kill @e[type=beloong:dread_king_ritual_marker]` | 不召唤 |
-| 10 | 仪式进行中**重启服务器**（停服再开） | 倒计时从**剩余** tick 续跑；**音乐不重放** —— 这条专门验证 `lifeTicks`/`musicPlayed` 真的落进了 NBT（`Entity.saveWithoutId` 不写 `tickCount`，所以这也是「不能用 tickCount 计时」的实证） |
+| 10 | 仪式进行中**重启服务器**（停服再开） | 倒计时从**剩余** tick 续跑；**音效不重放** —— 这条专门验证 `lifeTicks`/`musicPlayed` 真的落进了 NBT（`Entity.saveWithoutId` 不写 `tickCount`，所以这也是「不能用 tickCount 计时」的实证） |
 | 11 | 仪式进行中把宝库顶那一格用方块堵死 | 死王出现在净空扫描找到的位置；若日志出现 WARN 则说明该房间连 +8 格净空都没有（见 DoD 第 7 条） |
+| 12 | 仪式期间观察宝库顶周围 | 半径 3 格内持续出现 `blood_ground` 血渍，且**圆外四角没有**（验证 D22 的「圆盘而非方阵」）；地形不平时血渍各自落在脚下表面 |
 
 **计时取证：** 用 `/time query gametime`（项目已验证 RCON 可用）在音乐开始与死王出现各取一次，
-差值应为 **352 tick** ± 少量。
+差值应为 **140 tick** ± 少量。
 
 **回归面（必须一并检查）：**
 - 宝库的**正常开箱**不受影响：战利品照常喷出、`dragonsurvival:dark/open_vault` 进度照常授予
@@ -436,7 +458,7 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 2. `beloong.mixins.json` 的新条目位于 **`mixins`** 数组
 3. `ModEntities` 含 `DREAD_KING_RITUAL_MARKER`，且**未**带 `.updateInterval`
 4. 两个 lang 文件都含 `entity.beloong.dread_king_ritual_marker`
-5. 设计文档 §七 B 的 9 条用例逐条有证据；计时差值 = 352 tick ± 少量
+5. 设计文档 §七 B 的 10 条用例逐条有证据；计时差值 = 140 tick ± 少量
 6. 回归面三条全过（正常开箱不受影响 / 非城堡不触发 / `enabled = false` 生效）
 7. 实机日志中**没有** `findSpawnPos` 的 WARN（若有，需在设计文档 §八 记录该结构的净空状况）
 8. 实机日志中**没有** `Ticking entity` 崩溃报告 —— 有则说明 `tick()` 内仍有 `catch` 未覆盖的抛出路径

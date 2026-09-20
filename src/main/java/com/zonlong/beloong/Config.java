@@ -211,7 +211,7 @@ public class Config {
 
     // ==================== dread_king_ritual ====================
     // 黯影宝库「死王仪式」：在指定结构内开启黯影宝库时，于宝库顶生成一个标记实体，
-    // 播放 intro 音乐（352 tick）后在原地召唤不祥状态的死者之王。
+    // 播放 suspense 音效并在周围铺 blood_ground 血渍（共 140 tick），随后原地召唤不祥状态的死者之王。
     // 实现见 dreadking/DreadKingRitualStarter.java + entity/DreadKingRitualMarker.java
     // + mixin/minecraft/DreadKingRitualTriggerMixin.java
 
@@ -233,7 +233,7 @@ public class Config {
          * （{@code max(volume, 1) × attenuation_distance}）。
          * <p>
          * 默认 0.5 的由来：原版唱片机硬编码 {@code 4.0F}（见 {@code SimpleSoundInstance#forJukeboxSong}），
-         * 而本音乐本身响度偏高，故降到唱片机默认的 1/8；代价是可闻半径同时由 64 格收窄到 16 格
+         * 而实测该音量听感偏大，故降到唱片机默认的 1/8；代价是可闻半径同时由 64 格收窄到 16 格
          * （已确认接受）。想要更大覆盖范围就调大它，半径随之线性增长。
          */
         public static ModConfigSpec.DoubleValue musicVolume;
