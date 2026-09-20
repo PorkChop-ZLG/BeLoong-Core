@@ -24,16 +24,24 @@ import net.neoforged.api.distmarker.OnlyIn;
 @OnlyIn(Dist.CLIENT)
 public class NpcDialogueOptionButton extends AbstractWidget {
 
-    /** 常态底色：深黑半透明。 */
-    private static final int BG_NORMAL = 0xB0000000;
-    /** 悬停底色：半透明暖金（起始值，待试玩调整）。 */
-    private static final int BG_HOVER = 0xC0C8A05A;
+    /** 常态底色 RGB：深蓝黑（取自参考图）。 */
+    private static final int NORMAL_RGB = 0x1A1F26;
+    /** 悬停底色 RGB：暖金。 */
+    private static final int HOVER_RGB = 0xC8A05A;
+    /** 底衬不透明度（0-255）。 */
+    private static final int BASE_ALPHA = 0xC0;
+    /**
+     * 右侧渐隐起点（占宽度比例）：前 55% 为实心底衬，其后线性淡出到全透明。
+     * <p>
+     * 参考图的选项底衬**右侧没有硬边**，是渐渐化开的 —— 因此右侧不需要圆角，
+     * 只要把 alpha 收到 0 即可（"直角"在视觉上根本不会出现）。
+     */
+    private static final float FADE_START = 0.55F;
     private static final int TEXT_COLOR = 0xFFFFFFFF;
     private static final int ICON_COLOR = 0xFFEDEDED;
 
     /** 图标与内边距（GUI 像素）。 */
     public static final int PADDING_LEFT = 7;
-    public static final int PADDING_RIGHT = 9;
     public static final int ICON_SIZE = 9;
     public static final int ICON_GAP = 5;
 
@@ -56,8 +64,7 @@ public class NpcDialogueOptionButton extends AbstractWidget {
 
     @Override
     protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        int background = FastColor.ARGB32.lerp(this.hover, BG_NORMAL, BG_HOVER);
-        fillCapsule(guiGraphics, getX(), getY(), getWidth(), getHeight(), background);
+        renderBackgroundBand(guiGraphics);
 
         int iconY = getY() + (getHeight() - ICON_SIZE) / 2;
         drawLeaveIcon(guiGraphics, getX() + PADDING_LEFT, iconY);
@@ -68,6 +75,48 @@ public class NpcDialogueOptionButton extends AbstractWidget {
                 TEXT_COLOR, true);
     }
 
+    /**
+     * 底衬：**左侧半圆角、右侧无硬边并向右渐隐**（对齐参考图的行样式）。
+     * <p>
+     * 逐列 {@code fill}：每列单独算 alpha（右侧淡出）与上下内缩（左端半圆）。
+     * 因为原版 {@code fillGradient} 只支持**纵向**渐变，横向渐隐只能这么做；
+     * 一列一次 fill，20 行高 × 约 210 列对这种规模的 UI 完全不构成开销。
+     * <p>
+     * 悬停时只换 RGB（深蓝黑 → 暖金），alpha 轮廓保持不变，
+     * 因此"背景变金色"的过渡与渐隐形状互不干扰。
+     */
+    private void renderBackgroundBand(GuiGraphics guiGraphics) {
+        int rgb = FastColor.ARGB32.lerp(this.hover,
+                0xFF000000 | NORMAL_RGB, 0xFF000000 | HOVER_RGB) & 0xFFFFFF;
+        int radius = getHeight() / 2;
+
+        for (int col = 0; col < getWidth(); col++) {
+            int alpha = fadeAlpha(col);
+            if (alpha <= 0) {
+                continue;
+            }
+            int inset = 0;
+            if (col < radius) {
+                double dx = radius - col;
+                inset = radius - (int) Math.round(
+                        Math.sqrt(Math.max(0.0, (double) radius * radius - dx * dx)));
+            }
+            guiGraphics.fill(getX() + col, getY() + inset,
+                    getX() + col + 1, getY() + getHeight() - inset,
+                    (alpha << 24) | rgb);
+        }
+    }
+
+    /** 横向 alpha 轮廓：前 {@link #FADE_START} 段实心，之后线性淡出到 0。 */
+    private int fadeAlpha(int col) {
+        float t = (float) col / Math.max(1, getWidth() - 1);
+        if (t <= FADE_START) {
+            return BASE_ALPHA;
+        }
+        float remaining = 1.0F - (t - FADE_START) / (1.0F - FADE_START);
+        return (int) (BASE_ALPHA * Mth.clamp(remaining, 0.0F, 1.0F));
+    }
+
     @Override
     public void onClick(double mouseX, double mouseY) {
         this.onPress.run();
@@ -76,28 +125,6 @@ public class NpcDialogueOptionButton extends AbstractWidget {
     @Override
     protected void updateWidgetNarration(NarrationElementOutput narrationElementOutput) {
         narrationElementOutput.add(NarratedElementType.TITLE, getMessage());
-    }
-
-    /**
-     * 填充一个全圆角胶囊（半径 = 高度的一半）。
-     * <p>
-     * 逐行算圆的内缩量再 {@code fill}：26 行 ≈ 26 次 fill，开销可忽略，
-     * 且比引入一张九宫格贴图更省事、随 GUI 缩放始终清晰。
-     */
-    private static void fillCapsule(GuiGraphics guiGraphics, int x, int y, int width, int height, int color) {
-        int radius = Math.min(height / 2, width / 2);
-        float centerY = (height - 1) / 2.0F;
-        for (int row = 0; row < height; row++) {
-            double dy = Math.abs(row - centerY);
-            int inset = 0;
-            if (dy > radius) {
-                inset = radius;
-            } else if (radius > 0) {
-                double dx = radius * radius - dy * dy;
-                inset = radius - (int) Math.round(Math.sqrt(Math.max(0.0, dx)));
-            }
-            guiGraphics.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
-        }
     }
 
     /**

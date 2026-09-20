@@ -53,24 +53,26 @@ public class NpcDialogueScreen extends Screen {
     private static final float ARROW_Y = 0.964F;
     /** 选项列左缘（占屏宽，左对齐）。 */
     private static final float OPTION_LEFT = 0.661F;
+    /** 选项**固定长度**（占屏宽）—— 参考图里的选项底衬是等长的，不随文字伸缩。 */
+    private static final float OPTION_WIDTH = 0.22F;
     /** 最下一颗选项的底边（占屏高），向上依次排。 */
     private static final float OPTION_BOTTOM = 0.787F;
     /** 装饰线半宽（占屏宽）：全长 0.33 屏宽。 */
     private static final float RULE_HALF_WIDTH = 0.165F;
 
-    /** 选项按钮尺寸与间距（GUI 像素）。 */
-    private static final int OPTION_HEIGHT = 26;
-    private static final int OPTION_GAP = 22;
+    /** 选项按钮高度与间距（GUI 像素）。 */
+    private static final int OPTION_HEIGHT = 20;
+    private static final int OPTION_GAP = 8;
 
     /** 正文最大行宽（占屏宽）。 */
     private static final float TEXT_MAX_WIDTH = 0.80F;
     /** 行距：原版字高 + 2 像素。 */
     private static final int LINE_GAP = 2;
 
-    /** 底部渐变：从 72% 屏高起，透明 → 深黑（alpha 0xC0）。 */
-    private static final float GRADIENT_START = 0.72F;
+    /** 底部渐变：从 62% 屏高起，透明 → 深黑（alpha 0xE6）。 */
+    private static final float GRADIENT_START = 0.62F;
     private static final int GRADIENT_TOP = 0x00000000;
-    private static final int GRADIENT_BOTTOM = 0xC0000000;
+    private static final int GRADIENT_BOTTOM = 0xE6000000;
 
     /** 金色（装饰线与箭头）。起始值取自参考图，待试玩调整。 */
     private static final int GOLD = 0xFFE8B84B;
@@ -197,13 +199,11 @@ public class NpcDialogueScreen extends Screen {
         }
     }
 
-    /** 弹出选项：v1 只有一个「离开」，宽度按文字自适应、**左缘固定**（与参考图一致）。 */
+    /** 弹出选项：v1 只有一个「离开」。**固定长度、左缘对齐**（与参考图一致）。 */
     private void showOptions() {
         this.state = State.SHOWING_OPTIONS;
         Component label = Component.translatable(LEAVE_KEY);
-        int width = this.font.width(label)
-                + NpcDialogueOptionButton.PADDING_LEFT + NpcDialogueOptionButton.ICON_SIZE
-                + NpcDialogueOptionButton.ICON_GAP + NpcDialogueOptionButton.PADDING_RIGHT;
+        int width = (int) (this.width * OPTION_WIDTH);
         int x = (int) (this.width * OPTION_LEFT);
         int bottom = (int) (this.height * OPTION_BOTTOM);
         addRenderableWidget(new NpcDialogueOptionButton(
