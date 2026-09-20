@@ -163,6 +163,19 @@ musicVolume = 0.5
 | `structure` | string | `dragonsurvival:dragon_hunters_castle` | 触发限定结构。**这是事实 1 的保险**：整合包把宝库放进城堡之前，此功能不会触发 |
 | `musicVolume` | double (0.0–16.0) | `0.5` | 同时决定响度与可闻半径（半径 = `16 × max(volume,1)` 格）。唱片机约定值是 4.0（64 格） |
 
+**翻译键**（本项目要求中英都加）。推导规则见 NeoForge `ConfigurationScreen#getTranslationKey`：
+显式 `.translation(x)` 优先 → 节级 translation → 兜底 `modid.configuration.<末段名>`；两者都再加 `.tooltip`。
+
+| 界面元素 | 键 |
+|---|---|
+| 节标题 `[dread_king_ritual]` | `beloong.configuration.dread_king_ritual`（死者之王复活仪式）+ `.tooltip` |
+| 开关标签 | `beloong.configuration.dreadKingRitualEnabled`（死者之王复活仪式）+ `.tooltip` |
+| 结构标签 | `beloong.configuration.dreadKingRitualStructure`（仪式结构）+ `.tooltip` |
+| 音量标签 | `beloong.configuration.dreadKingRitualMusicVolume`（仪式音量）+ `.tooltip` |
+
+⚠️ 值标签的兜底是**扁平末段名**（`structure` ⇒ `beloong.configuration.structure`），泛用名会与其他节撞车，
+故本节三个值都用显式 `.translation(...)`（项目先例：`dragonSummonBlock`、`beloongWaterCooldown`）。
+
 ---
 
 ## 四、组件

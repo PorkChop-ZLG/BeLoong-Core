@@ -86,14 +86,42 @@ RED-GREEN 步骤（没有测试框架可跑），每个任务的「验证」由�
    注释里必须写明**音量同时决定可闻半径**（半径 = `16 × max(volume, 1)` 格；唱片机约定值是
    4.0 = 64 格），否则后人会以为它只影响响度。
 
+   ⚠️ **三个值都必须显式加 `.translation(...)`** —— 否则 NeoForge 配置界面显示裸键名；而且值标签的
+   兜底键是**扁平的末段名**（`structure` ⇒ `beloong.configuration.structure`），泛用名会与其他节撞车：
+
+   | 值 | `.translation(...)` 的键 |
+   |---|---|
+   | `enabled` | `beloong.configuration.dreadKingRitualEnabled` |
+   | `structure` | `beloong.configuration.dreadKingRitualStructure` |
+   | `musicVolume` | `beloong.configuration.dreadKingRitualMusicVolume` |
+
 3. 两个 lang 文件各加一条：`"entity.beloong.dread_king_ritual_marker"`（中：死王仪式标记 / 英：Dread King Ritual Marker）。
    **加在各自文件的 `entity.beloong.*` 位置附近以保持键序**（若文件里还没有该前缀，就加在 `entity.` 区块内）。
+
+4. ⚠️ **配置翻译键（本项目要求中英都加）** —— 这是初版 T1 漏掉的一项，**新增配置节时必须一并完成**：
+
+   | 界面元素 | 键 |
+   |---|---|
+   | 节标题 `[dread_king_ritual]` | `beloong.configuration.dread_king_ritual` + `.tooltip` |
+   | 开关 | `beloong.configuration.dreadKingRitualEnabled` + `.tooltip` |
+   | 结构 | `beloong.configuration.dreadKingRitualStructure` + `.tooltip` |
+   | 音量 | `beloong.configuration.dreadKingRitualMusicVolume` + `.tooltip` |
+
+   中文：`死者之王复活仪式` / `仪式结构` / `仪式音量`；英文：`Dead King Resurrection Ritual` /
+   `Ritual Structure` / `Ritual Volume`。
+   **插在 `beloong.configuration.dragon*` 之后、`ds_ftbchunks_compat` 之前**（文件按 ASCII 排序）。
+   键名推导规则见 NeoForge `ConfigurationScreen#getTranslationKey`（显式 `.translation` 优先 → 节级
+   translation → 兜底 `modid.configuration.<末段名>`）。
 
 **Verification:**
 ```powershell
 .\gradlew.bat build            # exit 0
-Select-String -Path src\main\java\com\zonlong\beloong\Config.java -Pattern "dread_king_ritual|musicVolume|DreadKingRitual"
+Select-String -Path src\main\java\com\zonlong\beloong\Config.java -Pattern "dread_king_ritual|musicVolume|DreadKingRitual|\.translation\("
 foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloong\lang\$f.json" -Raw | ConvertFrom-Json).'entity.beloong.dread_king_ritual_marker' }
+# 配置翻译键：应有 8 个（节标题 + 3 值，各带 .tooltip）
+foreach ($f in 'zh_cn','en_us') { $j = Get-Content "src\main\resources\assets\beloong\lang\$f.json" -Raw | ConvertFrom-Json; $j.PSObject.Properties.Name | Where-Object { $_ -like 'beloong.configuration.dread*' } }
+# 常量池复核：三个 translation 键真的编进了 Config
+javap -p -c -classpath build\libs\beloong-0.9.6.jar com.zonlong.beloong.Config | Select-String 'dreadKingRitual'
 ```
 
 **Commit:** `新增死王仪式配置节与实体 lang 键`

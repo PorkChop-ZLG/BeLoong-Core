@@ -212,6 +212,14 @@ public class Config {
     // ==================== dread_king_ritual ====================
     // 黯影宝库「死王仪式」：在指定结构内开启黯影宝库时，于宝库顶生成一个标记实体，
     // 播放 suspense 音效并在周围铺 blood_ground 血渍（共 140 tick），随后原地召唤不祥状态的死者之王。
+    //
+    // ⚠️ 新增/改名配置项时**必须同时补中英翻译键**，否则 NeoForge 配置界面会显示裸键名：
+    //   节标题      `beloong.configuration.dread_king_ritual`
+    //   节说明      `beloong.configuration.dread_king_ritual.tooltip`
+    //   值标签      `beloong.configuration.<显式 translation 或值名>`
+    //   值说明      `<值标签键>.tooltip`
+    // 键名推导见 NeoForge `ConfigurationScreen#getTranslationKey`：
+    // 显式 `.translation(x)` 优先，其次节级 translation，最后兜底 `modid.configuration.<末段名>`。
     // 实现见 dreadking/DreadKingRitualStarter.java + entity/DreadKingRitualMarker.java
     // + mixin/minecraft/DreadKingRitualTriggerMixin.java
 
@@ -469,11 +477,13 @@ public class Config {
         DreadKingRitual.enabled = SERVER_BUILDER
                 .comment("Enable the Dark Vault dread-king ritual",
                         "启用黯影宝库死王仪式")
+                .translation("beloong.configuration.dreadKingRitualEnabled")
                 .define("enabled", true);
 
         DreadKingRitual.structure = SERVER_BUILDER
                 .comment("Structure id that gates the ritual (single id, no tags)",
                         "触发仪式的限定结构 ID（单个，不支持标签）")
+                .translation("beloong.configuration.dreadKingRitualStructure")
                 .define("structure", "dragonsurvival:dragon_hunters_castle");
 
         DreadKingRitual.musicVolume = SERVER_BUILDER
@@ -481,6 +491,7 @@ public class Config {
                         "仪式音乐音量；同时决定可闻半径（16 × max(volume, 1) 格）",
                         "Vanilla jukebox uses 4.0F (64-block radius). 0.5 is 1/8 of that, i.e. a 16-block radius.",
                         "原版唱片机是 4.0F（64 格）。0.5 等于其 1/8，半径随之降为 16 格。")
+                .translation("beloong.configuration.dreadKingRitualMusicVolume")
                 .defineInRange("musicVolume", 0.5, 0.0, 16.0);
 
         SERVER_BUILDER.pop(); // dread_king_ritual
