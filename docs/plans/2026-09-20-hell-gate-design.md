@@ -48,7 +48,8 @@
 
 1. 新增方块 `beloong:hell_gate`（40 格多方块：5 宽 × 8 高），手持 `irons_spellbooks:bone_key`
    右键任意一格即触发开门流程，145 tick 后整扇门碰撞箱清空、放行。
-2. 贴图、模型几何、动画关键帧、音效文件**逐字节照搬**灾变封印之门。
+2. 模型几何、动画关键帧、音效文件**逐字节照搬**灾变封印之门；
+   贴图先逐字节照搬，**随后按用户追加需求换成下界风格**（换色配方见 **§十一**）。
 3. 与灾变封印之门**共存**：两者互不引用、互不干扰（同名注册项一律换成 `beloong`）。
 4. 代码量尽量小：能不写的类不写（本功能的「新类」全是照抄件，没有新机制）。
 
@@ -121,8 +122,8 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | `blockstates/door_of_seal.json` | `blockstates/hell_gate.json` | 单 `""` variant |
 | `models/block/door_of_seal.json` | `models/block/hell_gate.json` | `render_type: translucent` + `particle` 指向 **`cataclysm:block/dungeon_block`**（灾变是 required，直接引用其贴图） |
 | `models/item/door_of_seal.json` | `models/item/hell_gate.json` | `item/generated` + `layer0` |
-| `textures/block/door_of_seal.png` (15680 B) | `textures/block/hell_gate.png` | **逐字节复制** |
-| `textures/item/door_of_seal.png` (277 B) | `textures/item/hell_gate.png` | **逐字节复制** |
+| `textures/block/door_of_seal.png` (15680 B) | `textures/block/hell_gate.png` | 先**逐字节复制**，后按下界风格换色（§十一）⇒ 现为 14260 B |
+| `textures/item/door_of_seal.png` (277 B) | `textures/item/hell_gate.png` | 同上 ⇒ 现为 317 B |
 | `sounds/block/door_of_seal_open.ogg` (114357 B) | `sounds/block/hell_gate_open.ogg` | **逐字节复制**；`sounds.json` 键按本模组规则改为 `block.beloong.hell_gate.open` |
 | `lang`：`block.cataclysm.door_of_seal` = 封印之门 / Door of Seal；`door_of_seal_open.sub` = 封印之门：敞开 / Door of Seal opens | `block.beloong.hell_gate` = 地狱之门 / Hell Gate；`subtitles.beloong.block.hell_gate.open` = 地狱之门：敞开 / Hell Gate opens | 字幕沿用灾变的措辞结构 |
 
@@ -170,6 +171,8 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | D12 | 复刻**不带传送**，也不加任何「地狱」相关玩法 | 用户裁定「只是放行」；照搬即完成 |
 | D13 | 数值常量提取为具名常量（`GATE_HEIGHT`/`TICK_*`），但不改任何取值 | 可读性收益，零行为差异 |
 | D14 | 实机验证用**数据包探针**而非手点（见实施计划 §〇之二） | 本项目无测试套件；数据包可以在无人操作的情况下覆盖「40 格状态装配 + 通 LIT + 145 tick 后全开」这条主链 |
+| D15 | **贴图追加需求：换成下界风格**（2026-09-20 二轮） | 用户要求：蓝宝石锁→红宝石、石砖主体→下界砖、白雪装饰→血红、**灰色石框不变**；先做视觉核对再动手（§十一） |
+| D16 | 换色方法：**同序调色板替换**，目标色一律取自原版材质的真实调色板 | 石砖 7 色 → `nether_bricks` 7 色；雪 4 色 → `nether_wart_block` 上 4 档；蓝宝石 7 色 → 深红→亮红 7 阶；灰框 6 色与宝石高光 `#FFFFFF` 不动。按明度同序对应 ⇒ 原图所有明暗层次保留（§十一） |
 
 ---
 
@@ -195,7 +198,7 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | 复用什么 | 形式 | 备注 |
 |---|---|---|
 | 动画关键帧 | **复制**进本命名空间 | 灾变是 `required`，但复制比跨模组引用更抗震 |
-| 贴图 / 音效 / 粒子贴图 | **逐字节复制** + `particle` 直接引用 `cataclysm:block/dungeon_block` | 需求 3 |
+| 贴图 / 音效 / 粒子贴图 | 先**逐字节复制**，贴图后按下界风格换色（§十一）；`particle` 直接引用 `cataclysm:block/dungeon_block` | 需求 3 + 追加需求 |
 | `ScreenShake_Entity.ScreenShake(Level, Vec3, float, float, int, int)` | **直接调用灾变代码** | 全功能唯一的灾变 API 调用；它内部自带 `if (!world.isClientSide)` 守卫，双端调用都安全（`:114-115`） |
 
 ---
@@ -221,7 +224,7 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 |---|---|---|
 | 编译与打包 | `.\gradlew.bat compileJava jar` | BUILD SUCCESSFUL（3 条既有 mixin 警告与本次无关） |
 | 产物齐全 | zip 内逐项检查 5 个 `.class` + 6 个资产 + `lang`/`sounds.json`/`mods.toml` | 15/15 命中 |
-| 资产字节一致 | 比对 jar 内长度 | `hell_gate.png` 15680、`item/hell_gate.png` 277、`hell_gate_open.ogg` 114357 —— **与灾变原件完全相同** |
+| 资产字节一致 | 比对 jar 内长度 | `hell_gate_open.ogg` 114357 —— **与灾变原件完全相同**；两张贴图已按下界风格换色（§十一），故**不再**与原件相同 |
 | 前置声明 | jar 内 `META-INF/neoforge.mods.toml` | 含 `modId="lionfishapi"` + `type="required"` + `versionRange="[3.0-beta,)"` |
 | 继承关系 | `javap` | `HellGateBlock extends BaseEntityBlock`、`HellGateModel extends AdvancedEntityModel<Entity>`、`HellGateRenderer implements BlockEntityRenderer<HellGateBlockEntity>` |
 | 接线 | `javap -c/-v` 常量池 | `ModBlocks.HELL_GATE_BLOCK_ENTITY`、`ModSounds.HELL_GATE_OPEN`、`ItemRegistry.BONE_KEY`、`ScreenShake_Entity.ScreenShake`、客户端 `BootstrapMethods` 里的 `HellGateRenderer::<init>` |
@@ -298,3 +301,90 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 3. 不给灾变打 mixin、不反射灾变内部字段。
 4. 不新增配置项。
 5. 不把灾变的 `DOOR_OF_SEAL` 从本模组的依赖链里去掉（灾变仍是 required 前置）。
+
+---
+
+## 十一、追加需求：贴图换成下界风格（2026-09-20 追加，已实施）
+
+### 用户原话
+
+> 1. 原版的封印之门，中间的锁是蓝宝石，门的主题材质是石砖，并且带有白色的雪作为装饰。请你通过你的视觉能力确认。
+> 2. 本模组的地狱之门，应该具有下界风格。请你把锁的蓝宝石画成红宝石，换色就行。
+>    然后把门主体的石砖换成下界砖，把白色的雪换成红色的血。框架的灰色石头不用改。
+
+### 11.1 视觉核对结论（先核对，再动手）
+
+原图 256×256，**只有 25 个颜色、无抗锯齿**，因此可以逐色分类。分组与用户的描述逐一对应：
+
+| 分组 | 色数 | 颜色（源图调色板） | 在贴图里的位置 | 与用户描述对照 |
+|---|---|---|---|---|
+| 石砖主体 | 7 | `#5A595A #636363 #6A6D6A #787678 #7F7F7F #8B898B #9C999C` | 门板正/背面上的顺砖纹 | ✅「门的主题材质是石砖」 |
+| 白雪挂饰 | 4 | `#9DA6A7 #BBD3D3 #D4DDDE #E5E4E5` | 挂在砖沿下方的白色挂饰 | ✅「带有白色的雪作为装饰」 |
+| 蓝宝石锁 | 7 | `#2C489D #385EB3 #446CCA #5185E0 #74ABFE #8EB8FE #B8D2FF` | 锁盒 `cube_r1`（贴图偏移 `(0,144)`）的两个 32×32 面 | ✅「中间的锁是蓝宝石」 |
+| 宝石高光 | 1 | `#FFFFFF`（38 px） | 只在宝石内部当闪点 | —— |
+| 灰色石框 / 砖缝 | 6 | `#1F232C #252933 #2D313D #343947 #3E4453 #495065` | 门板侧/顶/底面（门框）与砖缝 | ✅「框架的灰色石头」 |
+
+**关键取证**：把「石砖主体」那 7 个颜色与原版材质逐一比对 ——
+**与原版 `minecraft:block/stone_bricks` 的 7 色调色板逐色完全相同、明度序也相同**：
+
+| 原版 `stone_bricks` | 门贴图里的对应色 |
+|---|---|
+| `#5A595A` `#636363` `#6A6D6A` `#787678` `#7F7F7F` `#8B898B` `#9C999C` | 同左（7/7 命中） |
+
+⇒ 灾变是直接把原版石砖调色板搬进了这张贴图。**这既是「石砖」描述的铁证，也让换色可以做到最干净**：
+不需要逐像素画，只要把这 7 色换成「下界砖」的 7 色即可。
+
+### 11.2 换色配方（同序调色板替换）
+
+方法是**按明度同序一一对应**（两组各自按人眼明度升序排列后对齐），因此原图的明暗层次 ——
+砖面高光、砖缝阴影、雪的亮面/暗面、宝石的刻面 —— **全部原样保留**，只换材质色。
+
+| 分组 | 目标色 | 取色依据 |
+|---|---|---|
+| 石砖 → 下界砖 | `#190D10 #211114 #291519 #30181C #38181E #3E1E24 #44242A` | 原版 `minecraft:block/nether_bricks` 的 7 色调色板（明度升序，与原石砖 7 色同序对齐） |
+| 雪 → 血 | `#6A0400 #7B0000 #941818 #AC2020` | 原版 `minecraft:block/nether_wart_block` 5 色中的上 4 档（血感；且比下界砖亮 ⇒ 看得出「滴下来」） |
+| 蓝宝石 → 红宝石 | `#5E0A08 #730C00 #941400 #A41808 #BD2008 #D42A10 #E62008` | 深红→亮红 7 阶，与蓝宝石 7 色同明度序（亮面留红、不发粉） |
+| 宝石高光 | 不变 `#FFFFFF` | 只有 38 px，全在宝石内部，作为宝石闪点保留 |
+| 灰色石框 / 砖缝 | **不变** | 用户要求 |
+
+实施工具：`tools/recolor_hell_gate_texture.py`（`tools/` 已被 `.gitignore` 忽略，属本机工具；
+脚本同名输出会先备份到 `preview/.backup-before-convert/`）。物品贴图（16×16）用**同一套配方**处理：
+它只有 3 个深色 + 4 个石砖灰、**没有**蓝宝石与雪，因此只发生「石砖→下界砖」一种替换。
+
+### 11.3 结果与校验
+
+| 项 | 结果 |
+|---|---|
+| 尺寸 / 透明通道 | 256×256 与 16×16 均不变；**alpha 通道逐像素完全相同**（包括透明区） |
+| 不透明像素数 | 方块 17920 → 17920；物品 160 → 160（**一个不多一个不少**） |
+| 实际改色的像素 | 方块 **7776 px**（6284 砖 + 394 雪 + 1098 宝石）；物品 **62 px**（砖） |
+| 调色板规模 | 25 → 25、7 → 7（仍是无抗锯齿的纯色图） |
+| 未匹配色 | **0**（源图调色板与预期完全一致；脚本对未匹配色会原样输出并告警） |
+| 文件大小 | 方块 15680 → 14260 B；物品 277 → 317 B；音效仍 114357 B（**未动**） |
+| jar 一致性 | `gradlew jar` 后 jar 内两张贴图与工作区文件 SHA-256 相同 |
+
+### 11.4 已知观感影响（据实记录，不是缺陷）
+
+下界砖（明度 17–46）比原版石砖（89–154）**暗得多**，换完之后：
+
+- 门板：砖面比灰框更暗（原图是反过来的）。但门板本身仍有 7 阶砖缝层次，且**色相分离**
+  （红棕 vs 蓝灰）承担了主要辨识，加上鲜红的血痕压在砖沿上，整体读起来仍是「下界砖 + 血」✅；
+- 物品图标（16×16）：只有 4 阶砖色，少了砖缝细节 ⇒ **比原来闷一些**，但形状与「深红砖 + 深灰框」
+  的关系仍可辨。
+- 若日后想更亮/更红：把配方里的「下界砖」7 色换成原版 `red_nether_bricks` 的调色板
+  （`#2E0001 … #73171A`）即可，脚本里是一行常量。
+- 中央那块「同心方板」用的是**与石砖完全相同的 7 个灰色**，纯调色板替换**无法**把它单独留下 ⇒
+  它随砖面一起变成了下界砖色。这与「门主体是下界砖」一致；若要求它保持灰石，只能改为按区域遮罩处理。
+
+### 11.5 追加需求的验收
+
+| # | 用例 | 结果 |
+|---|---|---|
+| 1 | 视觉核对四类材质（用户要求先确认） | ✅ 见表；石砖一项有「与原版 stone_bricks 逐色相同」的硬证据 |
+| 2 | 蓝宝石 → 红宝石 | ✅ 7 色同序替换，宝石闪点保留 |
+| 3 | 石砖 → 下界砖 | ✅ 用原版 `nether_bricks` 真实调色板 |
+| 4 | 白雪 → 血红 | ✅ 4 色同序替换，亮度高于砖面 |
+| 5 | 灰色框架不变 | ✅ 6 色原样（对比图里可见蓝灰框完全没变） |
+| 6 | 布局 / 透明区不被破坏 | ✅ alpha 逐像素相同、不透明像素数不变 |
+| 7 | 对照图人眼确认 | ✅ `preview/cmp_block_4x.png`、`preview/cmp_lock_7x.png`、`preview/cmp_item_16x.png`（左原版 / 右新版） |
+

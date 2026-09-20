@@ -3,7 +3,8 @@
 **状态：** ✅ **已完成** —— T1–T7 全部落地；2026-09-20 数据包实机探针 + 用户视觉验收通过（见文末「五、实施结果」）
 
 **目标：** 在 beloong-core 里 1:1 复刻灾变「封印之门」为 `beloong:hell_gate`（地狱之门），
-钥匙换成铁魔法 `irons_spellbooks:bone_key`（骸骨钥匙），贴图/模型/动画/音效逐字节照搬，
+钥匙换成铁魔法 `irons_spellbooks:bone_key`（骸骨钥匙），模型/动画/音效逐字节照搬，
+贴图先照搬、后按追加需求换成下界风格（T8），
 开门行为照搬（**只是放行**，不传送）。
 
 **架构：** 五件套单向依赖，与灾变同构 ——
@@ -128,6 +129,7 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 `sounds/block/hell_gate_open.ogg`、`sounds.json` 新条目、`lang/{zh_cn,en_us}.json` 各 2 键。
 
 **验证：** jar 内三份二进制资产的**字节数与灾变原件逐一相同**（15680 / 277 / 114357）；
+⚠️ 两张贴图**后续按追加需求换成下界风格**（见 **T8**），音效至今仍逐字节相同。
 客户端资源加载日志里**没有一条**属于 `beloong` 的模型/贴图/音效告警。
 
 **结果：** ✅ 完成。
@@ -154,7 +156,7 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 |---|---|---|---|
 | 1 | `gradlew compileJava jar` | 退出码 0 | ✅ |
 | 2 | jar 内 5 个 `.class` + 6 个资产 + 2 份 lang + `sounds.json` + `mods.toml` | 全部命中 | ✅ 15/15 |
-| 3 | 三份二进制资产字节数与灾变一致 | 15680 / 277 / 114357 | ✅ |
+| 3 | 二进制资产字节数（首轮） | 15680 / 277 / 114357 | ✅（贴图后被 T8 换色） |
 | 4 | 数据包探针：40 格状态断言 | `PASS-closed-40` | ✅ |
 | 5 | 数据包探针：通 `LIT` 后 145 tick | `PASS-open-40` | ✅ |
 | 6 | 全程 BE 类型告警 | 0 条 | ✅ |
@@ -164,18 +166,43 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 
 **结果：** ✅ 全部通过（证据见 §五）。
 
+### T8 —— 追加需求：贴图换成下界风格（2026-09-20 追加）
+
+**用户原话：** 请先视觉确认原贴图（蓝宝石锁 / 石砖主体 / 白雪装饰），然后把地狱之门改成下界风格 ——
+蓝宝石→红宝石、石砖→下界砖、白雪→血红，**灰色石框不用改**。
+
+**交付物：**
+- `tools/recolor_hell_gate_texture.py`（本机工具，`tools/` 已 gitignore）
+- 覆盖 `assets/beloong/textures/{block,item}/hell_gate.png`
+
+**要点：**
+1. **先核对再动手**：原图 256×256 只有 25 色、无抗锯齿 ⇒ 逐色分类。
+   核对结果与用户描述一一对应，且「石砖主体」那 7 色与**原版 `minecraft:block/stone_bricks`
+   调色板逐色完全相同**（这是「石砖」判断的硬证据，也说明换色可以做成纯调色板替换）。
+2. **同序调色板替换**：三组各自按明度升序一一对应 ⇒ 原图的明暗层次全部保留。
+   目标色一律取自**原版材质的真实调色板**：`nether_bricks`(7) / `nether_wart_block` 上 4 档 / 深红→亮红 7 阶。
+3. 灰框 6 色与宝石高光 `#FFFFFF` 原样不动。
+4. 物品贴图（16×16）用同一配方（它没有宝石与雪，只发生「石砖→下界砖」）。
+
+**验证：** alpha 通道逐像素相同、不透明像素数不变（17920 / 160）、未匹配色 0、
+调色板 25→25 与 7→7、jar 内文件与工作区 SHA-256 一致；对照图人眼确认。
+
+**结果：** ✅ 完成，详见设计文档 §十一。
+
 ---
 
 ## 二、提交策略
 
-`run/`、`memory/`、`build/` 均已在 `.gitignore` 内 ⇒ 探针存档与记忆文件**不会进版本库**。
-提交分三个，每个都能独立编译：
+`run/`、`memory/`、`build/`、`tools/`、`preview/` 均已在 `.gitignore` 内 ⇒ 探针存档、记忆文件、
+贴图工具与对照图**不会进版本库**。提交分五个，每个都能独立编译：
 
 | # | 内容 | 说明 |
 |---|---|---|
 | C1 | 服务端移植 + 注册 + 资产 + 语言文件 | 落在 C1 后这扇门已经「能放、能开、能看」 |
 | C2 | 客户端三件（动画/模型/渲染器）+ 客户端 BER 注册 | 与 C1 合并起来才是完整功能；拆开是为了让 diff 聚焦 |
 | C3 | 设计文档 + 实施计划 | 纯文档 |
+| C4 | 贴图换成下界风格（T8，只动两个 PNG） | 用户追加需求；代码与音效零改动 |
+| C5 | 文档同步 T8 / §十一 | 纯文档（把首轮「贴图逐字节相同」的说法改正） |
 
 提交信息沿用本仓库既有风格（中文、`<主题>：<要点>`）。
 
@@ -214,9 +241,9 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 | `assets/beloong/blockstates/hell_gate.json` | 5 行 |
 | `assets/beloong/models/block/hell_gate.json` | 7 行 |
 | `assets/beloong/models/item/hell_gate.json` | 6 行 |
-| `assets/beloong/textures/block/hell_gate.png` | 15680 B（= 灾变原件） |
-| `assets/beloong/textures/item/hell_gate.png` | 277 B（= 灾变原件） |
-| `assets/beloong/sounds/block/hell_gate_open.ogg` | 114357 B（= 灾变原件） |
+| `assets/beloong/textures/block/hell_gate.png` | 14260 B（下界风格换色后；源件 15680 B） |
+| `assets/beloong/textures/item/hell_gate.png` | 317 B（下界风格换色后；源件 277 B） |
+| `assets/beloong/sounds/block/hell_gate_open.ogg` | 114357 B（= 灾变原件，未动） |
 
 **修改 10 个文件：** `build.gradle`、`src/main/templates/META-INF/neoforge.mods.toml`、
 `registry/ModBlocks.java`、`registry/ModSounds.java`、`item/ModItems.java`、
@@ -240,10 +267,26 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 （日志里命中的同类告警全部来自 legendary_monsters / beyonddimensions / fdbosses / fdlib /
 irons_spellbooks，属既有问题）；`run/crash-reports` 无新文件。
 
+### 第二轮：贴图下界风格换色（T8，同日追加）
+
+在首轮三个提交之后，用户追加了「贴图改成下界风格」的需求，于是**只动了两个 PNG**（代码与音效零改动）：
+
+| 项 | 首轮 | 第二轮 |
+|---|---|---|
+| `textures/block/hell_gate.png` | 15680 B（= 灾变原件） | **14260 B**（下界砖 / 血 / 红宝石） |
+| `textures/item/hell_gate.png` | 277 B（= 灾变原件） | **317 B**（下界砖） |
+| `sounds/block/hell_gate_open.ogg` | 114357 B | 114357 B（未动） |
+
+校验：alpha 逐像素相同、不透明像素数 17920 / 160 不变、未匹配色 0、调色板 25→25 与 7→7、
+`gradlew jar` 后 jar 内贴图与工作区 SHA-256 一致；对照图见
+`preview/cmp_block_4x.png`、`preview/cmp_lock_7x.png`、`preview/cmp_item_16x.png`（左原版 / 右新版）。
+
 ### 探针资产处置
 
 `run/saves/hellgate_probe` 与其数据包**保留在工作区**（`run/` 已 gitignore，不进版本库），
 供用户复盘或复跑；不再需要时可直接删除该目录。
+贴图换色过程产生的分析脚本与对照图在 `preview/`（同样 gitignore）：`analyze_door_texture.py`、
+`index_map.py`、`group_map.py`、`zoom.py`、`vanilla_palette.py`、`compare.py`、`probe_jar_textures.py`。
 
 ### 遗留（明确未验证，见设计文档 §八 D）
 
