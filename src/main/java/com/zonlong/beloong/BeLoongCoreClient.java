@@ -9,6 +9,7 @@ import com.zonlong.beloong.client.TornadoRenderer;
 import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
+import com.zonlong.beloong.dialogue.NpcDialogueLoader;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModParticles;
@@ -20,6 +21,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
@@ -62,6 +64,19 @@ public class BeLoongCoreClient {
     static void registerParticleProviders(RegisterParticleProvidersEvent event) {
         event.registerSpriteSet(ModParticles.LOONG_PALACE_PORTAL.get(),
                 LoongPalacePortalParticle.Factory::new);
+    }
+
+    /**
+     * 注册 NPC 对话数据加载器。
+     * <p>
+     * <b>注册在客户端</b>：对话的触发判定与渲染都在客户端完成，数据又随模组 jar 分发
+     * （客户端同样把它当资源包加载），因此整条链路**零网络包、零服务端逻辑**。
+     * 若哪天需要"存档数据包覆盖对话"，才需要改为服务端读取 + 登录时下发
+     * —— 先例见本模组的财宝系统（{@code TreasureSyncPayload} + {@code ClientTreasureCache}）。
+     */
+    @SubscribeEvent
+    static void registerClientReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(NpcDialogueLoader.INSTANCE);
     }
 
     /**

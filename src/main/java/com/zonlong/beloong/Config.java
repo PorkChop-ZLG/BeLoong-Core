@@ -27,6 +27,49 @@ public class Config {
             .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
+    // ==================== 简易 NPC 对话（纯客户端） ====================
+    // 触发判定与渲染都发生在客户端，故放 CLIENT_SPEC 而非 SERVER_SPEC
+    // —— 放服务端会给人"服务端能远程控制对话框外观"的错误暗示。
+
+    /** 简易 NPC 对话（纯客户端）。字段在下方 static 块中赋值。 */
+    public static final class NpcDialogue {
+        private NpcDialogue() {}
+
+        /** 总开关（默认启用） */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 打字机速度（字/tick），默认 1 ≈ 每秒 20 字 */
+        public static ModConfigSpec.IntValue charsPerTick;
+        /** 说话人名字字号倍数（1.0 = 与正文同号，最清晰） */
+        public static ModConfigSpec.DoubleValue nameScale;
+    }
+
+    static {
+        CLIENT_BUILDER.push("npc_dialogue");
+
+        NpcDialogue.enabled = CLIENT_BUILDER
+                .comment("Enable the simple NPC dialogue screen",
+                        "启用简易 NPC 对话界面")
+                .translation("beloong.configuration.npcDialogueEnabled")
+                .define("enabled", true);
+
+        NpcDialogue.charsPerTick = CLIENT_BUILDER
+                .comment("Typewriter speed in characters per tick (1 = default, about 20 chars per second)",
+                        "打字机速度（字/tick），默认 1 ≈ 每秒 20 字")
+                .translation("beloong.configuration.npcDialogueCharsPerTick")
+                .defineInRange("charsPerTick", 1, 1, 20);
+
+        NpcDialogue.nameScale = CLIENT_BUILDER
+                .comment("Speaker-name font scale. 1.0 = same size as body text (crispest);",
+                        "1.5 = as in the reference screenshots, but non-integer scaling of the",
+                        "bitmap font makes some strokes 1px wide and others 2px",
+                        "说话人名字的字号倍数。1.0 = 与正文同号（最清晰）；",
+                        "1.5 = 对齐参考图，但位图字体非整数缩放会让部分笔画 1px、部分 2px")
+                .translation("beloong.configuration.npcDialogueNameScale")
+                .defineInRange("nameScale", 1.5D, 1.0D, 2.0D);
+
+        CLIENT_BUILDER.pop(); // npc_dialogue
+    }
+
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
 
     // ==================== 通用配置 ====================
