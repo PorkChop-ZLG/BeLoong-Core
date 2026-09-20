@@ -317,7 +317,7 @@ Select-String -Path src\main\java\com\zonlong\beloong\dreadking\DreadKingRitualS
    ```java
    @Mixin(VaultBlockEntity.Server.class)
    public class DreadKingRitualTriggerMixin {
-       @Inject(method = "tryInsertKey",
+       @Inject(method = "tryInsertKey", remap = false,
                at = @At(value = "INVOKE",
                         target = "Lnet/minecraft/world/level/block/entity/vault/VaultBlockEntity$Server;unlock"
                                + "(Lnet/minecraft/server/level/ServerLevel;"
@@ -327,7 +327,7 @@ Select-String -Path src\main\java\com\zonlong\beloong\dreadking\DreadKingRitualS
                                + "Lnet/minecraft/world/level/block/entity/vault/VaultServerData;"
                                + "Lnet/minecraft/world/level/block/entity/vault/VaultSharedData;"
                                + "Ljava/util/List;)V",
-                        shift = At.Shift.BEFORE))
+                        shift = At.Shift.BEFORE, remap = false))
        private static void beloong$onKeyAccepted(ServerLevel level, BlockPos pos, BlockState state,
                                                  VaultConfig config, VaultServerData serverData,
                                                  VaultSharedData sharedData, Player player,
@@ -338,23 +338,35 @@ Select-String -Path src\main\java\com\zonlong\beloong\dreadking\DreadKingRitualS
        }
    }
    ```
-3. **处理器签名必须逐字匹配 `tryInsertKey` 的形参表**（`VaultBlockEntity.java:268-277`）——
+3. ⚠️ **两处 `remap = false` 是必需的，不是可选风格**：原版目标必须显式关掉重映射 ——
+   NeoForge 运行时即用 Mojang 官方名（无混淆），dev 命名空间 == 运行时命名空间。
+   若留默认 `true`，mixin 注解处理器会**直接报错**（不是警告）：
+   `Unable to locate obfuscation mapping for @Inject target tryInsertKey`，构建失败。
+   项目内先例：`PossibleBiomesFilterMixin`（原版 `BiomeSource`）与 `CloneParameterListMixin`
+   （TerraBlender）都写了 `remap = false`。
+4. **处理器签名必须逐字匹配 `tryInsertKey` 的形参表**（`VaultBlockEntity.java:268-277`）——
    **不是 `unlock` 的**（`unlock` 的参数顺序是 `level, state, pos, ...` 且**不含 player`**）。
    全部 8 个形参 + `CallbackInfo` 一个不能少、顺序不能错。
-4. 注入点之所以选 `unlock` 的 INVOKE：它是「钥匙被接受」的唯一位置（`unlock()` 全类只有一处调用，
+   描述符本身已用 `javap -c` 对 `build/moddev/artifacts/neoforge-21.1.236-merged.jar` 核对过，
+   并确认 `tryInsertKey` 内 `unlock` 只有一处 `invokestatic` 调用点。
+5. 注入点之所以选 `unlock` 的 INVOKE：它是「钥匙被接受」的唯一位置（`unlock()` 全类只有一处调用，
    见 `VaultBlockEntity.java:289`），因此**被拒绝的路径（无效钥匙 / 已领奖）天然不触发**。
-5. 本类**只做转发**，不含任何判定逻辑（判定在 T4）。
+6. 本类**只做转发**，不含任何判定逻辑（判定在 T4）。转发调用**自身兜异常**：本 mixin 运行在原版
+   开箱流程内部，若我们的代码抛出会连带破坏原版开箱，仪式不该有能力弄坏它。
 
 **Verification:**
 ```powershell
-.\gradlew.bat build     # exit 0；annotationProcessor 会生成 refmap
-# 1) mixins.json 条目在正确的数组里
+.\gradlew.bat build     # exit 0
+# 1) mixins.json 条目在正确的数组里（且不在 client 数组）
 Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRitualTriggerMixin"
-# 2) 启动游戏到主菜单不崩 —— 这一步即校验注入点存在（defaultRequire = 1）
+# 2) jar 内 mixins.json 的 mixins 数组含该条目、client 数组不含
 ```
-> 若描述符写错，**启动即崩**并报 `InjectionError`/`Critical injection failure`。
-> 这是预期的响亮失败，不是"环境问题"；修正描述符即可。必要时用 `javap -p` 对
-> `VaultBlockEntity$Server` 核对 `unlock` 的完整签名。
+> ⚠️ **关于「启动即校验」的一个修正**：`defaultRequire = 1` 的校验发生在**目标类被加载、mixin 被应用**
+> 的那一刻，而**不是**模组加载期。`VaultBlockEntity$Server` 只在「世界里存在宝库方块、其 ticking
+> 被创建」时才会被加载，因此**启动到主菜单并不足以**验证本注入点。
+> ⇒ 本任务的运行时校验**并入 T6 用例 3**（在城堡内开启黯影宝库 ⇒ 该步必然加载目标类）。
+> 若描述符写错，那一步会**响亮崩溃**（`InjectionError`/`Critical injection failure`），
+> 不会静默失效——这是可以接受的验证时点。必要时用 `javap -p` 核对 `unlock` 的完整签名。
 
 **Commit:** `新增死王仪式检测层（mixin 注入 vault unlock）`
 
