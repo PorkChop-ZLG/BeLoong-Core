@@ -1,0 +1,323 @@
+# 黯影宝库「死王仪式」（Dread King Ritual）设计文档
+
+**日期：** 2026-09-20
+**状态：** 已批准（用户确认）
+**采用方案：** 方案 C —— mixin 精准注入 `unlock(...)` + 自定义标记实体（**1 个 mixin**）
+**基线：** `disaster2` == `master` @ `bbc9f22`（版本 `0.9.6`，135 个 `.java`，39 条 mixin）
+**依赖前提：** 龙之生存（`dragonsurvival:dark_vault` / `dark_key`）与铁魔法（`irons_spellbooks:dead_king`）
+均已是 `required` 依赖（`build.gradle` 的 `implementation`）
+
+---
+
+## 一、问题陈述
+
+### 需求
+
+1. 玩家在结构 `dragonsurvival:dragon_hunters_castle` 内开启黯影宝库 `dragonsurvival:dark_vault` 时，
+   在**宝库顶部**生成一个**玩家看不见的标记实体**。
+2. 该实体有生命周期，期间播放音乐 `irons_spellbooks:entity.dead_king.music.intro`。
+3. 生命周期结束（= 音乐长度）时，在自身位置召唤**不祥状态**的铁魔法 Boss 死者之王。
+
+### 把设计推向当前形态的四条查证事实
+
+| # | 事实 | 依据 | 对设计的影响 |
+|---|---|---|---|
+| 1 | **`dark_vault` 在原版结构里并不生成于城堡** —— 我把实际依赖 jar（`dragonsurvival-420799-8726322.jar`）内**全部 119 个结构 NBT** 解压逐一扫描，`dark_vault` 只出现在 `dragonsurvival:treasure_angry_{cave,forest,sea}` 的 **15 个拼图块**里；`dragon_hunters_castle` 的 21 个拼图块里**连一个宝库都没有** | jar 内 `data/dragonsurvival/structure/**` 全量扫描 | ⇒ **用户裁定：整合包会另行把黯影宝库放进城堡**。因此结构 ID 做成**配置项**：在整合包完成这一步之前，本功能是「装了但不触发」的静默状态 |
+| 2 | **黯影宝库没有自定义类** —— 它就是原版 `VaultBlock` + `minecraft:vault` 方块实体；钥匙是 `dragonsurvival:dark_key`，战利品表 `dragonsurvival:generic/dark_vault`。龙之生存只用一个 mixin 放开了 key 校验 | `DSBlocks.java:1181-1191`（注册）、`:1143-1149`（默认 NBT）、`VaultBlockEntityServerMixin.java:21-28` | ⇒ 检测点只能落在**原版**宝库状态机上，不存在现成的模组回调 |
+| 3 | **「开箱成功」在原版状态机里是一个可识别状态** —— `VaultState.UNLOCKING` 的**唯一**入口是私有方法 `unlock(...)`，而它全类**只有一处**调用：`tryInsertKey()` 的成功分支 | `VaultState.java:74-77`（UNLOCKING → EJECTING）、`VaultBlockEntity.java:289`（唯一调用点）、`:328-341`（`unlock` 定义） | ⇒ 存在一个语义精确的检测点（见决策 D1） |
+| 4 | **包私有 API 把「零 mixin 精确判定」这条路堵死了一半** —— `VaultServerData.hasRewardedPlayer(Player)` 与 `getRewardedPlayers()` 都是**包私有**，`canEjectReward(...)` 是 **private**；只有 `VaultBlockEntity.Server.isValidToInsert(VaultConfig, ItemStack)` 是 public static | `VaultServerData.java:56,60`；`VaultBlockEntity.java:353,357` | ⇒ 事件侧**无法**判断「该玩家是否已经开过这个宝库」。而 `hunter_knight` 掉 `dark_key`（`loot_table/entities/hunter_knight.json`）⇒ 玩家**能囤钥匙** ⇒ 零 mixin 方案存在**可刷 Boss** 的漏洞（见「被否决的方案」） |
+
+### 音乐长度的取证
+
+需求量要求「实体生命周期 = 音乐长度」。两路独立取证，结论一致：
+
+| 来源 | 证据 | 值 |
+|---|---|---|
+| 铁魔法源码常量 | `DeadKingMusicHandler.java:17` `INTRO_LENGTH_MILIS = 17600` | 17.600 s |
+| 打包 jar 内 ogg 实测 | 解析 `assets/irons_spellbooks/sounds/dead_king/music/intro.ogg` 的 Ogg 页：采样率 44100、末页 granule 778368（32 个页，末页 type=4 = EOS） | 17.650 s |
+
+⇒ 取 **352 tick**（17.6 s × 20），与铁魔法自己的常量对齐。
+
+---
+
+## 二、目标与非目标
+
+### 目标
+
+1. 在城堡内的黯影宝库被**真正开箱成功**时，于宝库顶部生成标记实体。
+2. 标记实体播放 intro 音乐（周围所有玩家可闻），352 tick 后于自身位置召唤**不祥**死者之王。
+3. 标记实体**绝不发送到客户端**（玩家看不见）。
+4. 生命周期与中断语义可预测、可持久化。
+5. 检测精度必须能区分「钥匙被接受」与「钥匙被拒绝」。
+
+### 非目标
+
+- ❌ 不改龙之生存 / 铁魔法任何代码（只用它们的 public API 与方块状态）
+- ❌ 不使用药水效果（**这是第一版设计，已被用户改为标记实体**；换来的是不再需要「跨 17.6 秒携带坐标」与处理牛奶/死亡/切维度/重登等边界）
+- ❌ 不使用数据包（advancement/function）做检测 —— 理由见「被否决的方案 A」
+- ❌ 不做「每个宝库只触发一次」的闸门（**用户裁定：不限制**，每个开启者各召一次）
+- ❌ 不强制加载宝库区块（**用户裁定**：倒计时随区块/实体刻范围暂停与恢复）
+- ❌ 不抑制铁魔法自己的 Boss 音乐（见第八节「已知行为」）
+- ❌ 不处理 `structure` 的标签（tag）形式，只接受单个结构 ID
+
+---
+
+## 三、架构
+
+### 分层
+
+```
+[检测层] mixin/DreadKingRitualTriggerMixin
+             │  在 unlock(...) 被调用的那一行判定「暗影钥匙被真正接受」
+             │  产出 (ServerLevel, BlockPos, ServerPlayer)
+             ▼
+[编排层] dreadking/DreadKingRitualStarter
+             │  开关 + 结构判定 + 计算刷怪点
+             │  level.addFreshEntity(marker)
+             ▼
+[执行层] entity/DreadKingRitualMarker
+             ├─ t=0    : 一次性广播音乐（落 musicPlayed = NBT）
+             ├─ t<352  : tick 倒计时（lifeTicks 落 NBT）
+             └─ t=352  : 在自身位置召唤不祥死者之王 → discard()
+```
+
+每层只对下一层许诺「一件事」，不窥探对方内部。因此：
+
+- 检测层若将来换成事件实现，编排层与执行层**零改动**；
+- 执行层不关心「谁触发的、为什么触发」，只认「我在哪、还剩几 tick」⇒ 可被 `/summon` 单独手测（第七节用例 1）。
+
+### 变更清单
+
+```
+新增  src/main/java/com/zonlong/beloong/
+      ├── mixin/DreadKingRitualTriggerMixin.java      检测层（目标是原版类，故放 mixin/ 根目录）
+      ├── dreadking/DreadKingRitualStarter.java        编排层
+      └── entity/DreadKingRitualMarker.java            执行层（entity/ 包已存在：TornadoEntity）
+
+改动  src/main/java/com/zonlong/beloong/registry/ModEntities.java    +1 Holder
+改动  src/main/resources/beloong.mixins.json                         mixins 数组 +1 条
+改动  src/main/java/com/zonlong/beloong/Config.java                  SERVER_SPEC +[dread_king_ritual] 节
+改动  src/main/resources/assets/beloong/lang/zh_cn.json              +1 键
+改动  src/main/resources/assets/beloong/lang/en_us.json              +1 键
+
+不动  BeLoongCore.java        —— ModEntities.register(modEventBus) 已在 L94
+不动  BeLoongCoreClient.java  —— 标记实体永不发送客户端，不需要渲染器，也不需要模型层
+不动  数据包                  —— 不需要任何 advancement / function / jukebox_song
+```
+
+### 决策记录
+
+| # | 决策 | 取值 | 理由 |
+|---|---|---|---|
+| **D1** | 检测点 | 注入 `VaultBlockEntity$Server.tryInsertKey` 内 **`unlock(...)` 的 INVOKE 点**（`@At("HEAD")`） | ① `unlock()` 全类只有一处调用，且只在成功分支（`VaultBlockEntity.java:289`）② 三个需要的量 `level / pos / player` **都是 `tryInsertKey` 的形参**，无需 `@Shadow` ③ 被拒绝的路径（无效钥匙 / 已领奖）根本走不到这里 ⇒ 天然排除可刷 Boss 的漏洞 |
+| **D2** | 标记实体 | `extends net.minecraft.world.entity.Marker`，`.sized(0.0F, 0.0F).clientTrackingRange(0)` | 白拿四件事：`getAddEntityPacket` **直接 throw** ⇒ 结构上不可能发到客户端；`noPhysics = true`；不可骑乘；`PushReaction.IGNORE`。取值与原版 `EntityType.MARKER` 逐字一致 |
+| **D3** | 生命周期 | **352 tick 硬编码常量**，不做配置 | 它是音乐文件的**客观长度**（两路取证见第一节），不是玩法参数。做成配置只会制造「音乐与倒计时不同步」这一种错误用法 |
+| **D4** | 音乐播放 | 生成瞬间 `Level.playSound(null, pos, IS_INTRO, SoundSource.RECORDS, musicVolume, 1.0F)` **广播一次**；`musicPlayed` 落 NBT | 在实体生命周期内**只播一次**。若区块重载/服务器重启后重放，会变成「音乐从头发、倒计时从中间接着走」，直接违背「时长 = 音乐长度」 |
+| **D5** | 音乐受众与范围 | **周围所有玩家**（唱片机语义）；`musicVolume` 默认 **0.5** ⇒ 可闻半径 **16 格** | 用户裁定。**已知代价**：这一个旋钮同时管响度与送达半径，0.5 把半径从唱片机的 64 格压到 16 格（推导见第五节）。已确认接受 |
+| **D6** | 不祥触发方式 | `boss.onOminousTrigger()` **直调** | 它是 `IOminousEntity` 的 public API（`IOminousEntity.java:12`），实现即 `setIsOminous(true)` + 6 项属性 modifier + `setBaseValue(1000)` + 满血（`DeadKingBoss.java:115-126`），与尸体复活路径**同一条码**，且重复调用幂等。**不走**「给玩家挂 Trial Omen」：那条路要求玩家非创造非旁观、24 格内、且只在实体加入那一瞬判定（`ServerPlayerEvents.java:705-738`），边界多且会污染玩家状态 |
+| **D7** | 召唤序列 | 逐字复刻 `DeadKingCorpseEntity.java:75-90`，**必须含 `setSpawnPos(boss.position())`** | `tickDeath()` 只在 `spawnPos != null` 时才生成灵体（`DeadKingBoss.java:706-718`）。漏这一行 ⇒ 打死死王后没有灵体可右键，**护命匣复活链静默断裂**，且要打到第二条命才会发现 |
+| **D8** | 结构判定 | `ServerLevel.structureManager().getStructureWithPieceAt(pos, HolderSet)`，结构 ID 走配置，默认 `dragonsurvival:dragon_hunters_castle` | 与原版 `LocationPredicate` 内部同款语义（piece 级而非包围盒级，`LocationPredicate.java:22,54`）；配置化吸收事实 1 的风险 |
+| **D9** | 实体注册位置 | 既有的 `registry/ModEntities.java` 加一个 `DeferredHolder` | 基线上 `beloong:tornado` 已是本项目第一个实体类型，有现成范式与 `register(IEventBus)` 约定可抄 |
+| **D10** | 锚点 | 宝库顶 `vaultPos.above()`，含**向上净空扫描兜底** | 死王碰撞箱 **0.9 × 3.5 格**（`EntityRegistry.java:277-281`），城堡室内常有 3 格高的天花板。扫描上限 +8；扫不到则**照旧在宝库顶召唤**并打 WARN —— 忠于「出现在宝库顶部」这一需求，不擅自改位 |
+| **D11** | 重复触发 | **不限制**，每个开启者各召一次 | 用户裁定。原版宝库本身按玩家各自发奖（`VaultServerData.rewardedPlayers`），因此同一宝库本就允许被多人各开一次 |
+| **D12** | 区块卸载 | **不强制加载**；倒计时随区块/实体刻范围暂停与恢复 | 用户裁定。副作用：音乐已由客户端音效实例独立播放，不受暂停影响 ⇒ 可能形成「无声倒计时」（见第八节） |
+| **D13** | 中断语义 | `/kill` 实体 = 取消，不召唤；服务器重启 / 玩家离线 / 切维度**均不影响**（实体不依赖玩家） | 用户确认。`Entity.shouldBeSaved()` 对普通实体返回 true（`Entity.java:3670`）⇒ 实体与 `lifeTicks` 自动随存档持久化 |
+| **D14** | 双重 intro | **不处理**，视作设计内的渐强 | 铁魔法在 Boss 被玩家看到时会自己再播一遍同一段 intro（`DeadKingBoss.java:470-474` → `DeadKingMusicHandler.init()` → `addLayer(beginSound)`）。而 **IS 的音量是 1.0 且 `Attenuation.NONE`**（`FadeableSoundInstance.java:18,21`）⇒ 实际听感是「0.5× 的定位低语 → 死王登场 → 同一段音乐 1× 全屏响起」，正是渐强。抑制它需要 mixin 进铁魔法客户端，收益不抵成本 |
+| **D15** | 命名前缀 | 全功能统一 `dread_king` 前缀（实体 ID / 类名 / 包名 / Mixin 名 / 配置节 / lang 键） | 用户要求"添加 `dread_king` 前缀用于区分"。只改实体会留下「`[vault_ritual]` 配置配 `DreadKingRitualMarker` 实体」的割裂，故一并统一。**注意是 `dread` 而非铁魔法的 `dead`** |
+
+### 配置
+
+```toml
+# beloong-server.toml
+[dread_king_ritual]
+enabled = true
+structure = "dragonsurvival:dragon_hunters_castle"
+musicVolume = 0.5
+```
+
+| 键 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `enabled` | bool | `true` | 总开关。关闭时宝库照常开箱，只是没有仪式 |
+| `structure` | string | `dragonsurvival:dragon_hunters_castle` | 触发限定结构。**这是事实 1 的保险**：整合包把宝库放进城堡之前，此功能不会触发 |
+| `musicVolume` | double (0.0–16.0) | `0.5` | 同时决定响度与可闻半径（半径 = `16 × max(volume,1)` 格）。唱片机约定值是 4.0（64 格） |
+
+---
+
+## 四、组件
+
+| # | 组件 | 职责与关键点 |
+|---|---|---|
+| **C1** | `DreadKingRitualTriggerMixin` | `@Mixin(VaultBlockEntity.Server.class)`。处理器签名必须**逐字匹配 `tryInsertKey` 的形参表**：`(ServerLevel, BlockPos, BlockState, VaultConfig, VaultServerData, VaultSharedData, Player, ItemStack, CallbackInfo)`。唯一职责：把 `(level, pos, player)` 交给 `DreadKingRitualStarter`。**不含任何判定逻辑** |
+| **C2** | `DreadKingRitualStarter` | `static void start(ServerLevel, BlockPos, ServerPlayer)`：开关 → 结构判定 → 计算刷怪点 → 构造并 `addFreshEntity` 标记实体。**唯一持有配置与结构知识的地方** |
+| **C3** | `DreadKingRitualMarker` | `extends Marker`。持有 `lifeTicks`（默认 352）、`musicPlayed`，两者**都必须落 NBT**。`tick()`：首 tick 播音 + 置 `musicPlayed`；每 tick `--lifeTicks`；归零则召唤 + `discard()`。**召唤逻辑私有，不对外暴露** |
+| **C4** | `ModEntities`（改） | 沿用既有 `DeferredRegister<EntityType<?>> ENTITIES`，照 `TORNADO` 的写法加 `DREAD_KING_RITUAL_MARKER`。**不要** `.updateInterval(1)`（那是龙卷风为投射物同步加的，本实体不发客户端，加了只会徒增负担） |
+| **C5** | `beloong.mixins.json`（改） | 加进 `mixins` 数组（**不是** `client`）⇒ 走 `injectors.defaultRequire = 1`，注入点消失即**启动崩溃** |
+| **C6** | `Config`（改） | `SERVER_SPEC` 新增 `DreadKingRitual` 静态内部类 + `[dread_king_ritual]` 节，照 `DragonSummon` 的写法 |
+| **C7** | lang（改） | `entity.beloong.dread_king_ritual_marker`（中英各一条）。实体永不可见，但注册完整性需要它 |
+
+---
+
+## 五、数据流
+
+### 时序
+
+```
+t0  玩家手持 dragonsurvival:dark_key 右键 STATE==ACTIVE 的 dragonsurvival:dark_vault
+    │
+    └─ VaultBlock.useItemOn                        (VaultBlock.java:47-71)
+         └─ VaultBlockEntity$Server.tryInsertKey   (VaultBlockEntity.java:268-295)
+              ├ canEjectReward(config, state)                  ✓
+              ├ isValidToInsert(config, stack)                 ✓
+              ├ !serverData.hasRewardedPlayer(player)          ✓
+              └ unlock(level, state, pos, ...)   ← ★ C1 注入点（HEAD）
+    │
+t0  C1 → C2.start(level, pos, player)
+    ├ 配置 enabled == false                        → return（宝库照常开箱，无仪式）
+    ├ getStructureWithPieceAt(pos, 配置的结构).isValid() 为假 → return（同上）
+    └ 命中：
+        ├ spawnPos = 宝库顶（D10 的净空兜底）
+        ├ new DreadKingRitualMarker(level) → moveTo(spawnPos) → lifeTicks = 352
+        └ level.addFreshEntity(marker)
+    │
+t0' C3 首个 tick（musicPlayed == false）
+    ├ level.playSound(null, getX(), getY(), getZ(),
+    │                 SoundRegistry.DEAD_KING_MUSIC_INTRO, SoundSource.RECORDS, musicVolume, 1.0F)
+    └ musicPlayed = true（写 NBT）
+    │
+t0'..t352  每 tick：--lifeTicks
+    │
+t352   lifeTicks == 0：
+    ├ DeadKingBoss boss = new DeadKingBoss(level)
+    ├ boss.moveTo(自身位置)
+    ├ boss.setSpawnPos(boss.position())                             ← D7，必须
+    ├ boss.finalizeSpawn(level, level.getCurrentDifficultyAt(boss.getOnPos()), MobSpawnType.TRIGGERED, null)
+    ├ boss.setPersistenceRequired()
+    ├ level.addFreshEntity(boss)
+    ├ boss.onOminousTrigger()                                       ← D6，幂等
+    ├ SCULK_SOUL ×80 + DEAD_KING_SPAWN（音量 20）
+    └ discard() 自身
+```
+
+### 「唱片机语义」与音量耦合的推导
+
+原版唱片机的实际参数（源码级）：
+
+| 环节 | 实现 | 参数 |
+|---|---|---|
+| 服务端播放 | `JukeboxSongPlayer.play()` → `level.levelEvent(1010, pos, songId)` | 广播半径**固定 64 格**（`ServerLevel.java:1052-1064`） |
+| 客户端播放 | `LevelRenderer.playJukeboxSong` → `SimpleSoundInstance.forJukeboxSong(...)` | **`SoundSource.RECORDS`、音量 4.0F、音高 1.0F、`Attenuation.LINEAR`、方块中心、不循环**（`SimpleSoundInstance.java:70-82`） |
+
+我们走的是 `Level.playSound(...)`，服务端与客户端两段都可等价：
+
+| 环节 | 实现 | 与唱片机的差别 |
+|---|---|---|
+| 服务端广播半径 | `sound.getRange(volume)`（`ServerLevel.java:1006-1016`）；NeoForge 的 `SoundEvent.getRange` = `volume > 1 ? 16×volume : 16`（`SoundEvent.java:58-64`） | volume=4.0 时同为 64 格；**volume=0.5 时降为 16 格** |
+| 客户端增益与衰减 | `f1 = max(volume, 1.0) × attenuationDistance`、`f2 = volume × 音源滑块`，`linearAttenuation(f1)`（`SoundEngine.java:447-459`、`Channel.java:142`） | volume=4.0 时与唱片机逐项相同；0.5 时基准增益减半、衰减跨度收缩到 16 格 |
+
+⇒ **D5 的代价是可以逐项算出来的**：`musicVolume = 0.5` 让响度降到唱片机默认的 1/8，同时把可闻半径从 64 格压到 16 格。因为「送达半径」与「衰减跨度」是同一个旋钮的两个侧面，**无法只降响度而保住 64 格覆盖**（NeoForge 的 `createFixedRangeEvent` 只能固定「送达半径」，客户端衰减跨度仍受 `volume` 下限约束）。用户已确认接受。
+
+> 说明：铁魔法自己的 Boss 音乐不受此耦合影响 —— 它走**客户端 `SoundInstance`**，`Attenuation.NONE`（距离无关）+ 音量 1.0。
+
+---
+
+## 六、错误处理与边界
+
+| 场景 | 行为 | 评价 |
+|---|---|---|
+| 玩家拿**备用**暗影钥匙右键**已开过**的宝库 | **不触发** | `hasRewardedPlayer` 拦在 `unlock()` 之前，注入点看不到该路径。**这是选 mixin 的核心收益**：`hunter_knight` 掉 `dark_key`（`loot_table/entities/hunter_knight.json`）⇒ 玩家能囤钥匙，零 mixin 方案在此会**刷死王** |
+| 两名玩家同 tick 开同一宝库 | 只有一人的插入会走到 `unlock()` ⇒ **只触发一次** | 无竞态 |
+| 钥匙无效（非暗影钥匙） | 不触发 | 同上，走不到 `unlock()` |
+| 宝库处于 `UNLOCKING` / `EJECTING` 状态时被右键 | `useItemOn` 直接 `PASS_TO_DEFAULT_BLOCK_INTERACTION` ⇒ 不触发 | `VaultBlock.java:50` |
+| 宝库顶被方块堵住 | 向上扫描净空（上限 +8）；扫不到则**照旧在宝库顶召唤** + WARN | D10。忠于需求，不擅自改位 |
+| 区块卸载 / 超出实体刻范围（玩家跑远） | 倒计时**暂停**，玩家回来自动继续 | D12（用户裁定）。副作用见第八节 |
+| 服务器重启 | 实体与 `lifeTicks` / `musicPlayed` 随存档持久化 ⇒ 接着走剩余 tick，**不重放音乐** | D13。重放会导致音乐与倒计时错位 |
+| 实体被 `/kill` | 不召唤 | D13（用户确认） |
+| 玩家离线 / 死亡 / 切维度 | **不影响**实体（它不依赖玩家） | 标记实体架构相对药水效果方案的主要优势 |
+| 迟到玩家（音乐广播后才进场） | 听不到音乐 | 与唱片机一致（音效实例只在广播那一刻发给范围内客户端） |
+| 龙之生存 / 铁魔法缺席 | 不可能 | 两者都是 `required` 依赖，直接引用，不加 `isLoaded` 守卫（与 `DeadKingAdvancementHandler` 同款口径） |
+| **注入点消失**（原版重构 `tryInsertKey`） | **启动即崩** | `beloong.mixins.json` 的 `injectors.defaultRequire = 1`。符合项目「宁可响亮失败也不要静默失效」的取向 |
+| 其他模组取消我们的音乐 | 只是没声音，**仪式照常**（倒计时不依赖音乐） | `Level.playSound` 会经过 NeoForge 的 `PlayLevelSoundEvent.AtPosition`（`ServerLevel.java:1000`） |
+| 玩家在铁魔法配置里关掉 Boss 音乐 | 铁魔法自己的 intro 不播；**我们的仪式音乐照常** | 我们走服务端音效包，与 IS 的客户端 `MusicManager` 无关 |
+
+---
+
+## 七、验收策略
+
+项目无测试套件，验收 = `.\gradlew.bat build` + 静态探针 + 实机运行（沿用项目既定方式）。
+
+### A. 构建与静态探针
+
+1. `.\gradlew.bat build` 通过
+2. `beloong.mixins.json` 含新条目，且在 **`mixins`** 数组（不在 `client`）
+3. `ModEntities` 含新 Holder，且**未**带 `.updateInterval`
+4. 两个 lang 文件都含 `entity.beloong.dread_king_ritual_marker`
+5. jar 内含 3 个新 class：`mixin/DreadKingRitualTriggerMixin`、`dreadking/DreadKingRitualStarter`、`entity/DreadKingRitualMarker`
+
+### B. 实机用例（每条都要能证伪）
+
+| # | 操作 | 期望 | 这条在验证什么 |
+|---|---|---|---|
+| 1 | `/summon beloong:dread_king_ritual_marker <城堡内宝库顶>` | 听到音乐；352 tick 后**原地**出现死王 | 执行层可独立验证；音乐时长与倒计时吻合 |
+| 2 | 检查死王是否为**不祥**态（环绕 `TRIAL_OMEN` 粒子 / 血量 1000） | 不祥 | `onOminousTrigger()` 真的生效 |
+| 3 | 在城堡里用暗影钥匙开黯影宝库 | 同上 | 主链路 |
+| 4 | 在**非**城堡处放一个黯影宝库并开启 | **不触发** | 结构配置真的在生效 |
+| 5 | 拿**备用**暗影钥匙对**同一已开过**的宝库再右键 | **不触发** | D1 的精度 —— 被否决的零 mixin 方案会在此失败 |
+| 6 | 在 16 格外 / 音乐响起后再进场 | 听不到 / 只听到剩余部分 | D5 的半径与唱片机语义 |
+| 7 | 打死不祥死王 | **生成灵体**，可用护命匣右键复活 | D7 的 `setSpawnPos` 没漏 |
+| 8 | 仪式中途走到区块卸载距离外，再回来 | 倒计时从暂停处继续，无音乐 | D12 的已知行为，确认不是卡死 |
+| 9 | `/kill @e[type=beloong:dread_king_ritual_marker]` | 不召唤 | D13 |
+
+### C. 计时取证
+
+用 `/time query gametime`（项目已验证 RCON 可用，见 `memory/decisions-log.md`）在音乐开始与死王出现两处各取一次，差值应为 **352 tick** ± 少量。
+
+---
+
+## 八、已知行为与明确不做的事
+
+| 项 | 内容 | 状态 |
+|---|---|---|
+| **无声倒计时** | 音乐由客户端音效实例独立播放，不随区块暂停；若玩家在仪式中跑远导致倒计时暂停，回来时音乐可能已放完 | **已知并接受**（D12 + D5 两条决策叠加的必然结果） |
+| **双重 intro** | 死王登场时铁魔法会自己再播一遍同一段 intro（1.0 音量、非定位） | **视作渐强，不处理**（D14） |
+| **一个宝库多人各召一次** | 4 人小队各开一次同一宝库会背靠背出现 4 个不祥死王 | **用户裁定接受**（D11） |
+| **整合包尚未把宝库放进城堡** | 在整合包完成这一步之前，本功能装了但不触发 | **已通过配置项吸收**（D8）；验收时需先手动在城堡放一个黯影宝库 |
+| 不做结构标签（tag）形式 | `structure` 只接受单个 ID | 需要时再扩 |
+| 不做「已触发过」的持久化闸门 | 不记录哪些宝库触发过 | 与 D11 一致 |
+| 不做音乐与倒计时的双向绑定 | 倒计时是硬编码常量，不从音乐文件动态读取 | D3。运行时读 ogg 时长是过度设计 |
+
+---
+
+## 九、证据索引（源码级）
+
+| 主题 | 文件:行 |
+|---|---|
+| `dark_vault` 注册与默认 NBT | `DSBlocks.java:1143-1149, 1181-1191` |
+| 龙之生存放开 key 校验 | `VaultBlockEntityServerMixin.java:21-28` |
+| 宝库 `useItemOn` 的放行条件 | `VaultBlock.java:47-71` |
+| `tryInsertKey` 成功分支与唯一 `unlock` 调用 | `VaultBlockEntity.java:268-295`；`unlock` 定义 `:328-341` |
+| `UNLOCKING` 的唯一入口与转移 | `VaultState.java:31-36, 70-93` |
+| 包私有 API 约束 | `VaultServerData.java:56, 60`；`VaultBlockEntity.java:353, 357` |
+| `ITEM_USED_ON_BLOCK` 判据的触发条件 | `ServerPlayerGameMode.java:367-368` |
+| 地点谓词的结构字段 | `LocationPredicate.java:22, 54` |
+| 进度奖励无 `effects` 字段 / function 以玩家身份执行 | `AdvancementRewards.java:26, 38, 85` |
+| 原版 `Marker` 永不发送客户端 | `Marker.java`（`getAddEntityPacket` throw）；`EntityType.java:496-498` |
+| 实体持久化判定 | `Entity.java:3670` |
+| 死王碰撞箱 | `EntityRegistry.java:277-281` |
+| 不祥触发条件 | `ServerPlayerEvents.java:705-738`；`IOminousEntity.java:12` |
+| `onOminousTrigger` 实现 | `DeadKingBoss.java:115-135` |
+| 尸体复活参考序列 | `DeadKingCorpseEntity.java:75-90` |
+| 灵体生成依赖 `spawnPos` | `DeadKingBoss.java:706-718` |
+| 音乐长度常量 | `DeadKingMusicHandler.java:17` |
+| 铁魔法自己的 intro 重播链 | `DeadKingBoss.java:470-474`；`DeadKingMusicHandler.java:38, 46-55` |
+| 铁魔法音乐的音量与衰减 | `FadeableSoundInstance.java:18, 21` |
+| 服务端音效广播半径 | `ServerLevel.java:1006-1016`；`SoundEvent.java:58-64` |
+| 唱片机的广播半径与音效参数 | `ServerLevel.java:1052-1064`；`SimpleSoundInstance.java:70-82` |
+| 客户端增益与线性衰减 | `SoundEngine.java:447-459`；`Channel.java:142` |
+| 暗影钥匙来源 | `loot_table/entities/hunter_knight.json` |
+| 项目内范式：实体注册 / 事件注册 / 效果过期 | `registry/ModEntities.java:42-54`；`ability/AbilityEffectRegistry.java:15-28`；`StructureEffectHandler.java:120-131` |
+
+---
+
+## 十、实施计划
+
+见 `docs/plans/2026-09-20-dark-vault-dread-king-ritual-plan.md`（由 `planning` 技能产出）。
