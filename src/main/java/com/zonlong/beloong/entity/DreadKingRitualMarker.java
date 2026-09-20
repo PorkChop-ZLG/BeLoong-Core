@@ -86,14 +86,22 @@ public class DreadKingRitualMarker extends Marker {
      */
     public static final int LIFETIME_TICKS = 140;
 
-    /** 仪式期间铺血粒子的发射间隔（tick）。140 / 5 = 28 次，约 32 颗/秒。 */
+    /** 仪式期间铺血粒子的发射间隔（tick）。140 / 5 = 28 次，约 160 颗/秒。 */
     private static final int PARTICLE_INTERVAL_TICKS = 5;
 
     /** 每次发射的粒子数。 */
-    private static final int PARTICLES_PER_BURST = 8;
+    private static final int PARTICLES_PER_BURST = 40;
 
-    /** 血渍圆盘半径（格）。用户指定「以标记实体为中心、半径 3 格的圆」。 */
-    private static final double PARTICLE_RADIUS = 3.0D;
+    /** 血渍圆盘半径（格）。用户指定「以标记实体为中心、半径 4 格的圆」。 */
+    private static final double PARTICLE_RADIUS = 4.0D;
+
+    /**
+     * 血渍的生成高度偏移（格）：在标记实体<b>上方</b>这么高处生成，靠重力落成「血向下滴落」的效果。
+     * <p>
+     * {@code BloodGroundParticle} 自带 {@code gravity = 1.0F} 且 {@code Particle.hasPhysics} 默认为
+     * {@code true}，因此从高处生成后会自然下坠并停在下方的表面上。
+     */
+    private static final double PARTICLE_HEIGHT_OFFSET = 2.0D;
 
     /** 剩余 tick 数。必须落 NBT，见类 javadoc「计时」。 */
     private int lifeTicks = LIFETIME_TICKS;
@@ -174,27 +182,31 @@ public class DreadKingRitualMarker extends Marker {
     }
 
     /**
-     * 在自身周围半径为 {@link #PARTICLE_RADIUS} 格的<b>圆盘</b>内铺一层
-     * {@code irons_spellbooks:blood_ground} 血渍。
+     * 在自身周围半径为 {@link #PARTICLE_RADIUS} 格的<b>圆盘</b>内、自上方
+     * {@link #PARTICLE_HEIGHT_OFFSET} 格高处铺一层 {@code irons_spellbooks:blood_ground} 血渍，
+     * 让它靠重力滴落并铺在地上。
      * <p>
      * 两个刻意的实现选择：
      * <ul>
      *   <li><b>逐颗定点发送（{@code count = 1}）</b>而不是一次发 {@code count = N} —— 因为
      *       {@code ServerLevel.sendParticles} 对 {@code count > 1} 的处理是「在 ±offset 的
-     *       <b>长方体</b>内随机」，那会摊成一个方阵而不是圆。逐颗发送才能保证落在半径 3 以内。</li>
+     *       <b>长方体</b>内随机」，那会摊成一个方阵而不是圆。逐颗发送才能保证落在半径 4 以内。
+     *       <br>代价：每批 {@link #PARTICLES_PER_BURST} 个包、整场 28 批 ⇒ **1120 个小包**（约 160 包/秒）。
+     *       这些包只发给 32 格内的玩家，且每个仅数十字节，实测开销可忽略 —— 这是为了"圆盘而非方阵"
+     *       刻意接受的代价，**不要**改成 {@code count > 1}。</li>
      *   <li><b>半径取 {@code R × sqrt(u)}</b> 而非 {@code R × u} —— 前者才保证圆盘内<b>面密度均匀</b>；
      *       后者会让粒子向圆心堆积。</li>
      * </ul>
-     * Y 直接取标记实体自身的 Y，<b>不做高度图采样</b>：{@code BloodGroundParticle} 继承
-     * {@code TextureSheetParticle}，而 {@code Particle.hasPhysics} 默认为 {@code true}，
-     * 每颗血会各自落到自己脚下的表面并停住 ⇒ 地形不平也自然。
+     * 生成高度是「自身 Y + {@link #PARTICLE_HEIGHT_OFFSET}」，<b>不做高度图采样</b>：
+     * {@code BloodGroundParticle} 继承 {@code TextureSheetParticle}，而 {@code Particle.hasPhysics}
+     * 默认为 {@code true}，每颗血会各自落到自己脚下的表面并停住 ⇒ 地形不平也自然。
      */
     private void emitRitualParticles() {
         if (!(level() instanceof ServerLevel serverLevel)) {
             return;
         }
         double cx = getX();
-        double cy = getY();
+        double cy = getY() + PARTICLE_HEIGHT_OFFSET;
         double cz = getZ();
         for (int i = 0; i < PARTICLES_PER_BURST; i++) {
             double angle = getRandom().nextDouble() * Math.PI * 2.0D;

@@ -110,8 +110,9 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
    public class DreadKingRitualMarker extends Marker {
        public static final int LIFETIME_TICKS = 140;   // = suspense.ogg 实测 7.010s（140.2 tick），用户要求取整
        private static final int PARTICLE_INTERVAL_TICKS = 5;
-       private static final int PARTICLES_PER_BURST = 8;
-       private static final double PARTICLE_RADIUS = 3.0D;
+       private static final int PARTICLES_PER_BURST = 40;
+       private static final double PARTICLE_RADIUS = 4.0D;
+       private static final double PARTICLE_HEIGHT_OFFSET = 2.0D;   // 上方 2 格生成，靠重力滴落
        private int lifeTicks = LIFETIME_TICKS;
        private boolean musicPlayed;
        public DreadKingRitualMarker(EntityType<? extends DreadKingRitualMarker> type, Level level) { super(type, level); }
@@ -165,18 +166,21 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
 
    `emitRitualParticles()`（D22）—— 每 `PARTICLE_INTERVAL_TICKS` tick 调一次：
    ```java
+   double cy = getY() + PARTICLE_HEIGHT_OFFSET;                                 // 上方 2 格：营造滴落
    for (int i = 0; i < PARTICLES_PER_BURST; i++) {
        double angle = getRandom().nextDouble() * Math.PI * 2.0D;
        double radius = PARTICLE_RADIUS * Math.sqrt(getRandom().nextDouble());   // sqrt 才保证面密度均匀
        serverLevel.sendParticles(ParticleHelper.BLOOD_GROUND,
-               getX() + Math.cos(angle) * radius, getY(), getZ() + Math.sin(angle) * radius,
+               getX() + Math.cos(angle) * radius, cy, getZ() + Math.sin(angle) * radius,
                1, 0.0D, 0.0D, 0.0D, 0.0D);                                        // count=1 才能落在圆内
    }
    ```
    import：`io.redspace.ironsspellbooks.util.ParticleHelper`（其 `BLOOD_GROUND` 就是 `ParticleRegistry` 里那个
    `SimpleParticleType`）。⚠️ 两个要点**不能改**：`count = 1`（`sendParticles` 对 `count > 1` 是「±offset
-   **长方体**随机」，会摊成方阵而不是圆）、`R × sqrt(u)`（否则粒子向圆心堆积）。Y 用标记实体自身 Y 即可 ——
-   粒子自带物理（`Particle.hasPhysics` 默认 `true`）会各自落到脚下表面并停住，**不需要**高度图采样。
+   **长方体**随机」，会摊成方阵而不是圆）、`R × sqrt(u)`（否则粒子向圆心堆积）。生成高度是「自身 Y + 2」，
+   **不需要**高度图采样 —— 粒子自带重力与物理（`Particle.hasPhysics` 默认 `true`）会各自落到脚下表面并停住。
+   <br>代价：每批 40 个包 × 28 批 = **1120 个小包**（约 160 包/秒，只发给 32 格内玩家）—— 这是为「圆盘而非
+   方阵」刻意接受的代价。
 
 4. `summonDeadKing()` —— **逐字复刻 `DeadKingCorpseEntity.java:75-90` 的序列**：
 
@@ -258,7 +262,7 @@ javap -p -c -classpath build\libs\beloong-0.9.6.jar com.zonlong.beloong.registry
 - ✅ **看不到任何实体**（`clientTrackingRange(0)` + `getAddEntityPacket` throw 生效）
 - ✅ 立刻听到 suspense 音效（`musicVolume = 0.5` ⇒ 16 格内可闻）
 - ✅ **140 tick（7 秒）后**听到 `dead_king_spawn` 音效并出现死者之王
-- ✅ 仪式期间周围半径 3 格内出现 `blood_ground` 血渍，且圆外四角没有（D22）
+- ✅ 仪式期间周围半径 **4** 格内出现 `blood_ground` 血渍，且圆外四角没有（D22）；血渍自上方 2 格滴落
 - ✅ 该死王是**不祥**态（环绕 `TRIAL_OMEN` 粒子 / 血量 1000）
 - ✅ 打死它 → **不生成灵魂**（D20：`spawnPos` 为 null）—— 反过来若生成了灵魂，说明 D20 失效
 
@@ -415,7 +419,7 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 | 9 | `/kill @e[type=beloong:dread_king_ritual_marker]` | 不召唤 |
 | 10 | 仪式进行中**重启服务器**（停服再开） | 倒计时从**剩余** tick 续跑；**音效不重放** —— 这条专门验证 `lifeTicks`/`musicPlayed` 真的落进了 NBT（`Entity.saveWithoutId` 不写 `tickCount`，所以这也是「不能用 tickCount 计时」的实证） |
 | 11 | 仪式进行中把宝库顶那一格用方块堵死 | 死王出现在净空扫描找到的位置；若日志出现 WARN 则说明该房间连 +8 格净空都没有（见 DoD 第 7 条） |
-| 12 | 仪式期间观察宝库顶周围 | 半径 3 格内持续出现 `blood_ground` 血渍，且**圆外四角没有**（验证 D22 的「圆盘而非方阵」）；地形不平时血渍各自落在脚下表面 |
+| 12 | 仪式期间观察宝库顶周围 | 半径 **4** 格内持续出现 `blood_ground` 血渍，且**圆外四角没有**（验证 D22 的「圆盘而非方阵」）；血渍自上方 2 格**滴落**后各自落在脚下表面 |
 
 **计时取证：** 用 `/time query gametime`（项目已验证 RCON 可用）在音乐开始与死王出现各取一次，
 差值应为 **140 tick** ± 少量。
