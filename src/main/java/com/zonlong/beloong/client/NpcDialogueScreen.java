@@ -38,11 +38,17 @@ public class NpcDialogueScreen extends Screen {
     // ===================== 布局常量（试玩调参只改这里） =====================
 
     /** 说话人名字中轴（占屏高）。 */
-    private static final float NAME_Y = 0.796F;
+    private static final float NAME_Y = 0.790F;
     /** 装饰线纵坐标（名字与正文之间）。 */
-    private static final float RULE_Y = 0.831F;
-    /** 正文区块中轴。 */
-    private static final float TEXT_Y = 0.858F;
+    private static final float RULE_Y = 0.822F;
+    /**
+     * 正文**首行顶部**（占屏高）。
+     * <p>
+     * 刻意锚定"顶部"而不是"区块中轴"：多行正文若按中轴对齐会**向上生长**，
+     * 第一行直接压到装饰线上（实机第一版就是这样，见截图）。
+     * 锚定顶部后，无论几行都只往下长。
+     */
+    private static final float TEXT_TOP = 0.860F;
     /** 继续箭头纵坐标。 */
     private static final float ARROW_Y = 0.964F;
     /** 选项列左缘（占屏宽，左对齐）。 */
@@ -139,7 +145,7 @@ public class NpcDialogueScreen extends Screen {
             this.revealed += Config.NpcDialogue.charsPerTick.get();
             if (this.revealed >= this.visibleTotal) {
                 this.revealed = this.visibleTotal;
-                this.state = State.WAIT_CLICK;
+                advanceOrFinish();
             }
         } else if (this.state == State.SHOWING_OPTIONS) {
             for (var child : this.children()) {
@@ -157,19 +163,15 @@ public class NpcDialogueScreen extends Screen {
         }
         switch (this.state) {
             case TYPING -> {
-                // 打字中点击 ⇒ 本页立刻显示完
+                // 打字中点击 ⇒ 本页立刻显示完，随后与"自然播放完"走同一条分支
                 this.revealed = this.visibleTotal;
-                this.state = State.WAIT_CLICK;
+                advanceOrFinish();
                 return true;
             }
             case WAIT_CLICK -> {
-                if (this.pageIndex + 1 < this.entry.pages().size()) {
-                    this.pageIndex++;
-                    loadPage();
-                } else {
-                    // 最后一页显示完 ⇒ 弹出选项
-                    showOptions();
-                }
+                // 只有中间页会进入这里（最后一页在 advanceOrFinish 里直接弹选项）
+                this.pageIndex++;
+                loadPage();
                 return true;
             }
             case SHOWING_OPTIONS -> {
@@ -178,6 +180,21 @@ public class NpcDialogueScreen extends Screen {
             }
         }
         return true;
+    }
+
+    /**
+     * 当前页显示完之后的分支：<b>中间页</b>等待点击继续（显示"继续箭头"），
+     * <b>最后一页直接弹出选项</b>。
+     * <p>
+     * 最后一页不要求玩家多点一下 —— 实机反馈：文字播完还要再点一次才出选项是多余的。
+     * 因此底部的继续箭头只会出现在中间页。
+     */
+    private void advanceOrFinish() {
+        if (this.pageIndex + 1 < this.entry.pages().size()) {
+            this.state = State.WAIT_CLICK;
+        } else {
+            showOptions();
+        }
     }
 
     /** 弹出选项：v1 只有一个「离开」，宽度按文字自适应、**左缘固定**（与参考图一致）。 */
@@ -278,7 +295,7 @@ public class NpcDialogueScreen extends Screen {
      */
     private void renderBody(GuiGraphics guiGraphics) {
         int lineHeight = this.font.lineHeight + LINE_GAP;
-        int y = (int) (this.height * TEXT_Y) - this.lines.size() * lineHeight / 2;
+        int y = (int) (this.height * TEXT_TOP);
         int remaining = this.revealed;
 
         for (String line : this.lines) {
