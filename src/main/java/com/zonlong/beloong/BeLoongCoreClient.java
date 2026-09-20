@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
+import com.zonlong.beloong.client.HellGateRenderer;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.TornadoRenderer;
 import com.zonlong.beloong.client.model.TornadoModel;
@@ -85,6 +86,10 @@ public class BeLoongCoreClient {
         event.registerBlockEntityRenderer(
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
+        // 地狱之门：整扇门（5×8）只在基准格渲染一次，见 HellGateRenderer。
+        event.registerBlockEntityRenderer(
+                ModBlocks.HELL_GATE_BLOCK_ENTITY.get(),
+                HellGateRenderer::new);
         event.registerEntityRenderer(ModEntities.TORNADO.get(), TornadoRenderer::new);
     }
 
