@@ -37,7 +37,7 @@ RED-GREEN 步骤（没有测试框架可跑），每个任务的「验证」由�
 
 - 设计刻意让执行层不依赖触发者（只认「我在哪、还剩几 tick」），因此 **T3 之后它就能被
   `/summon beloong:dread_king_ritual_marker` 单独实机验证** —— 音乐时长、不祥状态、
-  `setSpawnPos`、护命匣复活链这几个最容易出错的点，在接触 mixin 之前就能全部证伪；
+  音乐时长与 NBT 续跑这几个最容易出错的点，在接触 mixin 之前就能全部证伪；
 - 本项目的瓶颈是实机验证（不是编译），把「可独立实机验证」的层先立起来能显著缩短反馈环；
 - 若 T5 的 mixin 注入出问题，已完成的 T1–T4 不受影响。
 
@@ -163,7 +163,7 @@ foreach ($f in 'zh_cn','en_us') { (Get-Content "src\main\resources\assets\beloon
    ```java
    DeadKingBoss boss = new DeadKingBoss(level());
    boss.moveTo(position());
-   boss.setSpawnPos(boss.position());                 // ★ 必须：tickDeath 只在 spawnPos != null 时生成灵体
+   // 刻意不调 setSpawnPos —— D20：spawnPos 保持 null，tickDeath() 因而不生成灵魂
    boss.finalizeSpawn((ServerLevel) level(), level().getCurrentDifficultyAt(boss.getOnPos()), MobSpawnType.TRIGGERED, null);
    boss.setPersistenceRequired();
    level().addFreshEntity(boss);
@@ -239,9 +239,9 @@ javap -p -c -classpath build\libs\beloong-0.9.6.jar com.zonlong.beloong.registry
 - ✅ 立刻听到 intro 音乐（`musicVolume = 0.5` ⇒ 16 格内可闻）
 - ✅ **352 tick（17.6 秒）后**听到 `dead_king_spawn` 音效并出现死者之王
 - ✅ 该死王是**不祥**态（环绕 `TRIAL_OMEN` 粒子 / 血量 1000）
-- ✅ 打死它 → **生成灵体**（验证 `setSpawnPos` 没漏；这是最容易漏且最晚才暴露的一条）
+- ✅ 打死它 → **不生成灵魂**（D20：`spawnPos` 为 null）—— 反过来若生成了灵魂，说明 D20 失效
 
-> 这条闸门一次性覆盖设计文档 §七 B 的用例 1、2、7。三条都过再进 T4。
+> 这条闸门一次性覆盖设计文档 §七 B 的用例 1、2、7a。三条都过再进 T4。
 
 **Commit:** `注册死王仪式标记实体（beloong:dread_king_ritual_marker）`
 
@@ -388,7 +388,8 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 | 4 | **非**城堡处放置黯影宝库并开启 | **不触发** |
 | 5 | 用**备用**暗影钥匙对**同一已开过**的宝库再右键 | **不触发**（方案 C 的核心收益） |
 | 6 | 16 格外 / 音乐响起后进场 | 听不到 / 只听到剩余部分 |
-| 7 | 打死不祥死王 | 生成灵体 —— **T3 已过** |
+| 7a | 打死**仪式召唤**的不祥死王 | **不生成**灵魂 —— **T3 已过** |
+| 7b | 打死**尸体复活**途径的死王（普通/不祥各一次） | **仍生成**灵魂 —— 回归闸门，证明 D20 没把灵魂全局弄没 |
 | 8 | 仪式中走远至区块卸载，再回来 | 倒计时从暂停处继续，无音乐 |
 | 9 | `/kill @e[type=beloong:dread_king_ritual_marker]` | 不召唤 |
 | 10 | 仪式进行中**重启服务器**（停服再开） | 倒计时从**剩余** tick 续跑；**音乐不重放** —— 这条专门验证 `lifeTicks`/`musicPlayed` 真的落进了 NBT（`Entity.saveWithoutId` 不写 `tickCount`，所以这也是「不能用 tickCount 计时」的实证） |

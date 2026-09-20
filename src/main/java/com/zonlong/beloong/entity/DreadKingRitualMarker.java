@@ -145,12 +145,24 @@ public class DreadKingRitualMarker extends Marker {
     /**
      * 在自身位置召唤<b>不祥</b>状态的死者之王。
      * <p>
-     * 序列逐字复刻铁魔法自己的复活路径 {@code DeadKingCorpseEntity.java:75-90}，
-     * 其中两处是<b>必须</b>的：
+     * 序列除下述第一处外，逐字复刻铁魔法自己的复活路径 {@code DeadKingCorpseEntity.java:75-90}。
      * <ul>
-     *   <li>{@code setSpawnPos} —— {@code DeadKingBoss.tickDeath()} 只在 {@code spawnPos != null}
-     *       时才生成灵体（{@code DeadKingBoss.java:706-718}）。漏掉它 ⇒ 打死死王后没有灵体可右键，
-     *       <b>护命匣复活链静默断裂</b>，且要打到第二条命才会发现</li>
+     *   <li><b>刻意不调 {@code setSpawnPos}（D20）</b> —— {@code DeadKingBoss.tickDeath()} 只在
+     *       {@code spawnPos != null} 时才生成 {@code dead_king_soul}（{@code DeadKingBoss.java:706-718}），
+     *       而 {@code spawnPos} 对 {@code DeadKingBoss} 的<b>唯一行为用途</b>就是这个灵魂闸门
+     *       （其余只有存取器与 NBT 存读）。让 {@code spawnPos} 保持 {@code null} ⇒ 仪式死王死后
+     *       <b>不留灵魂</b>，后续前来探索的玩家不会被误导成「这里有个可复活的死王」。
+     *       <p>
+     *       ⚠️ 这是<b>刻意</b>的，不是漏写：初版设计反而要求必须调它（否则护命匣复活链会静默断裂）。
+     *       需求改为「仪式死王不留灵魂」之后，同一个失效模式从缺陷变成了设计意图。
+     *       <p>
+     *       <b>代价（已接受）</b>：仪式死王<b>不可再战</b>。战利品与进度触发器不读 {@code spawnPos}，
+     *       不受影响。<br>
+     *       <b>风险</b>：本做法依赖「铁魔法用 {@code spawnPos != null} 当灵魂闸门」这一实现事实。
+     *       若将来 IS 换掉闸门，「无灵魂」会<b>静默</b>退回「有灵魂」。因此验收是<b>双侧</b>的：
+     *       仪式死王无灵魂（设计文档 §七 B 用例 7a）+ 尸体复活死王仍有灵魂（用例 7b）。
+     *       <p>
+     *       <b>改动此处前请先读设计文档的 D20。</b></li>
      *   <li>{@code onOminousTrigger()} —— 它是 {@code IOminousEntity} 的 public API，
      *       内部即 {@code setIsOminous(true)} + 6 项属性 modifier + {@code setBaseValue(1000)} + 满血，
      *       与尸体路径同一条码，且重复调用幂等。
@@ -165,7 +177,8 @@ public class DreadKingRitualMarker extends Marker {
 
         DeadKingBoss boss = new DeadKingBoss(serverLevel);
         boss.moveTo(position());
-        boss.setSpawnPos(boss.position());
+        // 刻意不调 boss.setSpawnPos(...) —— 见本方法 javadoc 与设计文档 D20：
+        // spawnPos 保持 null ⇒ tickDeath() 不生成灵魂。仪式死王是一次性遭遇，不应留下可复活的灵魂。
         boss.finalizeSpawn(serverLevel,
                 serverLevel.getCurrentDifficultyAt(boss.getOnPos()),
                 MobSpawnType.TRIGGERED, null);

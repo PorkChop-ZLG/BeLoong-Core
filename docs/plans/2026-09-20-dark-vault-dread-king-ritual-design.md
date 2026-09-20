@@ -49,6 +49,8 @@
 3. 标记实体**绝不发送到客户端**（玩家看不见）。
 4. 生命周期与中断语义可预测、可持久化。
 5. 检测精度必须能区分「钥匙被接受」与「钥匙被拒绝」。
+6. 仪式召唤的死王死后**不生成灵魂**（D20）—— 避免给后续探索者留下「这里有个可复活的死王」的误导；
+   而其他途径（尸体复活）的死王灵魂行为**保持不变**。
 
 ### 非目标
 
@@ -115,7 +117,7 @@
 | **D4** | 音乐播放 | 生成瞬间 `Level.playSound(null, pos, IS_INTRO, SoundSource.RECORDS, musicVolume, 1.0F)` **广播一次**；`musicPlayed` 落 NBT | 在实体生命周期内**只播一次**。若区块重载/服务器重启后重放，会变成「音乐从头发、倒计时从中间接着走」，直接违背「时长 = 音乐长度」 |
 | **D5** | 音乐受众与范围 | **周围所有玩家**（唱片机语义）；`musicVolume` 默认 **0.5** ⇒ 可闻半径 **16 格** | 用户裁定。**已知代价**：这一个旋钮同时管响度与送达半径，0.5 把半径从唱片机的 64 格压到 16 格（推导见第五节）。已确认接受 |
 | **D6** | 不祥触发方式 | `boss.onOminousTrigger()` **直调** | 它是 `IOminousEntity` 的 public API（`IOminousEntity.java:12`），实现即 `setIsOminous(true)` + 6 项属性 modifier + `setBaseValue(1000)` + 满血（`DeadKingBoss.java:115-126`），与尸体复活路径**同一条码**，且重复调用幂等。**不走**「给玩家挂 Trial Omen」：那条路要求玩家非创造非旁观、24 格内、且只在实体加入那一瞬判定（`ServerPlayerEvents.java:705-738`），边界多且会污染玩家状态 |
-| **D7** | 召唤序列 | 逐字复刻 `DeadKingCorpseEntity.java:75-90`，**必须含 `setSpawnPos(boss.position())`** | `tickDeath()` 只在 `spawnPos != null` 时才生成灵体（`DeadKingBoss.java:706-718`）。漏这一行 ⇒ 打死死王后没有灵体可右键，**护命匣复活链静默断裂**，且要打到第二条命才会发现 |
+| **D7** | 召唤序列 | 除 `setSpawnPos` 外逐字复刻 `DeadKingCorpseEntity.java:75-90` | ⚠️ **本条已被 D20 取代（2026-09-20）**。初版要求「**必须**含 `setSpawnPos(boss.position())`」，理由是 `tickDeath()` 只在 `spawnPos != null` 时生成灵体（`DeadKingBoss.java:706-718`），漏掉会让护命匣复活链静默断裂。用户随后改需求为「仪式死王不留灵魂」，于是**同一个失效模式从缺陷变成了设计意图** ⇒ 改为刻意不调。理由、代价与验证方式全部见 D20 |
 | **D8** | 结构判定 | `ServerLevel.structureManager().getStructureWithPieceAt(pos, HolderSet)`，结构 ID 走配置，默认 `dragonsurvival:dragon_hunters_castle` | 与原版 `LocationPredicate` 内部同款语义（piece 级而非包围盒级，`LocationPredicate.java:22,54`）；配置化吸收事实 1 的风险 |
 | **D9** | 实体注册位置 | 既有的 `registry/ModEntities.java` 加一个 `DeferredHolder` | 基线上 `beloong:tornado` 已是本项目第一个实体类型，有现成范式与 `register(IEventBus)` 约定可抄 |
 | **D10** | 锚点 | 宝库顶 `vaultPos.above()`，含**向上净空扫描兜底** | 死王碰撞箱 **0.9 × 3.5 格**（`EntityRegistry.java:277-281`），城堡室内常有 3 格高的天花板。扫描上限 +8；扫不到则**照旧在宝库顶召唤**并打 WARN —— 忠于「出现在宝库顶部」这一需求，不擅自改位 |
@@ -125,10 +127,10 @@
 | **D14** | 双重 intro | **不处理**，视作设计内的渐强 | 铁魔法在 Boss 被玩家看到时会自己再播一遍同一段 intro（`DeadKingBoss.java:470-474` → `DeadKingMusicHandler.init()` → `addLayer(beginSound)`）。而 **IS 的音量是 1.0 且 `Attenuation.NONE`**（`FadeableSoundInstance.java:18,21`）⇒ 实际听感是「0.5× 的定位低语 → 死王登场 → 同一段音乐 1× 全屏响起」，正是渐强。抑制它需要 mixin 进铁魔法客户端，收益不抵成本 |
 | **D15** | 命名前缀 | 全功能统一 `dread_king` 前缀（实体 ID / 类名 / 包名 / Mixin 名 / 配置节 / lang 键） | 用户要求"添加 `dread_king` 前缀用于区分"。只改实体会留下「`[vault_ritual]` 配置配 `DreadKingRitualMarker` 实体」的割裂，故一并统一。**注意是 `dread` 而非铁魔法的 `dead`** |
 | **D16** | Mixin 包分类与 remap | 目标是**原版**类的 mixin 放 `mixin/minecraft/`；目标是第三方模组的放 `mixin/<该模组命名空间>/`；`beloong.mixins.json` 的条目写同名前缀（`"minecraft.DreadKingRitualTriggerMixin"`）。原版目标的注入**必须显式 `remap = false`**（`@Inject` 与其 `@At` 都要） | 用户裁定 —— 项目规范：**mixin 哪个模组就用哪个模组的命名空间分类**，便于一眼确认「这条在 mixin 原版」。`remap = false` 则是编译期硬约束：NeoForge 运行时即用 Mojang 官方名（无混淆），dev 命名空间 == 运行时命名空间；留默认 `true` 会让注解处理器**报错**（`Unable to locate obfuscation mapping for @Inject target`）而非警告。项目内先例：`PossibleBiomesFilterMixin`（原版 `BiomeSource`）、`CloneParameterListMixin`（TerraBlender）。现存 `mixin/` 根目录下仍有两条原版目标 mixin 未迁移（`PossibleBiomesFilterMixin` → `BiomeSource`、`ParameterListAccessor` → `Climate.ParameterList`），**本次不顺手重构**，避免把无关改动混进本功能 |
-
 | **D17** | `tick()` 的语义 | **不调** `super.tick()`，也不调 `baseTick()`；只做「倒计时 + 播音 + 召唤」 | 有意继承 `Marker` 的「无环境处理」语义（`Marker.java:20-22`）。收益：免疫 `handlePortal()`（`Entity.java:448`）⇒ 不会被传送门搬走，避免「宝库旁有传送门 ⇒ 仪式在别的维度触发」。代价已逐条排除（见 §五 核对表 #5/#6）。⚠️ **`tickCount` 照常自增**（它在 `ServerLevel.tickNonPassenger`，不在 `baseTick`），但读档归零 ⇒ 仍只能用 `lifeTicks` 计时 |
 | **D18** | `tick()` 的异常处理 | 召唤逻辑包在 `try { … } catch (Exception e) { LOGGER.error(坐标/维度) } finally { discard(); }` | `guardEntityTick`（`Level.java:607-621`）：`removeErroringEntities` **默认 `false`** ⇒ **崩整个服务端**；管理员设为 `true` ⇒ **静默 discard、仪式无声消失**。自己兜住后变成「恰好尝试一次 + 留下可诊断的 ERROR 日志」，两种坏结局都被消除 |
 | **D19** | 是否再覆写 `broadcastToPlayer` | **不覆写** | `ChunkMap.addEntity` 的 `i != 0` 短路已是结构性硬保证（核对表 #1），而 `broadcastToPlayer` 的唯一调用点（`ChunkMap.updatePlayer:1335`）就在那条已被保证的路径上 ⇒ 再覆写是冗余噪音 |
+| **D20** | 仪式死王的灵魂 | 召唤时**刻意不调** `boss.setSpawnPos(...)`，让 `spawnPos` 保持 `null`，从而 `DeadKingBoss.tickDeath()` 不生成 `dead_king_soul` | **用户裁定（2026-09-20，取代 D7）**：仪式召唤的不祥死王死后留下灵魂，会让后续前来探索的玩家误以为这里是陵墓里那个可复活的死王。源码核对确认 `spawnPos` 对 `DeadKingBoss` 的**唯一行为用途**就是灵魂闸门（`:711-716`；其余是存取器与 NBT 存读，`DeadKingCorpseEntity:84` 属尸体路径）⇒ **删一行即可**，零 mixin、零改动铁魔法。语义上也自洽：原版本就用 `spawnPos != null` 表示「这个死王属于某条复活链」，而仪式是一次性遭遇。<br>**代价（已接受）**：仪式死王**不可再战**（无灵魂可右键护命匣）。战利品与进度触发器不读 `spawnPos`，**不受影响**。<br>**风险**：本方案依赖 IS 的这个实现事实；将来 IS 若改换灵魂闸门，「无灵魂」会**静默**退回「有灵魂」⇒ 缓解 = 代码注释显式写明该依赖 + **双侧验收**（用例 7a 仪式死王无灵魂 / 7b 尸体复活死王仍有灵魂） |
 
 ### 配置
 
@@ -154,7 +156,7 @@ musicVolume = 0.5
 |---|---|---|
 | **C1** | `DreadKingRitualTriggerMixin` | `@Mixin(VaultBlockEntity.Server.class)`。处理器签名必须**逐字匹配 `tryInsertKey` 的形参表**：`(ServerLevel, BlockPos, BlockState, VaultConfig, VaultServerData, VaultSharedData, Player, ItemStack, CallbackInfo)`。唯一职责：把 `(level, pos, player)` 交给 `DreadKingRitualStarter`。**不含任何判定逻辑** |
 | **C2** | `DreadKingRitualStarter` | `static void start(ServerLevel, BlockPos, ServerPlayer)`：开关 → 结构判定 → 计算刷怪点 → 构造并 `addFreshEntity` 标记实体。**唯一持有配置与结构知识的地方** |
-| **C3** | `DreadKingRitualMarker` | `extends Marker`。持有 `lifeTicks`（默认 352）、`musicPlayed`，两者**都必须落 NBT**。`tick()`：首 tick 播音 + 置 `musicPlayed`；每 tick `--lifeTicks`；归零则**在 `try/catch/finally` 内**召唤 + `discard()`（D18）。**不调 `super.tick()`/`baseTick()`**（D17）。**召唤逻辑私有，不对外暴露** |
+| **C3** | `DreadKingRitualMarker` | `extends Marker`。持有 `lifeTicks`（默认 352）、`musicPlayed`，两者**都必须落 NBT**。`tick()`：首 tick 播音 + 置 `musicPlayed`；每 tick `--lifeTicks`；归零则**在 `try/catch/finally` 内**召唤 + `discard()`（D18）。**不调 `super.tick()`/`baseTick()`**（D17）。**召唤逻辑私有，不对外暴露**。召唤时**刻意不调 `boss.setSpawnPos(...)`**（D20）⇒ `spawnPos` 保持 `null`，`tickDeath()` 因而不生成灵魂 |
 | **C4** | `ModEntities`（改） | 沿用既有 `DeferredRegister<EntityType<?>> ENTITIES`，照 `TORNADO` 的写法加 `DREAD_KING_RITUAL_MARKER`。**不要** `.updateInterval(1)`（那是龙卷风为投射物同步加的，本实体不发客户端，加了只会徒增负担） |
 | **C5** | `beloong.mixins.json`（改） | 加进 `mixins` 数组（**不是** `client`）⇒ 走 `injectors.defaultRequire = 1`，注入点消失即**启动崩溃** |
 | **C6** | `Config`（改） | `SERVER_SPEC` 新增 `DreadKingRitual` 静态内部类 + `[dread_king_ritual]` 节，照 `DragonSummon` 的写法 |
@@ -194,7 +196,7 @@ t0'..t352  每 tick：--lifeTicks
 t352   lifeTicks == 0：
     ├ DeadKingBoss boss = new DeadKingBoss(level)
     ├ boss.moveTo(自身位置)
-    ├ boss.setSpawnPos(boss.position())                             ← D7，必须
+    ├ （**刻意不调** setSpawnPos —— D20：让 spawnPos 保持 null，死后因而不生成灵魂）
     ├ boss.finalizeSpawn(level, level.getCurrentDifficultyAt(boss.getOnPos()), MobSpawnType.TRIGGERED, null)
     ├ boss.setPersistenceRequired()
     ├ level.addFreshEntity(boss)
@@ -291,7 +293,8 @@ t352   lifeTicks == 0：
 | 4 | 在**非**城堡处放一个黯影宝库并开启 | **不触发** | 结构配置真的在生效 |
 | 5 | 拿**备用**暗影钥匙对**同一已开过**的宝库再右键 | **不触发** | D1 的精度 —— 被否决的零 mixin 方案会在此失败 |
 | 6 | 在 16 格外 / 音乐响起后再进场 | 听不到 / 只听到剩余部分 | D5 的半径与唱片机语义 |
-| 7 | 打死不祥死王 | **生成灵体**，可用护命匣右键复活 | D7 的 `setSpawnPos` 没漏 |
+| 7a | 打死**仪式召唤**的不祥死王 | **不生成** `irons_spellbooks:dead_king_soul` | D20 的灵魂抑制真的生效 |
+| 7b | 打死**尸体复活**途径的死王（普通与不祥各一次） | **仍生成**灵魂，护命匣可右键复活 | **回归闸门**：证明 D20 没有把灵魂全局弄没。若 IS 将来换掉灵魂闸门，7b 会失败而 7a 会「假通过」 |
 | 8 | 仪式中途走到区块卸载距离外，再回来 | 倒计时从暂停处继续，无音乐 | D12 的已知行为，确认不是卡死 |
 | 9 | `/kill @e[type=beloong:dread_king_ritual_marker]` | 不召唤 | D13 |
 
@@ -307,6 +310,7 @@ t352   lifeTicks == 0：
 |---|---|---|
 | **无声倒计时** | 音乐由客户端音效实例独立播放，不随区块暂停；若玩家在仪式中跑远导致倒计时暂停，回来时音乐可能已放完 | **已知并接受**（D12 + D5 两条决策叠加的必然结果） |
 | **双重 intro** | 死王登场时铁魔法会自己再播一遍同一段 intro（1.0 音量、非定位） | **视作渐强，不处理**（D14） |
+| **仪式死王不可再战** | 死后不生成灵魂（D20）⇒ 护命匣无处可用 | **用户裁定**。为避免灵魂误导后续探索者；其他途径死王的灵魂行为不变 |
 | **一个宝库多人各召一次** | 4 人小队各开一次同一宝库会背靠背出现 4 个不祥死王 | **用户裁定接受**（D11） |
 | **整合包尚未把宝库放进城堡** | 在整合包完成这一步之前，本功能装了但不触发 | **已通过配置项吸收**（D8）；验收时需先手动在城堡放一个黯影宝库 |
 | 不做结构标签（tag）形式 | `structure` 只接受单个 ID | 需要时再扩 |
