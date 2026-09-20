@@ -1,0 +1,14 @@
+{
+  "entity": "minecraft:iron_golem",
+  "trigger": "empty_hand",
+  "name": "beloong.dialogue.iron_golem.name",
+  "pages": [
+    {
+      "text": "beloong.dialogue.iron_golem.p1",
+      "sound": "beloong:dialogue.iron_golem.1"
+    },
+    {
+      "text": "beloong.dialogue.iron_golem.p2"
+    }
+  ]
+}

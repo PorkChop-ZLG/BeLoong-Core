@@ -5,6 +5,7 @@ import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
+import com.zonlong.beloong.client.NpcDialogueHandler;
 import com.zonlong.beloong.client.TornadoRenderer;
 import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
@@ -57,6 +58,8 @@ public class BeLoongCoreClient {
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         NeoForge.EVENT_BUS.register(new LoongPalaceSkyTickHandler());
+        // NPC 对话的右键入口：纯客户端、走游戏总线（与上一行同构）。
+        NeoForge.EVENT_BUS.register(new NpcDialogueHandler());
     }
 
     /** 注册龙宫传送门的粒子渲染工厂（贴图沿用原版 generic_*，只换配色）。 */
