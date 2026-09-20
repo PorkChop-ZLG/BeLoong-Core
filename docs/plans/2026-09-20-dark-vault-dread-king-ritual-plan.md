@@ -1,5 +1,7 @@
 # 黯影宝库「死王仪式」实施计划
 
+**状态：** ✅ **已完成** —— T1–T6 全部落地，2026-09-20 用户实机验收通过（见文末「五、实施结果」）
+
 **目标：** 在 `dragonsurvival:dragon_hunters_castle` 内开启黯影宝库时，于宝库顶生成一个不可见的标记实体，
 播放 `suspense` 音效 140 tick 后召唤**不祥**死者之王。
 
@@ -468,3 +470,30 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 8. 实机日志中**没有** `Ticking entity` 崩溃报告 —— 有则说明 `tick()` 内仍有 `catch` 未覆盖的抛出路径
    （D18 的兜底失效），必须修掉而不是放过
 9. 用例 10（重启续跑 + 音乐不重放）通过 ⇒ 证明 `lifeTicks`/`musicPlayed` 的 NBT 往返正确
+
+---
+
+## 五、实施结果（2026-09-20 收尾）
+
+**状态：T1–T6 全部完成，用户实机验收通过。**
+
+| 项 | 结果 |
+|---|---|
+| 提交 | T1 `74b7e46` · T2 `9ee3047` · T3 `026889b` · T4 `9491bb9` · T5 `ab67cee` · 文档 `e92ebf6`/`d655f67`；实施后三次设计变更：`2e35623`（日志改英文）· `250423e`（D20 灵魂）· `5c326cb`（D21 音轨 + D22 粒子）· `572e889`（D22 微调） |
+| 构建 | `.\gradlew.bat build` 成功；**3 个警告全部是既有的**（`PossibleBiomesFilterMixin` / `ParameterListAccessor`），本次**未引入新警告** |
+| 静态探针 | 3 个新类在 jar 内；`beloong.mixins.json` 的 `mixins` 数组 33 条且含 `minecraft.DreadKingRitualTriggerMixin`（**不在** `client` 数组）；两个 lang 文件均含 `entity.beloong.dread_king_ritual_marker`；反编译 jar 复核到 `140` / `40` / `2.0d` / `4.0d` / `DEAD_KING_SUSPENSE` / `BLOOD_GROUND` |
+| 运行时 | 实机日志（`run/logs/latest.log`）本功能 **0 条 WARN/ERROR**、无 `Ticking entity`、无 `Critical injection failure` ⇒ **mixin 注入点生效**（T5 的运行时校验由此完成） |
+| 规模 | `src/main/java` 138 个 `.java`（新增 3 个：`dreadking/DreadKingRitualStarter`、`entity/DreadKingRitualMarker`、`mixin/minecraft/DreadKingRitualTriggerMixin`） |
+
+**实施期间的三次设计变更**（均已回填设计文档决策表）：
+
+| # | 变更 | 起因 |
+|---|---|---|
+| **D20** | 仪式死王**不留灵魂**（删掉 `setSpawnPos` 一行，取代 D7） | 用户：灵魂会误导后续探索者 |
+| **D21** | 仪式音轨 `intro` → **`suspense`**，时长 352 → **140 tick**（D14 的「双重 intro」由构造消失） | 用户：Boss 战斗音乐与仪式重复 |
+| **D22** | 仪式粒子 `blood_ground`：半径 **4** 格圆盘、每 **5** tick **40** 颗、自上方 **2** 格滴落 | 用户：新增粒子效果 + 两次观感微调 |
+
+**遗留（非本模组职责）**：整合包**仍未**把黯影宝库放进 `dragon_hunters_castle`（原版只在 `treasure_angry_*` 生成）。
+在整合包完成该步骤前，本功能**装了但不触发** —— 这是配置项 `structure` 的正确行为，**不是缺陷**。
+
+**有意不做**：不加自动化测试 —— 项目无测试框架，验收口径一贯是「构建 + 静态探针 + 实机运行」。
