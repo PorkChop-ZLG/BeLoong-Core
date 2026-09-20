@@ -180,7 +180,7 @@ SHOWING_OPTIONS
 改动  src/main/java/com/zonlong/beloong/Config.java
       + [npc_dialogue] enabled / charsPerTick / nameScale
 
-新增  src/main/resources/data/beloong/beloong/npc_dialogue/iron_golem.json
+新增  src/main/resources/assets/beloong/beloong/npc_dialogue/iron_golem.json
 改动  src/main/resources/assets/beloong/lang/zh_cn.json    +4 条键
 改动  src/main/resources/assets/beloong/lang/en_us.json    +4 条键
 ```
@@ -195,7 +195,7 @@ SHOWING_OPTIONS
 | **D2** | 受理侧 | **仅客户端**（`event.getLevel().isClientSide()`） | v1 无副作用；服务端受理就得回一个"打开对话"包，纯属多余 |
 | **D3** | 触发方式 | **数据驱动**：JSON `trigger` 字段 —— `empty_hand`（空手，**缺省值**）/ `any`（手持任意物品）；**不做潜行判断** | 用户裁定（2026-09-20，见 §4.2 修订 R1）。缺省空手以保住"手持铁锭右键铁傀儡 = 修血"的原版语义；`any` 改为**逐实体**显式选择（RPG Dialogue 用同款 `holding` 反条件表达同一件事） |
 | **D4** | 是否取消事件 | **不取消** | 空手右键铁傀儡原版无任何行为；取消没有收益，反而会吃掉第三方模组的交互（将来要接第三方，现在就不该抢） |
-| **D5** | 数据位置 | 模组 jar 内 `data/beloong/beloong/npc_dialogue/<entity>.json` | 与现有 4 个 loader 的路径约定逐字一致（`structure_effects` / `treasure_growth` / `beloong_water_regions` / `waystone_placement`） |
+| **D5** | 数据位置 | 模组 jar 内 **`assets/beloong/beloong/npc_dialogue/<entity>.json`**（**不是 `data/`**，见修订 R3） | 客户端资源管理器以 `PackType.CLIENT_RESOURCES` 构造，只看得到 `assets/` 树；路径前缀 `beloong/` 同时起到跨模组命名空间隔离的作用（与现有 4 个 loader 的 `beloong/<系统>` 约定一致） |
 | **D6** | 读取侧 | **客户端** `SimpleJsonResourceReloadListener`，经 `RegisterClientReloadListenersEvent` 注册 | 渲染全在客户端；客户端同样把模组 jar 当资源包加载，`data/` 可读 ⇒ **零网络包**（风险见 R0） |
 | **D7** | 文件粒度 | **一个文件 = 一个实体类型** | 加一个实体 = 加一个文件，改动面最小；与 `waystone_placement` 的"一文件一清单"风格一致 |
 | **D8** | 页数表达 | **`pages` 数组长度**，不设 `"pages": 3` 计数字段 | 少一个必须与数组保持同步的字段，就少一类"键名对不上"的故障（ADM 专门做 `/npc validate` 查这类问题） |
@@ -228,6 +228,27 @@ SHOWING_OPTIONS
 
 证据：`docs/pictures/原神对话UI参考/参考5.png` 的 x800~1140 / y830~980 与 x680~1320 / y850~910 区域 5× 与 3× 放大；`参考3.png` 的 x330~510 / y470~550 区域 7× 放大。
 另有两处新增观察：竖排选项的**最下一颗紧贴名字上方**（底边 ≈427 对名字顶边 ≈424）；选项是**全圆角胶囊**、左侧为白色三点气泡图标（我们要"离开"语义，故换成门/箭头）。
+
+**R3 —— 数据必须放 `assets/` 而不是 `data/`（2026-09-20，代码审查发现，实现已改）。**
+
+初版 D5 把数据放在 `data/beloong/beloong/npc_dialogue/`，并据此推断"客户端能读到 jar 内 `data/`"。
+**这个推断是错的**，已核到原版源码级：
+
+| 事实 | 依据 |
+|---|---|
+| 客户端重载管理器绑定 `CLIENT_RESOURCES`（目录名 `assets`） | `Minecraft.java:487` `new ReloadableResourceManager(PackType.CLIENT_RESOURCES)`；`PackType.java` `CLIENT_RESOURCES("assets")` / `SERVER_DATA("data")` |
+| 路径解析按 pack type 加前缀 | `FallbackResourceManager:170` → `packresources.listResources(this.type, this.namespace, path, …)` |
+| 因此该监听器**只看得到 `assets/`** | 推论。后果：数据放 `data/` 时 `entries` 恒为空、右键永远无效，**且不报任何错** |
+| 初版引用的"先例"其实不成立 | DS 的 `DragonPartLoader` 目录是 `"skin/parts"`，其文件在 `assets/dragonsurvival/skin/parts/` —— 它证明的是 `assets/`，不是 `data/` |
+
+**当前口径**：数据放 `assets/beloong/beloong/npc_dialogue/*.json`，loader 的目录字符串仍是 `"beloong/npc_dialogue"`（一行代码都不用改）。
+代价：数据**不能**被存档数据包覆盖（R2 本来就已经接受了这一点）；反过来它可被**资源包**覆盖，对纯客户端 UI 而言反而更自然。
+若将来确实需要数据包覆盖，则改为"服务端读取 + 登录下发"（先例：`TreasureSyncPayload` + `ClientTreasureCache`）。
+
+同批次还修了两处（详见计划文档的审查记录）：**I1** 加载器改用 `ifError/ifSuccess` 严格判定
+（`resultOrPartial` 会收下 DFU 的 *partial* 结果，导致坏页被静默丢弃、文件却仍注册）；
+**I2** 补上配置分组自身的语言键 `beloong.configuration.npc_dialogue`（NeoForge 用
+`modId + ".configuration." + key` 取分组标题，缺键会在配置界面显示原始键名）。
 
 ---
 
@@ -283,7 +304,7 @@ SHOWING_OPTIONS
 ## 七、示例数据与语言文件
 
 ```jsonc
-// src/main/resources/data/beloong/beloong/npc_dialogue/iron_golem.json
+// src/main/resources/assets/beloong/beloong/npc_dialogue/iron_golem.json
 {
   "entity": "minecraft:iron_golem",
   "trigger": "empty_hand",                      // 可选；缺省 empty_hand。可选值：empty_hand / any
@@ -322,7 +343,7 @@ SHOWING_OPTIONS
 |---|---|---|
 | 8.1 | **`§` 颜色代码真的可用** | `StringDecomposer.java:90`（`c0 == 167` → `ChatFormatting.getByCode`）；关键在 `:128-129` 的 `FormattedText` 重载会**转调** String 版 ⇒ `Component.translatable(键)` 的**语言文件值里的 `§` 同样生效** |
 | 8.2 | **默认背景会把世界糊掉** | `Screen.java:350-357`：`renderBackground` → `renderBlurredBackground`（`gameRenderer.processBlurEffect`）+ `renderMenuBackground`（`blit(INWORLD_MENU_BACKGROUND)`）。⇒ 必须覆写为空（D13） |
-| 8.3 | 客户端可注册资源重载监听器 | `neoforge-21.1.236-sources.jar` → `net/neoforged/neoforge/client/event/RegisterClientReloadListenersEvent.java`：`registerReloadListener(PreparableReloadListener)`，`implements IModBusEvent`，仅客户端、Minecraft 构造期 |
+| 8.3 | 客户端可注册资源重载监听器，**但只能看到 `assets/`** | `neoforge-21.1.236-sources.jar` → `net/neoforged/neoforge/client/event/RegisterClientReloadListenersEvent.java`：`registerReloadListener(PreparableReloadListener)`，`implements IModBusEvent`，仅客户端、Minecraft 构造期。它交出的 `Minecraft.resourceManager` 是 `new ReloadableResourceManager(PackType.CLIENT_RESOURCES)`（`Minecraft.java:487`），而路径解析按 pack type 加前缀（`FallbackResourceManager:170` → `type.getDirectory()`）⇒ **`data/` 下的文件对此监听器不可见**（详见修订 R3） |
 | 8.4 | 颜色插值有现成 API | `FastColor.java:80` `ARGB32.lerp(float, int, int)` |
 | 8.5 | 文字切分 API 是**按宽度**的 | `Font.java:306` `substrByWidth(FormattedText, int)`、`:302` `plainSubstrByWidth(String, int)` ⇒ 打字机要自己按**可见字符数**切（D15 的要点） |
 | 8.6 | 渐变可用 | `GuiGraphics.java:221` / `:225` `fillGradient(...)` |
@@ -337,7 +358,7 @@ SHOWING_OPTIONS
 
 | # | 风险 / 取舍 | 说明与对策 |
 |---|---|---|
-| **R0** | **客户端能否读到模组 jar 的 `data/`** —— 这是"零网络"设计的**唯一前提** | 机制上客户端把模组 jar 当资源包加载（含 `data/`），预期成立；但**必须第一步就验证**：一级测试先跑通"客户端能列出 `beloong/npc_dialogue/*.json`"。若不成立，退回"服务端读 + 登录时下发"（先例 `TreasureSyncPayload` + `ClientTreasureCache`，成本约 1 个 payload + 1 个客户端缓存） |
+| ~~R0~~ | ~~客户端能否读到模组 jar 的 `data/`~~ | **已解决（2026-09-20，且结论与原假设相反）**：客户端重载管理器是 `CLIENT_RESOURCES`，**读不到 `data/`**，因此数据改放 `assets/`（修订 R3）。运行时观测点：loader 现在同时打印"扫描到的文件数"，恒为 0 即说明目录放错树 |
 | **R1** | 名字 `1.5x` 缩放会**笔画参差** | MC 字体是位图、采样为最近邻（`RenderType.text` 的纹理状态 `blur=false`），非整数倍缩放会出现"有的笔画 1px、有的 2px"。1.5x 是"大小接近原神"与"观感"的折中；`nameScale` 可设 `1.0`（最干净）或 `2.0`（完全清晰但偏大）。**实机看过再定** |
 | **R2** | 存档数据包覆盖对客户端不可见 | 专用服务器上，世界数据包不发给客户端 ⇒ 在 `saves/<world>/datapacks/` 里改对话客户端看不到。整合包场景无影响（jar 随包分发）。若将来需要，加同步包即可 |
 | **R3** | 选项宽度自适应 + 左缘对齐 ⇒ **右边缘参差** | 这是参考图的原样（Genshin 就是参差的），非缺陷。若观感不适，改成固定宽度即可 |

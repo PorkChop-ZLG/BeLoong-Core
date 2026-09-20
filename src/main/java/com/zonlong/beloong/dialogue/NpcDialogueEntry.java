@@ -73,15 +73,37 @@ public record NpcDialogueEntry(
     /**
      * 实体类型编解码。
      * <p>
-     * 用 {@code comapFlatMap} 而非 {@code xmap}：未知实体类型必须变成 {@link DataResult#error}，
+     * 用 {@code flatXmap}（**双向**都可失败）而 {@code comapFlatMap}（只有解码可失败）
+     * 或 {@code xmap}（都不可失败）：未知实体类型必须变成 {@link DataResult#error}，
      * 由加载器把**这一个文件**隔离掉；若在 {@code xmap} 里抛异常，异常会穿透 codec 框架，
      * 变成整个数据包重载失败。与 {@code StructureEffectEntry:21-25} 同款做法。
+     * <p>
+     * 两个方向都写成**显式签名的方法**而不是内联 lambda：{@code flatXmap} 的通配符签名
+     * 会让内联 lambda 的类型推断失败。
      */
-    private static final Codec<EntityType<?>> ENTITY_CODEC = ResourceLocation.CODEC.comapFlatMap(
-            location -> BuiltInRegistries.ENTITY_TYPE.getOptional(location)
-                    .map(DataResult::success)
-                    .orElseGet(() -> DataResult.error(() -> "Unknown entity type: " + location)),
-            BuiltInRegistries.ENTITY_TYPE::getKey);
+    private static final Codec<EntityType<?>> ENTITY_CODEC =
+            ResourceLocation.CODEC.flatXmap(NpcDialogueEntry::decodeEntity, NpcDialogueEntry::encodeEntity);
+
+    private static DataResult<EntityType<?>> decodeEntity(ResourceLocation location) {
+        Optional<EntityType<?>> type = BuiltInRegistries.ENTITY_TYPE.getOptional(location);
+        if (type.isEmpty()) {
+            return DataResult.error(() -> "Unknown entity type: " + location);
+        }
+        return DataResult.success(type.get());
+    }
+
+    /**
+     * 反向（编码）。未注册的实体类型 {@code getKey} 返回 {@code null}，
+     * 直接交给 codec 会得到 null / NPE —— 当前没有序列化路径，但 schema 将来会被
+     * 校验工具或配置导出复用，显式报错比静默产出 null 好。
+     */
+    private static DataResult<ResourceLocation> encodeEntity(EntityType<?> entity) {
+        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(entity);
+        if (id == null) {
+            return DataResult.error(() -> "Entity type is not registered: " + entity);
+        }
+        return DataResult.success(id);
+    }
 
     /** 触发方式编解码：取值只有 {@code empty_hand} 与 {@code any}，未知取值报错而非静默回退。 */
     private static final Codec<Trigger> TRIGGER_CODEC = Codec.STRING.comapFlatMap(

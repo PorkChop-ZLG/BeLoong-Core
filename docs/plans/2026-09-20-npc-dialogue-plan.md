@@ -17,7 +17,7 @@
 | 机制 | 客户端 `RegisterClientReloadListenersEvent` 注册 `SimpleJsonResourceReloadListener`，直接读 jar 内 `data/beloong/beloong/npc_dialogue/*.json` | 服务端 `AddReloadListenerEvent` 读，登录时全量下发（复用 `TreasureSyncPayload` + `ClientTreasureCache` 范式） | A + B 并存（客户端读默认值，服务端下发覆盖层） |
 | 新增活动部件 | 2 个 loader 类 | +1 个 payload、+1 个客户端缓存、+服务端 loader | 两者的全部 + 合并逻辑 |
 | 网络包 | **0** | 1（登录）+ 重载时再发 | 1 |
-| 依赖前提 | 客户端能读 jar 内 `data/`（**已有先例，见下**） | 无 | 无 |
+| 依赖前提 | 客户端能读 jar 内的数据（**已在 `assets/` 下证实；`data/` 读不到，见下**） | 无 | 无 |
 | 能支持"存档数据包覆盖" | ❌（客户端看不到世界数据包） | ✅ | ✅ |
 | 任务数 | 13 | 15 | 18 |
 | 风险 | **低** | 低 | 中（复杂度换来的收益为 0） |
@@ -25,13 +25,18 @@
 **选 A 的三条理由：**
 
 1. **v1 没有副作用** —— 唯一的选项是「离开」，整条链路可以在客户端闭环，方案 B 的 payload 与缓存是纯粹的多余复杂度。
-2. **R0 已有先例**：Dragon Survival（本模组的**必选依赖**）正是这样做的 ——
-   `DragonSurvivalClient.java:140-143` 用 `event.registerReloadListener(...)` 注册，
-   `DragonPartLoader.java:28-34` 是 `SimpleJsonResourceReloadListener` 子类。
-   机制上 `SimpleJsonResourceReloadListener` 走 `PackType.SERVER_DATA` 且**不区分物理侧**，模组 jar 与客户端资源包都在客户端的 pack repository 里。
+2. **客户端确实能读 jar 内的数据 —— 但只在 `assets/` 树下**：Dragon Survival（本模组的**必选依赖**）
+   在 `DragonSurvivalClient.java:140-143` 用 `event.registerReloadListener(...)` 注册
+   `DragonPartLoader`（`SimpleJsonResourceReloadListener` 子类），其文件位于
+   `assets/dragonsurvival/skin/parts/`。**注意这条先例只证明 `assets/`**：
+   客户端重载管理器绑定 `PackType.CLIENT_RESOURCES`（`Minecraft.java:487`），
+   而路径解析按 pack type 加前缀（`FallbackResourceManager:170`）⇒ **`data/` 树对它不可见**。
+   本功能因此把数据放在 `assets/beloong/beloong/npc_dialogue/`，详见 §四 审查修正记录 C1。
 3. **接缝已在设计里留好**（§11）：将来若真要"存档数据包覆盖"，补方案 B 即可，届时触发层与渲染层一行不动。
 
-> **运行时兜底**：任务 3 会用一行日志确认客户端确实读到了文件。若意外为 0 条，按 §13 的 B 方案补丁执行（不需要重新规划）。
+> **运行时观测点**：loader 现在同时打印"扫描到的文件数"与"成功装载条数"
+> （`reloaded npc dialogues: N file(s) scanned, M dialogue(s) loaded`）。
+> **N 恒为 0 就说明目录放错了树**（客户端只看得到 `assets/`）。
 
 ---
 
@@ -158,6 +163,11 @@ public class NpcDialogueLoader extends SimpleJsonResourceReloadListener {   // �
 
 **验证：** `.\gradlew.bat build --console=plain` → `BUILD SUCCESSFUL`
 
+> **执行更正（2026-09-20）**：目录字符串 `"beloong/npc_dialogue"` 不变，但**数据文件必须放
+> `assets/beloong/beloong/npc_dialogue/`**，不能放 `data/` —— 客户端重载管理器绑定
+> `PackType.CLIENT_RESOURCES`，看不到 `data/` 树（见 §四 审查修正记录 C1）。
+> 解析器本身另改为 `ifError/ifSuccess` 严格判定（同节 I1）。
+
 ---
 
 ### 3. 注册客户端重载监听器（+ R0 运行时确认）
@@ -218,6 +228,11 @@ NpcDialogue.nameScale = CLIENT_BUILDER
 CLIENT_BUILDER.pop(); // npc_dialogue
 ```
 
+> **执行更正（2026-09-20，首次执行时编译失败）**：上面这些赋值语句**必须包在 `static { }` 块内** ——
+> CLIENT 段用的是**类级字段初始化**，裸语句在类体里不合法（`错误: 非法的类型开始`）。
+> SERVER 段的同类语句正是在 `static {}` 里（`Config.java:248` 起），本骨架初版漏了这一点。
+> 实际实现：`Config.java:35-72`（嵌套类声明 + `static {}` 块 + 紧随其后的 `CLIENT_SPEC`）。
+
 并在 `CLIENT_SPEC` 之后声明嵌套类（与 SERVER 段的 `DragonSummon` 同构）：
 
 ```java
@@ -229,7 +244,7 @@ public static final class NpcDialogue {
 }
 ```
 
-**语言文件（6 键 × 2 语言）：** `beloong.configuration.npcDialogueEnabled` + `.tooltip`、`npcDialogueCharsPerTick` + `.tooltip`、`npcDialogueNameScale` + `.tooltip`，**按字母序插入**。
+**语言文件（8 键 × 2 语言）：** `beloong.configuration.npcDialogueEnabled` + `.tooltip`、`npcDialogueCharsPerTick` + `.tooltip`、`npcDialogueNameScale` + `.tooltip`，**外加分组自身的 `beloong.configuration.npc_dialogue` + `.tooltip`**（NeoForge 用 `modId + ".configuration." + key` 取分组标题，缺键会在配置界面显示原始键名 —— 见 §四 审查修正记录 I2），全部**按字母序插入**。
 
 **验证：**
 
@@ -479,7 +494,7 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 ### 11. 示例数据 `iron_golem.json` + 语言文件对话键
 
 **文件：**
-- 新增 `src/main/resources/data/beloong/beloong/npc_dialogue/iron_golem.json`
+- 新增 `src/main/resources/assets/beloong/beloong/npc_dialogue/iron_golem.json`
 - 修改 `src/main/resources/assets/beloong/lang/zh_cn.json`、`en_us.json`
 
 **内容：**
@@ -541,7 +556,7 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 
 | # | 风险 | 处置 |
 |---|---|---|
-| R0 | 客户端读不到 jar 内 `data/`（日志显示 0 条且文件确实在 jar 里） | 切 **方案 B**：把 `NpcDialogueLoader` 改为服务端 `AddReloadListenerEvent` 注册，加 `NpcDialogueSyncPayload`（照 `TreasureSyncPayload` 抄）+ 客户端 `ClientNpcDialogueCache`；**触发层与渲染层一行不动**。仅任务 2/3 需重做 |
+| ~~R0~~ | ~~客户端读不到 jar 内 `data/`~~ | **已发生并已修（2026-09-20）**：客户端管理器绑定 `CLIENT_RESOURCES`，**确实读不到 `data/`**；数据改放 `assets/beloong/beloong/npc_dialogue/`（loader 一行未改）。见 §四 审查修正记录 C1 |
 | R1 | 名字 1.5× 缩放笔画参差 | 已是配置项：设 `nameScale = 1.0`（最清晰）或 `2.0`（清晰但偏大） |
 | R2 | 存档数据包覆盖客户端不可见 | 已知限制；需要时走方案 B |
 | R3 | 选项右边缘参差 | 参考图原生行为，非缺陷；如需整齐改为固定宽度 |
@@ -549,7 +564,22 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 
 ---
 
-## 四、不做什么（对齐设计文档 §2 非目标）
+## 四、审查修正记录（2026-09-20，批次一 code review 后）
+
+批次一（T1–T4）完成后跑了一次独立代码审查，发现 1 个 Critical + 2 个 Important，均已修复并重新验证。
+
+| # | 级别 | 问题 | 处置 |
+|---|---|---|---|
+| **C1** | Critical | 数据放 `data/` 时客户端加载器**永远读不到**（`entries` 恒空、右键无效且不报错）。客户端重载管理器由 `Minecraft.java:487` 以 `PackType.CLIENT_RESOURCES` 构造，路径解析按 pack type 加前缀（`FallbackResourceManager:170`）。计划 §〇.2 引用的 DS 先例只证明 `assets/`，**引错了** | 数据改放 `assets/beloong/beloong/npc_dialogue/`（loader 目录字符串不变）。设计文档 D5 / §7 / §8.3 / R0 同步更正，并记入设计文档修订 R3 |
+| **I1** | Important | `resultOrPartial` 会接受 DFU 的 **partial** 结果：`Codec.list` 保留部分解码成功的元素，于是"一页坏数据被静默丢掉、整条对话却仍注册"（玩家看到被截断的对话，日志还谎称文件解析失败） | 改用 `ifError` + `ifSuccess` 严格判定（`Error.ifSuccess` 是 no-op ⇒ 带 partial 的 Error 也整文件拒绝） |
+| **I2** | Important | `beloong.configuration.npc_dialogue` 分组键缺失 ⇒ 配置界面显示原始键名。NeoForge `ConfigurationScreen.java:557` 用 `modId + ".configuration." + key` 取分组标题 | 两种语言各补分组键 + `.tooltip`（现为 216 键，集合对称） |
+| S1 | Suggestion | 编码方向 `getKey` 对未注册实体返回 null | 改用 `flatXmap`（**双向**可失败；注意不是 `flatComapMap`，后者是"解码可失败/编码不可失败"），显式签名辅助方法避开泛型推断失败 |
+| S2 | Suggestion | 日志拼写 + 缺少扫描文件数 | 改为 `N file(s) scanned, M dialogue(s) loaded` —— N 即"目录是否放对树"的观测点 |
+| S3 | Suggestion | `entries` 非 volatile | **不采纳**：`apply` 与 `get()` 都在客户端主线程（原版用主线程执行器跑 apply），加 volatile 会暗示一条并不存在的异步路径 |
+
+---
+
+## 五、不做什么（对齐设计文档 §2 非目标）
 
 - ❌ 对话树 / 分支 / 条件 / 进度存储
 - ❌ 服务端逻辑与网络包（除非 R0 触发方案 B）
