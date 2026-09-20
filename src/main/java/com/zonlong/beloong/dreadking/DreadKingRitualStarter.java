@@ -75,7 +75,7 @@ public final class DreadKingRitualStarter {
         marker.moveTo(spawnPos.getX() + 0.5D, spawnPos.getY(), spawnPos.getZ() + 0.5D);
 
         if (level.addFreshEntity(marker)) {
-            LOGGER.info("[BeLoong] dread_king_ritual: 仪式开始 @ {} {}（由 {} 开启黯影宝库）",
+            LOGGER.info("[BeLoong] dread_king_ritual: ritual started at {} {} (dark vault opened by {})",
                     level.dimension().location(), spawnPos, player.getName().getString());
         }
     }
@@ -99,7 +99,8 @@ public final class DreadKingRitualStarter {
         String configured = Config.DreadKingRitual.structure.get();
         ResourceLocation id = ResourceLocation.tryParse(configured);
         if (id == null) {
-            LOGGER.warn("[BeLoong] dread_king_ritual: 配置的结构 ID 无法解析，仪式不会触发: {}", configured);
+            LOGGER.warn("[BeLoong] dread_king_ritual: configured structure id cannot be parsed,"
+                    + " the ritual will never trigger: {}", configured);
             return false;
         }
 
@@ -108,7 +109,8 @@ public final class DreadKingRitualStarter {
                 .getHolder(ResourceKey.create(Registries.STRUCTURE, id))
                 .orElse(null);
         if (holder == null) {
-            LOGGER.warn("[BeLoong] dread_king_ritual: 配置的结构在注册表中不存在，仪式不会触发: {}", id);
+            LOGGER.warn("[BeLoong] dread_king_ritual: configured structure is not present in the registry,"
+                    + " the ritual will never trigger: {}", id);
             return false;
         }
 
@@ -117,7 +119,8 @@ public final class DreadKingRitualStarter {
                 .isValid();
         if (!hit) {
             // 用 debug 而非 info：世界里的每个黯影宝库都会被走到这条分支，info 会刷屏。
-            LOGGER.debug("[BeLoong] dread_king_ritual: 位置 {} 不在结构 {} 的拼图块内，跳过仪式", pos, id);
+            LOGGER.debug("[BeLoong] dread_king_ritual: {} is not inside a piece of structure {},"
+                    + " skipping the ritual", pos, id);
         }
         return hit;
     }
@@ -137,15 +140,16 @@ public final class DreadKingRitualStarter {
             BlockPos candidate = base.above(dy);
             if (hasClearance(level, candidate)) {
                 if (dy > 0) {
-                    LOGGER.info("[BeLoong] dread_king_ritual: 宝库顶净空不足，刷怪点自 {} 上移 {} 格至 {}",
+                    LOGGER.info("[BeLoong] dread_king_ritual: not enough clearance above the vault,"
+                                    + " moved the spawn point from {} up {} block(s) to {}",
                             base, dy, candidate);
                 }
                 return candidate;
             }
         }
-        LOGGER.warn("[BeLoong] dread_king_ritual: 自宝库顶 {} 起 {} 格内找不到能容纳 {}×{} 的净空，"
-                        + "按需求仍在宝库顶召唤（死王可能穿模）",
-                base, MAX_UPWARD_SCAN, BOSS_HEIGHT, BOSS_WIDTH);
+        LOGGER.warn("[BeLoong] dread_king_ritual: no clearance for a {}x{} boss within {} block(s) above"
+                        + " the vault top {}, spawning there anyway as required (the Dead King may clip into blocks)",
+                BOSS_HEIGHT, BOSS_WIDTH, MAX_UPWARD_SCAN, base);
         return base;
     }
 

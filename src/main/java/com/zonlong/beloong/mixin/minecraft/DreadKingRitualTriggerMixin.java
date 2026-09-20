@@ -105,7 +105,8 @@ public abstract class DreadKingRitualTriggerMixin {
         try {
             DreadKingRitualStarter.start(level, pos, serverPlayer);
         } catch (Exception e) {
-            LOGGER.error("[BeLoong] dread_king_ritual: 仪式编排失败 @ {} {}（原版开箱不受影响）",
+            LOGGER.error("[BeLoong] dread_king_ritual: starter failed at {} {}"
+                            + " (the vanilla vault opening is unaffected)",
                     level.dimension().location(), pos, e);
         }
     }

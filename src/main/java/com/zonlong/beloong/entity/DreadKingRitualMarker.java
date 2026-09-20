@@ -119,7 +119,7 @@ public class DreadKingRitualMarker extends Marker {
         try {
             summonDeadKing();
         } catch (Exception e) {
-            LOGGER.error("[BeLoong] dread_king_ritual: 召唤不祥死者之王失败 @ {} {}",
+            LOGGER.error("[BeLoong] dread_king_ritual: failed to summon the ominous Dead King at {} {}",
                     level().dimension().location(), position(), e);
         } finally {
             discard();
