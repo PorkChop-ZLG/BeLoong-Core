@@ -200,6 +200,35 @@
 4. 设计文档/计划文档/memory 三处记录与实际实现一致；
 5. 移植件 `HellGateBlockEntity` 的差异仍可数：本次只多一处调用，且原条件行未改。
 
-## 五、实施结果
+## 五、实施结果（2026-09-21 收尾）
 
-（待实施后回填：每个任务的结论与实机读数）
+**状态：** ✅ T1–T9 全部落地；用户实机确认「测试通过，没什么问题」（含多人场景）。
+**提交：** `52028ad`（C1 判据+注册+编排层+挂钩）→ `80c520c`（C2 临时进度）→ C3 文档 → C4 删除临时进度。
+
+| 任务 | 结果 | 证据 |
+|---|---|---|
+| T1 判据 | ✅ | `javap`：`extends SimpleCriterionTrigger<…Instance>` + `public void trigger(ServerPlayer)` |
+| T2 注册 | ✅ | `ModCriteria` 常量池 `Utf8 hell_gate_opened`；既有三个判据名未受影响 |
+| T3 编排层 | ✅ | 字节码含 `Vec3.atCenterOf` / `List.copyOf` / `isSpectator` / `distanceToSqr` / `ModCriteria.HELL_GATE_OPENED` |
+| T4 挂钩 | ✅ | `tick` 内 `instanceof ServerLevel` + `grant(ServerLevel, BlockPos)`；`git diff` 证实**灾变原有条件行一字未改** |
+| T5 临时进度 | ✅ | JSON 可解析、jar 内含（475 B）；实机冒烟 grant-result=1 |
+| T6 静态探针 | ✅ | jar 内 3 个新 class + 进度 JSON；四项联动检查全绿 |
+| T7 实机探针 | ✅ 5/5 | 见设计文档 §八 B-1（含第二条独立证据：聊天播报时刻） |
+| T8 文档/memory | ✅ | 本文档 §五 + 设计文档 §八/§十三 + `memory/` 三处 |
+| T9 删除临时进度 | ✅ | `git rm` + 重建 jar 后 `data/beloong/advancement/` 不再存在（反向取证） |
+
+### 本次新增的两条探针教训（已记入 `memory/learned-patterns.md`）
+
+1. **`execute if score #x obj matches 0` 对从未设置过的分数不成立** —— 分数不存在 ≠ 0。
+   我加的定点复核（把「门是否 OPEN」与「是否已发放」在同一次调用里对读）就是因为这条**第一次整轮白跑**：
+   排程条件不成立 ⇒ 一行输出都没有。**凡是要用分数做「第几次加载/第几步」的开关，先 `add`/`set` 再判断。**
+2. **单人服务端的墙上时间 ≠ tick 数**：观测到「点火 → 播报」≈6.6 s，而代码是 145 tick = 7.25 s
+   —— 追赶 tick 会让 ticks/秒 短时高于 20。⇒ **判定「等了多少 tick」这类断言，要么读游戏时间，要么只认代码位置，
+   不要用日志时间戳反推 tick 数。**
+
+### 未完成/遗留（据实记录）
+
+- **同刻配对复核**未跑成（探针 bug，已修且已归档 `hellgate_pairprobe`，按用户要求停手）⇒
+  「发放与门变可进入同生同灭」目前只有**代码级证据**（同一分支），没有同刻实机读数。
+- 多玩家并发由用户实机确认 ✅（开发环境单客户端无法机器验证）。
+

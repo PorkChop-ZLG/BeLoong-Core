@@ -1,7 +1,7 @@
 # 地狱之门「开启」进度触发器 设计文档
 
 **日期：** 2026-09-21
-**状态：** ✅ 已批准（用户逐节确认：架构与组件 / 数据流与错误处理 / 验证策略）
+**状态：** ✅ **已实施并实机验收通过**（用户 2026-09-21 确认「测试通过，没什么问题」；实机读数见 §八 B）
 **采用方案：** 方案 B —— 判据 + **薄编排层**（发放口径集中在一个文件；移植件只加一行调用）
 **基线：** `disaster2` @ `da16aea`（版本 `0.9.6`，领先 `origin/disaster2` 8 个提交，未推送）
 **依赖前提：** 地狱之门本体已实现并实机验收通过（`docs/plans/2026-09-20-hell-gate-design.md`）
@@ -186,6 +186,33 @@
 5. 临时进度设 `announce_to_chat: true` + toast + 不隐藏 ⇒ 日志里另有一条聊天播报作为**第二条独立证据**，
    同时你能亲眼看到弹窗。
 
+#### B-1. 实测结果（2026-09-21，一次客户端运行，5/5 通过）
+
+| # | 场景 | 期望（早 / 晚） | **实测** | 结论 |
+|---|---|---|---|---|
+| 0 | 冒烟：进度能否被加载 | grant-result=1 | **1** | 进度 JSON 合法、判据被引用（否则 `trigger` 会静默 no-op） |
+| 1 | 门前 16 格、生存 | 0 / 1 | **0 / 1** | 要求 1 ✅；**要求 2 ✅**（点火后 ≈4.6 s 时仍未发放） |
+| 2 | 40 格外、生存 | — / 0 | **0** | 32 格半径过滤生效 |
+| 3 | 门前 16 格、旁观 | — / 0 | **0** | 旁观被排除 |
+| 4 | 门前 16 格、创造 | 0 / 1 | **0 / 1** | 创造计入（有意口径） |
+| 5 | 已持有进度再开一扇 | — / 1 且 0 条播报 | **1 且 0 条播报** | 进度一次性 |
+
+第二条独立证据（聊天播报，`frame=goal` ⇒ 文案是「…达成了目标[…]」）：
+s0 冒烟 14:02:19.458（我自己 grant 的那次）、**s1 于 14:02:29.669**、s4 于 14:03:08.615。
+s1 点火时刻 14:02:23.025 ⇒ 播报落在点火后 **≈6.6 s**（理论 145 tick = 7.25 s）。
+差值来自单人服务端「追赶 tick」导致墙上时间与 tick 数不成正比 ⇒
+**「正好 145 tick」的权威证据是代码位置**（`grant` 就在置 `OPEN` 的同一分支里，见 §三/§九），墙上时间只作旁证。
+整轮无本模组 WARN/ERROR、无 crash-report、客户端干净退出。
+
+#### B-2. 一处**未完成**的补强（据实记录）
+
+为把「发放」与「门变成可进入」直接绑在一起（同一次调用里同时读「门是否 OPEN」与「是否已发放」），
+我加做过一次定点复核，但**第一次没跑起来**：探针自身的 bug ——
+`execute if score #loads gp2 matches 0` 对**从未设置过的分数**不成立（**分数不存在 ≠ 0**），
+于是排程根本没发生、一行输出都没有。已修好并归档（`run/hellgate_probe_packs/hellgate_pairprobe`），
+但按用户要求停手，未再跑。
+⇒ 目前「同生同灭」这条只有**代码级证据**（同一分支内），没有同刻实机读数。
+
 ### C. 人眼验收
 
 toast 弹窗 + 进度树里的示例根标签（测试进度无 `parent`，自成一根，便于点开查看）。机器无法断言。
@@ -256,3 +283,77 @@ toast 弹窗 + 进度树里的示例根标签（测试进度无 `parent`，自�
    （c）多人场景由用户在真实服务器上抽验。
 3. **`/setblock … open=true` 硬开门不发进度** —— 这是要求 2 的必然结果，不是缺陷。
 4. **不做**：判据自定义字段、开门者兜底、自定义事件、真实进度、进度条件里的门坐标。
+5. **多人同时在场**已由用户实机确认通过（2026-09-21）。
+
+---
+
+## 十三、用户追加提问：「用钥匙开门那一刻」要不要再写判据？
+
+**结论：不需要。那一刻用原版判据 `minecraft:item_used_on_block` 就能纯数据包实现，模组侧零改动。**
+
+### 13.1 为什么能（两条源码级依据）
+
+1. **触发链**：`ServerPlayerGameMode#useItemOn` 里
+   `if (iteminteractionresult.consumesAction()) { CriteriaTriggers.ITEM_USED_ON_BLOCK.trigger(player, blockpos, itemstack); }`
+   —— 而本模组 `HellGateBlock#useItemOn` 在钥匙命中时返回
+   `ItemInteractionResult.sidedSuccess(...)`（即 `SUCCESS`，`consumesAction()` 为真）
+   ⇒ **用钥匙点门必然触发该原版判据**；用无关物品点门返回 `PASS_TO_DEFAULT_BLOCK_INTERACTION` ⇒ 不触发。
+2. **条件表达力足够**：1.21.1 的该判据条件是一个**战利品条件列表**，原版范式
+   `data/minecraft/advancement/adventure/lighten_up.json`＝「用斧子点铜灯点亮」，
+   用的正是 `minecraft:location_check`（可按方块与**方块状态**筛）＋ `minecraft:match_tool`（物品谓词，支持 `#tag`）。
+
+### 13.2 可直接粘贴给整合包的 JSON（模组侧不需要任何东西）
+
+```json
+{
+  "criteria": {
+    "unlock": {
+      "trigger": "minecraft:item_used_on_block",
+      "conditions": {
+        "location": [
+          { "condition": "minecraft:location_check",
+            "predicate": { "block": { "blocks": ["beloong:hell_gate"], "state": { "lit": "false" } } } },
+          { "condition": "minecraft:match_tool",
+            "predicate": { "items": "#beloong:hell_gate_keys" } }
+        ]
+      }
+    }
+  }
+}
+```
+
+`state: {"lit": "false"}` 这一条**顺手解决了一个语义问题**：只认「这一次把门点着」，
+对着已经开着的门再点不会重复触发（本模组自己的判据没有这个区分，因为它的语义是「门开完」）。
+
+### 13.3 两个时刻的语义对照（选哪个取决于想要哪种进度）
+
+| | **点击那一刻**（纯数据包） | **门开完那一刻**（本次实现的自定义判据） |
+|---|---|---|
+| 语义 | 「我用钥匙解锁了这扇门」 | 「门开了；在附近的人都算」 |
+| 时机 | 右键瞬间 | 点击后 **145 tick（7.25 s）** |
+| 谁能拿到 | 默认**只有点击者** | 门 **32 格内所有非旁观玩家**（创造计入） |
+| 误触发 | 可用 `state.lit=false` 卡住；否则点已开的门也会触发 | 只在真正开完时发一次 |
+| 落在哪 | 整合包侧 JSON（零代码） | 模组侧判据 + 编排层（已实现） |
+| 额外的门槛 | 无（原版判据，整合包随便写） | 需要本模组提供 |
+
+### 13.4 如果「点击那一刻」也要求**周围玩家都能拿**
+
+纯数据包同样可以，但要靠**奖励函数**发散（模组的判据已经自带这个能力，数据包方案要自己写）：
+
+```json
+"rewards": { "function": "整合包:hell_gate_unlock_fanout" }
+```
+```mcfunction
+# data/<整合包ns>/function/hell_gate_unlock_fanout.mcfunction
+advancement grant @a[distance=..32,gamemode=!spectator] only <整合包的真实进度>
+advancement revoke @s only <上面那个隐藏的触发用进度>   # 允许下次再触发
+```
+字段依据：`AdvancementRewards(int experience, List<loot>, List<recipes>, Optional<CacheableFunction> function)`
+——`rewards.function` 是原版支持的字段（原版自己的进度只用了 `experience`/`recipes`，所以现成例子不多）。
+
+### 13.5 一句话建议
+
+- 想要「**我拿钥匙开了门**」⇒ 用 §13.2 的原版判据，**别再写判据**；
+- 想要「**门开完了、在场的都算**」⇒ 就是本次这条自定义判据，已实现并验收；
+- 两者语义不同，**可以并存**，互不冲突。
+
