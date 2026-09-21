@@ -2,7 +2,7 @@ package com.zonlong.beloong.block;
 
 import com.mojang.serialization.MapCodec;
 import com.zonlong.beloong.registry.ModBlocks;
-import io.redspace.ironsspellbooks.registries.ItemRegistry;
+import com.zonlong.beloong.registry.ModItemTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.StringRepresentable;
@@ -45,7 +45,8 @@ import org.jetbrains.annotations.Nullable;
  *
  * <h2>它是什么</h2>
  * 一个 <b>5 宽 × 8 高</b>的多方块门（放置 1 格后由 {@link #setPlacedBy} 铺满 40 格）。
- * 手持 <b>{@code irons_spellbooks:bone_key}（骸骨钥匙）</b>右键任意一格即触发开门流程：
+ * 手持 <b>{@code #beloong:hell_gate_keys} 里的钥匙</b>（默认是铁魔法的骸骨钥匙
+ * {@code irons_spellbooks:bone_key}）右键任意一格即触发开门流程：
  * <ol>
  *   <li>该格 {@code LIT = true}（并触发方块事件 1 启动开启动画）</li>
  *   <li>{@link HellGateBlockEntity#tick} 推进：第 1 tick 屏震 → 第 28 tick 播开门音效 + 一次
@@ -63,7 +64,7 @@ import org.jetbrains.annotations.Nullable;
  *   <tr><th>灾变</th><th>本模组</th></tr>
  *   <tr><td>{@code ModBlocks.DOOR_OF_SEAL}</td><td>{@link ModBlocks#HELL_GATE}</td></tr>
  *   <tr><td>{@code ModTileentites.DOOR_OF_SEAL}</td><td>{@link ModBlocks#HELL_GATE_BLOCK_ENTITY}</td></tr>
- *   <tr><td>{@code ModItems.STRANGE_KEY}（怪奇之钥）</td><td>{@code irons_spellbooks:bone_key}（骸骨钥匙）</td></tr>
+ *   <tr><td>{@code ModItems.STRANGE_KEY}（怪奇之钥，写死）</td><td><b>{@link ModItemTags#HELL_GATE_KEYS} 物品 tag</b>（默认骸骨钥匙）——见 §七 偏离 4</td></tr>
  *   <tr><td>{@code ModSounds.DOOR_OF_SEAL_OPEN}</td><td>{@link ModSounds#HELL_GATE_OPEN}（自建音效，字幕「地狱之门：敞开」）</td></tr>
  *   <tr><td>{@code ScreenShake_Entity.ScreenShake(...)}</td><td><b>未移植</b>——仍直接调用灾变的静态 helper（灾变是 required 依赖）</td></tr>
  * </table>
@@ -131,7 +132,10 @@ public class HellGateBlock extends BaseEntityBlock {
     }
 
     /**
-     * 手持骸骨钥匙右键任意一格 ⇒ 换算到基准格并触发开门流程。
+     * 手持钥匙 tag 里的任一物品右键任意一格 ⇒ 换算到基准格并触发开门流程。
+     * <p>
+     * 判定用 {@code stack.is(ModItemTags.HELL_GATE_KEYS)}（物品 tag），因此整合包增删钥匙不需要改代码；
+     * 物品 tag 是双端同步的，所以客户端预测结果与服务端判定一致。
      * <p>
      * 注意命中点坐标要一起换算：{@code onHit} 用的是基准格的位置，若直接把当前格的
      * {@link BlockHitResult} 传下去，音效/爆炸/动画会发生在被点的那一格而不是门中心。
@@ -142,7 +146,7 @@ public class HellGateBlock extends BaseEntityBlock {
         BlockPos basePos = getBasePos(state, pos);
         BlockState baseState = level.getBlockState(basePos);
 
-        if (player.getItemInHand(hand).is(ItemRegistry.BONE_KEY.get())) {
+        if (player.getItemInHand(hand).is(ModItemTags.HELL_GATE_KEYS)) {
             return this.onHit(level, baseState, new BlockHitResult(
                     hit.getLocation().add(basePos.getX() - pos.getX(),
                             basePos.getY() - pos.getY(), basePos.getZ() - pos.getZ()),

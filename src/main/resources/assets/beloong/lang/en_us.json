@@ -187,6 +187,8 @@
   "item.beloong.eternal_porkchop.tooltip": "A magical porkchop that never runs out.",
   "item.beloong.fire_essence": "Fire Essence",
   "item.beloong.fire_essence.tooltip": "An Elemental Essence condensed from the fire element; it provides mana for a dragon's growth.",
+  "item.beloong.hell_gate.key": "Key: %s",
+  "item.beloong.hell_gate.no_key": "Key: none",
   "item.beloong.ice_essence": "Ice Essence",
   "item.beloong.ice_essence.tooltip": "An Elemental Essence condensed from the ice element; it provides mana for a dragon's growth.",
   "item.beloong.light_essence": "Light Essence",

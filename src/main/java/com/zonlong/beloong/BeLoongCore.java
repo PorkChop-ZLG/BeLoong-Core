@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
@@ -109,6 +110,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());
