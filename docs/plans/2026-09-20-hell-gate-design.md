@@ -37,7 +37,7 @@
 | 2 | **灾变的这四个类把注册表引用写死** —— `ModBlocks.DOOR_OF_SEAL`（`setPlacedBy` / `playerWillDestroy` / `BE.tick` 的 `blockstate.is(...)`）、`ModTileentites.DOOR_OF_SEAL`（BE 构造器 / `getTicker`）、`ModItems.STRANGE_KEY`（`useItemOn`）、`ModSounds.DOOR_OF_SEAL_OPEN`（`BE.tick`） | `Door_of_Seal_Block.java:148,242,263`、`Door_Of_Seal_BlockEntity.java:43,102`、`:79`、`ModSounds.java:539` | ⇒ 继承者拿到的是一扇**指向灾变方块/音效/钥匙**的门，不可能「换成我的」 |
 | 3 | **蹭灾变的 `BlockEntityType` 在引擎层就被判死** —— `LevelChunk.setBlockState` 对已存在但「类型不接受该状态」的 BE 会 **`removeBlockEntity(pos)` 然后重新 `newBlockEntity`**；`setBlockEntity` 在 `getType().isValid(state)` 为假时**只打一条 warn 就 `return`** | `build/review-src/**/LevelChunk.java:286-294`、`:392-395` | ⇒ 复用灾变的 BE 类型只会得到「门放下去没有实体」的**静默失效**，不是报错。方案 B 不只是「更干净」，是唯一可行 |
 | 4 | **客户端渲染器/模型的泛型写死** —— `Door_Of_Seal_Renderer implements BlockEntityRenderer<Door_Of_Seal_BlockEntity>`、`Door_Of_Seal_Model.animate(Door_Of_Seal_BlockEntity, float)` | `Door_Of_Seal_Renderer.java:30`、`Door_Of_Seal_Model.java:72` | ⇒ 渲染侧同样无法借用，只能照抄 |
-| 5 | **钥匙判定只是一个 `is(...)`，不消耗** —— `player.getItemInHand(hand).is(ModItems.STRANGE_KEY.get())`；`attemptToRing` 也只置 `LIT`，不动物品栈 | `Door_of_Seal_Block.java:90,113-124` | ⇒ 换钥匙 = 换**一个** `Item` 引用；「不消耗」是要**照搬**的行为 |
+| 5 | **钥匙判定只是一个 `is(...)`，不消耗** —— `player.getItemInHand(hand).is(ModItems.STRANGE_KEY.get())`；`attemptToRing` 也只置 `LIT`，不动物品栈 | `Door_of_Seal_Block.java:90,113-124` | ⇒ 换钥匙 = 换**一个** `Item` 引用（本模组后来进一步改成**物品 tag**，见 §十二） |
 | 6 | **灾变的门本身不含任何传送/维度逻辑** —— `OPEN` 只让 `getCollisionShape`/`getBlockSupportShape` 返回 `Shapes.empty()` | `Door_of_Seal_Block.java:165-179` | ⇒ 用户裁定的「只是放行」= 原样照搬，无需增删 |
 
 ---
@@ -173,6 +173,9 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | D14 | 实机验证用**数据包探针**而非手点（见实施计划 §〇之二） | 本项目无测试套件；数据包可以在无人操作的情况下覆盖「40 格状态装配 + 通 LIT + 145 tick 后全开」这条主链 |
 | D15 | **贴图追加需求：换成下界风格**（2026-09-20 二轮） | 用户要求：蓝宝石锁→红宝石、石砖主体→下界砖、白雪装饰→血红、**灰色石框不变**；先做视觉核对再动手（§十一） |
 | D16 | 换色方法：**同序调色板替换**，目标色一律取自原版材质的真实调色板 | 石砖 7 色 → `nether_bricks` 7 色；雪 4 色 → `nether_wart_block` 上 4 档；蓝宝石 7 色 → 深红→亮红 7 阶；灰框 6 色与宝石高光 `#FFFFFF` 不动。按明度同序对应 ⇒ 原图所有明暗层次保留（§十一） |
+| D17 | **钥匙改为物品 tag 匹配**：`#beloong:hell_gate_keys`，出厂默认 `irons_spellbooks:bone_key` | 用户追加需求；整合包可增删、支持多种钥匙、`/reload` 即时生效；物品 tag 双端同步（§十二） |
+| D18 | **tag 为空/缺失时加载期告警**（英文日志） | 用户明确要求；这是 tag 化唯一的静默失败面 —— 表现只是「点门没反应」（§十二） |
+| D19 | **tooltip 直接列出钥匙物品名**（每把一行），不显示 tag 名；tag 为空时显示「钥匙：无」 | 用户明确要求「tooltip 中应该直接显示需要的钥匙的名字，而不是这个标签」；玩家要的是「拿什么去开门」（§十二） |
 
 ---
 
@@ -210,9 +213,11 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | 1 | 第 28 tick 的**音效**加了 `!level.isClientSide` 守卫 | `level.playSound(...)` 没有守卫，而 BE 双端都会 tick ⇒ 客户端本地播一次、再收服务端广播 ⇒ **同一音效听两遍** | 只在服务端播（客户端由广播收到一次） | 听觉上是纯 bug 修复；若日后要与灾变**逐字节**一致，删掉那个判断即可 |
 | 2 | `getAnimationState(String)` 用 `.equals` | 用 `==` 比较字符串引用（靠调用方传字面量、字面量驻留才侥幸成立） | `.equals` | 调用方传字面量时行为完全相同；换成非常量调用时也不会静默返回空 `AnimationState` |
 | 3 | 渲染器的**四个 `translate` 分支合并为一句** | `if (NORTH) translate(0.5,1.501,0.5) else if (EAST) translate(0.5F,1.501F,0.5F) ...`（四支字面量完全相同） | `translate(0.5D, 1.501F, 0.5D)` | 四支等价，合并后朝向差异完全由随后的 `mulPose(dir.getOpposite().getRotation())` 承担；行为等价 |
+| 4 | **钥匙来源：物品 tag**（`#beloong:hell_gate_keys`，默认含骸骨钥匙） | 写死单个物品 ID | 用 `ItemStack#is(TagKey)` 判定 | 用户追加需求（§十二）：整合包要能增删钥匙、要支持多种钥匙。代价是引入一个「tag 为空 = 谁都开不了」的静默失败面，已用加载期告警（`HellGateKeyWatcher`）兜住 |
 
-除以上三处，**没有任何其他行为改动**：属性名、序列化名、NBT 键、40 格坐标算法、时序、
-爆炸参数、屏震参数、动画关键帧、贴图与音频字节，全部一致。
+除以上四处，**没有其他行为改动**。§十二 的 tag 化只改「接受哪些物品」，不动门的任何时序/几何；
+属性名、序列化名、NBT 键、40 格坐标算法、时序、爆炸参数、屏震参数、动画关键帧全部一致；
+贴图已按下界风格换色（§十一），**音效字节仍与灾变逐字节相同**。
 
 ---
 
@@ -258,6 +263,8 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | `useItemOn`（骸骨钥匙右键）+ `blockEvent(1)` 启动动画 | 同上，需真人交互 | 真人右键一次即可 |
 | `playerWillDestroy`（创造模式破坏整扇门） | 同上 | 真人破坏一次即可 |
 | 渲染器是否被真正调用（而非「没崩」） | 无自动化断言手段 | 截图 + 用户视觉验收（已通过） |
+| `useItemOn` 的**判定谓词已换成 tag 后的**右键开门 | 同上（真人交互）；tag 内容本身已由 §十二 实机证实 | 真人右键一次即可 |
+| 物品 tooltip 的渲染结果 | 只能人眼看；其数据来源（tag 内容）已在 §十二 机器验证 | 鼠标悬停在「地狱之门」物品上 |
 
 ---
 
@@ -387,4 +394,76 @@ Y_OFFSET 0..7  →  每列 8 格，共 5 × 8 = 40
 | 5 | 灰色框架不变 | ✅ 6 色原样（对比图里可见蓝灰框完全没变） |
 | 6 | 布局 / 透明区不被破坏 | ✅ alpha 逐像素相同、不透明像素数不变 |
 | 7 | 对照图人眼确认 | ✅ `preview/cmp_block_4x.png`、`preview/cmp_lock_7x.png`、`preview/cmp_item_16x.png`（左原版 / 右新版） |
+
+---
+
+## 十二、追加需求 2：钥匙改为物品 tag 匹配（2026-09-20 追加，已实施并实机验收）
+
+### 用户原话与裁定
+
+> 1. 开启地狱之门的钥匙，目前是硬编码的，和灾变做法一样
+> 2. 我希望可以改成 **标签 tag 匹配**，便于整合包侧修改，以及支持多种钥匙
+> 先讨论可行性，不要动手
+
+讨论后用户拍板四条：**tag 名 `beloong:hell_gate_keys`**、**保留骸骨钥匙为出厂默认**、
+**需要「tag 为空」的加载期警告**、**需要 tooltip 但直接显示钥匙名字而不是标签名**。
+
+### 12.1 为什么 tag 是这个场景的正解（三条已核到源码的事实）
+
+| # | 事实 | 依据 |
+|---|---|---|
+| 1 | **物品 tag 是双端同步的** —— 所以客户端在 `useItemOn` 里的预测与服务端判定一致（换成服务端配置列表就没有这个保证） | `PlayerList.java:917` 发 `ClientboundUpdateTagsPacket(TagNetworkSerialization.serializeTagsToNetwork(registries))`；`TagNetworkSerialization.java:23-26` 用 `RegistrySynchronization.networkSafeRegistries(...)`；`RegistrySynchronization.java:77-85` = WORLDGEN 层可网络化注册表 **+ STATIC 层全部注册表**；`RegistryLayer.java:15` 的 `STATIC_ACCESS` 就是 `BuiltInRegistries.REGISTRY` ⇒ `minecraft:item` 在内 |
+| 2 | **tag 缺失/为空不会崩，只会「谁都开不了」** | `Holder.java:168-169`：`is(TagKey)` 即 `this.tags.contains(tagKey)` ⇒ 未绑定返回 `false` |
+| 3 | **tag 是数据包数据，`/reload` 即时生效** | tag 由数据包加载；物品 tag 在客户端也随 `ClientboundUpdateTagsPacket` 更新 |
+
+对照方案（讨论阶段否掉的）：**服务端配置列表**（本仓库 `Config.DisasterPortal.eyeItems` 是先例）
+不同步到客户端，且表达不了 tag、整合包改 TOML 也比数据包麻烦；
+**物品组件标记**在 1.21.1 没有「数据包给物品加组件」的原版机制，直接排除。
+
+### 12.2 落地清单
+
+| 文件 | 作用 |
+|---|---|
+| `registry/ModItemTags.java` | `TagKey<Item> HELL_GATE_KEYS`（照 `ModBlockTags` 的样式；javadoc 写清「整合包要怎么加钥匙」） |
+| `data/beloong/tags/item/hell_gate_keys.json` | 出厂默认：`{"replace": false, "values": ["irons_spellbooks:bone_key"]}` |
+| `block/HellGateBlock.java` | 判定改为 `stack.is(ModItemTags.HELL_GATE_KEYS)`（原来写 `ItemRegistry.BONE_KEY.get()`） |
+| `block/HellGateKeyWatcher.java` | 订阅 `TagsUpdatedEvent`，tag 缺失/为空时丢一条英文 WARN（只处理 `SERVER_DATA_LOAD`，避免客户端收包时重复刷屏） |
+| `item/HellGateBlockItem.java` | tooltip：从 tag 取出物品并**逐个列名字**（`getHoverName()`，每把一行）；tag 为空显示「钥匙：无」；`TooltipContext.registries()` 可空，先判空 |
+| `item/ModItems.java` | `HELL_GATE` 改用 `HellGateBlockItem`（`fireResistant()` + `EPIC` 照旧） |
+| `lang/{zh_cn,en_us}.json` | `item.beloong.hell_gate.key` = 「钥匙：%s」/「Key: %s」；`item.beloong.hell_gate.no_key` = 「钥匙：无」/「Key: none」 |
+| `BeLoongCore.java` | `NeoForge.EVENT_BUS.register(new HellGateKeyWatcher())` |
+
+**整合包怎么改**（写进 `ModItemTags` 的 javadoc）：文件必须落在 **tag 自己的命名空间**下 ——
+`data/beloong/tags/item/hell_gate_keys.json`，用 `"replace": false` 追加、`"replace": true` 整体替换，
+或用 KubeJS `ServerEvents.tags('item', ...)`；也支持 `"#其他:tag"` 嵌套。
+
+### 12.3 实机验收（一次客户端运行拿到两种状态）
+
+探针世界 `run/saves/hellgate_probe` 里放一个排程数据包：每次 `load`（含 `/reload` 后重跑 load 标签）
+用计分板计数决定这一步排什么，依次「采样 → reload → 采样 → reload → 采样」；
+采样用 `execute store result score … run clear @a #beloong:hell_gate_keys <maxCount>`
+把 `/clear` 的**结果值**（= 实际匹配并清掉的件数）写进计分板，再用 `tellraw` 的 score 组件打出来
+（函数里的命令反馈**不进日志**，必须这样转一手）。两次运行状态之间，从宿主机直接换掉世界里的数据包文件夹。
+
+| 时刻 | 状态 | 证据（`run/logs/latest.log`） |
+|---|---|---|
+| 12:42:25 | 首载：世界里有 `hellgate_tag_ext`（`replace:false` 追加 `minecraft:stick`） | `[KEYPROBE] plan-a` |
+| 12:43:05 | 采样① | `bone-key matched=1` ✅、`stick matched=1` ✅ ⇒ **整合包追加的钥匙生效** |
+| 12:43:05 | 首载**没有**空 tag 告警 | 该时段日志无 `hell gate keys` 告警 ✅（阴性对照） |
+| 12:43:34 → 12:43:38 | 换成 `hellgate_tag_empty`（`replace:true, values:[]`）后 `/reload` | `[KEYPROBE] reload-now` → **`[BeLoong] hell gate keys: tag #beloong:hell_gate_keys is empty; no item can open the hell gate`** ✅ |
+| 12:44:08 | 采样② | `bone-key matched=0` ✅、`stick matched=0` ✅ ⇒ 空 tag = 谁都开不了（且**不崩**） |
+| 12:44:41 | 第二次 `/reload` | 同一条告警**再次**出现 ✅（每次数据加载都会体检） |
+| 12:44:43 | 客户端干净退出 | `Stopping!`，无 crash-report |
+
+`/reload` 之后仍能继续采样，靠的是「排程全部由 `load` 标签重新发起」这一设计
+（**不能**指望 `/reload` 前的排程还在）。
+
+### 12.4 已知限制与仍未机器验证的部分
+
+| 项 | 说明 |
+|---|---|
+| **tooltip 的渲染结果** | 只能人眼看。数据来源（tag 内容）已由上面证明，lang 键也已在 jar 内核验 |
+| 「tag **未定义**」分支的告警 | 空 tag 分支已实测；「tag 完全不存在」只有在本模组自己的数据文件缺失（如 jar 被裁剪）时才可能出现，实测不可达 ⇒ 属**防御性**代码，未实测 |
+| 右键开门的真人路径 | 判定谓词变了，交互链路未变；由用户实机确认 |
+| 客户端 tooltip 更新时机 | tag 变更（`/reload`）后 tooltip 会在下次构建时取到新内容（`appendHoverText` 每次渲染都重算）——不缓存，符合预期 |
 

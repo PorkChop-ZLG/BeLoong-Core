@@ -189,6 +189,35 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 
 **结果：** ✅ 完成，详见设计文档 §十一。
 
+### T9 —— 追加需求 2：钥匙改为物品 tag 匹配（2026-09-20 追加）
+
+**用户原话：** 钥匙目前硬编码（和灾变一样），希望改成 **tag 匹配**，便于整合包修改、支持多种钥匙；
+先讨论可行性。讨论后拍板四条：tag 名 `beloong:hell_gate_keys`、保留骸骨钥匙为出厂默认、
+**要**空 tag 加载期警告、**要** tooltip（但显示**钥匙名字**而不是 tag 名）。
+
+**交付物：** `registry/ModItemTags`、`data/beloong/tags/item/hell_gate_keys.json`、
+`block/HellGateKeyWatcher`、`item/HellGateBlockItem`、`HellGateBlock`（判定改 tag）、
+`ModItems`（改用新类）、`BeLoongCore`（注册 watcher）、两份 lang 各 2 键。
+
+**验证：**
+1. 静态：jar 内有 tag 文件；`HellGateBlock` 字节码用 `ModItemTags.HELL_GATE_KEYS` 且**不再**引用
+   `ItemRegistry.BONE_KEY`；`HellGateBlockItem` 字节码含 `TooltipContext.registries()` /
+   `lookupOrThrow(Registries.ITEM)` / `getHoverName()`；`BeLoongCore` 构造 watcher。
+2. 实机：一次客户端运行同时拿到两种 tag 状态，见 §五 第三轮。
+3. 真人：tooltip 悬停 + 右键开门。
+
+**结果：** ✅ 完成。设计文档 §十二 记录了机制取证与已知限制。
+
+### T9 的探针工程经验（本次新增，值得复用）
+
+| 现象 | 结论 |
+|---|---|
+| 函数里的 `clear` / `data get` / `scoreboard players get` 反馈**不进日志** | 要观测命令结果，用 `execute store result score … run <命令>` 存进计分板，再用 `tellraw` 的 score 组件打出来（tellraw 是聊天消息，必进日志） |
+| 同一个函数名重复 `schedule` **只留最后一个** | 多步排程要**各用各的函数名** |
+| `/reload` 之后不能指望旧排程还在 | 排程全部由 `load` 标签重新发起（用计分板计数决定排第几步） |
+| 新放进世界 `datapacks/` 的数据包会**自动启用** | 日志实证：`Found new data pack file/hellgate_keyprobe, loading it automatically` |
+| 世界里的数据包可以在客户端运行时从宿主机直接换掉 | 换完 `/reload` 即生效 ⇒ **一次客户端运行就能拿到两种 tag 状态**，省掉一次整轮启动 |
+
 ---
 
 ## 二、提交策略
@@ -203,6 +232,8 @@ run/saves/hellgate_probe/                      ← 某个已有存档的【副�
 | C3 | 设计文档 + 实施计划 | 纯文档 |
 | C4 | 贴图换成下界风格（T8，只动两个 PNG） | 用户追加需求；代码与音效零改动 |
 | C5 | 文档同步 T8 / §十一 | 纯文档（把首轮「贴图逐字节相同」的说法改正） |
+| C6 | 钥匙改为物品 tag 匹配（T9） | 3 个新类 + 1 个 tag 数据文件 + 判定/注册/lang 改动 |
+| C7 | 文档同步 T9 / §十二 | 纯文档（决策 D17–D19、偏离 #4、实机证据） |
 
 提交信息沿用本仓库既有风格（中文、`<主题>：<要点>`）。
 
@@ -280,6 +311,32 @@ irons_spellbooks，属既有问题）；`run/crash-reports` 无新文件。
 校验：alpha 逐像素相同、不透明像素数 17920 / 160 不变、未匹配色 0、调色板 25→25 与 7→7、
 `gradlew jar` 后 jar 内贴图与工作区 SHA-256 一致；对照图见
 `preview/cmp_block_4x.png`、`preview/cmp_lock_7x.png`、`preview/cmp_item_16x.png`（左原版 / 右新版）。
+
+### 第三轮：钥匙改为 tag 匹配（T9，同日追加）
+
+代码改动见 T9。实机验收**一次客户端运行拿到两种 tag 状态**（世界数据包可在运行时从宿主机替换，
+换完 `/reload` 即生效）：
+
+```
+12:42:25 [Server] [KEYPROBE] plan-a (expect: tag = bone_key + stick, no empty-tag warning)
+12:43:05 [CHAT] [KEYPROBE] bone-key matched=1 (expect 1)      ← 默认钥匙在 tag 里
+12:43:05 [CHAT] [KEYPROBE] stick matched=1 (...)              ← 整合包追加的钥匙也生效（可扩性）
+           （该时段没有任何空 tag 告警 —— 阴性对照）
+12:43:34 [Server] [KEYPROBE] reload-now                      ← 此时世界里已换成「清空 tag」的数据包
+12:43:38 [WARN]  [BeLoong] hell gate keys: tag #beloong:hell_gate_keys is empty;
+                            no item can open the hell gate   ← 加载期告警按预期触发
+12:44:08 [CHAT] [KEYPROBE] bone-key matched=0 (expect 1)      ← 空 tag ⇒ 谁都开不了，且不崩
+12:44:08 [CHAT] [KEYPROBE] stick matched=0
+12:44:41 [WARN]  （第二次 /reload 再次告警 —— 每次数据加载都体检）
+12:44:43 [Render thread] Stopping!                            ← 干净退出，无 crash-report
+```
+
+计数手法：`execute store result score … run clear @a #beloong:hell_gate_keys 99`（结果值 = 匹配件数）
++ `tellraw` 的 score 组件（函数里的 `clear` 反馈本身不进日志）。
+
+探针数据包与两种 tag 包都归档在 `run/hellgate_probe_packs/`（`run/` 已 gitignore），
+需要复跑时拷回 `run/saves/hellgate_probe/datapacks/` 即可；验收后探针世界已还原为
+「出厂默认 tag（只认骸骨钥匙）」状态。
 
 ### 探针资产处置
 
