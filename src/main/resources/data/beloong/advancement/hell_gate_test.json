@@ -1,0 +1,20 @@
+{
+  "criteria": {
+    "opened": {
+      "trigger": "beloong:hell_gate_opened"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "background": "minecraft:textures/gui/advancements/backgrounds/nether.png",
+    "description": "自动化探针用；验证通过后删除。",
+    "frame": "goal",
+    "hidden": false,
+    "icon": {
+      "count": 1,
+      "id": "beloong:hell_gate"
+    },
+    "show_toast": true,
+    "title": "测试 · 见证地狱之门开启"
+  }
+}
