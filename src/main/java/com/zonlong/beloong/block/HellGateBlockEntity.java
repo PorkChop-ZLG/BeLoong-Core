@@ -1,12 +1,14 @@
 package com.zonlong.beloong.block;
 
 import com.github.L_Ender.cataclysm.entity.effect.ScreenShake_Entity;
+import com.zonlong.beloong.hellgate.HellGateOpenedAdvancements;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.level.Level;
@@ -38,10 +40,15 @@ import net.minecraft.world.phys.Vec3;
  *       {@code LevelChunk} 会用 {@code type.isValid(state)} 校验并**静默拒绝**类型不匹配的 BE。</li>
  *   <li>字段 {@code animationTicks}/{@code tickCount} 与原版同名；NBT 键仍是 {@code animationTicks}
  *       （与灾变兼容）。{@code animation} 与 {@code facing} 在原版中就未被使用，此处保留以便日后与灾变对比。</li>
- *   <li>⚠️ <b>唯一一处有意的行为偏离</b>：原版在第 28 tick 的 {@code level.playSound(...)} **没有**
- *       {@code !isClientSide} 守卫，而本 BE 双端都会 tick ⇒ 客户端会本地播一次、再收到服务端的广播，
- *       结果是**同一音效播两遍**。这里补上了守卫（服务端广播一次即可）。
+ *   <li>⚠️ <b>行为偏离（本类内第 1 处，全项目第 1 处）</b>：原版在第 28 tick 的 {@code level.playSound(...)}
+ *       **没有** {@code !isClientSide} 守卫，而本 BE 双端都会 tick ⇒ 客户端会本地播一次、
+ *       再收到服务端的广播，结果是**同一音效播两遍**。这里补上了守卫（服务端广播一次即可）。
  *       如需与灾变**逐字节**一致，删掉那个判断即可。</li>
+ *   <li><b>本模组新增的挂钩（灾变没有，全项目第 5 处）</b>：门开启完成时发放「见证开启」进度。
+ *       在 {@code animationTicks >= TICK_FULLY_OPEN} 的服务端分支里、40 格全部置 {@code OPEN}
+ *       之后调用 {@link HellGateOpenedAdvancements#grant}。上面那行灾变原有条件
+ *       （{@code !level.isClientSide}）<b>一字未改</b>，挂钩用 {@code instanceof} 取服务端实例。
+ *       项目级偏离清单见 {@code docs/plans/2026-09-20-hell-gate-design.md} §七。</li>
  * </ul>
  *
  * @see HellGateBlock
@@ -149,6 +156,13 @@ public class HellGateBlockEntity extends BlockEntity {
                         level.gameEvent(GameEvent.BLOCK_CHANGE, partPos, GameEvent.Context.of(null, partState));
                     }
                 }
+            }
+
+            // 门此刻已全部 OPEN（碰撞箱清空＝可以走进去）⇒ 才向在场玩家发「见证开启」进度。
+            // 本模组挂钩，灾变原版没有这段（见类 javadoc「移植说明」最后一条）。
+            // 用 instanceof 而非强转：这样上面那行灾变原有条件（!level.isClientSide）一字不改。
+            if (level instanceof ServerLevel serverLevel) {
+                HellGateOpenedAdvancements.grant(serverLevel, pos);
             }
         }
     }

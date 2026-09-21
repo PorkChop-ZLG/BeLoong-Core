@@ -4,6 +4,7 @@ import com.zonlong.beloong.compat.dragonsurvival.ClawSwordKillTrigger;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordSwapTrigger;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingKillTrigger;
 import com.zonlong.beloong.compat.ironsspellbooks.OminousDeadKingKillTrigger;
+import com.zonlong.beloong.hellgate.HellGateOpenedTrigger;
 import net.minecraft.advancements.CriterionTrigger;
 import net.minecraft.core.registries.Registries;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -22,6 +23,9 @@ import java.util.function.Supplier;
  *   <li><b>死者之王击杀进度</b>：{@link DeadKingKillTrigger}（普通变种）与
  *       {@link OminousDeadKingKillTrigger}（不祥变种），由
  *       {@code compat.ironsspellbooks.DeadKingAdvancementHandler} 触发。</li>
+ *   <li><b>地狱之门开启进度</b>：{@link HellGateOpenedTrigger}，由
+ *       {@code hellgate.HellGateOpenedAdvancements} 在门动画播完（40 格全部 OPEN）后，
+ *       向门 32 格内的非旁观玩家发放。</li>
  * </ul>
  *
  * <p>注册名即数据包在进度 JSON 里书写的形式，例如
@@ -53,6 +57,18 @@ public final class ModCriteria {
     /** 参与击败<b>不祥</b>状态死者之王时触发（同上口径：60 格、只排除旁观、创造计入；但 Boss 处于不祥变种）。 */
     public static final Supplier<OminousDeadKingKillTrigger> OMINOUS_DEAD_KING_KILL =
             REGISTRY.register("ominous_dead_king_kill", OminousDeadKingKillTrigger::new);
+
+    /**
+     * 见证<b>地狱之门开启</b>时触发 —— 门走完开启动画、40 格全部 {@code OPEN}（可进入）之后。
+     *
+     * <p>口径：<b>门 32 格内、只排除旁观 —— 创造模式计入</b>。</p>
+     *
+     * <p>⚠️ 半径与死王仪式的 <b>60 格</b> 不同：那边沿用铁魔法自己的口径，这边的 <b>32 格</b> 是用户裁定
+     * （见 {@code docs/plans/2026-09-21-hell-gate-opened-advancement-design.md} D21）。
+     * 两个数各有出处，不是笔误。</p>
+     */
+    public static final Supplier<HellGateOpenedTrigger> HELL_GATE_OPENED =
+            REGISTRY.register("hell_gate_opened", HellGateOpenedTrigger::new);
 
     private ModCriteria() {
     }
