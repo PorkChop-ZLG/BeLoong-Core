@@ -1,7 +1,7 @@
 # 简易 NPC 对话系统实施计划
 
 **Date:** 2026-09-20
-**Status:** Ready for implementation
+**Status:** ✅ 已完成（2026-09-21，实机验收通过）
 **Design:** [2026-09-20-npc-dialogue-design.md](./2026-09-20-npc-dialogue-design.md)
 **Approach:** 方案 A —— 客户端读 jar 内数据包（**零网络包、零服务端逻辑、零 mixin**）
 **验证模型:** 本项目**无测试源集**（`gradlew build` 输出 `compileTestJava NO-SOURCE` / `test NO-SOURCE`），故**不引入测试框架**。每个任务的验证 = `gradlew build` + 静态探针 + 实机清单（§12）
@@ -434,6 +434,11 @@ public class NpcDialogueOptionButton extends AbstractWidget {
 
 **布局（设计 §3.1）：** 左缘固定 `x = OPTION_LEFT * width`；**宽度按文字宽自适应**（图标 + padding + 文字宽），因此右边缘天然参差（与参考图一致）；最下一颗**底边** `y = OPTION_BOTTOM * height`，向上依次排，间距 `OPTION_GAP`。
 
+> **执行更正（2026-09-21，实机两轮后）**：上面骨架里的 `NORMAL_BG`/`HOVER_BG` 整圆角胶囊与"宽度按文字自适应"**均已作废**。最终实现为：
+> 固定 `0.22` 屏宽、高 `20`、**左半圆角 + 右侧 alpha 线性渐隐**（逐列 `fill`，因为原版 `fillGradient` 只支持纵向）；
+> 悬停只换 RGB（`0x1A1F26` → `0xC8A05A`），alpha 轮廓不变。常量见 `NpcDialogueScreen` 与
+> `NpcDialogueOptionButton` 顶部，最终取值与理由见设计文档 §13.3。
+
 **v1 只有一个选项：** 「离开」，label 为翻译键 `beloong.dialogue.option.leave`，**硬编码不放进 JSON**（设计 D17）。点击 → `this.onClose()`。
 
 **验证：** `.\gradlew.bat build --console=plain`；实机：最后一页显示完后右侧弹出「离开」，hover 时底色**平滑**转金（非瞬变），点击关闭。
@@ -521,7 +526,8 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 .\gradlew.bat build --console=plain
 & "D:\Java\jdk-21.0.11\bin\jar.exe" tf build\libs\beloong-0.9.6.jar | Select-String 'npc_dialogue'
 ```
-→ 应打印出 `data/beloong/beloong/npc_dialogue/iron_golem.json`
+→ 应打印出 `assets/beloong/beloong/npc_dialogue/iron_golem.json`
+> **执行更正（2026-09-20）**：路径是 **`assets/`** 而非 `data/` —— 客户端重载监听器看不到 `data/` 树（见 §四 审查修正记录 C1 / 设计文档修订 R3）。
 （文件名里的版本号跟随 `gradle.properties`，如已变动请按实际产物名替换。）
 
 ---
@@ -559,7 +565,7 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 | ~~R0~~ | ~~客户端读不到 jar 内 `data/`~~ | **已发生并已修（2026-09-20）**：客户端管理器绑定 `CLIENT_RESOURCES`，**确实读不到 `data/`**；数据改放 `assets/beloong/beloong/npc_dialogue/`（loader 一行未改）。见 §四 审查修正记录 C1 |
 | R1 | 名字 1.5× 缩放笔画参差 | 已是配置项：设 `nameScale = 1.0`（最清晰）或 `2.0`（清晰但偏大） |
 | R2 | 存档数据包覆盖客户端不可见 | 已知限制；需要时走方案 B |
-| R3 | 选项右边缘参差 | 参考图原生行为，非缺陷；如需整齐改为固定宽度 |
+| ~~R3~~ | ~~选项右边缘参差~~ | **已解决（2026-09-21）**：参考图右侧本就是**渐隐**（无硬边），故不是"参差"而是刻意的淡出；底衬已重做为固定 0.22 屏宽 + 右侧渐隐。见设计文档 §13.3 |
 | R4 | 起始布局值需要调 | 常量集中在 `NpcDialogueScreen` 顶部；任务 12 的反馈回路负责收敛 |
 
 ---
@@ -589,3 +595,29 @@ Select-String -Path src\main\java\com\zonlong\beloong\client\NpcDialogueHandler.
 - ❌ 头像 / 立绘 / 背景图 / 打字音效；`sound` 只解析不播放
 - ❌ 实例级区分（NBT / 自定义名）
 - ❌ 潜行判断
+
+---
+
+## 六、完成记录（2026-09-21）
+
+**全部 13 个任务完成**，实机验收通过（三轮反馈，明细见设计文档 §13.1）。
+
+| 提交 | 内容 |
+|---|---|
+| `d185d71` | docs：设计文档 + 实施计划 |
+| `797c4fa` | feat：数据层与客户端配置（T1–T4） |
+| `b5fd7f7` | fix：审查发现的 1 Critical + 2 Important（C1 数据改放 `assets/`） |
+| `9537efd` | feat：对话界面、右键入口与示例数据（T5–T11） |
+| `7b44691` | fix：排版重叠、文字颜色、选项弹出时机（实机一轮） |
+| `68aaea2` | fix：加深遮罩、重做选项底衬（实机二轮） |
+
+**执行中发现的两处计划缺陷**（均已在本文档更正，见 §四 与各任务下的"执行更正"）：
+
+1. 任务 4 的 Config 骨架把 `CLIENT_BUILDER.push(...)` 等语句裸放在类体里 —— 编译直接失败，必须包在 `static {}` 块内；
+2. §〇.2 引用的"R0 先例"引错了树（DS 的例子证明的是 `assets/`，不是 `data/`）—— 见 §四 审查修正记录 C1。
+
+**T12 实机验收**：通过。调参后的最终常量见设计文档 §13.3。
+
+**T13 收尾**：设计文档 §13 已回填（含 §10 测试清单的同步更正）；新子系统登记进 `memory/project-context.md`；本次的durable 技术教训记入 `memory/decisions-log.md`（2026-09-21 条目）。
+
+**未做**：未 push（按约定等用户确认）；`sound` 未实装播放；示例文案为占位。
