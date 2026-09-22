@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.DisasterPortalBlock;
+import com.zonlong.beloong.client.DihuangLoongRenderer;
 import com.zonlong.beloong.client.DisasterPortalRenderer;
 import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
@@ -104,6 +105,8 @@ public class BeLoongCoreClient {
                 ModBlocks.DISASTER_PORTAL_BLOCK_ENTITY.get(),
                 DisasterPortalRenderer::new);
         event.registerEntityRenderer(ModEntities.TORNADO.get(), TornadoRenderer::new);
+        // 地黄龙 NPC：GeckoLib 渲染器（模型/动画/贴图三件套随 jar 分发，设计文档 2026-09-21）
+        event.registerEntityRenderer(ModEntities.DIHUANG_LOONG.get(), DihuangLoongRenderer::new);
     }
 
     /**

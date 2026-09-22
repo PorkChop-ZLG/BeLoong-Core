@@ -174,6 +174,7 @@
   "effect.beloong.mana_loss.description": "持续扣除魔力值。",
   "effect.beloong.serene": "气定神闲",
   "effect.beloong.serene.description": "提升魔力值回复速度。",
+  "entity.beloong.dihuang_loong": "地黄龙",
   "entity.beloong.tornado": "龙卷风",
   "item.beloong.amplification_charm": "放大护符",
   "item.beloong.amplification_charm.tooltip": "佩戴在护符槽位，使体型变大。",

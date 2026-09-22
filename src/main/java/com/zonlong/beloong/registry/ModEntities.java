@@ -1,6 +1,7 @@
 package com.zonlong.beloong.registry;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.entity.DihuangLoongEntity;
 import com.zonlong.beloong.entity.TornadoEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -15,6 +16,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * 注册的实体：
  * <ul>
  *   <li>{@link #TORNADO} — 龙卷风（{@code beloong:tornado}），由龙技能「龙卷风」发射</li>
+ *   <li>{@link #DIHUANG_LOONG} — 地黄龙 NPC（{@code beloong:dihuang_loong}），站桩生物 NPC</li>
  * </ul>
  *
  * @see BeLoongCore
@@ -47,6 +49,26 @@ public final class ModEntities {
                     .updateInterval(1)
                     .fireImmune()
                     .build("beloong:tornado"));
+
+    /**
+     * 地黄龙 NPC（{@code beloong:dihuang_loong}）。
+     * <p>
+     * 站桩生物：无 AI、无敌、不可推动、永不消失，详见 {@link DihuangLoongEntity}。
+     * <ul>
+     *   <li>{@code MobCategory.MISC} = {@code ("misc", -1, true, true, 128)}：**不占刷怪上限**且持久；</li>
+     *   <li>碰撞箱 1.5×2.5 取**身体主体段** —— 模型约 9 格长（含长尾），
+     *       而 Minecraft 的碰撞箱是轴对齐方块，不可能贴合整条龙；</li>
+     *   <li>{@code fireImmune()}：免疫火焰（无敌之外再省掉火焰伤害的结算）；</li>
+     *   <li>刻意**不做刷怪蛋、不注册自然生成**（设计裁定 5）：只用 {@code /summon} 或结构放置。</li>
+     * </ul>
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<DihuangLoongEntity>> DIHUANG_LOONG =
+            ENTITIES.register("dihuang_loong", () -> EntityType.Builder
+                    .<DihuangLoongEntity>of(DihuangLoongEntity::new, MobCategory.MISC)
+                    .sized(1.5F, 2.5F)
+                    .clientTrackingRange(10)
+                    .fireImmune()
+                    .build("beloong:dihuang_loong"));
 
     /** 将实体注册到 Mod 事件总线。在 {@link BeLoongCore} 构造函数中调用。 */
     public static void register(IEventBus bus) {
