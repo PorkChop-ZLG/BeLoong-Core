@@ -450,4 +450,18 @@ t140   lifeTicks == 0：
 | 目标结构**外**开黯影宝库 | 不召唤（既有用例，保留） |
 
 机器可验部分：构建 + `javap` 确认「转发带 `BlockState`」「编排层查 `DSBlocks.DARK_VAULT`」；
-开箱动作需要真人右键（原版宝库只认玩家插入钥匙），故上表由用户实机执行，必要日志见 §11.4 末尾那条 INFO。
+开箱动作需要真人右键（原版宝库只认玩家插入钥匙），故上表由用户实机执行。
+
+**实机结果（2026-09-22，用户确认通过）** —— 日志 `run/logs/latest.log` 原文：
+
+```
+21:53:59  dread_king_ritual: opened vault at … BlockPos{x=-526, y=83, z=580} is not the dragon survival dark vault, skipping  ← 阴性 ✅
+21:54:12  dread_king_ritual: opened vault at … BlockPos{x=-523, y=83, z=580} is not the dragon survival dark vault, skipping  ← 阴性 ✅
+21:54:32  dread_king_ritual: ritual started at … BlockPos{x=-525, y=84, z=577} (dark vault opened by Dev)                     ← 阳性 ✅
+21:56:10  dread_king_ritual: ritual started at … BlockPos{x=-525, y=84, z=577}                                                 ← 阳性（同坐标再开）
+21:56:22  dread_king_ritual: ritual started at … BlockPos{x=-521, y=84, z=580}                                                 ← 阳性
+```
+
+整个会话本模组 **0 条 WARN / 0 条 ERROR**；无 crash-report；且本模组自己的告警串
+（`no clearance` / `failed to summon` / `starter failed` / `cannot be parsed` / `not present in the registry`）
+**一次都没出现** ⇒ 刷怪点净空判定与死王召唤都正常。

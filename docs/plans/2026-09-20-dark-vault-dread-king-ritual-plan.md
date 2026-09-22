@@ -551,8 +551,9 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 `assets/dragonsurvival/blockstates/dark_vault.json`，且龙之生存自家进度 `data/dragonsurvival/advancement/dark/open_vault.json`
 的条件就是 `"blocks": "dragonsurvival:dark_vault"`。
 
-**其实机验收（含阴性对照，待用户执行）**：见设计文档 §11.6 ——
-黯影宝库**召唤**；圣辉宝库 / 猎人宝库 / 原版试炼宝库**不召唤**；结构外黯影宝库**不召唤**。
+**其实机验收（含阴性对照）—— 2026-09-22 用户实测通过**：
+黯影宝库**召唤**（日志 3 条 `ritual started`）；圣辉/猎人宝库**跳过**（日志 2 条新增的
+`is not the dragon survival dark vault, skipping the ritual`）；整会话本模组 0 WARN / 0 ERROR。
 （原版宝库只认玩家插入钥匙，无法用命令驱动，故这一步必须真人右键。）
 
 **本次教训（已记入 `memory/learned-patterns.md`）**：
