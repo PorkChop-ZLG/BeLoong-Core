@@ -1,5 +1,6 @@
 package com.zonlong.beloong.dreadking;
 
+import by.dragonsurvivalteam.dragonsurvival.registry.DSBlocks;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.entity.DreadKingRitualMarker;
 import com.zonlong.beloong.registry.ModEntities;
@@ -11,6 +12,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.phys.AABB;
 import org.slf4j.Logger;
@@ -52,18 +54,47 @@ public final class DreadKingRitualStarter {
     /**
      * 在某次「暗影钥匙被接受」之后尝试开启仪式。
      * <p>
-     * <b>无副作用保证</b>：开关关闭、结构不匹配、结构 ID 无法解析时都直接返回，
+     * <b>三道闸门，缺一不可</b>（顺序即代码顺序）：
+     * <ol>
+     *   <li>配置开关 {@code enabled}；</li>
+     *   <li><b>方块身份</b>：必须真的是龙之生存的黯影宝库（{@link DSBlocks#DARK_VAULT}）——
+     *       见下方「为什么必须判方块身份」；</li>
+     *   <li><b>结构</b>：宝库必须落在配置的结构拼图块内。</li>
+     * </ol>
+     *
+     * <h2>为什么必须判方块身份（2026-09-21 缺陷修复）</h2>
+     * 上游检测层注入的是 {@code VaultBlockEntity.Server} —— 那是<b>所有宝库共用的</b>方块实体。
+     * 龙之生存注册了<b>三个</b>宝库方块（黯影宝库 {@code dragonsurvival:dark_vault}、
+     * 圣辉宝库 {@code light_vault}、猎人宝库 {@code hunter_vault}），并且通过 NeoForge 的
+     * {@code BlockEntityTypeAddBlocksEvent} 把它们全部挂到 {@code BlockEntityType.VAULT} 上
+     * ⇒ 这三个方块开箱时都会走到本方法，原版试炼宝库（{@code minecraft:vault}）同样如此。
+     * <p>
+     * 修复前本方法<b>只</b>判结构，于是「在目标结构内开任意宝库都会召唤不祥死者之王」——
+     * 与需求「只有玩家开启黯影宝库时才召唤」不符。现在补上身份判据。
+     *
+     * <p><b>无副作用保证</b>：开关关闭、不是黯影宝库、结构不匹配、结构 ID 无法解析时都直接返回，
      * 宝库照常开箱，不产生任何标记实体。
      *
-     * @param level    发生开箱的服务端世界
-     * @param vaultPos 黯影宝库方块自身的位置（不是宝库顶）
-     * @param player   真正插入钥匙的玩家
+     * @param level     发生开箱的服务端世界
+     * @param vaultPos  宝库方块自身的位置（不是宝库顶）
+     * @param vaultState 该宝库的方块状态（用于判定它是不是龙之生存的黯影宝库）
+     * @param player    真正插入钥匙的玩家
      */
-    public static void start(ServerLevel level, BlockPos vaultPos, ServerPlayer player) {
+    public static void start(ServerLevel level, BlockPos vaultPos, BlockState vaultState, ServerPlayer player) {
         if (!Config.DreadKingRitual.enabled.get()) {
             return;
         }
+
+        // 先算好方块身份（一次方块查表），但把日志留在结构判定之后 —— 只在「目标结构内开了别的宝库」
+        // 这种真正值得注意的情况下才出声，避免世界各处的宝库都刷一条日志。
+        boolean isDarkVault = vaultState.is(DSBlocks.DARK_VAULT.get());
+
         if (!isInTargetStructure(level, vaultPos)) {
+            return;
+        }
+        if (!isDarkVault) {
+            LOGGER.info("[BeLoong] dread_king_ritual: opened vault at {} {} is not the dragon survival"
+                            + " dark vault, skipping the ritual", level.dimension().location(), vaultPos);
             return;
         }
 

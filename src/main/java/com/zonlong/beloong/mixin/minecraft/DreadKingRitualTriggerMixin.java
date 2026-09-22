@@ -55,6 +55,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>本类<b>只做转发</b>，不含任何判定逻辑；结构与配置判定在
  * {@link DreadKingRitualStarter}。
  *
+ * <h2>2026-09-21 缺陷修复：必须把 {@code state} 一起转发</h2>
+ * 本类的注入目标是 {@code VaultBlockEntity.Server}，而它是<b>所有宝库共用的</b>方块实体 ——
+ * 龙之生存的黯影宝库 / 圣辉宝库 / 猎人宝库三个方块都通过 NeoForge 的
+ * {@code BlockEntityTypeAddBlocksEvent} 挂在 {@code BlockEntityType.VAULT} 上，原版试炼宝库也用它。
+ * 修复前本类只转发 {@code (level, pos, player)}，编排层便无从判断「开的是不是黯影宝库」，
+ * 结果是<b>目标结构内开任意宝库都会召唤不祥死者之王</b>。
+ * 现在把 {@code state} 一并转发，由编排层用 {@code state.is(DSBlocks.DARK_VAULT.get())} 判身份。
+ *
+ * <p>⚠️ 处理器形参表必须与目标方法 {@code tryInsertKey} 的形参逐字对应，因此
+ * {@code config} / {@code serverData} / {@code sharedData} 三个形参<b>虽然声明了但不消费</b> ——
+ * 这是 mixin 处理器的写法要求，不是「忘了用」。（当初正是因为没顺着这个信号追问
+ * 「这些参数本是不是该用来做判定」，才漏掉了上面那个缺陷。）
+ *
  * @see DreadKingRitualStarter
  */
 @Mixin(VaultBlockEntity.Server.class)
@@ -103,7 +116,9 @@ public abstract class DreadKingRitualTriggerMixin {
             return;
         }
         try {
-            DreadKingRitualStarter.start(level, pos, serverPlayer);
+            // 必须把 state 一起转下去：这个方块实体是【所有宝库共用】的，光有坐标判不出
+            // 开的是不是黯影宝库（2026-09-21 缺陷修复，详见类 javadoc）。
+            DreadKingRitualStarter.start(level, pos, state, serverPlayer);
         } catch (Exception e) {
             LOGGER.error("[BeLoong] dread_king_ritual: starter failed at {} {}"
                             + " (the vanilla vault opening is unaffected)",
