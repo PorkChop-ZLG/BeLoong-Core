@@ -62,7 +62,7 @@ public final class DreadKingRitualStarter {
      *   <li><b>结构</b>：宝库必须落在配置的结构拼图块内。</li>
      * </ol>
      *
-     * <h2>为什么必须判方块身份（2026-09-21 缺陷修复）</h2>
+     * <h2>为什么必须判方块身份（2026-09-22 缺陷修复）</h2>
      * 上游检测层注入的是 {@code VaultBlockEntity.Server} —— 那是<b>所有宝库共用的</b>方块实体。
      * 龙之生存注册了<b>三个</b>宝库方块（黯影宝库 {@code dragonsurvival:dark_vault}、
      * 圣辉宝库 {@code light_vault}、猎人宝库 {@code hunter_vault}），并且通过 NeoForge 的

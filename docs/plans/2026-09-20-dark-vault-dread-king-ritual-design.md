@@ -23,7 +23,7 @@
 | # | 事实 | 依据 | 对设计的影响 |
 |---|---|---|---|
 | 1 | **`dark_vault` 在原版结构里并不生成于城堡** —— 我把实际依赖 jar（`dragonsurvival-420799-8726322.jar`）内**全部 119 个结构 NBT** 解压逐一扫描，`dark_vault` 只出现在 `dragonsurvival:treasure_angry_{cave,forest,sea}` 的 **15 个拼图块**里；`dragon_hunters_castle` 的 21 个拼图块里**连一个宝库都没有** | jar 内 `data/dragonsurvival/structure/**` 全量扫描 | ⇒ **用户裁定：整合包会另行把黯影宝库放进城堡**。因此结构 ID 做成**配置项**：在整合包完成这一步之前，本功能是「装了但不触发」的静默状态 |
-| 2 | **黯影宝库没有自定义类** —— 它就是原版 `VaultBlock` + `minecraft:vault` 方块实体；钥匙是 `dragonsurvival:dark_key`，战利品表 `dragonsurvival:generic/dark_vault`。龙之生存只用一个 mixin 放开了 key 校验 | `DSBlocks.java:1181-1191`（注册）、`:1143-1149`（默认 NBT）、`VaultBlockEntityServerMixin.java:21-28` | ⇒ 检测点只能落在**原版**宝库状态机上，不存在现成的模组回调。⚠️ **本条结论当时下窄了**（2026-09-21 订正，见 §十一） |
+| 2 | **黯影宝库没有自定义类** —— 它就是原版 `VaultBlock` + `minecraft:vault` 方块实体；钥匙是 `dragonsurvival:dark_key`，战利品表 `dragonsurvival:generic/dark_vault`。龙之生存只用一个 mixin 放开了 key 校验 | `DSBlocks.java:1181-1191`（注册）、`:1143-1149`（默认 NBT）、`VaultBlockEntityServerMixin.java:21-28` | ⇒ 检测点只能落在**原版**宝库状态机上，不存在现成的模组回调。⚠️ **本条结论当时下窄了**（2026-09-22 订正，见 §十一） |
 | 3 | **「开箱成功」在原版状态机里是一个可识别状态** —— `VaultState.UNLOCKING` 的**唯一**入口是私有方法 `unlock(...)`，而它全类**只有一处**调用：`tryInsertKey()` 的成功分支 | `VaultState.java:74-77`（UNLOCKING → EJECTING）、`VaultBlockEntity.java:289`（唯一调用点）、`:328-341`（`unlock` 定义） | ⇒ 存在一个语义精确的检测点（见决策 D1） |
 | 4 | **包私有 API 把「零 mixin 精确判定」这条路堵死了一半** —— `VaultServerData.hasRewardedPlayer(Player)` 与 `getRewardedPlayers()` 都是**包私有**，`canEjectReward(...)` 是 **private**；只有 `VaultBlockEntity.Server.isValidToInsert(VaultConfig, ItemStack)` 是 public static | `VaultServerData.java:56,60`；`VaultBlockEntity.java:353,357` | ⇒ 事件侧**无法**判断「该玩家是否已经开过这个宝库」。而 `hunter_knight` 掉 `dark_key`（`loot_table/entities/hunter_knight.json`）⇒ 玩家**能囤钥匙** ⇒ 零 mixin 方案存在**可刷 Boss** 的漏洞（见「被否决的方案」） |
 
@@ -397,7 +397,7 @@ t140   lifeTicks == 0：
 
 ---
 
-## 十一、缺陷与修复：只锁定「黯影宝库」这一种宝库（2026-09-21）
+## 十一、缺陷与修复：只锁定「黯影宝库」这一种宝库（2026-09-22）
 
 ### 11.1 用户报告
 

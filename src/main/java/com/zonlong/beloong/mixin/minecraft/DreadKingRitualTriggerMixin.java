@@ -55,7 +55,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>本类<b>只做转发</b>，不含任何判定逻辑；结构与配置判定在
  * {@link DreadKingRitualStarter}。
  *
- * <h2>2026-09-21 缺陷修复：必须把 {@code state} 一起转发</h2>
+ * <h2>2026-09-22 缺陷修复：必须把 {@code state} 一起转发</h2>
  * 本类的注入目标是 {@code VaultBlockEntity.Server}，而它是<b>所有宝库共用的</b>方块实体 ——
  * 龙之生存的黯影宝库 / 圣辉宝库 / 猎人宝库三个方块都通过 NeoForge 的
  * {@code BlockEntityTypeAddBlocksEvent} 挂在 {@code BlockEntityType.VAULT} 上，原版试炼宝库也用它。
@@ -117,7 +117,7 @@ public abstract class DreadKingRitualTriggerMixin {
         }
         try {
             // 必须把 state 一起转下去：这个方块实体是【所有宝库共用】的，光有坐标判不出
-            // 开的是不是黯影宝库（2026-09-21 缺陷修复，详见类 javadoc）。
+            // 开的是不是黯影宝库（2026-09-22 缺陷修复，详见类 javadoc）。
             DreadKingRitualStarter.start(level, pos, state, serverPlayer);
         } catch (Exception e) {
             LOGGER.error("[BeLoong] dread_king_ritual: starter failed at {} {}"

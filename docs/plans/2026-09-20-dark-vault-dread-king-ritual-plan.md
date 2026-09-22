@@ -528,7 +528,7 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 
 ---
 
-## 六、缺陷修复（2026-09-21）：只锁定「黯影宝库」
+## 六、缺陷修复（2026-09-22）：只锁定「黯影宝库」
 
 **用户报告**：在指定结构内开启**任意宝库**都会召唤不祥死者之王；要求是**只有黯影宝库**才召唤。
 
