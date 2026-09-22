@@ -23,7 +23,7 @@
 | # | 事实 | 依据 | 对设计的影响 |
 |---|---|---|---|
 | 1 | **`dark_vault` 在原版结构里并不生成于城堡** —— 我把实际依赖 jar（`dragonsurvival-420799-8726322.jar`）内**全部 119 个结构 NBT** 解压逐一扫描，`dark_vault` 只出现在 `dragonsurvival:treasure_angry_{cave,forest,sea}` 的 **15 个拼图块**里；`dragon_hunters_castle` 的 21 个拼图块里**连一个宝库都没有** | jar 内 `data/dragonsurvival/structure/**` 全量扫描 | ⇒ **用户裁定：整合包会另行把黯影宝库放进城堡**。因此结构 ID 做成**配置项**：在整合包完成这一步之前，本功能是「装了但不触发」的静默状态 |
-| 2 | **黯影宝库没有自定义类** —— 它就是原版 `VaultBlock` + `minecraft:vault` 方块实体；钥匙是 `dragonsurvival:dark_key`，战利品表 `dragonsurvival:generic/dark_vault`。龙之生存只用一个 mixin 放开了 key 校验 | `DSBlocks.java:1181-1191`（注册）、`:1143-1149`（默认 NBT）、`VaultBlockEntityServerMixin.java:21-28` | ⇒ 检测点只能落在**原版**宝库状态机上，不存在现成的模组回调 |
+| 2 | **黯影宝库没有自定义类** —— 它就是原版 `VaultBlock` + `minecraft:vault` 方块实体；钥匙是 `dragonsurvival:dark_key`，战利品表 `dragonsurvival:generic/dark_vault`。龙之生存只用一个 mixin 放开了 key 校验 | `DSBlocks.java:1181-1191`（注册）、`:1143-1149`（默认 NBT）、`VaultBlockEntityServerMixin.java:21-28` | ⇒ 检测点只能落在**原版**宝库状态机上，不存在现成的模组回调。⚠️ **本条结论当时下窄了**（2026-09-21 订正，见 §十一） |
 | 3 | **「开箱成功」在原版状态机里是一个可识别状态** —— `VaultState.UNLOCKING` 的**唯一**入口是私有方法 `unlock(...)`，而它全类**只有一处**调用：`tryInsertKey()` 的成功分支 | `VaultState.java:74-77`（UNLOCKING → EJECTING）、`VaultBlockEntity.java:289`（唯一调用点）、`:328-341`（`unlock` 定义） | ⇒ 存在一个语义精确的检测点（见决策 D1） |
 | 4 | **包私有 API 把「零 mixin 精确判定」这条路堵死了一半** —— `VaultServerData.hasRewardedPlayer(Player)` 与 `getRewardedPlayers()` 都是**包私有**，`canEjectReward(...)` 是 **private**；只有 `VaultBlockEntity.Server.isValidToInsert(VaultConfig, ItemStack)` 是 public static | `VaultServerData.java:56,60`；`VaultBlockEntity.java:353,357` | ⇒ 事件侧**无法**判断「该玩家是否已经开过这个宝库」。而 `hunter_knight` 掉 `dark_key`（`loot_table/entities/hunter_knight.json`）⇒ 玩家**能囤钥匙** ⇒ 零 mixin 方案存在**可刷 Boss** 的漏洞（见「被否决的方案」） |
 
@@ -394,3 +394,60 @@ t140   lifeTicks == 0：
 ## 十、实施计划
 
 见 `docs/plans/2026-09-20-dark-vault-dread-king-ritual-plan.md`（由 `planning` 技能产出）。
+
+---
+
+## 十一、缺陷与修复：只锁定「黯影宝库」这一种宝库（2026-09-21）
+
+### 11.1 用户报告
+
+> 在指定的结构内，开启**任意宝库**，都会召唤不祥的死者之王。但是我的要求是：
+> 只有玩家开启龙之生存模组的**黯影宝库**时，才会召唤。
+
+### 11.2 根因（一句话）
+
+检测层注入的是 `VaultBlockEntity.Server` —— **所有宝库共用的**那个方块实体；
+而编排层的闸门**只有**「在不在配置的结构里」，**从头到尾没有校验「这是不是黯影宝库」**
+⇒ 「只有黯影宝库才召唤」这条需求在实现里根本不存在。
+
+### 11.3 证据链
+
+| # | 事实 | 依据 |
+|---|---|---|
+| 1 | 注入点是共享方块实体 | `DreadKingRitualTriggerMixin.java` 的 `@Mixin(VaultBlockEntity.Server.class)` → `tryInsertKey` 内 `unlock(...)` 的 INVOKE |
+| 2 | **龙之生存注册了三个宝库方块，且全部挂在 `BlockEntityType.VAULT` 上** | `DSBlocks.java`：`dark_vault` / `light_vault` / `hunter_vault` 都是原版 `VaultBlock`，各自带默认 NBT（`key_item` + `loot_table`）；`server/handlers/BlockEntityHandler.java` 用 NeoForge 的 `BlockEntityTypeAddBlocksEvent` 把三者 `modify(BlockEntityType.VAULT, …)`。⇒ 三者开箱都会走到我们的注入点；原版试炼宝库同样如此 |
+| 3 | 注入点**本来就能区分**，但没往下传 | 处理器形参含 `BlockState state` 与 `VaultConfig config`，方法体却只用了 `player`，转发只给 `(level, pos, player)` ⇒ 两个可用判据被丢弃。`VaultConfig` 自带 `keyItem`（`ItemStack`）与 `lootTable`（`ResourceKey<LootTable>`） |
+| 4 | 编排层无第二道闸门 | `DreadKingRitualStarter.start(...)` 修复前只判 `Config.DreadKingRitual.enabled` 与 `isInTargetStructure(...)`；且 `start` 全工程只有一个调用者（那个 mixin） |
+| 5 | 生态里的标准判法就是**按方块 id** | 龙之生存自己的进度 `data/dragonsurvival/advancement/dark/open_vault.json`（实际依赖 jar `dragonsurvival-420799-8726322.jar` 内）条件是 `"blocks": "dragonsurvival:dark_vault"` + `"items": "dragonsurvival:dark_key"` |
+
+### 11.4 修复（用户裁定：按方块 id）
+
+- 检测层把 `state` 一并转发：`DreadKingRitualStarter.start(level, pos, state, player)`。
+- 编排层新增闸门：`vaultState.is(DSBlocks.DARK_VAULT.get())`（编译期可查的常量，DS 是 required 依赖）。
+  方块的注册名 `dragonsurvival:dark_vault` 已在**实际依赖 jar** 内核实（该 jar 的 `assets/dragonsurvival/blockstates/dark_vault.json` 与它自家进度里的 `blocks` 值）。
+- 结构判定与开关保持不变；**不是黯影宝库**时不再召唤，并留一条 INFO 日志说明「开了别的宝库、跳过」——
+  这条日志正是当初缺失的那条诊断线索。
+- ⚠️ 仍然**不做**：按 `VaultConfig`（`keyItem`/`lootTable`）判定。理由：方块 id 与「玩家到底开了哪个宝库」直接对应，
+  而配置可以被整合包改（改钥匙/改战利品表就会失配）。若日后出现「整合包把宝库换成自家方块」的需求，再谈是否加配置项。
+
+### 11.5 为什么当时没抓出来（归因，供以后避免）
+
+1. **取证结论下窄了**：事实 2 当时只核到「方块实体类型是原版的」，就跳到了「不需要按方块区分」，
+   漏掉「**同一个 BE 类型下可以有多个方块**」这一层（DS 正是这么干的）。
+2. **验证只有阳性、没有阴性**：当时验了「黯影宝库能触发」「结构外不触发」，
+   **没验「目标结构内开别的宝库应当不触发」** —— 而这是唯一能暴露该缺陷的用例。
+   （本仓库此前已有同类教训：`say` 不产生 RCON 响应，是靠阳性/阴性对照才发现的。）
+3. **放过了「注入了却未消费」的信号**：`state` / `config` 声明了但没用，是评审的强信号。
+
+### 11.6 修复后的验收要求（含**阴性对照**）
+
+| 用例 | 期望 |
+|---|---|
+| 目标结构内开**黯影宝库**（`dragonsurvival:dark_vault` + 黯影之钥） | **召唤**（阳性） |
+| 目标结构内开**圣辉宝库**（`light_vault` + 圣辉之钥） | **不召唤**（阴性 —— 本次缺的正是这条） |
+| 目标结构内开**猎人宝库**（`hunter_vault` + 猎人之钥） | **不召唤**（阴性） |
+| 目标结构内开**原版试炼宝库**（`minecraft:vault`） | **不召唤**（阴性） |
+| 目标结构**外**开黯影宝库 | 不召唤（既有用例，保留） |
+
+机器可验部分：构建 + `javap` 确认「转发带 `BlockState`」「编排层查 `DSBlocks.DARK_VAULT`」；
+开箱动作需要真人右键（原版宝库只认玩家插入钥匙），故上表由用户实机执行，必要日志见 §11.4 末尾那条 INFO。

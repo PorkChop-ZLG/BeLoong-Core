@@ -525,3 +525,36 @@ Select-String -Path src\main\resources\beloong.mixins.json -Pattern "DreadKingRi
 在整合包完成该步骤前，本功能**装了但不触发** —— 这是配置项 `structure` 的正确行为，**不是缺陷**。
 
 **有意不做**：不加自动化测试 —— 项目无测试框架，验收口径一贯是「构建 + 静态探针 + 实机运行」。
+
+---
+
+## 六、缺陷修复（2026-09-21）：只锁定「黯影宝库」
+
+**用户报告**：在指定结构内开启**任意宝库**都会召唤不祥死者之王；要求是**只有黯影宝库**才召唤。
+
+**根因**：检测层注入的 `VaultBlockEntity.Server` 是**所有宝库共用的**方块实体
+（龙之生存的三个宝库方块 `dark_vault`/`light_vault`/`hunter_vault` 都通过 `BlockEntityTypeAddBlocksEvent`
+挂在 `BlockEntityType.VAULT` 上，原版试炼宝库亦然），而编排层修复前**只判结构、不判方块身份**
+⇒ 「只有黯影宝库」这条需求在实现里不存在。详见设计文档 §十一（含完整证据链与归因）。
+
+**修复内容**（2 个文件、极小改动）：
+
+| 文件 | 改动 |
+|---|---|
+| `mixin/minecraft/DreadKingRitualTriggerMixin.java` | 转发时把 `BlockState state` 一并交给编排层（原先只给 `level/pos/player`）；javadoc 记录本次缺陷，并说明 `config`/`serverData`/`sharedData` 是 mixin 处理器的形参要求、并非「忘了用」 |
+| `dreadking/DreadKingRitualStarter.java` | `start(...)` 增加 `BlockState` 形参 + 新闸门 `vaultState.is(DSBlocks.DARK_VAULT.get())`；非黯影宝库时留一条 INFO 日志（正是当初缺失的诊断线索） |
+
+**静态验证（已做）**：`gradlew build` 成功（无新增警告）；
+`javap` 确认 mixin 调用签名变成 `start(ServerLevel, BlockPos, BlockState, ServerPlayer)`，
+且编排层字节码出现 `DSBlocks.DARK_VAULT` + `BlockState.is(Block)`。
+**方块 id 依据**：在**实际依赖 jar**（`dragonsurvival-420799-8726322.jar`）内核实 —— 该 jar 含
+`assets/dragonsurvival/blockstates/dark_vault.json`，且龙之生存自家进度 `data/dragonsurvival/advancement/dark/open_vault.json`
+的条件就是 `"blocks": "dragonsurvival:dark_vault"`。
+
+**其实机验收（含阴性对照，待用户执行）**：见设计文档 §11.6 ——
+黯影宝库**召唤**；圣辉宝库 / 猎人宝库 / 原版试炼宝库**不召唤**；结构外黯影宝库**不召唤**。
+（原版宝库只认玩家插入钥匙，无法用命令驱动，故这一步必须真人右键。）
+
+**本次教训（已记入 `memory/learned-patterns.md`）**：
+「同一个原版方块实体类型可能服务多个方块 ⇒ 只按 BE 类型判定是不够的，必须判方块身份」，
+以及「注入点拿到了却未消费的形参是强信号，必须追问它本是不是该用来做判定」。
