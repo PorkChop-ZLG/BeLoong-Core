@@ -126,7 +126,7 @@
 | **D10** | v1 动画 | 主控制器仅循环 **`idle`** | 无 AI ⇒ 站位不动，唯一需要的就是待机。动画文件已完整放入，将来改动画只改 Java 里的名字，**不需要换文件** |
 | **D11** | 刷怪蛋 / 自然生成 | **都不做** | 用户裁定 5 |
 | **D12** | 对话系统 | **不接** | 用户裁定 6 |
-| **D13** | 属性 | `EntityAttributeCreationEvent` 注册 `MAX_HEALTH`（建议 100）等 | 无敌下血量意义有限，但 `Mob` 必须有属性表；给一个正常值以免出现 0 血怪状 |
+| **D13** | 属性 | `EntityAttributeCreationEvent` 注册 `MAX_HEALTH = 1000` + `KNOCKBACK_RESISTANCE = 1.0` | 血量由用户裁定为 **1000**（原版 `generic.max_health` 的属性上限是 1024，不会夹断）。无敌之下血量只是设定值，留足余量便于将来做"解除无敌/多阶段"的演出；`Mob` 必须有属性表，否则是 0 血怪状 |
 | **D14** | 渲染器注册点 | `BeLoongCoreClient#registerRenderers`（既有 `EntityRenderersEvent.RegisterRenderers` 先例，那里已注册 tornado） | 项目既有范式 |
 | **D15** | 包位置 | 实体 → `entity/`；模型 → `client/model/`；渲染器 → `client/` | 与既有 `entity/TornadoEntity`、`client/TornadoRenderer`、`client/model/TornadoModel` 的分工逐字一致 |
 

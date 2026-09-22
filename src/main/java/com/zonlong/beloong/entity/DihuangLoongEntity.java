@@ -68,7 +68,9 @@ public class DihuangLoongEntity extends PathfinderMob implements GeoEntity {
      */
     public static AttributeSupplier.Builder createAttributes() {
         return PathfinderMob.createMobAttributes()
-                .add(Attributes.MAX_HEALTH, 100.0D)
+                // 血量 1000。原版 generic.max_health 的属性上限是 1024，故此值不会被夹断。
+                // 无敌之下血量只是设定值，但留足余量，将来做"解除无敌/多阶段"的演出时不用再改
+                .add(Attributes.MAX_HEALTH, 1000.0D)
                 // 打不动也推不动：免疫爆炸与攻击造成的击退；玩家挤压另由 isPushable() 兜住
                 .add(Attributes.KNOCKBACK_RESISTANCE, 1.0D);
     }
