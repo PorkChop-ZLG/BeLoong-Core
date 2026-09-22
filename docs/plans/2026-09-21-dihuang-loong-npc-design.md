@@ -115,9 +115,9 @@
 | # | 决策 | 取值 | 理由 |
 |---|---|---|---|
 | **D1** | 实体基类 | **`PathfinderMob`** | 与 BWG `PumpkinWarden` 同款。**不用 `LivingEntity`**：DS 的 `DragonEntity extends LivingEntity`（`:63`）是因为它是"玩家的龙形态"、天然没有 AI 概念，而不是"为了实现无 AI 才这么选"；`LivingEntity` 是抽象类，还要自己实现 `getArmorSlots`/`getItemBySlot`/`setItemSlot`/`getMainArm` 四个样板方法 |
-| **D2** | 无 AI | **不写 `registerGoals()`** + 构造里 `setNoAi(true)` | `Mob#isEffectiveAi()` 返回 `super.isEffectiveAi() && !isNoAi()`（`Mob.java:1362`）⇒ goal 选择器完全不跑；`NoAI` 还会存进 NBT（`:425-426`）。双保险 |
-| **D3** | 无敌 | 构造里 `setInvulnerable(true)` | `Entity#setInvulnerable`（`Entity.java:2529`）+ `isInvulnerableTo`（`:2518`）挡掉绝大多数伤害，且**存进 NBT**（`:1759`）。※`/kill` 与创造模式玩家仍能移除它 —— 对 NPC 是想要的行为（留一条管理后路） |
-| **D4** | 永不消失 | **`MobCategory.MISC`** + 构造里 `setPersistenceRequired()` | `MobCategory.MISC` 是 `("misc", -1, true, true, 128)`：**不占刷怪上限**（max=-1）且 `isPersistent=true`；再显式 `setPersistenceRequired()` 双保险。（BWG 的 NPC 也用 MISC） |
+| **D2** | 无 AI | **不写 `registerGoals()`** + **覆写 `isNoAi()` 恒为 true**（构造里另设一次） | `Mob#isEffectiveAi()` 返回 `super.isEffectiveAi() && !isNoAi()`（`Mob.java:1362`）⇒ goal 选择器完全不跑。**用覆写而非仅 `setNoAi`**：该标志会被 `/summon` 的 `load()` 覆盖（修订 R8） |
+| **D3** | 无敌 | **覆写 `isInvulnerableTo()`**：只放行 `BYPASSES_INVULNERABILITY`；构造里另设 `setInvulnerable(true)` | `LivingEntity#hurt` 的**第一道闸门**就是 `isInvulnerableTo`（`LivingEntity.java:1084`）。放行的只有 `out_of_world` 与 `generic_kill` ⇒ `/kill` 与虚空仍可移除（刻意留的管理后路）。**不依赖 `invulnerable` 字段**的理由见修订 R8；参考实现：传奇怪物的休眠怪覆写 `hurt()` 按状态判定（`Frostbitten_GolemEntity:528-532`） |
+| **D4** | 永不消失 | **`MobCategory.MISC`** + **覆写 `isPersistenceRequired()` 恒为 true** | `Mob#checkDespawn`（`Mob.java:703-716`）只看 `persistenceRequired` / `requiresCustomPersistence()`，**不看** `MobCategory.isPersistent()` ⇒ 真正的闸门是前者（初版写成"MISC 本身 persistent 即可"是不准确的，见修订 R8）。MISC 的价值在 `max=-1`：不占刷怪上限 |
 | **D5** | 站在地上 | **不调用 `setNoGravity`**，让重力正常作用 | 用户裁定 1 |
 | **D6** | 碰撞箱 | `.sized(1.5F, 2.5F)` | 用户裁定 2；长条龙（约 9 格长）无法用轴对齐方块贴合，取身体主体段 |
 | **D7** | 缩放 | **不缩放**（不加 `withScale`、不在 `preRender` 里 `scale`） | 用户裁定 3 |
@@ -145,6 +145,32 @@
 **实现期新增的一处小决策**：覆写 `isPushable()` 返回 `false`。原设计只写了"站在地上"，
 没提"可被推动"，但站桩 NPC 被玩家挤着走与该意图冲突，故一并关闭；
 击退另由 `KNOCKBACK_RESISTANCE = 1.0` 兜住（爆炸/攻击都推不动）。
+
+**R8 —— 构造函数设的实体标志位会被 `/summon` 的 `load()` 覆盖（实机发现的真 bug，2026-09-21）。**
+
+**现象**：`/summon` 出来的地黄龙**能被打**。
+**根因**是创建顺序 —— `EntityType.create()`（构造函数运行，三个标志被设为正确值）→
+紧接着 `entity.load(召唤标签)`，而 `load()` 会从标签逐个读回这些字段，**标签里没有对应键时即被覆盖为 false**：
+
+| 字段 | 覆盖位置 | 召唤后 |
+|---|---|---|
+| `invulnerable` | `Entity.java:1759` | false |
+| `persistenceRequired` | `Mob.java:437` | false |
+| `noAi` | `Mob.java:486` | false |
+
+⇒ 初版的 **D2 / D3 / D4 三条同时失效**（只有"不注册 goal"那一半还生效，所以外观上它仍然不动，
+掩盖了问题）。另有一个能佐证的现象：`Entity.java:1664` 在**保存时**会写出 `Invulnerable`，
+于是"刚召唤出来能被打、存档重进后反而无敌"。
+
+**修法**：把这三条语义改成**覆写 getter**（`isInvulnerableTo` / `isNoAi` / `isPersistenceRequired`），
+与任何加载路径无关；构造函数里的 `setXxx` 保留，仅用于让字段本身与保存出的 NBT 保持一致。
+
+**参考实现**：传奇怪物（Legendary Monsters）的休眠怪一律**覆写 `hurt()` 按状态判定**
+（`Frostbitten_GolemEntity:528-532` 等十余处），同样不依赖 `invulnerable` 字段；
+它们只在**运行期动态状态**（伏击、传送）上使用 `setInvulnerable`。
+
+**通用教训**（已记入 `memory/decisions-log.md`）：*实体构造函数里设的标志位不是持久的；
+凡是"这个实体永远如此"的语义，必须用**行为覆写**表达。*
 
 ## 五、组件
 
