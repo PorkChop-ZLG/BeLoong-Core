@@ -1,0 +1,22 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:illager_friends",
+    {
+      "id": "raidsenhanced:zapper",
+      "required": false
+    },
+    {
+      "id": "raidsenhanced:golem_of_last_resort",
+      "required": false
+    },
+    {
+      "id": "raidsenhanced:raid_blimp",
+      "required": false
+    },
+    {
+      "id": "raidsenhanced:raid_drill",
+      "required": false
+    }
+  ]
+}

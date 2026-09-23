@@ -188,6 +188,60 @@ RaidBlimpCannonsController.tick() (:52-58) ─┤
 
 ---
 
+## 补充（2026-09-23 续）：反向方向 —— 让猎人也不攻击原版灾厄村民
+
+上文只做了「袭击者 → 猎人」。用户随后提出反问：「猎人阵营是否也有类似的队友标签？有则把原版掠夺者和袭击增强的生物加进去」。
+
+**调查结论：没有这样的标签，且 `#dragonsurvival:hunter_faction` 不能这么用**（详见 `memory/learned-patterns.md`）：
+
+| 机制 | 真相 |
+|---|---|
+| `hunter_faction` | **阵营身份**标签，只服务诅咒/猎人预兆体系（3 处消费，均不参与目标选择）。往里加袭击者：对目标选择无效，且**玩家打一下袭击者就吃 30 秒猎人预兆** |
+| 猎人主动攻击 | `Hunter.java:56` 的**白名单** `#dragonsurvival:hunter_targets`，里面**已有** 5 个灾厄村民 |
+| 猎人还手 | `HurtByTargetGoal.canUse` → `Mob.isAlliedTo`，而 `Hunter` 未覆写 ⇒ 只看记分板队伍 |
+| 猎人之间不互打 | **类名忽略**（`HurtByTargetGoalExtended(this, Hunter.class)`），不是标签 |
+
+**采用的方案**：不新提 mixin，而是把上文的 `RaiderHunterAllyMixin` 扩展为**双向**。
+因为 `TargetingConditions.test`（主动锁定）与 `HurtByTargetGoal.canUse`（还手）**两处都走 `isAlliedTo`**，
+一处注入即可同时解决两件事，且**不必改 `hunter_targets`**（白名单只能治主动攻击）。
+
+**名单**：新开 `#beloong:hunter_allies`，**全部内容就一个文件**（`hunter_allies.json`）：
+原版那部分引用 `#minecraft:illager_friends` 带进来，袭击增强那部分直接列 4 个 id。
+不再另开子标签（初版曾写成 `#minecraft:raiders` + 独立子标签两层结构，用户判定过复杂，已简化）。
+
+```json
+{
+  "replace": false,
+  "values": [
+    "#minecraft:illager_friends",
+    { "id": "raidsenhanced:zapper", "required": false },
+    { "id": "raidsenhanced:golem_of_last_resort", "required": false },
+    { "id": "raidsenhanced:raid_blimp", "required": false },
+    { "id": "raidsenhanced:raid_drill", "required": false }
+  ]
+}
+```
+
+**⚠️ 袭击增强那 4 条必须 `"required": false`**：它是本模组的**可选**依赖，而 `TagLoader` 对缺失的
+required 条目会直接失败（报错文案 `"Couldn't load tag {} as it is missing following references: {}"`，字节码核对）
+⇒ 否则**没装袭击增强的整合包整个加载不了**（表现为游戏起不来，不是功能不生效）。
+该模组**没给自己登记任何实体 tag**，所以它的生物不会自动进入任何原版标签，必须显式列出。
+`raidsenhanced:player_blimp` **不纳入**：它 `extends FDVehicle`，是玩家载具而非袭击者。
+
+**⚠️ 已知覆盖范围**：`#minecraft:illager_friends` 的内容是 `#minecraft:illager`
+（evoker / illusioner / pillager / vindicator）+ 本模组写入的 6 个猎人。
+它**不含** `ravager` 与 `witch` ⇒ 猎人**仍会**攻击劫掠兽与女巫。
+若要让它们也被视为同伴，把第一行换成 `"#minecraft:raiders"`
+（= evoker / pillager / ravager / vindicator / illusioner / witch）即可，一行改动。
+
+**关键取舍（避免误伤原版行为）**：「谁是猎人」判定用 **`instanceof Hunter`**，
+**不用 `hunter_faction`** —— 后者还含 `minecraft:villager` 与 `minecraft:iron_golem`（DS 自己的 datagen 就这么写），
+按它判定会把**铁傀儡**一起缴械，拆掉「铁傀儡保卫村庄」。
+
+**玩法后果（需用户确认）**：袭击中猎人不再帮忙打灾厄村民。这正是「互相视为队友」的语义。
+
+---
+
 ## 验证策略
 
 **一级（静态，可靠）**
