@@ -124,7 +124,7 @@ config = "beloong.mixins.json"
 [[dependencies.${mod_id}]]
     modId="geckolib"
     type="required"
-    versionRange="[4.8,)"
+    versionRange="[4.6,)"
     ordering="AFTER"
     side="BOTH"
 

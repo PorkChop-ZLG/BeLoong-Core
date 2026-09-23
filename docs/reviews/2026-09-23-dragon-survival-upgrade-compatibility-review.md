@@ -69,6 +69,21 @@ BUILD SUCCESSFUL in 16s
 | **I-4** | 🟡 Minor | 取消路径逐行复制了 `apply` 四条语句中的三条 ⇒ DS 以后往 `apply` 里加逻辑会在该路径被静默跳过。今天完全等价 | `mixin/dragonsurvival/ProjectileDamageEffectMixin.java` | 维护性；无当前行为偏差 |
 | **I-5** | 🟡 Minor | 注入目标名 `lambda$destroyBlocksInRadius$1` / `lambda$checkAndDestroyCollidingBlocks$0` 的序号来自**类级** lambda 计数器 ⇒ DS 在前面任意位置新增一个 lambda 即重编号，而 `defaultRequire=1` 会让它变成启动期硬崩。本次 2.0.70 未重编号 | `mixin/dragonsurvival/DragonDestructionHandlerMixin.java:35,52` | 脆弱性；当前安全 |
 
+### 1.2 状态对账（2026-09-23，用户裁定后）
+
+| 编号 | 状态 | 依据 / 裁定 |
+|---|---|---|
+| **I-1** | ✅ **已解决** | `ManaLossHandler:49-66` 改为把请求量夹到可用法力以内（`Math.min(deduction, magic.getAvailableMana())`）。`request <= pureMana` 使 `ManaHandler.consumeMana:113` 的 `pureMana < manaCost` **恒为假** ⇒ 扣经验分支结构上不可能命中；DS 在 `:97` 的创造模式 / `SOURCE_OF_MAGIC` 早退仍照旧生效 |
+| **I-2** | ✅ **已解决** | `ClientFlightHandlerMixin:124` 已无条件 `setAy(0.0)`；旧错误注释被 `:140-144` 取代；类头 javadoc 已改写 |
+| **I-3** | ✅ **已解决（用户手动调整）** | `neoforge.mods.toml` 的 GeckoLib 下限已由 `[4.8,)` 改为 **`[4.6,)`**，与 DS 声明一致 |
+| **I-4** | 🚫 **不修复（用户裁定）** | 理由：当前可正常使用。HEAD-cancel 复制目标方法体的形态保留，作为已知维护性风险 |
+| **I-5** | 🚫 **不修复（用户裁定）** | 理由：当前可正常使用。裸 lambda 序号保留，作为已知脆弱性（DS 重编号即启动期硬崩，升级 DS 时必须复核） |
+| **❓ 未决** | ✅ **已解决（判定为误报）** | NeoForge 自带 SERVER 配置同步（`net.neoforged.neoforge.network.ConfigSync` 字节码首句即 `ModConfig$Type.SERVER` → `getConfigSet`），连接配置阶段推送；且项目**刻意**读 DS 同一个字段（判定前提与 DS 物理同源）。原自建同步包方案已回退 |
+
+> 同时期还发现并处理了 9 项「飞行系统冲突」（F-1..F-9），见
+> `docs/reviews/2026-09-23-flight-system-conflicts-and-creative-flight-comparison.md`。
+> 其中 8 项已解决、F-8 部分解决。
+
 **核验覆盖面**：17 个 DS mixin 目标全部仍可解析，约 30 个 DS API 成员在 2.0.70 jar 内逐一存在且描述符一致，`gradlew build` 通过。
 
 > **与上一版报告的关系**：上一版基于 2026-08-26 的中间态源码（当时仓库更新失败），本次已用 **2.0.70 正式产物**重跑全部核验。**§4.2 的结论被更正**（原判"失去对闸门的控制"在 2.0.70 下不成立），详见 §6。

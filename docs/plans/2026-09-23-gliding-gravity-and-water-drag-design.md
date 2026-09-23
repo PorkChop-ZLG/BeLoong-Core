@@ -1,7 +1,23 @@
+> # ❌ 已否决，未实施（2026-09-23）
+>
+> 本文档描述的方案**已实施后回退**：实机测试效果不佳，用户裁定不再修改飞行系统。
+> 相关代码改动（`flight/StableFlightState.java`、`mixin/minecraft/PlayerFluidInteractionMixin.java`、
+> `ClientFlightHandlerMixin` 的状态机与三路分流、`beloong.mixins.json` 条目）**全部已回退**，
+> 工作树回到 `c9181cf`。
+>
+> **保留本文档的理由**：其中若干结论对以后仍有价值，勿因"已否决"而连带丢弃——
+> - DS 的 `ServerFlightHandler.isFlying()` 带 `!isInWater()`（`:170`）⇒ 水中没有 DS 的飞行推力；
+> - `Player#isAffectedByFluids()` 是原版创造飞行"不受水阻力"的**唯一**机制，且**无属性可替代**；
+> - 一旦覆写 `isAffectedByFluids`，它就变成系统的**输出**，任何谓词都不得再读它（否则抖动）；
+> - 属性法（在 DS 计算前置 0）能同时覆盖 DS `:408` 的重力项与 `travel` 的 `d0`，
+>   而 PR #7 改 `travel` 局部量的做法只能覆盖后者。
+
+---
+
 # 滑翔去重力 + 水中去阻力 · 设计文档
 
 **日期：** 2026-09-23
-**状态：** 已批准（四个子决策均按推荐确认）
+**状态：** ~~已批准（四个子决策均按推荐确认）~~ → **已否决，未实施**
 **上游文档：**
 - `docs/plans/2026-09-23-flight-stable-hover-rewrite-design.md`（属性法本体）
 - `docs/reviews/2026-09-23-flight-system-conflicts-and-creative-flight-comparison.md`（冲突 F-1..F-9）
