@@ -94,6 +94,19 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# LionfishAPI —— 地狱之门的模型/动画基类来自它。
+# 灾变的 mods.toml 里没写这个依赖（它只声明 curios），但灾变 3.26 的模型体系实际依赖它，
+# 而本模组的地狱之门直接链接了它的类，所以这里显式声明为 required：
+# 缺了它宁可给出清晰的加载错误，也不要运行时 NoClassDefFoundError。
+# 下界取 "3.0-beta"（而非 "3.0"）是因为 LionfishAPI 当前发布版正好叫 3.0-beta，
+# 而这个字符串在版本比较里小于 "3.0"，用 [3.0,) 会把编译时的那个版本自己挡在门外。
+[[dependencies.${mod_id}]]
+    modId="lionfishapi"
+    type="required"
+    versionRange="[3.0-beta,)"
+    ordering="AFTER"
+    side="BOTH"
+
 [[dependencies.${mod_id}]]
     modId="fdbosses"
     type="required"

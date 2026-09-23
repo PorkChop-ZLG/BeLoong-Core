@@ -134,7 +134,7 @@ configurations {
 
 dependencies {
     // Dragon Survival - required dependency
-    implementation "curse.maven:dragons-survival-420799:8726322"
+    implementation "curse.maven:dragons-survival-420799:8871661"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:8350073"
 
@@ -184,7 +184,10 @@ dependencies {
     compileOnly "curse.maven:fdlib-1271749:7844741"
     localRuntime "curse.maven:fdlib-1271749:7844741"
 
-    // LionfishAPI — 本地运行时
+    // LionfishAPI — 必选前置（地狱之门的模型/动画基类 AdvancedEntityModel 来自这里）
+    // 注：灾变并未在自家 mods.toml 里声明它，但灾变 3.26 实际依赖它，因此本模组显式声明为 required。
+    // compileOnly 与 localRuntime 锁同一版本号，避免「按 3.1 编译、按 3.0-beta 运行」的偏差。
+    compileOnly "curse.maven:lionfish-api-1001614:8094835"
     localRuntime "curse.maven:lionfish-api-1001614:8094835"
 
     // F-Sweep — 可选依赖
