@@ -134,7 +134,7 @@ configurations {
 
 dependencies {
     // Dragon Survival - required dependency
-    implementation "curse.maven:dragons-survival-420799:8726322"
+    implementation "curse.maven:dragons-survival-420799:8871661"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:8350073"
 
