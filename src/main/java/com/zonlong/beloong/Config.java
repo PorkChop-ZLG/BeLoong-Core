@@ -18,11 +18,11 @@ public class Config {
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
     /**
-     * 稳定悬停修复总开关（默认启用）。
+     * 稳定悬停修复总开关（默认启用，客户端侧）。
      *
-     * <p>实际生效还需同时满足：DS 配置 {@code stable_hover = true}（服务端配置，
-     * 由 {@code FlightStatusSyncPayload} 在登录时同步到客户端），且玩家的
-     * {@code dragonsurvival:flight_level} ≥ 1。飞行等级不足时按 DS 原版非稳定悬停下坠。</p>
+     * <p>实际生效还需同时满足：DS 配置 {@code stable_hover = true}（该值由 NeoForge 在连接时
+     * 自动同步给客户端，判定处直接读 {@code ServerFlightHandler.stableHover}），
+     * 且玩家的 {@code dragonsurvival:flight_level} ≥ 1。飞行等级不足时按 DS 原版非稳定悬停下坠。</p>
      *
      * <p>滑翔不在本修复范围内，完全由 DS 原版处理。</p>
      */

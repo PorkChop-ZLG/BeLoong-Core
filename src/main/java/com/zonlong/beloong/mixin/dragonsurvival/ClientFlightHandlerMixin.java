@@ -5,7 +5,6 @@ import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvide
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.Config;
-import com.zonlong.beloong.network.ClientFlightStatusCache;
 import com.zonlong.beloong.registry.ModAttributes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.Input;
@@ -34,9 +33,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       因此窗口恰好只在这一次 {@code travel} 内 —— 这一点是必须的：DS 自己也读
  *       {@code Attributes.GRAVITY}（{@code ClientFlightHandler:395}）来算
  *       {@code ay}/{@code yMotion}，若在它计算前就把属性置 0，稳定悬停与非稳定模拟会双双失效。</li>
- *   <li><b>{@code stableHover} 改读同步值</b>：DS 的 {@code stable_hover} 是
- *       {@code ConfigSide.SERVER} 配置，客户端未必能读到权威值，改由服务端在登录时通过
- *       {@code FlightStatusSyncPayload} 同步，这里读 {@link ClientFlightStatusCache}。</li>
+ *   <li><b>{@code stableHover} 直接读 DS 的字段</b>：判定与 DS 自己的飞行物理读的是
+ *       <b>同一个</b> {@code ServerFlightHandler.stableHover}。这是刻意的——非稳定悬停的模拟是
+ *       <b>叠加在 DS 输出之上</b>的，「DS 到底施加了什么」必须与 DS 读到的值同源；
+ *       若改用任何副本（例如自行同步一份到客户端），一旦两者更新时机不同就会分叉，
+ *       表现为下坠速度既可能偏快（重复叠加）也可能偏慢（该叠加时没叠加）。
+ *       DS 的该配置虽是 {@code ConfigSide.SERVER}，但 NeoForge 在连接配置阶段会自动把
+ *       SERVER 配置同步给客户端（{@code net.neoforged.neoforge.network.ConfigSync}），
+ *       且 DS 自己也在 {@code ConfigHandler.handleConfigReloading} 里随热重载更新该字段。</li>
  *   <li><b>滑翔不再被接管</b>：{@code isGliding} 被排除出判定，DS 原版滑翔物理一字不动。</li>
  *   <li><b>水中零重力收紧</b>：补上 DS 同款的 {@code isAffectedByFluids} /
  *       {@code canStandOnFluid} 检查（对齐 {@code mixins/LivingEntityMixin.java:196}），
@@ -52,7 +56,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 或任一守卫不满足时通过早期返回跳过。
  *
  * @see com.zonlong.beloong.registry.ModAttributes#getFlightLevel
- * @see com.zonlong.beloong.network.FlightStatusSyncPayload
  */
 @Mixin(value = ClientFlightHandler.class, remap = false)
 public abstract class ClientFlightHandlerMixin {
@@ -156,7 +159,8 @@ public abstract class ClientFlightHandlerMixin {
      * 无飞行能力、旋转攻击、滑翔、以及竖直操作输入。飞行等级与「空中/水中」由调用方判断。</p>
      */
     private static boolean beloong$isEligible(LocalPlayer player) {
-        if (!ClientFlightStatusCache.INSTANCE.isStableHover()) {
+        // 刻意读 DS 自己的字段：判定前提必须与 DS 飞行物理的前提同源（详见类 javadoc）
+        if (!ServerFlightHandler.stableHover) {
             return false;
         }
         if (player.isPassenger() || Minecraft.getInstance().isPaused()) {
