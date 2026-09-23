@@ -1,5 +1,6 @@
 package com.zonlong.beloong.registry;
 
+import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -46,6 +47,9 @@ public class ModAttributes {
     @Nullable
     private static Holder<Attribute> cachedFlightLevel;
 
+    /** 属性缺失的告警只打一次，避免每 tick 刷屏。 */
+    private static boolean warnedMissing;
+
     /**
      * 获取玩家的有效飞行等级（已叠加所有 attribute modifier）。
      *
@@ -69,6 +73,14 @@ public class ModAttributes {
                     ResourceLocation.fromNamespaceAndPath("dragonsurvival", "flight_level"));
             if (raw != null) {
                 cachedFlightLevel = BuiltInRegistries.ATTRIBUTE.wrapAsHolder(raw);
+            } else if (!warnedMissing) {
+                // 属性缺失意味着 DSAttributesMixin 未能注册（例如 DS 侧结构变更导致注入失效）。
+                // 静默返回 0 会让「稳定悬停突然不工作」无从排查，故打一条一次性告警。
+                // 注意：不缓存失败结果，后续调用仍会重试查找。
+                warnedMissing = true;
+                BeLoongCore.LOGGER.warn(
+                        "[BeLoong] flight: attribute dragonsurvival:flight_level is not registered;"
+                                + " the flight level system (and stable hover) is disabled");
             }
         }
         if (cachedFlightLevel == null) {

@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
@@ -13,6 +14,7 @@ import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
+import com.zonlong.beloong.network.FlightStatusSyncPayload;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
@@ -128,11 +130,18 @@ public class BeLoongCore {
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // === 网络包注册 ===
-        modEventBus.addListener((RegisterPayloadHandlersEvent evt) ->
-                evt.registrar(MODID).playToClient(
-                        TreasureSyncPayload.TYPE,
-                        TreasureSyncPayload.STREAM_CODEC,
-                        TreasureSyncPayload::handleClient));
+        modEventBus.addListener((RegisterPayloadHandlersEvent evt) -> {
+            evt.registrar(MODID).playToClient(
+                    TreasureSyncPayload.TYPE,
+                    TreasureSyncPayload.STREAM_CODEC,
+                    TreasureSyncPayload::handleClient);
+            // DS 的 stable_hover 是 SERVER 侧配置，客户端未必读得到权威值，
+            // 因此由服务端在登录时同步（见 onPlayerLogin）。
+            evt.registrar(MODID).playToClient(
+                    FlightStatusSyncPayload.TYPE,
+                    FlightStatusSyncPayload.STREAM_CODEC,
+                    FlightStatusSyncPayload::handleClient);
+        });
     }
 
     /** FML 通用设置（双端都执行）。 */
@@ -191,9 +200,15 @@ public class BeLoongCore {
     }
 
     /**
-     * 玩家登录时将全量财宝条目同步至客户端。
+     * 玩家登录时同步两类客户端数据：
+     * <ol>
+     *   <li>全量财宝条目（{@link TreasureSyncPayload}）</li>
+     *   <li>DS 的 {@code stable_hover} 服务端配置值（{@link FlightStatusSyncPayload}）</li>
+     * </ol>
      * <p>
      * 仅在登录时同步一次（非数据包重载），避免频繁网络传输。
+     * 已知代价：运营者运行时改动 {@code dragonsurvival-server.toml} 的 {@code stable_hover} 后，
+     * 已在线玩家需重新登录才会拿到新值。
      */
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
@@ -212,5 +227,11 @@ public class BeLoongCore {
         }
 
         PacketDistributor.sendToPlayer(player, new TreasureSyncPayload(entries));
+
+        // DS 的 stable_hover 是 ConfigSide.SERVER 配置，服务端这份是权威值；
+        // 客户端侧的稳定悬停判定改读同步结果，不再直接读该静态字段。
+        boolean stableHover = ServerFlightHandler.stableHover;
+        PacketDistributor.sendToPlayer(player, new FlightStatusSyncPayload(stableHover));
+        LOGGER.debug("[BeLoong] flight: synced stable_hover={} to {}", stableHover, player.getGameProfile().getName());
     }
 }

@@ -17,9 +17,17 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复稳定悬浮漂移（默认启用） */
+    /**
+     * 稳定悬停修复总开关（默认启用）。
+     *
+     * <p>实际生效还需同时满足：DS 配置 {@code stable_hover = true}（服务端配置，
+     * 由 {@code FlightStatusSyncPayload} 在登录时同步到客户端），且玩家的
+     * {@code dragonsurvival:flight_level} ≥ 1。飞行等级不足时按 DS 原版非稳定悬停下坠。</p>
+     *
+     * <p>滑翔不在本修复范围内，完全由 DS 原版处理。</p>
+     */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
-            .comment("修复稳定悬浮漂移")
+            .comment("稳定悬停修复总开关；需同时满足 DS 的 stable_hover=true 且 flight_level>=1；滑翔不受影响")
             .define("fixStableHoverDrift", true);
 
     /** 禁用王国场地的冰火天空特效（默认禁用） */
