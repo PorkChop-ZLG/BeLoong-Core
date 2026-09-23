@@ -117,11 +117,10 @@ public abstract class ClientFlightHandlerMixin {
                 return;
             }
 
-            // 水平方向仅在无移动输入时清零，避免影响游泳/移动转向
-            if (noMoveInput) {
-                ClientFlightHandlerAccessor.beloong$setAx(0.0);
-                ClientFlightHandlerAccessor.beloong$setAz(0.0);
-            }
+            // ⚠️ 水平方向（ax/az）刻意完全不碰，交给 DS 自己的加减速。
+            // 早先这里会在无水平输入时清零 ax/az，等于把 DS 的推力累加器一次性抹掉：
+            // 滑翔结束后残余推力消失，表现为"立刻停下"，而 DS 原版是"慢慢减速然后停下"。
+            // 用户实测后裁定保留 DS 的手感，故本 Mixin 只负责竖直方向与重力。
             ClientFlightHandlerAccessor.beloong$setAy(0.0);
 
             Vec3 delta = player.getDeltaMovement();
