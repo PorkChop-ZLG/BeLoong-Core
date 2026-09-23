@@ -203,6 +203,16 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# Raids:Enhanced（袭击增强）— 可选兼容：让它的袭击者把龙之生存猎人视为同伴。
+# 注入的是该模组的内部方法 RaidBlimp#checkTargetClass，上游改名会静默失效，
+# 因此这里写 versionRange 让「版本不匹配」在启动日志里可见（见 2026-09-18 审查第 2 条）。
+[[dependencies.${mod_id}]]
+    modId="raidsenhanced"
+    type="optional"
+    versionRange="[1.0.2,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

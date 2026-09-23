@@ -44,7 +44,9 @@
     "legendarymonsters.AnnihilationPursuerDamageCapMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
-    "minecraft.DreadKingRitualTriggerMixin"
+    "minecraft.DreadKingRitualTriggerMixin",
+    "minecraft.RaiderHunterAllyMixin",
+    "raidsenhanced.RaidBlimpTargetMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
