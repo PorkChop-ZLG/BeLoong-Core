@@ -47,14 +47,18 @@ public class NpcTurnGoal extends Goal {
             return;
         }
 
+        float maxTurn = this.npc.maxTurnPerTick();
         float delta = Mth.wrapDegrees(target - this.npc.getYRot());
+
+        float newYaw;
         if (Math.abs(delta) <= ARRIVE_EPSILON) {
-            this.npc.setYRot(target);
-            this.npc.clearTurnTarget();   // 到位即结束，goal 随之自然停止
-            return;
+            newYaw = target;
+            this.npc.clearTurnTarget();   // 到位即结束；朝向由基类的 facingLocked 保持住
+        } else {
+            newYaw = this.npc.getYRot() + Mth.clamp(delta, -maxTurn, maxTurn);
         }
 
-        float maxTurn = this.npc.maxTurnPerTick();
-        this.npc.setYRot(this.npc.getYRot() + Mth.clamp(delta, -maxTurn, maxTurn));
+        // 走 setFacing（同时写 yRot 与 yBodyRot）：站桩实体的身体不会自动跟随 yRot
+        this.npc.setFacing(newYaw);
     }
 }

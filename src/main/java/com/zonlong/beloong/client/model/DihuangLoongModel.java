@@ -38,14 +38,17 @@ public class DihuangLoongModel extends GeoModel<DihuangLoongEntity> {
             ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "animations/dihuang_loong.animation.json");
 
     /**
-     * 头部朝向符号（实机调试常量）。
+     * 头部朝向符号（实机标定）。
      * <p>
      * GeckoLib 对 **Molang** 值的 X/Y 轴会取负（{@code AnimationController.java:747-761}：
      * {@code toRadians(...)} 之后 {@code *= -1}），而 MC 的 yaw 正向与 Blockbench 骨骼旋转正向
-     * 之间的关系只能实机确认。**若实机发现头朝反方向，把这里改成 {@code -1.0F} 即可**
-     * —— 不需要动动画文件。
+     * 之间的关系只能实机确认。
+     * <p>
+     * <b>实机结论（2026-09-25）：取 {@code -1.0F}。</b>—— 原本取 {@code +1.0F} 时
+     * 头随玩家左右摆动的方向是**反的**（上下俯仰正常）。若将来又反了，翻回 {@code +1.0F} 即可，
+     * 不需要动动画文件。
      */
-    private static final float HEAD_YAW_SIGN = 1.0F;
+    private static final float HEAD_YAW_SIGN = -1.0F;
 
     // 注：GeckoLib 4.9 里这三个单参版本标了 @Deprecated，但**仍是抽象方法**，必须实现；
     // 双参重载（带 renderer）默认转调它们 —— 与 BWG 的 PumpkinWardenModel 写法一致。

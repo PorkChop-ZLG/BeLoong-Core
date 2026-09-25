@@ -52,6 +52,16 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * 实体其实是被"钉"在召唤点的。
  * 本基类因此**不碰** {@code isNoAi()}，重力自然生效。
  *
+ * <h2>站桩实体的身体朝向**不会**自动跟随 {@code yRot}（转向必须走 {@link #setFacing}）</h2>
+ * 这一点与直觉相反，是"turn 指令无效 / 身体只转一点点"的根因：
+ * {@code LivingEntity#tick()}（{@code :2496-2525}）给身体插值用的目标是**本 tick 的位移方向** ——
+ * 站着不动时那个目标就等于当前的 {@code yBodyRot}（原地不动），而唯一会动它的是
+ * "「{@code |yRot - yBodyRot|} 超过 {@code getMaxHeadRotationRelativeToBody()}（{@code Mob} 默认 75°）
+ * 时把体差夹回 75°」"那一段。
+ * ⇒ 只写 {@code yRot}，身体在 75° 以内**完全不跟**、超过 75° 也只被拖到 75°。
+ * 所以 {@link #setFacing} 会**同时写 {@code yRot} 与 {@code yBodyRot}**；
+ * 两个都写成同一个值还顺带让上面那段夹取无事可做（差值为 0，它不介入）。
+ *
  * <h2>子类必须提供</h2>
  * 实体类型绑定（见 {@code registry/ModEntities}）、碰撞箱（那里）、渲染器与模型
  * （{@code client/} 侧），以及属性表 —— 用 {@link #createNpcAttributes()} 作起点。
@@ -70,6 +80,16 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /** 移动动画名。 */
     protected String walkAnimationName() {
         return "walk";
+    }
+
+    /**
+     * 奔跑动画名。
+     * <p>
+     * 只在**真的在移动且处于冲刺状态**时播。资产里的 {@code run} 引用了 3 根本模型没有的骨骼
+     * （{@code Drip1-3}），GeckoLib 对缺失骨骼是优雅忽略，只是观感略有缺失、不会崩。
+     */
+    protected String runAnimationName() {
+        return "run";
     }
 
     /** {@code idle} ↔ {@code walk} 的过渡时长（tick）。0 = 硬切。 */
@@ -93,14 +113,30 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 走路档位，乘在 {@code MOVEMENT_SPEED} 上。
+     * 寻路速度修正系数 —— **必须取 {@code 1 / sqrt(MOVEMENT_SPEED)}，不是 1.0**。
      * <p>
-     * 默认 1.0 而**不是** {@code MoveControl} 的初值 0.25 —— 那个初值会让 NPC 只有 1/4 速度
-     * （{@code MoveControl.java}：{@code setSpeed(speedModifier * MOVEMENT_SPEED)}）。
-     * 配合 {@link #createNpcAttributes()} 的 0.1，正好是**玩家走路速度**。
+     * <b>为什么</b>：生物的实际位移正比于 {@code speed²}，而玩家正比于 {@code speed¹}：
+     * <ul>
+     *   <li>{@code Mob#setSpeed(s)} 除了记录 speed，还把它写进 <b>zza（前进输入）</b>：
+     *       {@code super.setSpeed(speed); this.setZza(speed);}（{@code Mob.java:557-560}）；</li>
+     *   <li>{@code LivingEntity#travel} 用 {@code moveRelative(速度, (xxa, yya, zza))} 算位移，
+     *       而 {@code zza = s} ⇒ 生物位移 ∝ {@code s²}；</li>
+     *   <li>玩家**不是** {@code Mob} 的子类（{@code Player extends LivingEntity}），
+     *       它的 {@code zza} 来自输入、幅度为 1.0 ⇒ 位移 ∝ {@code s¹}。</li>
+     * </ul>
+     * 于是"把属性值 0.1 直接当 speed 用、系数给 1.0"时，生物只有玩家的
+     * {@code 0.1² / 0.1 = 1/10} 速度 —— 这正是首版"走路特别慢"的根因。
+     * <p>
+     * 取 {@code 1/sqrt(属性)} 后生物位移 ∝ {@code (系数 × 属性)² = 属性}，与玩家的 {@code 属性}
+     * 相等 ⇒ **走路对上走路、冲刺对上冲刺**：冲刺时属性被 {@code SPEED_MODIFIER_SPRINTING}
+     * 抬高，本方法随属性自动跟随，不需要硬编码倍数。
+     * <p>
+     * （另注：{@code MoveControl} 的 {@code speedModifier} 初值是 0.25，所以无论如何都得显式给值。）
      */
-    protected double walkSpeedModifier() {
-        return 1.0D;
+    protected double navigationSpeedModifier() {
+        double speedAttribute = this.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        // 防 0 除（属性被改成 0 时不能给 Infinity 喂进 setSpeed）
+        return speedAttribute <= 0.0D ? 1.0D : 1.0D / Math.sqrt(speedAttribute);
     }
 
     // ===================== 属性默认值 =====================
@@ -136,6 +172,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 是否处于"被下令攻击"状态。只有它为 true 时 {@link NpcAttackGoal} 才会运行。 */
     private boolean attackCommandActive;
+
+    /**
+     * 朝向是否被锁住。
+     * <p>
+     * {@link #turnTo} 之后为 true：**外部指定的朝向必须粘住** —— 否则只要玩家在跟随距离内，
+     * {@link NpcFacePlayerGoal} 会在转向完成的下一 tick 把身体转回玩家，表现为"turn 指令无效"。
+     * 由 {@link #stopAction} 或任何其它指令（走 / 跑 / 攻击）解除。
+     */
+    private boolean facingLocked;
 
     protected NpcEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
@@ -238,8 +283,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 原地转身到**绝对**朝向（度）。会先取消其它外部指令 —— 语义确定：下令即接管。
      * <p>
-     * 只写 {@code yRot}，不碰 {@code yBodyRot}：原版 {@code LivingEntity#tickHeadTurn}
-     * 会以 0.3 插值让身体追上来（{@code LivingEntity.java:2700-2714}），手写反而会与它的夹取对冲。
+     * <b>朝向会被「锁住」</b>（{@link #facingLocked}）：转向完成后**不会**自动回到"面朝附近玩家"。
+     * 否则只要玩家在跟随距离内，{@link NpcFacePlayerGoal} 会在转向完成的下一 tick 把身体转回去 ——
+     * 表现为"turn 指令无效"。用 {@link #stopAction}（或任何其它指令：走 / 跑 / 攻击）解除。
+     * <p>
+     * 实际的角度推进由 {@link NpcTurnGoal} 每 tick 完成，且走 {@link #setFacing}
+     * —— 站桩实体的身体**不会**自动跟随 {@code yRot}（见类注释那一节）。
      */
     public void turnTo(float yaw) {
         if (this.level().isClientSide()) {
@@ -249,6 +298,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.attackCommandActive = false;
         this.setTarget(null);
         this.turnTargetYaw = yaw;
+        this.facingLocked = true;
     }
 
     /** 走到目标点（玩家走路速度）。 */
@@ -297,12 +347,13 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (sprint) {
             this.setSprinting(true);
         }
-        this.getNavigation().moveTo(pos.x, pos.y, pos.z, this.walkSpeedModifier());
+        this.getNavigation().moveTo(pos.x, pos.y, pos.z, this.navigationSpeedModifier());
     }
 
-    /** 清掉"位移类"指令（转身 / 寻路 / 冲刺），不碰攻击指令。 */
+    /** 清掉"位移类"指令（转身 / 寻路 / 冲刺 / 朝向锁），不碰攻击指令。 */
     private void clearMotionCommands() {
         this.turnTargetYaw = null;
+        this.facingLocked = false;
         this.getNavigation().stop();
         this.setSprinting(false);
     }
@@ -314,7 +365,25 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 同时避免"边走边转身体"与寻路抢 {@code yRot}。
      */
     public boolean isExternallyCommanded() {
-        return this.turnTargetYaw != null || this.attackCommandActive || !this.getNavigation().isDone();
+        return this.turnTargetYaw != null
+                || this.facingLocked
+                || this.attackCommandActive
+                || !this.getNavigation().isDone();
+    }
+
+    /**
+     * 同时设置 {@code yRot} 与 {@code yBodyRot} —— **站桩转向必须走这里**，不要只 {@code setYRot}。
+     * <p>
+     * 理由见类注释的那一节：{@code LivingEntity#tick()} 给身体插值的目标是"本 tick 的位移方向"，
+     * 站着不动时它等于当前 {@code yBodyRot}，所以只写 {@code yRot} 身体几乎不跟
+     * （75° 以内完全不跟，超过 75° 只被夹取拖到 75°）。
+     * <p>
+     * 两个字段写成同一个值，还能让"体差超过 75° 就夹取"那段逻辑无事可做（差值为 0）。
+     * {@code yBodyRotO} 由原版每 tick 自行前推，渲染侧的 {@code Mth.rotLerp} 因此照常平滑。
+     */
+    public void setFacing(float yaw) {
+        this.setYRot(yaw);
+        this.yBodyRot = yaw;
     }
 
     /** 供 {@link NpcTurnGoal} 读取当前目标朝向。 */
@@ -345,22 +414,30 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     /**
-     * 主控制器：待机 / 移动二选一。
+     * 主控制器：待机 / 移动（走或跑）三选一。
      * <p>
      * <b>{@code RawAnimation} 刻意在这里构建而不在构造函数里</b>：动画名来自**可覆写**方法
      * （{@link #idleAnimationName()} 等），构造函数里调虚方法会踩"子类字段尚未初始化"的经典坑。
      * 而 {@code registerControllers} 由 {@code AnimatableManager} **惰性**调用，那时子类早已构造完。
      * <p>
      * 判据用 GeckoLib 的 {@code isMoving()}（横向速度 ≥ 0.015/tick 且 {@code walkAnimation} 在动）。
-     * **原地转身不算移动**，所以转圈时仍播 idle。走路档位是 0.1（玩家速度），比多数原版怪慢，
-     * 若实测读不到移动，在 renderer 覆写 {@code getMotionAnimThreshold} 调低。
+     * <b>注意这个阈值</b>：移动太慢（例如属性没配上正确的速度系数）时它会一直是 false ⇒
+     * 走了却只播 idle。**原地转身不算移动**，所以转圈时仍播 idle。
+     * <p>
+     * 走 / 跑的分野用 {@code isSprinting()}：那是**共享标志位**、会同步给客户端，
+     * 而冲刺修饰符只存在于服务端属性实例上，客户端读不到。
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         final RawAnimation idle = RawAnimation.begin().thenLoop(this.idleAnimationName());
         final RawAnimation walk = RawAnimation.begin().thenLoop(this.walkAnimationName());
-        controllers.add(new AnimationController<>(this, "main", this.animationTransitionTicks(),
-                state -> state.setAndContinue(state.isMoving() ? walk : idle)));
+        final RawAnimation run = RawAnimation.begin().thenLoop(this.runAnimationName());
+        controllers.add(new AnimationController<>(this, "main", this.animationTransitionTicks(), state -> {
+            if (!state.isMoving()) {
+                return state.setAndContinue(idle);
+            }
+            return state.setAndContinue(state.getAnimatable().isSprinting() ? run : walk);
+        }));
     }
 
     @Override

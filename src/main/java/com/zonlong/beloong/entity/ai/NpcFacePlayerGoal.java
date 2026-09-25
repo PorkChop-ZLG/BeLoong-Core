@@ -73,6 +73,8 @@ public class NpcFacePlayerGoal extends Goal {
 
         float delta = Mth.wrapDegrees(target - this.npc.getYRot());
         float maxTurn = this.npc.maxTurnPerTick();
-        this.npc.setYRot(this.npc.getYRot() + Mth.clamp(delta, -maxTurn, maxTurn));
+        // 走 setFacing（同时写 yRot 与 yBodyRot）：站桩实体的身体不会自动跟随 yRot，
+        // 只写 yRot 的话身体最多被 75° 夹取拖一部分，看上去"没有真正面朝玩家"
+        this.npc.setFacing(this.npc.getYRot() + Mth.clamp(delta, -maxTurn, maxTurn));
     }
 }
