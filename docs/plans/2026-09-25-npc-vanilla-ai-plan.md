@@ -2,8 +2,9 @@
 
 **Date:** 2026-09-25
 **Design:** [2026-09-25-npc-vanilla-ai-design.md](./2026-09-25-npc-vanilla-ai-design.md)
-**Status:** **主体已执行（`23c2721`）** —— T1–T8 全部完成并通过构建与静态探针；
-**剩余项见 §三**（实机验收 / R9 标定 / 两项被刻意推迟的工作）。
+**Status:** **主体已执行（`23c2721`）并通过实机验证（用户确认全部通过）** —— T1–T8 全部完成并通过构建与静态探针；
+T5（`RandomLookAroundGoal`）经 **R-impl-2 回退**（实机后用户裁定"改回默认不转动"）；
+**剩余项见 §三**（R9 标定 / 两项被刻意推迟的工作）。
 **Approach:** 移动与行为回归原版机制，只保留三项原版确实没有的自研。
 
 > 本文件与设计文档配对。因为设计在敲定后即被执行，这里**同时充当这一轮的执行记录**：
@@ -19,7 +20,7 @@
 | **T2** | 取消奔跑状态：删 `runTo`、`moveTo(...,sprint)` 的 sprint 分支、`clearMotionCommands` 与 `customServerAiStep` 里的 `setSprinting`；`customServerAiStep` 只保留攻击指令失效兜底 | 同上 | ✅ |
 | **T3** | `run` 动画改判据：移动中且 `getAttributeValue(MOVEMENT_SPEED) > getAttributeBaseValue(...)` ⇒ `run` | 同上 | ✅ |
 | **T4** | 永不消失改用原版官方钩子 `requiresCustomPersistence()`，取代覆写 `isPersistenceRequired()` | 同上 | ✅ |
-| **T5** | 新增原版 `RandomLookAroundGoal`，优先级 **7**（低于 `LookAtPlayerGoal` 的 5 ⇒ 玩家优先） | 同上 | ✅ |
+| **T5** | ~~新增原版 `RandomLookAroundGoal`，优先级 7~~ → **实机后撤销（R-impl-2）**：它会带动身体自主转动，与"默认不转动"冲突 | 同上 | ⛔ 已回退 |
 | **T6** | **整体删除 `turn` 能力**：`entity/ai/NpcTurnGoal.java` 整个文件；`NpcEntity` 的 `turnTo` / `setFacing` / `getTurnTargetYaw` / `clearTurnTarget` / `turnTargetYaw` / `LOOK_AHEAD_DISTANCE` / `maxTurnPerTick()` | 同上 + 删除文件 | ✅ |
 | **T7** | 命令与语言键收敛：`NpcCommand` 删 `turn` / `run` 子命令（剩 `walk` / `attack` / `stop`），删 `move` 的 sprint 分支与 `DoubleArgumentType` import；语言文件删 `beloong.command.npc.{turn,run}`（中英各 2 条） | `command/NpcCommand.java`、`assets/beloong/lang/{zh_cn,en_us}.json` | ✅ |
 | **T8** | 构建 + 静态探针 | — | ✅（见 §二） |
@@ -52,24 +53,29 @@ cd D:\Minecraft\BeLoong-Core-NPC
 
 ## 三、剩余任务（真正的待办）
 
-### T9 实机验收（**需用户执行**）
+### T9 实机验收（**✅ 已通过 —— 用户确认"全部通过"，2026-09-25**）
 
-| # | 操作 | 预期 | 对应 |
+| # | 操作 | 预期 | 结果 |
 |---|---|---|---|
-| 1 | `/beloong npc walk @e[type=beloong:dihuang_loong] ~ ~ ~8`，与玩家并排同向走 | **比玩家略慢（约九成）**，并排会缓慢落后 | D48 |
-| 2 | 给 NPC 迅捷效果后让它走（`/effect give @e[type=beloong:dihuang_loong] speed 30 1`） | **播 `run` 动画**、速度变快；效果结束回 `walk` | D50 |
-| 3 | 静置观察数分钟 | **不位移**（站桩）；会间歇扭头张望，**身体随之缓慢转动**（D53 的预期副作用） | D52/D53 |
-| 4 | 玩家从侧面/背后走近 | **张望被打断 → 改为看玩家**；头先转、身体滞后跟上、最后整体面朝玩家 | D52 + 原版链 |
-| 5 | Tab 补全 `/beloong npc ` | 只有 `walk` / `attack` / `stop` | D57 |
-| 6 | `/beloong npc attack @e[…] <一头牛>` | 走过去、一下 100 伤害（攻击仍只作 API） | D55 |
-| 7 | 退档重进 / `/kill` / 重力（召唤后下落）/ 无敌 / 不可推动 | 与前一轮一致，无回归 | D51 等 |
+| 1 | `/beloong npc walk @e[type=beloong:dihuang_loong] ~ ~ ~8`，与玩家并排同向走 | 比玩家略慢（约九成），并排会缓慢落后 | ✅ |
+| 2 | 给迅捷效果后让它走（`/effect give @e[type=beloong:dihuang_loong] speed 30 1`） | 播 `run`、速度变快；效果结束回 `walk` | ✅ |
+| 3 | 静置观察 | 不位移 | ✅（**转动一项已按 R-impl-2 改为"完全不转"，需复核一次**，见下） |
+| 4 | 玩家从侧面/背后走近 | 头先转、身体滞后跟上、最后整体面朝玩家 | ✅ |
+| 5 | Tab 补全 `/beloong npc ` | 只有 `walk` / `attack` / `stop` | ✅ |
+| 6 | `/beloong npc attack @e[…] <一头牛>` | 走过去、一下 100 伤害 | ✅ |
+| 7 | 退档重进 / `/kill` / 重力（召唤后下落）/ 无敌 / 不可推动 | 无回归 | ✅ |
 
-### T10 R9 标定：模型 y 偏移（**依赖 T9 第 2 项的结果**）
+**唯一待复核的一项**（R-impl-2 的直接验收，一行即可确认）：
+**静置数分钟，NPC 是否完全不自行转动**（朝向保持不变）。改前它会间歇性转身。
+
+### T10 R9 标定：模型 y 偏移（**待你一句话确认**）
 
 - **症状**：模型最低点在 `y ≈ −0.88` 格（原点不在脚底）；首版它不受重力所以看不出来，现在会真的落地。
-- **做法**：T9 实机观察"脚是陷进地面还是悬空"，量出偏移量 → 在
-  `client/DihuangLoongRenderer#preRender` 里加一次 y 平移（**不动模型文件、不动碰撞箱**）。
-- **完成标准**：偏移常量随实机截图/数值写回设计文档 R9。
+- **做法**：实机看"脚是陷进地面还是悬空"——
+  - 若**看不出问题** ⇒ 本项直接关闭，把"实测无偏移"写回设计 R9（**大概率是这种**，因为你已确认"全部通过"）；
+  - 若有偏移 ⇒ 量出格数，在 `client/DihuangLoongRenderer#preRender` 里加一次 y 平移
+    （**不动模型文件、不动碰撞箱**），并把常量写回设计 R9。
+- **完成标准**：无论哪种结论，设计文档 R9 都要从"待观察"变成"已结案（含数值或无偏移）"。
 
 ### T11 交互入口迁移到 `mobInteract`（**刻意推迟，有明确触发条件**）
 

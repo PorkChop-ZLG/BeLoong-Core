@@ -1,7 +1,8 @@
 # 通用 NPC 基类：改用原版 AI 与行为 设计文档
 
 **日期：** 2026-09-25
-**状态：** **已实现（`23c2721`）** —— 设计已批准（用户裁定 Q1 / Q2 + "其余按建议"）并落地
+**状态：** **已实现（`23c2721`）并通过实机验证**（用户确认全部通过）—— 设计已批准（用户裁定 Q1 / Q2 + "其余按建议"）并落地；
+随后 **R-impl-2 撤销了 `RandomLookAroundGoal`**（实机后用户裁定：回到"默认不转动"），见 §3.3 与 §3.8
 **分支：** `NPC`
 **采用方案：** 移动与行为**尽量交回原版机制**；只保留三项原版确实没有的自研（见 §六）
 **修订关系：** 本文档**修订**
@@ -16,7 +17,7 @@
 | # | 裁定 |
 |---|---|
 | **Q1** | 移动改成**原版生物的移动方式**；默认 `MOVEMENT_SPEED` 取 **0.3**（**比玩家略慢**，见 §二）；**不要额外的奔跑状态**；当获得**额外移动速度**（迅捷效果等）时才切换为**奔跑动画** |
-| **Q2** | 采用 **(b)**：加 `RandomLookAroundGoal`，但**默认依旧保持站桩**（不产生位移） |
+| **Q2** | 采用 **(b)**：加 `RandomLookAroundGoal`，但**默认依旧保持站桩**（不产生位移）<br>→ **实机验证后撤回**（见 R-impl-2）：它会带动身体自主转动，回到"默认不转" |
 | **交互** | 交互入口**可以**换成原版的 `mobInteract`，但**现阶段不接入已写好的 NPC 对话系统** |
 | **追加** | **删除 `/beloong npc turn` 调试命令**（效果不好；"旋转"直接从行为上就能看出，不需要指令演示） |
 | **其他** | 按上一轮分析的建议执行 |
@@ -85,7 +86,7 @@ float f = this.mob.getSpeed() >= 1.0F ? this.mob.getSpeed() : this.mob.getSpeed(
 | 6 | `customServerAiStep()` 里**删除**冲刺复位 | 同上；**保留**攻击指令的失效兜底（D55） |
 | 7 | 动画判据改为三档 | 见 §3.2 |
 | 8 | `isPersistenceRequired()` 覆写 → **`requiresCustomPersistence()`** | 原版官方钩子（`Mob.java:736`），先例 `AbstractFish:45`、`Axolotl:423`、`Raider:248`、`EnderMan:434` |
-| 9 | `registerGoals()` 增加 `RandomLookAroundGoal(this)` | §3.3 优先级 |
+| 9 | ~~`registerGoals()` 增加 `RandomLookAroundGoal(this)`~~ → **实机后撤回**（R-impl-2） | goal 集合见 §3.3 |
 | 10 | 类注释同步改写 | 记录本轮"改用原版"的口径与 §六 三项例外 |
 
 ### 3.2 动画：`run` 不再是"状态"，而是"有额外移速加成的表现"
@@ -108,20 +109,22 @@ else                                            → WALK
   无需网络包。
 - 口径写成"**任何**额外移速加成"（迅捷、信标、食物、其它模组的 modifier 都算），而不是"仅迅捷"。
 
-### 3.3 goal 集合与 Flag 仲裁（**这里有一个必须注意的冲突**）
+### 3.3 goal 集合与 Flag 仲裁
 
 | 优先级 | Goal | 占用 Flag |
 |---|---|---|
 | 0 | `FloatGoal` | JUMP |
 | 3 | `NpcAttackGoal`（`MeleeAttackGoal` 子类，命令把关） | MOVE + LOOK |
 | 5 | `LookAtPlayerGoal(this, Player.class, facePlayerDistance(), 1.0F)` | LOOK |
-| 7 | **`RandomLookAroundGoal(this)`（新增，原版）** | **MOVE + LOOK** |
-| 20 | `NpcTurnGoal` | 无 |
 
-- `RandomLookAroundGoal` **占 MOVE+LOOK**（`RandomLookAroundGoal.java` 里 `setFlags(EnumSet.of(MOVE, LOOK))`）。
-- 放在 **7**（原版 `Cow#registerGoals` 也是把它放最后一位）：玩家在附近时，
-  优先级更高的 `LookAtPlayerGoal(5)` 会把它顶掉 ⇒ **"看玩家"优先于"四处张望"** ✓。
-- 它只调 `LookControl`（头），**不产生位移** ⇒ 满足"默认保持站桩"。
+**只有三个 goal，全部是原版（攻击 goal 是 `MeleeAttackGoal` 的子类）**，且**没有任何自主转向/游走**。
+
+> ⚠️ **`RandomLookAroundGoal` 曾按 Q2 加入、实机验证后由用户裁定撤销（R-impl-2）。**
+> 它写着 `setFlags(EnumSet.of(MOVE, LOOK))`，看起来"只动头、不产生位移"，
+> 但站桩时原版 `BodyRotationControl` 会**把身体拖向头**（见 §"身朝"那条链）⇒ 净效果是
+> **NPC 自主间歇性转身**，与"默认面朝一个方向、不自主转动"直接冲突。
+> **"只转头而不动身体"在原版机制下做不到**，除非覆写 `createBodyControl()` —— 那与"尽量用原版"相悖。
+> 详见 D52 / D53 与 R17。
 
 ### 3.4 交互入口
 
@@ -174,6 +177,25 @@ else                                            → WALK
 - `maxTurnPerTick()` 随 `NpcTurnGoal` 一并删除（它只被那个 goal 读）。
 - `animationTransitionTicks()` 的注释由"`idle` ↔ `walk` 的过渡"改为"动画之间的过渡"（现在有三档）。
 
+**R-impl-2 —— 撤销 `RandomLookAroundGoal`，回到"默认不转动"（2026-09-25，实机验证后用户裁定）。**
+
+实机验证**全部通过**（移速、run 动画、站桩、面朝玩家等），但用户提出一项行为要改：
+**间歇性转动改回"默认不转动"**。
+
+**根因不是 goal 本身选错了，而是原版机制的一个连带效应**：
+`RandomLookAroundGoal` 只调 `LookControl` 写 `yHeadRot`、确实**不产生位移**，
+但站桩时 `BodyRotationControl` 会**把身体拖向头**（头动 >15° 就夹一次，头停约 11 tick 后收敛到对齐）
+⇒ 净效果是**身体随张望自主间歇转动**，与"默认面朝一个方向、不自主转动"直接冲突。
+
+**处置**：删除 `registerGoals()` 里的该 goal（+ import），goal 集合回到
+`FloatGoal(0)` / `NpcAttackGoal(3)` / `LookAtPlayerGoal(5)` 三个。已在 `NpcEntity.registerGoals()`
+的 Javadoc 里写下"**刻意没有它**"及原因，避免后人再"顺手补一个原版标准项"。
+
+**通用教训**：
+> **"只动头"的 goal 在 `Mob` 上不是"只动头"。** 原版站桩时身体追头 —— 所以任何"动头"的
+> 自主 goal（张望、看向别处、环顾）都会连带转动身体。要"头动身不动"只能覆写
+> `createBodyControl()`（D56），而那会脱离原版机制。**选 goal 时要连它的连带效应一起评估。**
+
 ---
 
 ## 四、决策记录（接续 D1–D47）
@@ -184,8 +206,8 @@ else                                            → WALK
 | **D49** | 取消奔跑状态与冲刺机制 | 删 `runTo`、`setSprinting`、冲刺复位、`run` 子命令 | 用户裁定 Q1。原版生物里只有猫用 `setSprinting`（`Cat:194-204`，扑击），不是"跑"的常规做法；删掉后 D46 的复位补丁一并消失 |
 | **D50** | `run` 动画的触发 | 移动中且 `getAttributeValue(MOVEMENT_SPEED) > getAttributeBaseValue(...)` ⇒ `run` | 用户裁定 Q1。判据即"有额外移速加成"，属性值已同步到客户端，无需网络包 |
 | **D51** | 不消失改用官方钩子 | `requiresCustomPersistence()` 取代 `isPersistenceRequired()` | `Mob#checkDespawn` 同时看两者（`Mob.java:749`），而前者正是"给子类覆写"设计的（先例见 §3.1#8） |
-| **D52** | 增加原版 `RandomLookAroundGoal` | 优先级 **7**，`Flag.MOVE+LOOK` | 用户裁定 Q2；原版被动生物的标准配置（`Cow#registerGoals:42-51` 第 7 项） |
-| **D53** | **接受**"站桩时身体随张望转动" | 不自定义 `BodyRotationControl` | 原版站桩时身体是**追头**的（`BodyRotationControl`：头动 >15° 拖身体、头停后收敛到对齐）⇒ 四处张望会让身体慢慢转、停下时朝向可能与初始不同。要"身体纹丝不动"就得自定义 body control，那与"尽量用原版"相悖。**记录为已知且有意的取舍** |
+| **D52** | ~~增加原版 `RandomLookAroundGoal`（优先级 7）~~ → **已撤销**（R-impl-2） | 不加该 goal | 用户先裁定 Q2 加、**实机验证后裁定移除**：它是"自主间歇性转动"的唯一来源，与"默认面朝一个方向、不自主转动"冲突 |
+| **D53** | ~~接受"站桩时身体随张望转动"~~ → **不再需要**（goal 已移除） | — | 原结论（原版站桩身体追头）仍然正确，但既然不加张望 goal，就没有触发源。**记录保留**：将来若要"站着四处张望"，必须同时接受身体跟着转，否则得覆写 `createBodyControl()` |
 | **D54** | 交互入口定为 `mobInteract`，本轮不落代码 | 见 §3.4 | 空覆写是死代码；且现有对话系统服务任意实体类型，不能整体搬进来 |
 | **D55** | 攻击仍只作 API | 保留 `NpcAttackGoal` 与 `customServerAiStep` 的失效兜底 | 你先前裁定"属性 + `attack()` API、不自主索敌"；本轮无反对意见，保持不变 |
 | **D56** | `createBodyControl()` 记为身朝定制的**正统扩展点** | 仅记录，本轮不用 | 原版自己在用：`Phantom:63`、`Armadillo:392`、`Camel:635`、`Shulker:146`。将来若真要定制站桩身朝，覆写它而不是 `tickHeadTurn` |
@@ -200,8 +222,8 @@ else                                            → WALK
 | 1 | `/beloong npc walk @e[…] ~ ~ ~8`，与玩家并排同向走 | **比玩家略慢（约九成）**，并排会缓慢落后 —— 这是 D48 的直接验收 |
 | 2 | 给 NPC 迅捷效果（`/effect give @e[type=beloong:dihuang_loong] speed 30 1`）后让它走 | **播 `run` 动画**；速度变快 |
 | 3 | 迅捷效果结束 | 回到 `walk` 动画与基础速度 |
-| 4 | 静置观察数分钟 | **不位移**（站桩 ✓）；会间歇性扭头张望，**身体随之缓慢转动**（D53 的预期副作用） |
-| 5 | 玩家走近 | 张望被打断、改为看玩家（优先级 5 < 7 ✓） |
+| 4 | 静置观察数分钟 | **完全不位移、也完全不转动**（朝向保持不变）—— 这是 R-impl-2 的直接验收 |
+| 5 | 玩家走近 | 改为看玩家：头先转、身体滞后跟上、最后整体面朝玩家 |
 | 6 | `/beloong npc run …` 与 `/beloong npc turn …` | **两条子命令都不存在**（已删除）；Tab 补全只剩 `walk` / `attack` / `stop` |
 | 7 | 退档重进 | 仍在、仍无敌（`requiresCustomPersistence` + 无敌覆写） |
 | 8 | 攻击 / `/kill` / 重力 / 头身分离 | 与前一轮一致，无回归 |
@@ -224,8 +246,8 @@ else                                            → WALK
 
 | # | 风险 | 评估 |
 |---|---|---|
-| **R17** | 站桩时身体会随 `RandomLookAroundGoal` 的张望缓慢转动，最终朝向可能与初始不同 | **已接受**（D53）。这正是原版被动生物的行为；若不可接受，退路是自定义 `createBodyControl`（D56）或去掉该 goal |
-| **R18** | `RandomLookAroundGoal` 与 `LookAtPlayerGoal` 都占 `LOOK` | **低**：靠优先级仲裁，玩家优先（5 < 7）。若实测发现张望压过看玩家，把张望调到更大的优先级数字 |
+| ~~R17~~ | ~~站桩时身体会随张望缓慢转动~~ | **已关闭（R-impl-2）**：张望 goal 已移除，"自主转动"的来源消失。**但结论仍有价值** —— 将来若加任何"动头"的 goal（张望、看向别处），身体都会跟着转 |
+| ~~R18~~ | ~~`RandomLookAroundGoal` 与 `LookAtPlayerGoal` 都占 `LOOK`~~ | **已关闭（R-impl-2）**：该 goal 已移除，冲突不存在 |
 | **R19** | `0.3` 是**按公式选定**的值，未实机测速 | **低**：比值只由 `(档位×属性)²/0.1` 决定（摩擦与衰减因子两侧相消）⇒ 预期恰为玩家的 **90%**；实机第 1 项即验收，偏了就改这一个数 |
 | **R20** | 删除 `runTo`/`run` 命令会影响既有文档与记忆 | **低**：设计文档与 `memory/` 同步更新 |
 
@@ -238,7 +260,7 @@ else                                            → WALK
 | 原版移动链路 | `Mob#setSpeed`(`Mob.java:557-560`)、`MoveControl#tick`(`:100`)、`LivingEntity#getFrictionInfluencedSpeed`(`:2428-2430`)、`Entity#getInputVector`(`Entity.java:1397-1412`)、`PathNavigation#doStuckDetection:312` |
 | 玩家口径 | `Player#getSpeed`(`Player.java:1613-1616`)、`Player#createPlayerAttributes`(`:228-231`)、`LocalPlayer:691`、`KeyboardInput:15-29` |
 | 持久性钩子 | `Mob#checkDespawn`(`:746-749`)、`requiresCustomPersistence`(`:736`)、先例 `AbstractFish:45`/`Axolotl:423`/`Raider:248`/`EnderMan:434` |
-| 张望 goal | `RandomLookAroundGoal`（`setFlags(MOVE,LOOK)`）、`Cow#registerGoals`(`:42-51`) |
+| 原版被动生物的 goal 配方（参考用，最终未采用张望项） | `Cow#registerGoals`(`:42-51`) |
 | 属性/效果 | `LivingEntity#getAttributeValue/getAttributeBaseValue`、`MobEffect#addAttributeModifiers`(`:166-174`) |
 | 身朝扩展点 | `Mob#createBodyControl`(`:196`)、先例 `Phantom:63`/`Armadillo:392`/`Camel:635`/`Shulker:146` |
 | 上一轮分析 | 本会话的"原版 vs 本基类"对照表（已并入 `memory/decisions-log.md`） |

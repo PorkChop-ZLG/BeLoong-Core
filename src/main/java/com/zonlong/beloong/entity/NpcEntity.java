@@ -11,7 +11,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -31,7 +30,7 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * 「玩家靠近时面朝玩家」**不是**我们写的，而是原版 goal 链的默认结果（见下面"身朝"一节）。
  *
  * <h2>尽量用原版机制（2026-09-25 用户裁定）</h2>
- * 移动刻度、动画档位、持久性、站立张望全部交回原版；只有三项原版确实没有的才自研
+ * 移动刻度、动画档位、持久性全部交回原版；只有三项原版确实没有的才自研
  * （绝对无敌 / 命令式 API / GeckoLib 离散动画）。设计文档：
  * {@code docs/plans/2026-09-25-npc-vanilla-ai-design.md}。
  *
@@ -227,10 +226,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      *       而 {@code LookAtPlayerGoal} 占 <b>LOOK</b>。若攻击 goal 优先级更低，
      *       "玩家在跟随距离内"时它会被 look goal **永久挡死** ⇒ 永远打不到人（且不报错）。
      *       所以攻击 goal 排在 <b>3</b>，比 look goal 的 5 更靠前。</li>
-     *   <li>{@code RandomLookAroundGoal} 也占 <b>MOVE + LOOK</b>，排在 <b>7</b>（比 look goal 低）
-     *       ⇒ 玩家在附近时"看玩家"会把它顶掉，符合直觉；它**只动头、不产生位移**，
-     *       所以"默认站桩"依然成立。原版被动生物的标准配方也是把它放最后
-     *       （{@code Cow#registerGoals:42-51} 第 7 项）。</li>
+     *   <li><b>刻意没有 {@code RandomLookAroundGoal}</b>（原版被动生物的标准项，本类加过又移除）：
+     *       它表面上"只动头、不产生位移"，但站桩时原版 {@code BodyRotationControl} 会**把身体拖向头**
+     *       （见类注释"身朝"一节）⇒ 净效果是 NPC **自主间歇性转身**，与
+     *       "默认面朝一个方向、不自主转动"直接冲突。实机验证后由用户裁定移除。
+     *       <b>将来若要"站着四处张望"，先想清楚要不要连身体一起转</b> —— 只转头而不动身体
+     *       做不到，除非覆写 {@code createBodyControl()}（与"尽量用原版"相悖）。</li>
      * </ul>
      * <b>这里刻意没有"把身体转向玩家"的 goal</b>：站桩时身体由原版
      * {@code BodyRotationControl} 追着头走（见类注释"身朝"一节），
@@ -244,7 +245,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         // probability 给 1.0：默认的 0.02 会让它平均 2.5 秒才看你一眼。
         // lookTime 40~80 tick 一轮、到期立刻重启 ⇒ 实际是持续跟随。
         this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, facePlayerDistance(), 1.0F));
-        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
     }
 
     /**
