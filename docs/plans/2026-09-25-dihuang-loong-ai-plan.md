@@ -6,6 +6,11 @@
 **Approach:** goal 驱动 + API 门面（`FloatGoal`/`LookAtPlayerGoal`/`FacePlayerGoal` 常驻，`TurnGoal` 默认不触发）
 **验证模型:** 本项目**无测试源集**（`gradlew build` 输出 `compileTestJava NO-SOURCE` / `test NO-SOURCE`），不引入测试框架。每个任务的验证 = `gradlew build --console=plain` + 静态探针 + 实机清单（§四）。**本轮重力与 Molang 都无法静态验证，实机是唯一的验收手段。**
 
+> ⚠️ **本计划已作废（2026-09-25，用户裁定）。**
+> 基础 AI 改为写在**通用基类 `NpcEntity`** 里、地黄龙继承之。
+> 请改用 **`docs/plans/2026-09-25-npc-base-class-plan.md`**。
+> 本文件保留以便追溯差异，**不要照此实施**。
+
 ---
 
 ## 〇、实现期修订（相对设计文档）

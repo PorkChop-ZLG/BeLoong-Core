@@ -7,6 +7,13 @@
 **前置文档：** `docs/plans/2026-09-21-dihuang-loong-npc-design.md`（首版：无 AI / 无敌 / 站桩。本文档**推翻其 D2**、**更正其 D5 的理由**）
 **参考实现：** GeckoLib 4.9.2 源码（`D:\Minecraft\开源模组参考文件\Geckolib`，版本经 `gradle/libs.versions.toml:3` 与 `changelog.txt:1` 核实）；Dragon Survival `client/models/DragonModel.java`（Molang 头部跟随的既有写法）；原版 1.21.1 + NeoForge 补丁合并源
 
+> ⚠️ **本文档的 §四（架构与决策）与 §五（组件）已被取代（2026-09-25，用户裁定）。**
+> 新架构：基础 AI 写在**通用基类 `NpcEntity`** 里，地黄龙改为继承它 ——
+> 见 **`docs/plans/2026-09-25-npc-base-class-design.md`**。
+> 本文档的 **§三（已核实的技术前提）** 与 **§八（测试策略）** 继续有效；
+> 行为规格（goal 语义、Molang 相对角、动画判据）也继续有效，只是"写在哪个类里"变了。
+> 配套实施计划 `2026-09-25-dihuang-loong-ai-plan.md` **整体作废**。
+
 ---
 
 ## 一、问题陈述
