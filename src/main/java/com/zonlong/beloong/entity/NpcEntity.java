@@ -52,31 +52,30 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * 实体其实是被"钉"在召唤点的。
  * 本基类因此**不碰** {@code isNoAi()}，重力自然生效。
  *
- * <h2>身朝：站桩时身体追「头」、移动时贴 {@code yRot}（"先扭头、后转身"的来源）</h2>
- * 直觉上"设了 {@code yRot}，身体自然会转" —— 对 {@code Mob} **并不成立**：
+ * <h2>身朝：交给原版 {@code BodyRotationControl}，**不要**覆写 {@code tickHeadTurn}</h2>
+ * 站桩时的"先扭头、后转身"是原版机制**自带**的，前提是**不插手**：
  * <ul>
- *   <li>{@code Mob#tickHeadTurn}（{@code Mob.java:377-381}）覆写后**不调用 super**，
- *       只调 {@code bodyRotationControl.clientTick()}；{@code LivingEntity} 里那套
- *       "身体 0.3 插值追目标"的逻辑对 {@code Mob} 是**死代码**。</li>
- *   <li>{@code BodyRotationControl}：**移动时** {@code yBodyRot = yRot}（硬贴）；
- *       <b>站桩时</b>只在"头相对上次稳定位置转过 15°"时把身体拖到与头相差
- *       {@code getMaxHeadYRot()}（默认 <b>75°</b>）以内，头稳定 10 tick 后即停手
- *       ⇒ 站桩的身体**永远对不正**（差最多 75°）。</li>
- *   <li>{@code yBodyRot} <b>不参与网络同步</b>（只同步 {@code yRot} / {@code yHeadRot}），
- *       客户端的身朝是它自己算的 ⇒ 服务端写 {@code yBodyRot} 对画面**没有用**。</li>
+ *   <li><b>头</b>：{@code LookAtPlayerGoal} → {@code LookControl}，以 {@code getHeadRotSpeed()}
+ *       （{@code Mob} 默认 10°/tick）把头转向玩家。站桩时头**不受**"不得偏离身体"的夹取
+ *       （{@code LookControl#clampHeadRotationToBody} 只在有寻路时生效），所以头能先转过去。</li>
+ *   <li><b>身体</b>：{@code Mob#tickHeadTurn} → {@code BodyRotationControl#clientTick()}。
+ *       站桩时：头相对"上次稳定位置"转过 &gt;15° 就把身体夹到**离头不超过
+ *       {@code getMaxHeadYRot()}（默认 75°）** ⇒ 身体稳定地滞后头最多 75°，这就是"头先转"；
+ *       头停下约 11 tick 后 {@code rotateHeadTowardsFront} 的允许量**递减到 0**，
+ *       身体被**逐步收到与头完全对齐** ⇒ "身体随后跟上"、最终整体面向目标。
+ *       （移动时则是 {@code yBodyRot = yRot}，贴行进方向。）</li>
+ *   <li><b>同步</b>：{@code yBodyRot} <b>不参与网络同步</b>（只同步 {@code yRot}/{@code yHeadRot}），
+ *       客户端的身朝是它自己用同一套 {@code BodyRotationControl} 算的 ⇒ 服务端写 {@code yBodyRot}
+ *       对画面没有用，而"覆写 {@code tickHeadTurn}"在双端都会生效。</li>
  * </ul>
- * 本类因此覆写 {@link #tickHeadTurn}，**照原版的两个分支**重写、但去掉 75° 上限：
- * 移动时贴 {@code yRot}，站桩时以 0.3 插值追 {@code yHeadRot}。
+ * ⚠️ <b>不要为了"让站桩身体也能转到指定朝向"去覆写 {@code tickHeadTurn}</b>（本类干过，代价很大）：
+ * 无论改成"身体以 0.3 插值追 {@code yRot}"还是"追 {@code yHeadRot}"，都会把上面那套
+ * 75° 滞后关系一起废掉 —— 头与身体的相对角变得很小或恒为 0，而**头部 Molang
+ * （{@code query.head_yaw}）吃的正是这个相对角**，于是症状是"不扭脖子、头身一体转"。
  * <p>
- * <b>为什么站桩追的是「头」而不是 {@code yRot}（这条是被实机 Bug 教会的）</b>：
- * 头由 {@code LookControl} 以 10°/tick 转，身体只按 0.3 的比例追 ⇒ {@code yHeadRot - yBodyRot}
- * 会先拉开，头部 Molang（{@code query.head_yaw}）**因此才有输入**，于是呈现"先扭头、后转身"。
- * <p>
- * 反过来，若让身体追 {@code yRot}、同时又有 goal 把 {@code yRot} 朝玩家转，
- * 头与身体就会以**同样的速率奔向同一个目标**、相对角恒为 0 —— 实测症状正是
- * **不扭脖子、"直接整个转过去"**（过渡被抹平）。第一版就是这么写的，
- * 所以那个直接写 {@code yRot} 的"面朝玩家"goal 已被删除：站桩身体追头之后，
- * 只要 {@code LookAtPlayerGoal} 把头转向玩家，身体自然跟上，**不需要也不该有第二个控制器**。
+ * 站桩转向因此靠的是**转头**：{@link #setFacing} 只写 {@code yRot} 并把 {@code LookControl}
+ * 的注视目标指到目标方向，身体由原版的滞后机制自然跟上 —— 不需要（也不该有）第二个
+ * "直接写身体朝向"的控制器。
  *
  * <h2>子类必须提供</h2>
  * 实体类型绑定（见 {@code registry/ModEntities}）、碰撞箱（那里）、渲染器与模型
@@ -271,10 +270,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, facePlayerDistance(), 1.0F));
 
         // 注意：这里**没有**"把身体转向玩家"的 goal —— 那是刻意的。
-        // 站桩时身体是追头的（见 tickHeadTurn），上面的 LookAtPlayerGoal 把头转向玩家后，
-        // 身体自然跟上，于是才有"先扭头、后转身"的过渡。
-        // 曾经有过一个直接写 yRot 的 NpcFacePlayerGoal：它与 LookAtPlayerGoal 同速率、同目标，
-        // 把相对角压成 0 ⇒ 头部 Molang 失去输入（不扭脖子）且身体同步到位（没有过渡）。
+        // 站桩时身体由原版 BodyRotationControl 追着头走（见类注释），上面的 LookAtPlayerGoal
+        // 把头转向玩家后，身体会滞后跟上，于是才有"先扭头、后转身"的过渡、头部 Molang 也才有输入。
+        // 曾经有过一个直接写 yRot 的 NpcFacePlayerGoal：yBodyRot 本来就不参与同步、客户端自己算，
+        // 所以它对画面几乎无贡献，却容易让人误以为"身体朝向该由它负责"。
         this.goalSelector.addGoal(20, new NpcTurnGoal(this));
     }
 
@@ -386,50 +385,21 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 身体朝向的驱动 —— **刻意绕开 {@code Mob} 默认的 {@code BodyRotationControl}**。
-     * <p>
-     * {@code Mob#tickHeadTurn}（{@code Mob.java:377-381}）覆写后只调
-     * {@code bodyRotationControl.clientTick()} 并直接返回，**不调用** {@code LivingEntity} 里那套
-     * 插值逻辑；而 {@code BodyRotationControl} 站桩时只会把身体拖到离头 75° 以内、且头一稳定就停手
-     * ⇒ 站桩的身体永远对不正（详见类注释那一节）。
-     * <p>
-     * 这里按它的**两个分支**重写，但把站桩分支换成连续的 0.3 插值、并追的是 {@code yHeadRot}：
-     * <ul>
-     *   <li><b>在移动</b>：{@code yBodyRot = yRot}（贴行进方向）。原版也是这么做的；
-     *       若移动时也追头，NPC 会一边走一边盯着玩家——**横着挪**。</li>
-     *   <li><b>站住不动</b>：身体以 0.3 追 {@code yHeadRot}。头由 {@code LookControl} 以
-     *       10°/tick 转，身体只按比例追 ⇒ 相对角先拉开，头部 Molang 有输入（"先扭头"），
-     *       头停住后身体再收敛到完全对齐（"后转身"）。</li>
-     * </ul>
-     * <b>两个字段的同步事实</b>：{@code yBodyRot} 不参与网络同步，客户端的身朝由它自己的
-     * {@code tickHeadTurn} 从同步过的 {@code yRot}/{@code yHeadRot} 算出来 ⇒ 本覆写在双端同构即可，
-     * 不需要任何额外同步代码。
-     * <p>
-     * 传入的 {@code targetYRot} 刻意忽略：它来自 {@code LivingEntity#tick()} 的
-     * "本 tick 位移方向"，站住不动时恰好等于当前 {@code yBodyRot}（一个原地不动的空目标）。
-     */
-    @Override
-    protected float tickHeadTurn(float targetYRot, float animStep) {
-        double dx = this.getX() - this.xo;
-        double dz = this.getZ() - this.zo;
-        if (dx * dx + dz * dz > 2.5000003E-7F) {
-            this.yBodyRot = this.getYRot();                                          // 移动：贴行进方向
-        } else {
-            this.yBodyRot += Mth.wrapDegrees(this.yHeadRot - this.yBodyRot) * 0.3F;   // 站桩：追头
-        }
-        return animStep;
-    }
-
-    /**
      * 转向到**绝对**朝向（度）—— **转向走这里，不要只 {@code setYRot}**。
      * <p>
      * 写两件事：{@code yRot}（朝向本身）与**把头也指向目标方向**。
      * <p>
-     * <b>为什么必须带上头</b>：站桩时身体是**追头**的（见 {@link #tickHeadTurn}）。只写 {@code yRot} 的话，
-     * 头仍被 {@code LookAtPlayerGoal} 钉在玩家身上，身体追着追着又转回玩家 ⇒ 命令看起来无效。
-     * 头走 {@code LookControl} 而不是直接写 {@code yHeadRot}：它自带 10°/tick 的速率限制，
-     * 天然形成"头先到、身体随后"的过渡，而且本调用发生在 goal 阶段、晚于 {@code LookAtPlayerGoal}，
-     * 因此后者设的目标会被覆盖掉（这正是"显式指令优先"）。
+     * <b>为什么必须带上头</b>：站桩时身体是**追着头**走的（原版 {@code BodyRotationControl}，
+     * 见类注释那一节）。只写 {@code yRot} 的话，头仍被 {@code LookAtPlayerGoal} 钉在玩家身上，
+     * 身体自然也就不会转到目标方向 —— 这就是"turn 指令无效"的真正原因。
+     * <p>
+     * 头走 {@code LookControl} 而不是直接写 {@code yHeadRot}：它自带
+     * {@code getHeadRotSpeed()}（10°/tick）的速率限制，天然形成"头先到、身体随后"的过渡；
+     * 而且本调用发生在 goal 阶段、晚于 {@code LookAtPlayerGoal}，所以后者设的目标会被覆盖
+     * —— 这正是"显式指令优先"。
+     * <p>
+     * 刻意**不写** {@code yBodyRot}：写死就抹掉了原版的滞后过渡（而那个滞后正是头部 Molang
+     * 的输入来源）；何况它本来也不参与同步。
      */
     public void setFacing(float yaw) {
         this.setYRot(yaw);

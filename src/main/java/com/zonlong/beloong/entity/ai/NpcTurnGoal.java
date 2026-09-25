@@ -40,6 +40,19 @@ public class NpcTurnGoal extends Goal {
         return this.npc.getTurnTargetYaw() != null;
     }
 
+    /**
+     * 每 tick 都要跑。
+     * <p>
+     * 原版 {@code GoalSelector} 在奇数 tick 只 tick "要求每 tick 更新"的 goal
+     * （{@code Mob#serverAiStep} 按 {@code tickCount + getId()} 交替，见 {@code Mob.java:779-794}）。
+     * 本 goal 每 tick 都得重设注视目标 —— 只要有一 tick 没人管，头就会被
+     * {@code LookControl} 拉回身体，把"头先到、身体随后"的过渡打断。
+     */
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
     @Override
     public void tick() {
         Float target = this.npc.getTurnTargetYaw();
