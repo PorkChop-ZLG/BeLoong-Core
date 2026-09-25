@@ -17,8 +17,9 @@ import software.bernie.geckolib.model.GeoModel;
  *       其 {@code identifier} 是 {@code geometry.unknown}。**无需修正**：GeckoLib 按本类返回的
  *       <b>文件路径</b>取模型，{@code identifier} 只是可空元数据（{@code ModelProperties.java:35}）。</li>
  *   <li>{@code animations/dihuang_loong.animation.json} —— 96 个动画，整份放上来备用；
- *       目前只播 {@code idle}（32 骨骼 / 4.75s）与 {@code walk}（63 骨骼 / 1.375s），
- *       两者骨骼覆盖 **0 缺失**。</li>
+ *       目前播三个：{@code idle}（32 骨骼 / 4.75s）、{@code walk}（63 骨骼 / 1.375s）、
+ *       {@code run}（77 骨骼 / 1s，缺 3 根骨骼 {@code Drip1-3}）—— 前三者中的
+ *       {@code idle}/{@code walk} 骨骼覆盖 **0 缺失**。</li>
  *   <li>{@code textures/entity/dihuang_loong.png} —— 256×256 贴图。</li>
  * </ul>
  * <b>已知的动画骨骼缺口</b>：该动画文件源自"龙之生存"的另一个龙种模型，其中 {@code jump} 等

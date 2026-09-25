@@ -8,8 +8,7 @@ import net.minecraft.world.level.Level;
  * 地黄龙 NPC —— 本模组**第一个生物 NPC**，也是 {@link NpcEntity} 的第一个子类。
  * <p>
  * 它只负责"是什么"：实体类型绑定与碰撞箱（{@code registry/ModEntities}）、
- * 模型与贴图（{@code client/} 侧）、属性表，以及（将来若要）覆写基类的动画名 / 跟随距离 /
- * 转身角速度等默认值。
+ * 模型与贴图（{@code client/} 侧）、属性表，以及（将来若要）覆写基类的动画名 / 跟随距离等默认值。
  * <p>
  * <b>AI、无敌 / 不可推动 / 不消失、转向 / 移动 / 攻击能力、动画状态机全部在基类里</b> ——
  * 这正是做通用基类的意义：再加一个 NPC 只需类型绑定 + 模型，不再重复这一整套。
@@ -36,7 +35,7 @@ public class DihuangLoongEntity extends NpcEntity {
 
     /**
      * 属性表。全部基础值来自 {@link NpcEntity#createNpcAttributes()}
-     * （血量 1000 / 击退抗性 1.0 / 攻击力 100 / 移速 0.1）—— 地黄龙目前不需要改动其中任何一项。
+     * （血量 1000 / 击退抗性 1.0 / 攻击力 100 / 移速 0.3）—— 地黄龙目前不需要改动其中任何一项。
      * <p>
      * 保留这个方法（而不是让 {@code ModAttributes} 直接调基类工厂）是为了两点：
      * ① 不动既有的注册结构；② 给"子类如何追加属性"留一个活样例 ——
