@@ -274,8 +274,10 @@ SHOWING_OPTIONS
 
 **本次改动**另推翻了一处旧审查结论，勿按旧理由回改：
 首版审查 **S3**（`NpcDialogueLoader.entries` 加 `volatile`）当时**不采纳**，理由是"`apply` 与 `get()`
-都在客户端主线程"。搬迁后 `apply` 在重载工作线程、`get()` 在服务端主线程 ⇒ **跨线程**，
-`volatile` **已采纳**。
+都在客户端主线程，原版用主线程执行器跑 `apply`"。
+搬迁后 `apply` 的线程换成了服务端主线程（`MinecraftServer` 作为 gameExecutor），
+**但"两者同处一条主线程"这个性质没变，因此 S3 的结论依然成立：仍不加 `volatile`。**
+（新文档 §十二 I-1 记录了这段经过 —— 我一度把它误判成"跨线程"，是靠独立代码审查纠正的。）
 
 未变：UI 规格与调参结论（§3、§13.3）、文案仍走翻译键（`assets/.../lang`）、触发语义
 （`empty_hand`/`any`）、失败隔离规则、零 mixin。

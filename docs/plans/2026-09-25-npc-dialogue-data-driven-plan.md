@@ -262,7 +262,10 @@ Test-Path src/main/java/com/zonlong/beloong/client/NpcDialogueHandler.java     #
 
 ---
 
-### T4 `NpcDialogueLoader`：注释重写 + `volatile`
+### T4 `NpcDialogueLoader`：注释重写（`volatile` 一条**已作废**）
+
+> ⚠️ **本条已被实现期核实作废**：`apply` 走 gameExecutor、与服务端主线程上的 `get()` **同线程**，
+> **不需要** `volatile`。详见 §六 审查记录 **I-1**。下面的原计划文本保留以便追溯，**不要照抄**。
 
 **文件：** 修改 `src/main/java/com/zonlong/beloong/dialogue/NpcDialogueLoader.java`
 
@@ -312,7 +315,7 @@ Test-Path src/main/java/com/zonlong/beloong/client/NpcDialogueHandler.java     #
 **其余逻辑（`apply` / `get` / 日志行）不动** —— 那行"扫描文件数 + 装载条数"日志继续保留，
 它现在是"**服务端能否读到 `data/` 树**"的运行时观测点。
 
-**验证：** `.\gradlew.bat build --console=plain`；`rg -n "volatile" …/NpcDialogueLoader.java` → 期望 1 处
+**验证：** `.\gradlew.bat build --console=plain`；`rg -n "volatile" …/NpcDialogueLoader.java` → **不得**出现在字段声明上（见 §六 I-1）
 
 ---
 
@@ -505,8 +508,9 @@ RegisterClientReloadListenersEvent 换成 AddReloadListenerEvent；右键改在�
            -m "线载荷刻意只承载「客户端渲染所需的最小事实」（名字键/实体类型名键/页/实体网络 id），
 不放 EntityType —— StreamCodec 解码失败会中止连接，而注册表反查是唯一可失败的一步，故把它
 移到 handleClient。trigger 不上线（只有服务端判定用它）。" \
-           -m "同时给 NpcDialogueLoader.entries 补 volatile：apply 在重载线程、get 在服务端主线程，
-首版审查 S3「不需要 volatile」的前提（两者都在客户端主线程）已被本次搬迁推翻。"
+           -m "另注：NpcDialogueLoader.entries 维持不加 volatile —— 实现期一度误判为「apply 在重载线程、
+get 在服务端主线程」而加了它，经核实 apply 走 gameExecutor（服务端主线程），与 get 同线程，
+首版审查 S3 的结论依然成立。"
 ```
 
 ---
@@ -529,8 +533,9 @@ rg -n "NpcDialogueLoader|NpcDialogueHandler|NpcDialogueOpenPayload" src/main/jav
 Test-Path src/main/java/com/zonlong/beloong/client/NpcDialogueHandler.java        # False
 rg -n "OnlyIn" src/main/java/com/zonlong/beloong/dialogue/NpcDialogueHandler.java # 无输出
 
-# 4. volatile 到位
-rg -n "volatile" src/main/java/com/zonlong/beloong/dialogue/NpcDialogueLoader.java  # 1 处
+# 4. 不得给 entries 加 volatile（见 §六 I-1：apply 与 get 同处服务端主线程）
+rg -n "volatile" src/main/java/com/zonlong/beloong/dialogue/NpcDialogueLoader.java
+#    期望：只出现在 javadoc 文本里，字段声明上无该修饰符
 
 # 5. 屏幕不再直接摸 entry
 rg -n "entry\.pages\(\)" src/main/java/com/zonlong/beloong/client/NpcDialogueScreen.java  # 无输出
@@ -564,6 +569,30 @@ jar tf build/libs/beloong-0.9.6.jar | Select-String "npc_dialogue"
 | 10 | 打字机 / 点击补全 / 翻页箭头 / 末页弹选项 / 悬停金色过渡 / ESC / 世界不模糊 | 与改前逐项一致 | 回归（屏幕状态机未改，应零偏差） |
 | 11 | **给实体命名牌改名后再右键** | 屏幕上显示自定义名（而非"铁傀儡"） | 名字回退第 2 级仍生效（首版 R6 语义未丢） |
 | 12 | 读旧存档 | 正常 | 对话无存档数据，不需要修复 |
+
+---
+
+## 六、审查记录（2026-09-25）
+
+独立代码审查：**无 Critical，3 个 Important、4 个 Suggestion**，全部处置完毕。
+最值得记的是：**3 个 Important 全是"注释/文档里的断言不成立"，没有一个是行为缺陷**
+（代码本身审查判定可提交）。
+
+| # | 级别 | 内容 | 处置 |
+|---|---|---|---|
+| **I-1** | Important | 本计划 T4 与设计文档 D32/R8 断言"`apply` 在重载工作线程、`get()` 在服务端主线程 ⇒ 跨线程 ⇒ 需要 `volatile`"。**该前提是错的**：`SimplePreparableReloadListener#reload` 的 `apply` 走 **gameExecutor**（只有 `prepare` 在后台线程），而 `MinecraftServer.java:1512-1519` 传给 `loadResources` 的 gameExecutor 就是服务端自己（继承 `BlockableEventLoop`）⇒ 与主线程上的 `get()` **同线程** | 字段改回**非** `volatile`；按事实重写注释；D32/R8 就地标注修正；`memory/decisions-log.md` 记下真实教训 |
+| **I-2** | Important | 设计文档宣称线载荷"**全函数、永不抛**"，但 `Page.STREAM_CODEC` 用的 `ResourceLocation.STREAM_CODEC` 内部是 `parse()`，**畸形输入会抛** ⇒ 该不变量是假的。而"解码失败会中止连接"正是本次请 `EntityType` 下线载荷的理由，所以这条必须是真的 | 改用 `ResourceLocation.tryParse`（返回 null 而不抛）构造 `SOUND_STREAM_CODEC`；并复核其余字段（`optional`/`list`/`STRING_UTF8`/`VAR_INT`）均无抛点 |
+| **I-3** | Important | `NpcDialogueEntry` 类注释仍是旧架构口径（"客户端侧 loader 解析、不需要网络同步"） | 改为服务端加载 + 按需下发 |
+| S-4 | Suggestion | 现为**服务端配置**的 `enabled` 在 `isClientSide()` 早退**之前**被读 | 服务端早退提到读配置之前 |
+| S-5 | Suggestion | `open()` 未防 `pages` 为空 ⇒ `loadPage()` 里 `get(0)` 越界（今天不可达，但该方法按设计是"永不抛"边界） | 加空页早退 |
+| S-6 | Suggestion | `mapStream(buf -> (ByteBuf) buf)` 其实**不是必需的**（`composite` 首参为 `? super B`） | 保留以与 `TreasureSyncPayload` 统一，注释改为如实说明 |
+| S-7 | Suggestion | 语言文件分组提示语仍写"（纯客户端功能）" | 改为"数据由服务端下发；下方两项只影响本地观感" |
+
+审查同时核实为**正确**的部分（供后续参照）：专服安全（客户端类只出现在 `handleClient` 方法体内
+⇒ 惰性解析、专服不加载 `Screen` 一系）、协议（`playToClient` 的 `? super RegistryFriendlyByteBuf`
+相容、handler 默认主线程、`Level#getEntity` 对未知/负数 id 返回 null 不抛）、侧判定反转正确、
+配置静态初始化顺序安全、行为无回归（名字回退链保住命名牌语义、全部调参常量与渲染路径未被触碰）、
+loader 的严格性与重复绑定规则未变、注释里引用的两处原版行号准确。
 
 ---
 

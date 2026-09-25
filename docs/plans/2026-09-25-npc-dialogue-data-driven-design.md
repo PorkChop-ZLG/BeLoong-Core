@@ -130,7 +130,7 @@ src/main/java/com/zonlong/beloong/dialogue/
 
 | 文件 | 改动 |
 |---|---|
-| `dialogue/NpcDialogueLoader.java` | **只重写类注释**（为什么 `data/` + 服务端）；`apply` 与 `get` 逻辑不动；`entries` 字段加 `volatile`（§五 D32） |
+| `dialogue/NpcDialogueLoader.java` | **只重写类注释**（为什么 `data/` + 服务端）；`apply` 与 `get` 逻辑不动；`entries` **不加** `volatile`（§五 D32 与 §十二 I-1：`apply` 与 `get()` 同处服务端主线程） |
 | `dialogue/NpcDialogueEntry.java` | `CODEC` 不动；并列新增 `STREAM_CODEC`（`Page` 同理） |
 | `BeLoongCore.java` | `addServerReloadListeners` +1 行；payload 注册 +1 条（**顺手把现有内联 lambda 抽成私有方法**，两条更清楚）；游戏总线 +1 个 handler |
 | `BeLoongCoreClient.java` | **删** `registerClientReloadListeners` 方法及其 import；**删** `NpcDialogueHandler` 注册 |
@@ -180,7 +180,7 @@ NpcDialogueOpenPayload(NpcDialogueEntry entry, int entityId)
 | **D29** | 距离/权限校验 | **不手写** | 原版服务端在交互包处理里已有交互距离校验（计划阶段核实到具体方法行号后回填本节） |
 | **D30** | 失败隔离 | 单文件解析失败只丢该文件（`ifError/ifSuccess` 不变） | 首版 I1 的结论继续有效 |
 | **D31** | 不用同步 datapack 注册表（不照搬 DS） | 采用 B1 | §3.10 末尾：对话是请求/响应式，全表同步只会把服主私有内容推给所有客户端 |
-| **D32** | `entries` 字段加 **`volatile`** | 采纳 | **推翻首版审查的 S3**。S3 当时的理由是"`apply` 与 `get()` 都在客户端主线程"——本次搬迁**推翻了这个前提**：`apply` 在重载工作线程、`get()` 在服务端主线程。**旧的"不采纳"结论必须同步作废，否则下一个人会按旧理由把它删掉** |
+| **D32** | `entries` 字段**不加** `volatile` | **不加**（本行经实现期核实**修正**，见 §十二） | 初版本行写的是"采纳 volatile，因为 `apply` 在重载工作线程、`get()` 在服务端主线程"——**那个前提是错的**。实测：`apply` 走 **gameExecutor**，而 `MinecraftServer:1512-1519` 传给 `loadResources` 的 gameExecutor 就是服务端自己（`MinecraftServer` 继承 `BlockableEventLoop`，任务跑在服务端主线程）⇒ 与主线程上的 `get()` **同线程**。首版审查 S3 的结论（不需要 volatile）**依然成立**，只是理由要按新事实改写 |
 | **D33** | 文件名保持扁平 `iron_golem.json` | 保持 | 改动最小；loader 按 `entity` 字段建表，文件名只是身份；数据包覆盖写同名文件即可。（备选 `minecraft/iron_golem.json` 的好处是"文件名 = 实体 id"，本次不采纳） |
 
 ---
@@ -208,8 +208,10 @@ NpcDialogueOpenPayload(NpcDialogueEntry entry, int entityId)
 
 ### 6.2 线程与重载
 
-- **服务端**：`apply` 跑在**重载工作线程**，`get()` 跑在**服务端主线程** ⇒ 跨线程（D32 的 `volatile`）。
-  现有实现已经是"局部 map 建好再整体赋值"，无需额外同步结构。
+- **服务端**：`apply` 由 **gameExecutor** 执行，而服务端侧的 gameExecutor 就是 `MinecraftServer` 自己
+  （`MinecraftServer.java:1512-1519` ⇒ 服务端主线程）⇒ 与 `get()` **同线程，无可见性问题**
+  （详见 §十二 I-1：初版此处的"跨线程"判断是错的）。~`volatile`~ 不需要。
+  现有实现"局部 map 建好再整体赋值"继续保留 —— 它本身是好的写法，只是与线程无关。
 - **注册表已冻结**：3.5 ⇒ `apply` 内做注册表查询安全（当前实现不查，但将来加条件时要用）。
 - **异步重载无害**：对话表只在玩家右键时被读，那时重载早已结束。DS 的
   `CustomSoulIconLoader:39` 那个"重载可能晚于注册完成"的坑属于**资源注册**时序，我们不涉及。
@@ -254,7 +256,7 @@ NpcDialogueOpenPayload(NpcDialogueEntry entry, int entityId)
    且 `assets/beloong/beloong/npc_dialogue/` **已不存在**。
 3. 静态：`BeLoongCoreClient` 里**没有** `RegisterClientReloadListenersEvent`、**没有** `NpcDialogueHandler`。
 4. 静态：`client/` 下 `NpcDialogueHandler.java` 已删，`dialogue/` 下有。
-5. 静态：`NpcDialogueLoader` 的 `entries` 字段带 `volatile`。
+5. 静态：`NpcDialogueLoader` 的 `entries` 字段**没有** `volatile` 修饰符（§十二 I-1）。
 6. 静态：`beloong.mixins.json` 未改；`build.gradle` 未新增依赖。
 
 ### 二级（实机）
@@ -279,7 +281,7 @@ NpcDialogueOpenPayload(NpcDialogueEntry entry, int entityId)
 | # | 风险 | 评估与对策 |
 |---|---|---|
 | **R7** | **服务端确实派发 `EntityInteract` 吗？** 这是 B 的前提 | **低**。证据：`compat/ftbchunks/LoongPalaceProtectionHandler` 两侧都处理该事件；现 `NpcDialogueHandler` 的 `isClientSide()` 早退本身就说明两侧都会来。实机第 2/8 条即为反证；若真不派发，退路是改听 `EntityInteractSpecific` 或自建 serverbound 包 |
-| **R8** | 跨线程可见性 | 已列入改动（D32 `volatile`）与静态检查第 5 条 |
+| ~~R8~~ | ~~跨线程可见性~~ | **已撤销（实现期核实）**：`apply` 与服务端主线程上的 `get()` **同线程**，不存在可见性问题（详见 D32 与 §十二）。初版按"跨线程"立项是错误判断 |
 | **R9** | 玩家已有 `beloong-client.toml` 里的 `enabled` 失效 | 回默认 `true`（本就是默认），可接受，已记录 |
 | **R10** | 弹窗多一个 RTT | 感知不到（弹窗前本就要等打字动画）；单人 ~0ms |
 | **R11** | 数据包作者写坏字段 | 失败可见：error 日志 + "扫描数 vs 装载数"对照 |
@@ -319,3 +321,65 @@ NpcDialogueOpenPayload(NpcDialogueEntry entry, int entityId)
 - `memory/project-context.md` 子系统 9 口径更新：由"纯客户端、零网络包、零服务端逻辑"
   改为"服务端权威 + 打开时按需下发"
 - 提交拆两个：`feat(dialogue): …`（数据搬迁 + 架构切换，**必须原子**）+ `docs(dialogue): …`
+
+---
+
+## 十二、实现期修订与审查结论（2026-09-25）
+
+实现完成后做了一轮独立代码审查：**无 Critical，3 个 Important、4 个 Suggestion**。
+值得单独记的是：**3 个 Important 全部是"注释/文档里的断言不成立"，没有一个是行为缺陷**
+（代码本身审查判定可提交）。
+
+### 12.1 I-1（最重要）：D32 / R8 关于 `volatile` 的论证是**错的**
+
+| | |
+|---|---|
+| 我写的 | `apply` 在**重载工作线程**、`get()` 在**服务端主线程** ⇒ 跨线程 ⇒ 需要 `volatile`；并注明"旧的『不采纳』结论必须作废，否则下一个人会按旧理由删掉" |
+| 事实 | `SimplePreparableReloadListener#reload` = `supplyAsync(prepare, backgroundExecutor).thenAcceptAsync(apply, `**`gameExecutor`**`)` —— **只有 `prepare` 在后台线程**，而它不碰该字段 |
+| 事实 | 服务端侧 gameExecutor 就是 `MinecraftServer` 自己：`MinecraftServer.java:1512-1519` 传 `(this.executor, this)`；`MinecraftServer` 继承 `BlockableEventLoop`，`execute` 把任务放进**服务端主线程**的队列 |
+| 结论 | `apply` 与 `get()` **同线程**，`volatile` 一开始就不需要；首版审查 S3 的结论**依然成立** |
+
+处置：字段改回非 `volatile`，并按上面的事实重写注释（同时提醒后来者：S3 的**理由**要按新事实表述，
+别再说成"客户端主线程"）。D32 / R8 已就地标注修正。
+
+**真正的教训（已入 `memory/decisions-log.md`）**：
+*"因为我改了架构，所以旧结论失效"是一个需要**证明**的断言，不是可以**推断**的结论。*
+旧结论失效的正确判据是"它的前提真的变了"，而"前提是否变了"要**回源码查**。
+本次在没有核实 `apply` 跑在哪个 executor 的情况下，就把一条错误事实写进了四处文档，
+还加了"勿按旧理由回改"——正是本模组记忆里反复出现的失效模式（先验证前提，再下结论）。
+
+### 12.2 I-2：线载荷"全函数、永不抛"这条不变量原本是**假的**
+
+`Page.STREAM_CODEC` 原用 `ResourceLocation.STREAM_CODEC`，而它是
+`STRING_UTF8.map(ResourceLocation::parse, …)` —— **`parse` 对畸形输入会抛**。
+"解码期抛异常会中止连接"正是本次把 `EntityType` 请下线载荷的理由，
+所以这条不变量必须是**真的**，不能只是听起来对。
+
+处置：改用 `ResourceLocation.tryParse`（返回 `null` 而不抛）构造的 `SOUND_STREAM_CODEC`。
+另外核实了 `ByteBufCodecs.optional` / `list()` 都是全函数，其余字段无抛点 ⇒ 不变量现在成立。
+
+### 12.3 其余处置
+
+| # | 级别 | 内容 | 处置 |
+|---|---|---|---|
+| I-3 | Important | `NpcDialogueEntry` 类注释仍写"由**客户端侧**的 loader 解析、不需要网络同步"（旧架构口径） | 已改为服务端加载 + 按需下发 |
+| S-4 | Suggestion | `Config.NpcDialogue.enabled`（现为**服务端配置**）在 `isClientSide()` 早退**之前**被读 | 已把服务端早退提到读配置之前 |
+| S-5 | Suggestion | `open()` 未防 `pages` 为空 ⇒ `loadPage()` 里 `get(0)` 越界（今天不可达，但该方法按设计是"永不抛"边界） | 已加空页早退 |
+| S-6 | Suggestion | `mapStream(buf -> (ByteBuf) buf)` 其实**不是必需的**（`composite` 首参是 `? super B`） | 保留（与 `TreasureSyncPayload` 统一），但注释改为如实说明"不是必需的" |
+| S-7 | Suggestion | 语言文件里分组提示语仍写"（纯客户端功能）" | 已改为"数据由服务端下发；下方两项只影响本地观感" |
+
+### 12.4 审查已核实为**正确**的部分（供后续参照）
+
+- **专服安全**：`NpcDialogueOpenPayload` 只在 `handleClient` 方法体内引用客户端类，
+  不在字段/构造/签名/静态初始化器里 ⇒ 惰性解析，专服永不加载 `Screen` 那一系；
+  与 `TreasureSyncPayload` → `ClientTreasureCache` 条件完全相同。
+- **协议**：`playToClient` 的 `StreamCodec<? super RegistryFriendlyByteBuf, T>` 与声明类型相容；
+  handler 默认 `HandlerThread.MAIN` ⇒ `setScreen` 已在客户端主线程；
+  `Level#getEntity(int)` 对未知/负数 id 返回 `null` 而不抛。
+- **侧判定**：`isClientSide()` 早退是首版的**精确反转**，且原版两侧都会派发该事件。
+- **配置**：静态初始化顺序安全（`SERVER_BUILDER` 在 `:155` 声明、赋值在 `:257`、`SERVER_SPEC` 在 `:496` 构建）；
+  客户端分组仍非空；四个语言键在中英两文件都存在。
+- **行为**：名字回退链保住了命名牌语义；`renderBackground` 覆写、`isPauseScreen()==false`、
+  打字机/翻页/末页弹选项、`§`/`\n`、全部调参常量均未被触碰。
+- **loader**：`ifError/ifSuccess` 严格性、单文件隔离、空 `pages` 拒绝、重复绑定"后者胜 + warn"、
+  `Map.copyOf` 发布均未变；注释引用的 `MinecraftServer.java:1511` 与 `Minecraft.java:491` **行号准确**。
