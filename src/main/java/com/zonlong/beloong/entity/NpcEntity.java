@@ -139,6 +139,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 抬高，本方法随属性自动跟随，不需要硬编码倍数。
      * <p>
      * （另注：{@code MoveControl} 的 {@code speedModifier} 初值是 0.25，所以无论如何都得显式给值。）
+     * <p>
+     * <b>⚠️ 这个换算改变了 {@code MOVEMENT_SPEED} 的语义，子类别照抄原版生物的数值。</b>
+     * 在本基类里属性值等于"**玩家口径的速度**"：{@code 0.1} = 玩家走路、{@code 0.13} = 玩家冲刺。
+     * 而原版生物的该属性是"手感刻度"（僵尸 {@code 0.23}、铁傀儡 {@code 0.25}，实际都远慢于玩家走路
+     * —— 它们的位移系数是 {@code 属性²}）。若给本基类一个 {@code 0.23}，那会得到**玩家口径的 0.23**，
+     * 也就是一只比僵尸快四倍多的怪。想让 NPC 比玩家慢就给 {@code &lt; 0.1}。
      */
     protected double navigationSpeedModifier() {
         double speedAttribute = this.getAttributeValue(Attributes.MOVEMENT_SPEED);
