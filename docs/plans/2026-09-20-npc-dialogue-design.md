@@ -250,6 +250,36 @@ SHOWING_OPTIONS
 **I2** 补上配置分组自身的语言键 `beloong.configuration.npc_dialogue`（NeoForge 用
 `modId + ".configuration." + key` 取分组标题，缺键会在配置界面显示原始键名）。
 
+**R4 —— 数据驱动迁到 `data/`、改为服务端权威（2026-09-25，用户裁定）。**
+
+> ⚠️ **本节之后，本文档的 D2 / D5 / D6 与 §九的 R0 / R2 已不再是最新口径。**
+> 权威文档：**`docs/plans/2026-09-25-npc-dialogue-data-driven-design.md`**。
+
+理由有两条，第二条是根因：
+
+1. 数据应当住在数据包里（可被存档数据包覆盖、由服务端定义），而不是靠资源包覆盖。
+2. **将来要接原版进度判据**控制对话进行到哪一步。判据的**写**（把对话推进记成进度）只能在服务端
+   `PlayerAdvancements#award` 授予，**读**（按进度筛选该看到的内容）也应当在服务端完成 ⇒
+   §1.2 那条"唯一选项是『离开』⇒ 对话**没有副作用** ⇒ 整条链路可以跑在客户端"的前提**被打破**。
+
+处置（详见新文档 §4.2）：
+
+| 首版决策 | 新口径 |
+|---|---|
+| D2 受理侧 = 客户端 | **服务端** |
+| D5 数据位置 = `assets/` | **`data/beloong/beloong/npc_dialogue/`**（目录字符串 `"beloong/npc_dialogue"` **不变** —— 它是 PackType 相对的） |
+| D6 读取侧 = 客户端 reload listener | **`AddReloadListenerEvent`**（服务端），并新增一个 `playToClient` 按需下发 |
+| R2 "存档数据包覆盖对客户端不可见" | **不再是限制** —— 数据包覆盖现在生效 |
+| R0（已解决）"客户端读不到 `data/`" | 结论仍正确，且正是本次换注册点的原因 |
+
+**本次改动**另推翻了一处旧审查结论，勿按旧理由回改：
+首版审查 **S3**（`NpcDialogueLoader.entries` 加 `volatile`）当时**不采纳**，理由是"`apply` 与 `get()`
+都在客户端主线程"。搬迁后 `apply` 在重载工作线程、`get()` 在服务端主线程 ⇒ **跨线程**，
+`volatile` **已采纳**。
+
+未变：UI 规格与调参结论（§3、§13.3）、文案仍走翻译键（`assets/.../lang`）、触发语义
+（`empty_hand`/`any`）、失败隔离规则、零 mixin。
+
 ---
 
 ## 五、组件
