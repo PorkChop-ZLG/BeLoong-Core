@@ -4,6 +4,7 @@ import com.zonlong.beloong.entity.ai.NpcAttackGoal;
 import com.zonlong.beloong.entity.ai.NpcFacePlayerGoal;
 import com.zonlong.beloong.entity.ai.NpcTurnGoal;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
@@ -52,15 +53,21 @@ import software.bernie.geckolib.util.GeckoLibUtil;
  * 实体其实是被"钉"在召唤点的。
  * 本基类因此**不碰** {@code isNoAi()}，重力自然生效。
  *
- * <h2>站桩实体的身体朝向**不会**自动跟随 {@code yRot}（转向必须走 {@link #setFacing}）</h2>
- * 这一点与直觉相反，是"turn 指令无效 / 身体只转一点点"的根因：
- * {@code LivingEntity#tick()}（{@code :2496-2525}）给身体插值用的目标是**本 tick 的位移方向** ——
- * 站着不动时那个目标就等于当前的 {@code yBodyRot}（原地不动），而唯一会动它的是
- * "「{@code |yRot - yBodyRot|} 超过 {@code getMaxHeadRotationRelativeToBody()}（{@code Mob} 默认 75°）
- * 时把体差夹回 75°」"那一段。
- * ⇒ 只写 {@code yRot}，身体在 75° 以内**完全不跟**、超过 75° 也只被拖到 75°。
- * 所以 {@link #setFacing} 会**同时写 {@code yRot} 与 {@code yBodyRot}**；
- * 两个都写成同一个值还顺带让上面那段夹取无事可做（差值为 0，它不介入）。
+ * <h2>身朝为什么要覆写 {@code tickHeadTurn}（"turn 指令无效"的根因）</h2>
+ * 直觉上"设了 {@code yRot}，身体自然会转"—— 对 {@code Mob} **并不成立**：
+ * <ul>
+ *   <li>{@code Mob#tickHeadTurn}（{@code Mob.java:377-381}）覆写后**不调用 super**，
+ *       只调 {@code bodyRotationControl.clientTick()}。也就是说 {@code LivingEntity} 里那套
+ *       "身体以 0.3 插值追目标"的逻辑，对 {@code Mob} 是**死代码**。</li>
+ *   <li>{@code BodyRotationControl} 的真实行为：**移动时** {@code yBodyRot = yRot}（硬贴、无插值）；
+ *       <b>没移动时</b>仅在"头相对上次稳定位置转过 15°"时把身体拖到与头相差
+ *       {@code getMaxHeadYRot()}（{@code Mob} 默认 <b>75°</b>）以内
+ *       ⇒ **站桩的身体永远转不到指定朝向**。</li>
+ *   <li>而且 {@code yBodyRot} <b>不参与网络同步</b>（只有 {@code yRot} 与 {@code yHeadRot} 会同步），
+ *       客户端的身朝是它自己算的 ⇒ 服务端写 {@code yBodyRot} 对画面**没有用**。</li>
+ * </ul>
+ * 本类因此覆写 {@link #tickHeadTurn} 恢复 {@code LivingEntity} 语义（身体 0.3 插值追 {@code yRot}），
+ * 让 {@code yRot} 成为身朝的唯一真源、且客户端与服务端同构；{@link #setFacing} 是唯一的转向入口。
  *
  * <h2>子类必须提供</h2>
  * 实体类型绑定（见 {@code registry/ModEntities}）、碰撞箱（那里）、渲染器与模型
@@ -173,15 +180,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /** 是否处于"被下令攻击"状态。只有它为 true 时 {@link NpcAttackGoal} 才会运行。 */
     private boolean attackCommandActive;
 
-    /**
-     * 朝向是否被锁住。
-     * <p>
-     * {@link #turnTo} 之后为 true：**外部指定的朝向必须粘住** —— 否则只要玩家在跟随距离内，
-     * {@link NpcFacePlayerGoal} 会在转向完成的下一 tick 把身体转回玩家，表现为"turn 指令无效"。
-     * 由 {@link #stopAction} 或任何其它指令（走 / 跑 / 攻击）解除。
-     */
-    private boolean facingLocked;
-
     protected NpcEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
         // 与下面两个覆写并存：让字段本身与保存出的 NBT 一致；语义由覆写保证。
@@ -283,9 +281,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 原地转身到**绝对**朝向（度）。会先取消其它外部指令 —— 语义确定：下令即接管。
      * <p>
-     * <b>朝向会被「锁住」</b>（{@link #facingLocked}）：转向完成后**不会**自动回到"面朝附近玩家"。
-     * 否则只要玩家在跟随距离内，{@link NpcFacePlayerGoal} 会在转向完成的下一 tick 把身体转回去 ——
-     * 表现为"turn 指令无效"。用 {@link #stopAction}（或任何其它指令：走 / 跑 / 攻击）解除。
+     * <b>转到位即释放，之后照旧响应"玩家靠近时面朝玩家"</b>（用户裁定）。
+     * 也就是说：若玩家就在 {@link #facePlayerDistance()} 之内，身体转到位后会被转回去 ——
+     * 这是**有意**的，显式指令只负责"把它转过去"，之后仍由 NPC 自己的反应规则接管。
+     * 想让它停在某个朝向，请在玩家离开后再执行。
      * <p>
      * 实际的角度推进由 {@link NpcTurnGoal} 每 tick 完成，且走 {@link #setFacing}
      * —— 站桩实体的身体**不会**自动跟随 {@code yRot}（见类注释那一节）。
@@ -298,7 +297,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.attackCommandActive = false;
         this.setTarget(null);
         this.turnTargetYaw = yaw;
-        this.facingLocked = true;
     }
 
     /** 走到目标点（玩家走路速度）。 */
@@ -350,10 +348,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.getNavigation().moveTo(pos.x, pos.y, pos.z, this.navigationSpeedModifier());
     }
 
-    /** 清掉"位移类"指令（转身 / 寻路 / 冲刺 / 朝向锁），不碰攻击指令。 */
+    /** 清掉"位移类"指令（转身 / 寻路 / 冲刺），不碰攻击指令。 */
     private void clearMotionCommands() {
         this.turnTargetYaw = null;
-        this.facingLocked = false;
         this.getNavigation().stop();
         this.setSprinting(false);
     }
@@ -366,24 +363,61 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      */
     public boolean isExternallyCommanded() {
         return this.turnTargetYaw != null
-                || this.facingLocked
                 || this.attackCommandActive
                 || !this.getNavigation().isDone();
     }
 
     /**
-     * 同时设置 {@code yRot} 与 {@code yBodyRot} —— **站桩转向必须走这里**，不要只 {@code setYRot}。
+     * 身体朝向的驱动 —— **刻意绕开 {@code Mob} 默认的 {@code BodyRotationControl}**。
      * <p>
-     * 理由见类注释的那一节：{@code LivingEntity#tick()} 给身体插值的目标是"本 tick 的位移方向"，
-     * 站着不动时它等于当前 {@code yBodyRot}，所以只写 {@code yRot} 身体几乎不跟
-     * （75° 以内完全不跟，超过 75° 只被夹取拖到 75°）。
+     * {@code Mob#tickHeadTurn}（{@code Mob.java:377-381}）覆写后只调
+     * {@code bodyRotationControl.clientTick()} 并直接返回，**不调用** {@code LivingEntity} 里那套
+     * "身体以 0.3 插值追目标"的逻辑。而 {@code BodyRotationControl} 的实际行为是：
+     * <ul>
+     *   <li><b>移动时</b>：{@code yBodyRot = yRot}（硬贴，无插值）；</li>
+     *   <li><b>没移动时</b>：仅当"头相对上次稳定位置转过 15°"时，把身体拖到与头相差
+     *       {@code getMaxHeadYRot()}（{@code Mob} 默认 <b>75°</b>）以内 ——
+     *       **它永远不会让站桩的身体真正转到 {@code yRot}**。</li>
+     * </ul>
+     * ⇒ 站桩 NPC 想把身体转到指定朝向（{@link #turnTo} / {@link NpcFacePlayerGoal}）时，
+     * 默认机制给不了："turn 指令看起来无效"就是这么来的。
      * <p>
-     * 两个字段写成同一个值，还能让"体差超过 75° 就夹取"那段逻辑无事可做（差值为 0）。
-     * {@code yBodyRotO} 由原版每 tick 自行前推，渲染侧的 {@code Mth.rotLerp} 因此照常平滑。
+     * 这里改成与 {@code LivingEntity} 原生一致的语义：**身体以 0.3 插值追 {@code yRot}**，
+     * 于是 {@code yRot} 成为身朝的唯一真源。
+     * <p>
+     * 传入的 {@code targetYRot} 刻意忽略：它的取值来自 {@code LivingEntity#tick()} 里
+     * "本 tick 的位移方向"，而站住不动时它恰好等于当前 {@code yBodyRot}（一个原地不动的空目标）。
+     * <p>
+     * 本方法在**客户端与服务端都会跑**，两端都从已同步的 {@code yRot} 推导身朝 ⇒ 表现一致
+     * （{@code yBodyRot} 本身**不参与同步**，客户端的身朝是它自己算的）。
+     */
+    @Override
+    protected float tickHeadTurn(float targetYRot, float animStep) {
+        this.yBodyRot += Mth.wrapDegrees(this.getYRot() - this.yBodyRot) * 0.3F;
+        return animStep;
+    }
+
+    /**
+     * 设置朝向：同时写 {@code yRot} 与 {@code yBodyRot} —— **转向走这里，不要只 {@code setYRot}**。
+     * <p>
+     * 只写 {@code yRot} 不够用，原因有两层：
+     * <ol>
+     *   <li>{@code Mob} 默认把身朝交给 {@code BodyRotationControl}，而它在"没移动"时最多把身体拖到
+     *       与头相差 75°（见 {@link #tickHeadTurn} 的说明）；</li>
+     *   <li>{@code yBodyRot} <b>不参与网络同步</b>（只有 {@code yRot} 与 {@code yHeadRot} 会同步），
+     *       客户端的身朝由它自己算 —— 服务端写 {@code yBodyRot} 只影响服务端状态，
+     *       真正让客户端转过去的是 {@code yRot}。</li>
+     * </ol>
+     * 本类覆写了 {@link #tickHeadTurn} 让身体以 0.3 插值追 {@code yRot}（双端同构），
+     * 因此写 {@code yRot} 就会转、且两端一致。
+     * <p>
+     * <b>刻意不写 {@code yHeadRot}</b>：头交给原版 {@code LookControl} / {@code LookAtPlayerGoal}，
+     * 这样"头先转过去、身体随后跟上"的观感才是原生的 —— 一写头，头部 Molang 的相对角就恒为 0，
+     * 那条 {@code -Molang} 骨骼链又白写了。
      */
     public void setFacing(float yaw) {
         this.setYRot(yaw);
-        this.yBodyRot = yaw;
+        this.yBodyRot = yaw;   // 服务端侧保持一致；客户端由覆写的 tickHeadTurn 自行插值
     }
 
     /** 供 {@link NpcTurnGoal} 读取当前目标朝向。 */
