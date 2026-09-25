@@ -3,6 +3,8 @@ package com.zonlong.beloong.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.dialogue.NpcDialogueEntry;
+import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -16,8 +18,10 @@ import java.util.List;
 /**
  * 原神式 NPC 对话屏。
  * <p>
- * 纯客户端：不读服务端状态、不发网络包、不暂停世界。世界保持清晰可见，
- * 只有屏幕下方一段渐变压暗 —— 因此{@link #renderBackground} 必须留空（见该方法说明）。
+ * 交互与渲染全部本地完成、不暂停世界、也**不回发任何包**：内容由服务端在玩家右键命中时
+ * 经 {@link NpcDialogueOpenPayload} 一次性送达（入口见 {@link #open}），此后打字机 / 翻页 /
+ * 选项都是纯本地状态机。世界保持清晰可见，只有屏幕下方一段渐变压暗 ——
+ * 因此{@link #renderBackground} 必须留空（见该方法说明）。
  * <p>
  * <b>交互状态机</b>（详见 {@code docs/plans/2026-09-20-npc-dialogue-design.md} §3.4）：
  * <pre>
@@ -93,8 +97,8 @@ public class NpcDialogueScreen extends Screen {
 
     private enum State { TYPING, WAIT_CLICK, SHOWING_OPTIONS }
 
-    private final NpcDialogueEntry entry;
     private final Component speakerName;
+    private final List<NpcDialogueEntry.Page> pages;
 
     private State state = State.TYPING;
     private int pageIndex;
@@ -106,16 +110,44 @@ public class NpcDialogueScreen extends Screen {
     private int visibleTotal;
     private int tickCount;
 
-    public NpcDialogueScreen(NpcDialogueEntry entry, Entity speaker) {
+    public NpcDialogueScreen(Component speakerName, List<NpcDialogueEntry.Page> pages) {
         super(Component.empty());
-        this.entry = entry;
-        // 名字：优先用数据文件指定的翻译键，缺省回落到实体自身的显示名。
-        // 注意 getDisplayName() 会带上命名牌给的自定义名 —— 对"整合包 NPC"来说这是预期行为。
-        // 显式写出 <Component>：translatable 返回 MutableComponent，与 getDisplayName 的 Component
-        // 不同，不写见证会让 map/orElseGet 推断失败。
-        this.speakerName = entry.name()
+        this.speakerName = speakerName;
+        this.pages = pages;
+    }
+
+    /**
+     * 「打开对话」的唯一入口 —— 由 {@code NpcDialogueOpenPayload} 的客户端处理器调用，
+     * 把服务端发来的**最小事实**变成一个屏幕。
+     * <p>
+     * <b>名字回退链</b>：数据文件指定的翻译键 → 实体自身的显示名（实体在客户端存在时，
+     * 含命名牌给的自定义名）→ 实体类型名（{@code EntityType#getDescriptionId()}，
+     * 服务端随包发来的兜底键）。
+     * <p>
+     * 首版只有前两级，且隐含假设"实体一定在客户端存在"。现在内容由服务端下发，
+     * 实体未必已同步到客户端，故补第三级 —— 不崩、不退屏，且实体在场时行为与首版一致
+     * （命名牌自定义名仍然生效，首版 R6 语义未丢）。
+     */
+    @OnlyIn(Dist.CLIENT)
+    public static void open(NpcDialogueOpenPayload payload) {
+        // 防御：空页会让 init() → loadPage() 里的 pages.get(0) 越界。
+        // 加载器已经拒绝 pages 为空的文件，但本方法是设计上的"永不抛"边界，这一行成本为零。
+        if (payload.pages().isEmpty()) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        Entity speaker = minecraft.level == null ? null : minecraft.level.getEntity(payload.entityId());
+
+        // 显式写出 <Component>：translatable 返回 MutableComponent，与 getDisplayName /
+        // translatable 的 Component 不同，不写见证会让 map/orElseGet 推断失败。
+        Component name = payload.nameKey()
                 .<Component>map(Component::translatable)
-                .orElseGet(speaker::getDisplayName);
+                .orElseGet(() -> speaker != null
+                        ? speaker.getDisplayName()
+                        : Component.translatable(payload.fallbackNameKey()));
+
+        minecraft.setScreen(new NpcDialogueScreen(name, payload.pages()));
     }
 
     // ===================== 生命周期 =====================
@@ -132,7 +164,7 @@ public class NpcDialogueScreen extends Screen {
 
     /** 载入当前页：取翻译 → 按 {@code \n} 分段 → 按宽度预排版 → 归零揭示进度。 */
     private void loadPage() {
-        String raw = Component.translatable(this.entry.pages().get(this.pageIndex).text()).getString();
+        String raw = Component.translatable(this.pages.get(this.pageIndex).text()).getString();
         this.lines = wrap(raw, (int) (this.width * TEXT_MAX_WIDTH));
         this.visibleTotal = this.lines.stream().mapToInt(NpcDialogueScreen::countVisible).sum();
         this.revealed = 0;
@@ -192,7 +224,7 @@ public class NpcDialogueScreen extends Screen {
      * 因此底部的继续箭头只会出现在中间页。
      */
     private void advanceOrFinish() {
-        if (this.pageIndex + 1 < this.entry.pages().size()) {
+        if (this.pageIndex + 1 < this.pages.size()) {
             this.state = State.WAIT_CLICK;
         } else {
             showOptions();

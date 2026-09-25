@@ -8,6 +8,9 @@ import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
+import com.zonlong.beloong.dialogue.NpcDialogueHandler;
+import com.zonlong.beloong.dialogue.NpcDialogueLoader;
+import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -46,6 +49,7 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -109,6 +113,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());
@@ -126,11 +131,29 @@ public class BeLoongCore {
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // === 网络包注册 ===
-        modEventBus.addListener((RegisterPayloadHandlersEvent evt) ->
-                evt.registrar(MODID).playToClient(
-                        TreasureSyncPayload.TYPE,
-                        TreasureSyncPayload.STREAM_CODEC,
-                        TreasureSyncPayload::handleClient));
+        modEventBus.addListener(this::registerPayloads);
+    }
+
+    /**
+     * 网络包注册（Play 阶段、服务端 → 客户端）。
+     * <p>
+     * 两条包的**下发时机刻意不同**：
+     * <ul>
+     *   <li>{@link TreasureSyncPayload} —— 玩家登录时**全量**同步一次（客户端要拿整张表做本地预测）；</li>
+     *   <li>{@link NpcDialogueOpenPayload} —— **不**做登录同步，只在玩家右键命中时把**那一条**发给他
+     *       （对话是请求/响应式的，客户端只需要"这一次要显示的这一段"）。</li>
+     * </ul>
+     */
+    private void registerPayloads(RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar(MODID);
+        registrar.playToClient(
+                TreasureSyncPayload.TYPE,
+                TreasureSyncPayload.STREAM_CODEC,
+                TreasureSyncPayload::handleClient);
+        registrar.playToClient(
+                NpcDialogueOpenPayload.TYPE,
+                NpcDialogueOpenPayload.STREAM_CODEC,
+                NpcDialogueOpenPayload::handleClient);
     }
 
     /** FML 通用设置（双端都执行）。 */
@@ -166,6 +189,7 @@ public class BeLoongCore {
         event.addListener(StructureEffectLoader.INSTANCE);
         event.addListener(BeloongWaterRegionLoader.INSTANCE);
         event.addListener(WaystonePlacementLoader.INSTANCE);
+        event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
     }
 
     /** 服务端启动时触发。 */

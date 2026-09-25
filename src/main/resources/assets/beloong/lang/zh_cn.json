@@ -79,7 +79,7 @@
   "beloong.configuration.npcDialogueNameScale": "说话人名字字号",
   "beloong.configuration.npcDialogueNameScale.tooltip": "名字相对正文的字号倍数。1.0 = 与正文同号（最清晰）；1.5 = 对齐参考图（位图字体非整数缩放会让部分笔画 1px、部分 2px）",
   "beloong.configuration.npc_dialogue": "简易 NPC 对话",
-  "beloong.configuration.npc_dialogue.tooltip": "右键已配置的实体时弹出的对话界面（纯客户端功能）",
+  "beloong.configuration.npc_dialogue.tooltip": "右键已配置的实体时弹出的对话界面（数据由服务端下发；下方两项只影响本地观感）",
   "beloong.configuration.overworldToLoongPalace": "主世界 → 龙宫",
   "beloong.configuration.overworldToLoongPalace.button": "配置",
   "beloong.configuration.overworldToLoongPalace.tooltip": "主世界 → 龙宫 传送配置",

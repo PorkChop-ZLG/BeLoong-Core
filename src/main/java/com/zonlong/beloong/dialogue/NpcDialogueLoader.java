@@ -17,23 +17,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * NPC 对话数据加载器。
+ * NPC 对话数据加载器（**服务端**）。
  * <p>
- * 从 {@code assets/beloong/beloong/npc_dialogue/*.json} 读取，**在客户端资源重载时刷新**。
+ * 从 {@code data/beloong/beloong/npc_dialogue/*.json} 读取，随模组 jar 分发，
+ * 由 {@code AddReloadListenerEvent} 注册 —— **启动与 {@code /reload} 都会重新加载**。
+ * 注册点在 {@code BeLoongCore#addServerReloadListeners}。
  * <p>
- * <b>为什么注册在客户端</b>：对话的全部行为（触发判定 + 渲染）都发生在客户端，
- * 数据又随模组 jar 分发（客户端同样把它当资源包加载），因此**不需要任何网络同步**。
- * 注册点在 {@code BeLoongCoreClient#registerClientReloadListeners}。
+ * <b>为什么目录字符串仍然是 {@code "beloong/npc_dialogue"}</b>：它是 <b>PackType 相对</b>的，
+ * 不是绝对路径。服务端的资源管理器以 {@code PackType.SERVER_DATA} 构造
+ * （{@code MinecraftServer.java:1511}），客户端的以 {@code CLIENT_RESOURCES} 构造
+ * （{@code Minecraft.java:491}），路径解析再按 pack type 加目录前缀
+ * （{@code FallbackResourceManager} → {@code PackResources.listResources(packType, …)}）。
+ * ⇒ **同一个字符串，注册在服务端监听器上读 {@code data/}，注册在客户端监听器上读 {@code assets/}。**
  * <p>
- * <b>为什么是 {@code assets/} 而不是 {@code data/}</b>：{@code RegisterClientReloadListenersEvent}
- * 交出来的 {@code Minecraft.resourceManager} 是以 {@code PackType.CLIENT_RESOURCES} 构造的
- * （{@code Minecraft.java:487}），而路径解析会按 pack type 加目录前缀
- * （{@code FallbackResourceManager:170} → {@code type.getDirectory()}，即 {@code assets/}），
- * 所以这个监听器**只能看到 {@code assets/} 树**。数据若放在 {@code data/} 下，
- * 客户端永远读不到 —— {@code entries} 恒为空、右键无效，且不会有任何报错。
- * 代价：对话数据**不能**被存档数据包覆盖（设计文档 R2 已接受这一取舍）；
- * 若将来需要，改成"服务端读取 + 登录时下发"即可，先例见本模组的财宝系统
- * （{@code TreasureSyncPayload} + {@code ClientTreasureCache}）。
+ * 首版把本 loader 注册在**客户端**、数据放在 {@code assets/}（首版 R3）—— 那不是必须的，
+ * 只是当时"纯客户端 ⇒ 零网络包"这一取舍的产物；而该取舍的真正前提是"v1 没有副作用"，
+ * 在引入进度判据后即被推翻（见 {@code docs/plans/2026-09-25-npc-dialogue-data-driven-design.md}）。
+ * <p>
+ * <b>数据流</b>：服务端加载 → 玩家右键命中时由 {@code NpcDialogueHandler} 把**那一条**
+ * 经 {@code NpcDialogueOpenPayload} 下发给该玩家。**客户端不持有全表**，
+ * 因此没有客户端缓存、也没有登录全量同步。
  * <p>
  * <b>失败隔离</b>：单个文件解析失败只丢弃该文件并打错误日志，绝不中断其余文件的加载。
  * 反面教材见 MCA Conversations 的 {@code DATAPACK.md}：对未知枚举值抛异常的严格解析
@@ -46,6 +49,27 @@ public class NpcDialogueLoader extends SimpleJsonResourceReloadListener {
 
     public static final NpcDialogueLoader INSTANCE = new NpcDialogueLoader();
 
+    /**
+     * 解析后的对话表。
+     * <p>
+     * <b>刻意不加 {@code volatile}</b> —— 这一段是回源码核实过的，改动前请先读完：
+     * <ul>
+     *   <li>{@code apply} 由 <b>gameExecutor</b> 执行，<b>不是</b>后台工作线程：
+     *       {@code SimplePreparableReloadListener#reload} 的形态是
+     *       {@code supplyAsync(prepare, backgroundExecutor).thenAcceptAsync(apply, gameExecutor)}
+     *       —— 只有 {@code prepare}（扫目录 + Gson 解析）在后台线程，而它不碰本字段。</li>
+     *   <li>服务端侧的 gameExecutor 就是 {@code MinecraftServer} 自己：
+     *       {@code MinecraftServer.java:1512-1519} 把 {@code (this.executor, this)} 传给
+     *       {@code ReloadableServerResources.loadResources}；{@code MinecraftServer} 继承
+     *       {@code BlockableEventLoop}，其 {@code execute} 把任务放进<b>服务端主线程</b>的队列。</li>
+     * </ul>
+     * ⇒ {@code apply}（写）与 {@code get()}（{@code NpcDialogueHandler} 在右键事件里读）
+     * <b>同在服务端主线程</b>，不存在跨线程可见性问题，故无需 {@code volatile}。
+     * <p>
+     * 首版代码审查的 S3 判"不需要 volatile"，理由是"两者都在客户端主线程"。搬迁到服务端后
+     * 线程换了、但"两者同处一条主线程"这个**性质没变**，所以 S3 的结论依然成立。
+     * （注意：S3 的**理由**要按上面的事实重新表述 —— 不要说成"客户端主线程"。）
+     */
     private Map<EntityType<?>, NpcDialogueEntry> entries = Map.of();
 
     private NpcDialogueLoader() {
@@ -87,9 +111,9 @@ public class NpcDialogueLoader extends SimpleJsonResourceReloadListener {
         }
 
         this.entries = Map.copyOf(parsed);
-        // 同时打印"扫描到的文件数"与"成功装载条数"：
-        // 扫描数就是"客户端能否读到本目录"（原设计风险 R0）的运行时观测点 ——
-        // 若它恒为 0，说明目录放错了树（客户端资源管理器只认 assets/，见类注释）。
+        // 同时打印"扫描到的文件数"与"成功装载条数" —— 这是本功能**唯一的运行时观测点**：
+        // 数据放错树（放 assets/ 或目录名写错）时的症状是"右键毫无反应、且不报任何错"，
+        // 而扫描数恒为 0 会立刻指向它（首版 R0 的教训）。
         BeLoongCore.LOGGER.info(
                 "[BeLoong] reloaded npc dialogues: {} file(s) scanned, {} dialogue(s) loaded",
                 files.size(), entries.size());

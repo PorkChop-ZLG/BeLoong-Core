@@ -79,7 +79,7 @@
   "beloong.configuration.npcDialogueNameScale": "Speaker Name Scale",
   "beloong.configuration.npcDialogueNameScale.tooltip": "Font scale of the speaker name relative to the body text. 1.0 = same size (crispest); 1.5 = as in the reference screenshots (non-integer scaling of the bitmap font makes some strokes 1px and others 2px)",
   "beloong.configuration.npc_dialogue": "Simple NPC Dialogue",
-  "beloong.configuration.npc_dialogue.tooltip": "The dialogue screen shown when right-clicking a configured entity (client-side only)",
+  "beloong.configuration.npc_dialogue.tooltip": "The dialogue screen shown when right-clicking a configured entity (data is sent by the server; the two options below only affect local appearance)",
   "beloong.configuration.overworldToLoongPalace": "Overworld → Loong Palace",
   "beloong.configuration.overworldToLoongPalace.button": "Configure",
   "beloong.configuration.overworldToLoongPalace.tooltip": "Overworld → Loong Palace transport configuration",

@@ -3,7 +3,10 @@ package com.zonlong.beloong.dialogue;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.netty.buffer.ByteBuf;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 
@@ -14,7 +17,9 @@ import java.util.Optional;
  * 一条 NPC 对话的数据定义（**一个实体类型一条**）。
  * <p>
  * 数据文件位于 {@code data/beloong/beloong/npc_dialogue/<entity>.json}，随模组 jar 分发，
- * 由客户端侧的 {@link NpcDialogueLoader} 在资源重载时解析 —— 因此**不需要网络同步**。
+ * 由**服务端**的 {@link NpcDialogueLoader} 经 {@code AddReloadListenerEvent} 解析。
+ * 客户端**不持有全表** —— 玩家右键命中时服务端才把**那一条**经 {@link NpcDialogueOpenPayload}
+ * 下发给他（见 {@code docs/plans/2026-09-25-npc-dialogue-data-driven-design.md}）。
  * <p>
  * 与「对话树」不同，本结构刻意只有**一维的页列表**：同类型实体只有一段对话，
  * 线性播放完即弹出选项。这是"仅供整合包使用"这一前提换来的简化，
@@ -68,6 +73,36 @@ public record NpcDialogueEntry(
                 Codec.STRING.fieldOf("text").forGetter(Page::text),
                 ResourceLocation.CODEC.optionalFieldOf("sound").forGetter(Page::sound)
         ).apply(instance, Page::new));
+
+        /**
+         * 声音字段的线格式。
+         * <p>
+         * <b>刻意不用 {@link ResourceLocation#STREAM_CODEC}</b>：它是
+         * {@code STRING_UTF8.map(ResourceLocation::parse, …)}，而 {@code parse} 对畸形输入会**抛**，
+         * 解码期抛异常会中止连接（不是丢一个包）。{@link ResourceLocation#tryParse} 则返回
+         * {@code null} 而**不抛**，换成它之后"线格式全函数"这条不变量才真正成立。
+         * <p>
+         * 实践中畸形值不可能出现（唯一的生产者是我们自己的服务端，而它读的是非抛的 JSON codec），
+         * 这里纯属防御 —— 但正是因为"线载荷永不抛"是 {@link NpcDialogueOpenPayload}
+         * 整个形状的设计依据，这条不变量必须是**真的**，不能只是听起来对。
+         */
+        private static final StreamCodec<ByteBuf, Optional<ResourceLocation>> SOUND_STREAM_CODEC =
+                ByteBufCodecs.STRING_UTF8.map(
+                        s -> Optional.ofNullable(ResourceLocation.tryParse(s)),
+                        o -> o.map(ResourceLocation::toString).orElse(""));
+
+        /**
+         * 线格式（网络下发用），与 {@link #CODEC} 语义一致、只是载体不同。
+         * <p>
+         * 本 codec 是**全函数**：两个字段都能无条件解出，没有任何会抛的分支。
+         * 这是刻意的 —— {@code StreamCodec} 解码失败**无法优雅降级**（NeoForge 会中止连接），
+         * 所以线载荷里不能出现"可能查不到/可能抛"的东西。详见
+         * {@link NpcDialogueOpenPayload} 的类注释。
+         */
+        public static final StreamCodec<ByteBuf, Page> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, Page::text,
+                SOUND_STREAM_CODEC, Page::sound,
+                Page::new);
     }
 
     /**
