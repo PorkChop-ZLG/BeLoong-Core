@@ -1,7 +1,8 @@
 # 地黄龙 NPC（本模组第一个生物 NPC）设计文档
 
 **日期：** 2026-09-21
-**状态：** 待批准
+**状态：** **已实现并实机验收（2026-09-21）**；另经 R9/R10 修订，并被后续原版化设计取代部分决策
+（见文档顶部 R9/R10 与 `2026-09-25-npc-vanilla-ai-design.md`）
 **分支：** `NPC`
 **采用方案：** `PathfinderMob` + GeckoLib 4.9.2（`GeoEntity`），**无 AI、无敌、站在地上、不缩放**；零 mixin、零网络包、零新依赖
 **参考实现：** BWG `PumpkinWarden`（同平台 1.21.1 + NeoForge + 同版 GeckoLib，本地有源码）+ Dragon Survival `DragonEntity`/`DragonRenderer`/`DragonModel`（本模组**必需依赖**）

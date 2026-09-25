@@ -1,7 +1,7 @@
 # NPC 对话改为服务端权威的 data 数据驱动 实施计划
 
 **Date:** 2026-09-25
-**Status:** 待执行
+**Status:** ✅ **已完成（`d7849e7` + `a85dd19`），实机验收通过（2026-09-25）** —— 明细见 §六 审查记录
 **Design:** [2026-09-25-npc-dialogue-data-driven-design.md](./2026-09-25-npc-dialogue-data-driven-design.md)
 **Approach:** 方案 **B1** —— 数据放 `data/`、服务端 reload listener 加载、右键在**服务端**受理、命中时把**该玩家要看的这一条**按需下发
 **验证模型:** 本项目**无测试源集**（`gradlew build` 输出 `compileTestJava NO-SOURCE` / `test NO-SOURCE`），故**不引入测试框架**。每个任务的验证 = `gradlew build --console=plain` + 静态探针（rg）+ 实机清单（§四）。

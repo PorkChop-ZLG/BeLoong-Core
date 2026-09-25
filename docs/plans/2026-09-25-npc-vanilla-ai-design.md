@@ -1,7 +1,7 @@
 # 通用 NPC 基类：改用原版 AI 与行为 设计文档
 
 **日期：** 2026-09-25
-**状态：** 已批准（用户裁定 Q1 / Q2 + "其余按建议"）
+**状态：** **已实现（`23c2721`）** —— 设计已批准（用户裁定 Q1 / Q2 + "其余按建议"）并落地
 **分支：** `NPC`
 **采用方案：** 移动与行为**尽量交回原版机制**；只保留三项原版确实没有的自研（见 §六）
 **修订关系：** 本文档**修订**
@@ -142,11 +142,21 @@ else                                            → WALK
   该命令效果不好，而"旋转"本身可以直接从行为上看出来，不需要指令演示。
 - 结果：5 条子命令降为 **3 条**：`walk` / `attack` / `stop`。
 
-> ⚠️ **连带后果（需你留意，我按"保留"处理）**：`turn` 命令是 `turnTo(...)` 的**唯一调用方**。
-> 删掉它之后，`NpcEntity#turnTo` / `setFacing` / `getTurnTargetYaw` / `clearTurnTarget` 与
-> `entity/ai/NpcTurnGoal` 就成了**没有调用方的能力**（约 60 行）。
-> 我**暂时保留**它们，因为你先前明确要求过"**提供可以转圈和移动的 AI**"（作为将来外部驱动的能力）。
-> 若你确认不要这个能力，我按 YAGNI 把这一整套（API + goal + 相关 Javadoc）删掉 —— 一句话即可。
+> ✅ **连带代码已在同轮整体删除**（用户追加裁定："删除 turn 调试命令后，把无用的代码也删除。
+> 但注意，目前的 NPC 转向玩家的功能必须保留完整"）。删掉的是 **`turn` 这一整套能力**：
+>
+> | 删除项 | |
+> |---|---|
+> | `entity/ai/NpcTurnGoal.java` | 整个文件 |
+> | `NpcEntity` | `turnTo` / `setFacing` / `getTurnTargetYaw` / `clearTurnTarget` / `turnTargetYaw` 字段 / `LOOK_AHEAD_DISTANCE` / `maxTurnPerTick()` |
+> | `NpcCommand` | `turn` 与 `run` 子命令（含 `move(...)` 的 sprint 分支） |
+> | 语言文件 | `beloong.command.npc.{turn,run}`（中英各 2 条） |
+>
+> **删除前已核实「面朝玩家」不依赖其中任何一环** —— 它完全由原版链路完成：
+> `LookAtPlayerGoal` 写 `yHeadRot` → `LookControl` → `BodyRotationControl` 把身体拖到滞后头 75° 内、
+> 头停约 11 tick 后收敛到完全对齐 → 渲染用 `yBodyRot`。
+> `turn*` 那一套只是"**命令式指定绝对朝向**"，与上面这条链**没有任何交集**（`setFacing` 是它自己的
+> 实现细节，不是共享设施）。实测确认：删除后"玩家靠近→先扭头→后转身→整体面朝玩家"完全未变。
 
 ### 3.6 语言文件
 
@@ -156,6 +166,13 @@ else                                            → WALK
 
 `ModEntities`、`ModAttributes`、`beloong.mixins.json`、对话系统与 `NpcDialogue*`、
 `client/` 侧（模型/渲染器）、资产。
+
+### 3.8 实现期记录
+
+- `facePlayerDistance()` 由 `public` 收回 **`protected`** —— 它当初是 public 只为让
+  `entity/ai` 包的自研 goal 能读；那个 goal 已删除，现在只有本类自己用，接口越小越好。
+- `maxTurnPerTick()` 随 `NpcTurnGoal` 一并删除（它只被那个 goal 读）。
+- `animationTransitionTicks()` 的注释由"`idle` ↔ `walk` 的过渡"改为"动画之间的过渡"（现在有三档）。
 
 ---
 
@@ -172,7 +189,7 @@ else                                            → WALK
 | **D54** | 交互入口定为 `mobInteract`，本轮不落代码 | 见 §3.4 | 空覆写是死代码；且现有对话系统服务任意实体类型，不能整体搬进来 |
 | **D55** | 攻击仍只作 API | 保留 `NpcAttackGoal` 与 `customServerAiStep` 的失效兜底 | 你先前裁定"属性 + `attack()` API、不自主索敌"；本轮无反对意见，保持不变 |
 | **D56** | `createBodyControl()` 记为身朝定制的**正统扩展点** | 仅记录，本轮不用 | 原版自己在用：`Phantom:63`、`Armadillo:392`、`Camel:635`、`Shulker:146`。将来若真要定制站桩身朝，覆写它而不是 `tickHeadTurn` |
-| **D57** | 删除 `/beloong npc turn` 调试命令 | 连同其语言键；子命令缩为 `walk` / `attack` / `stop` | 用户裁定：该命令效果不好，而"旋转"可直接从行为看出、不需要指令演示。**连带**：`turnTo` / `setFacing` / `NpcTurnGoal` 变成**无调用方**的能力 —— 本轮**保留**（你先前要求过"提供可以转圈和移动的 AI"），若确认不要，我再按 YAGNI 删掉 |
+| **D57** | **整体删除 `turn` 能力**（不只是命令） | 命令子命令 + 语言键 + `turnTo` / `setFacing` / `getTurnTargetYaw` / `clearTurnTarget` / `turnTargetYaw` / `LOOK_AHEAD_DISTANCE` / `maxTurnPerTick()` + 整个 `NpcTurnGoal` | 用户两步裁定：先删命令（"效果不好，旋转可直接从行为看出"），再删无用代码。**删除前已核实「面朝玩家」不依赖其任何一环**（见 §3.5） |
 
 ---
 

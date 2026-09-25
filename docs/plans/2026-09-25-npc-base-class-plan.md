@@ -1,7 +1,10 @@
 # 通用 NPC 基类 实施计划
 
 **Date:** 2026-09-25
-**Status:** 待执行
+**Status:** **已执行（`dc0d763`），随后被三轮修订取代** —— 本计划描述的 API/组件已被后续设计改写：
+`NpcFacePlayerGoal` 与 `NpcTurnGoal` 已删除、`runTo`/冲刺已删除、`navigationSpeedModifier` 已删除、
+移动刻度与动画档位已重做。**当前口径见** `2026-09-25-npc-vanilla-ai-design.md`。
+本文件保留作为"当时怎么做的"记录，**不要照此实施**。
 **Design:** [2026-09-25-npc-base-class-design.md](./2026-09-25-npc-base-class-design.md)
 **行为规格与事实来源:** [2026-09-25-dihuang-loong-ai-design.md](./2026-09-25-dihuang-loong-ai-design.md) §三（继续有效）
 **取代:** 本文档**取代**已作废的 `2026-09-25-dihuang-loong-ai-plan.md`

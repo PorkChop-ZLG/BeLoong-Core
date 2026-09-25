@@ -1,7 +1,7 @@
 # 地黄龙 NPC 基础 AI 与基础动画 实施计划
 
 **Date:** 2026-09-25
-**Status:** 待执行
+**Status:** **已作废**（见下方说明）
 **Design:** [2026-09-25-dihuang-loong-ai-design.md](./2026-09-25-dihuang-loong-ai-design.md)
 **Approach:** goal 驱动 + API 门面（`FloatGoal`/`LookAtPlayerGoal`/`FacePlayerGoal` 常驻，`TurnGoal` 默认不触发）
 **验证模型:** 本项目**无测试源集**（`gradlew build` 输出 `compileTestJava NO-SOURCE` / `test NO-SOURCE`），不引入测试框架。每个任务的验证 = `gradlew build --console=plain` + 静态探针 + 实机清单（§四）。**本轮重力与 Molang 都无法静态验证，实机是唯一的验收手段。**

@@ -14,8 +14,20 @@
 > 行为规格（goal 语义、Molang 相对角、动画判据）也继续有效，只是"写在哪个类里"变了。
 > 配套实施计划 `2026-09-25-dihuang-loong-ai-plan.md` **整体作废**。
 >
-> 另：**D21（walkTo/runTo 的能力集）与 D25（移动速度 0.2 起始值）已被
-> `docs/plans/2026-09-25-npc-vanilla-ai-design.md` 修订**（移动改回原版刻度、取消奔跑状态）。
+> 另：**本文档 §四 的决策表有多条已被后续两轮改写**，逐条对照如下（当前口径见
+> `2026-09-25-npc-base-class-design.md` 与 `2026-09-25-npc-vanilla-ai-design.md`）：
+>
+> | 决策 | 现状 |
+> |---|---|
+> | D16 开启 AI / D17 重力 / D20 头颈 Molang / D22 用 navigation 不写 MoveGoal / D26 `entity/ai` 包 / D27 不新增网络包 / D31 命令只调 API | ✅ **仍有效**（已实现） |
+> | **D18** goal 集合 | ⚠️ 已被改写：`NpcFacePlayerGoal`、`NpcTurnGoal` 删除，新增原版 `RandomLookAroundGoal`（优先级 7）；攻击 goal 优先级 3 保留 |
+> | **D19** 身体转向（自定义 goal 设 `yRot`） | ❌ 已推翻：改为**纯原版**"头带身体"（`LookAtPlayerGoal` → `BodyRotationControl`），不再有任何自研转向 goal |
+> | **D21** 转 / 走能力 API | ⚠️ 只剩 `walkTo` / `attack` / `stopAction`；`runTo`、`turnTo` 已删除 |
+> | **D23** 冲突处理（`isExternallyCommanded`） | ❌ 已删除（唯一使用者是已删的 `NpcFacePlayerGoal`） |
+> | **D24** 动画判据 | ⚠️ 已扩展为三档，且"跑"改由"有效移速 > 基础移速"触发 |
+> | **D25** 移动速度 0.2 | ❌ 改为 **0.3**（原版刻度，约为走路玩家的九成） |
+> | **D28** 模型 y 偏移（R9） | ⏳ **仍待实机标定**（见 `2026-09-25-npc-vanilla-ai-design.md` §五 与本文档 R9） |
+> | **D29 / D30** 命令参数 | ⚠️ `turn` 已删除；`walk` / `attack` / `stop` 保留 |
 
 ---
 
