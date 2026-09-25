@@ -172,6 +172,39 @@
 **通用教训**（已记入 `memory/decisions-log.md`）：*实体构造函数里设的标志位不是持久的；
 凡是"这个实体永远如此"的语义，必须用**行为覆写**表达。*
 
+**R9 —— D2（无 AI）被推翻（2026-09-25）。**
+
+用户裁定改为"有基础 AI 与基础动画"，详见 **`docs/plans/2026-09-25-dihuang-loong-ai-design.md`**。要点：
+
+- 构造函数里的 `setNoAi(true)` **与** `isNoAi()` 覆写必须**一起删除**（R8 的两处是成对的：构造函数标志位
+  会被 `/summon` 的 `load()` 覆盖，覆写才是真闸门）。
+- 新增 goal：`FloatGoal` + `LookAtPlayerGoal`（驱动 `yHeadRot`，是头颈 Molang 的数据源）+
+  自定义 `FacePlayerGoal`（身体转向玩家）+ 默认不触发的 `TurnGoal`（"转圈"能力）。
+- 「转圈」与「移动」只作为 **API 能力**（`turnTo`/`walkTo`/`stopAction`）提供给外部，**默认不触发**。
+- 头颈跟随用 Molang：覆写 `DihuangLoongModel#applyMolangQueries`，注册**相对角** `query.head_yaw`
+  —— 资产里 34 个动画早已写好 `-Molang` 骨骼链，只等这个查询被注册。
+
+**R10 —— D5「站在地上」的理由更正（2026-09-25）。**
+
+原文写"**不调用 `setNoGravity`**，让重力正常作用" —— **理由不完整**。真正拦住重力的是 no-AI：
+
+```
+LivingEntity.travel(Vec3)                       // LivingEntity.java:2219
+    if (this.isControlledByLocalInstance()) {   // :2220  ← 整个方法体都在这个 if 里
+```
+
+而 `Entity#isControlledByLocalInstance()`（`Entity.java:3215-3217`）对无乘客实体 = `isEffectiveAi()`，
+`Mob#isEffectiveAi()`（`Mob.java:1420`）= `super.isEffectiveAi() && !this.isNoAi()`。
+
+⇒ D2 的 no-AI **顺带把重力也关掉了** —— 首版其实是**"钉"在召唤点**，而不是"站在地上"。
+
+**教训（与 R8 互补）**：R8 说"永久语义要用 getter 覆写承载才可靠"，这次要补上它的代价 ——
+**一个覆写可以同时废掉多件看起来无关的事**，而外观上看不出来（它本来就不注册 goal，
+"站着不动"与"不受重力"表现完全一致）。下次用覆写"关掉"某个原版机制时，要顺着调用链
+确认它还带走了什么。
+
+---
+
 ## 五、组件
 
 | 组件 | 职责 | 关键 API（出处见 §7） |
