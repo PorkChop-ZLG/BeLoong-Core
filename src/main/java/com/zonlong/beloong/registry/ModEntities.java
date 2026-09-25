@@ -53,7 +53,9 @@ public final class ModEntities {
     /**
      * 地黄龙 NPC（{@code beloong:dihuang_loong}）。
      * <p>
-     * 站桩生物：无 AI、无敌、不可推动、永不消失，详见 {@link DihuangLoongEntity}。
+     * 站桩生物：**有基础 AI 但默认不自主行动**、无敌、不可推动、永不消失。
+     * AI 与全部定义性语义都在通用基类 {@link com.zonlong.beloong.entity.NpcEntity} 里，
+     * 本类只负责类型绑定与碰撞箱；详见 {@link DihuangLoongEntity}。
      * <ul>
      *   <li>{@code MobCategory.MISC} = {@code ("misc", -1, true, true, 128)}：**不占刷怪上限**且持久；</li>
      *   <li>碰撞箱 1.5×2.5 取**身体主体段** —— 模型约 9 格长（含长尾），

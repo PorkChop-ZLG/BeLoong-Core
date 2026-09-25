@@ -1,6 +1,13 @@
 {
   "attribute.beloong.growth_speed": "成长速度",
   "attribute.dragonsurvival.flight_level": "飞行等级",
+  "beloong.command.npc.attack": "已让 %s 个 NPC 攻击 %s",
+  "beloong.command.npc.no_targets": "没有找到 NPC（本命令只作用于本模组注册的 NPC）",
+  "beloong.command.npc.not_living": "攻击目标必须是生物",
+  "beloong.command.npc.run": "已让 %s 个 NPC 跑向 %s",
+  "beloong.command.npc.stop": "已让 %s 个 NPC 停止动作",
+  "beloong.command.npc.turn": "已让 %s 个 NPC 转向 %s°",
+  "beloong.command.npc.walk": "已让 %s 个 NPC 走向 %s",
   "beloong.configuration.amplifierStep": "每级所需财宝价值",
   "beloong.configuration.amplifierStep.tooltip": "每级效果等级所需的财宝价值",
   "beloong.configuration.bd_ftbchunks_compat": "超越维度FTB区块兼容",

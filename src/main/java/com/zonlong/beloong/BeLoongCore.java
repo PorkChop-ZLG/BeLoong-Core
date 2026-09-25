@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
+import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
@@ -44,6 +45,7 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
@@ -190,6 +192,19 @@ public class BeLoongCore {
         event.addListener(BeloongWaterRegionLoader.INSTANCE);
         event.addListener(WaystonePlacementLoader.INSTANCE);
         event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
+    }
+
+    /**
+     * 注册命令。
+     * <p>
+     * {@code RegisterCommandsEvent} 在每次服务端启动（含单人世界的内置服务端）时触发，
+     * 命令注册在**该次**的 dispatcher 上，因此每次都要重新注册。
+     * <p>
+     * 目前只有 {@link NpcCommand} —— 它是通用 NPC 能力的验收与摆位工具（不是玩法内容）。
+     */
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        NpcCommand.register(event.getDispatcher());
     }
 
     /** 服务端启动时触发。 */
