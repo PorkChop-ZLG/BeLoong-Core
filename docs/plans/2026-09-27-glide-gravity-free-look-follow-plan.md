@@ -1,0 +1,254 @@
+# 滑翔去重力 + 跟随视线 · 实施计划
+
+**Goal:** 让 DS 滑翔在**任何** `stable_hover` / `flight_level` 组合下都不受重力影响，并改为跟随视线飞行（可上可下）。
+**Architecture:** 一个 mixin（`ClientFlightHandlerMixin`）+ 两个注入点。HEAD 按 `isGliding()` 挂/摘 `ADD_MULTIPLIED_TOTAL = -1.0` 的瞬时重力修饰符（同时覆盖 DS `ClientFlightHandler:408` 与原版 `LivingEntity.travel:2331` 两个向下来源）；TAIL 最优先处理滑翔——把速度方向按 `T = 0.10` 插值到视线、大小严格保持，然后 `return`，使滑翔彻底脱离 `Config` / `stableHover` / 飞行等级门控。
+**Approach:** 设计文档（`docs/plans/2026-09-27-glide-gravity-free-look-follow-design.md`）的 **Approach A**，用户已逐节确认。
+**Plan shape:** 案 1 —— 单批实现 + 分层验收（T1–T6）。
+
+> **偏离声明（TDD）**：本项目**没有测试套件**，planning 模板的 RED-GREEN-REFACTOR 不适用。每步验证 = `gradlew build` + 静态探针；行为验收集中在 T6 的实机清单。这是项目既有约定，不是省略验证。
+>
+> **提交**：按项目惯例，**所有提交由用户执行**，本计划不含 agent 提交步骤。
+
+---
+
+### T1: HEAD 重力闸门
+
+**Files:**
+- Modify: `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java`（HEAD 处理器，现 `:83-89`）
+
+**Steps:**
+1. 基线确认：`git status --short` 只应有本次会话的文档改动；`gradlew build` 通过（**记录警告数，预期 3 条**：`PossibleBiomesFilterMixin` 的 `@Shadow` + `ParameterListAccessor` 的 2 条 `@Accessor`）
+2. 方法改名 `beloong$clearZeroGravity` → `beloong$glideGravityGate`
+3. 把"无条件摘除"改为"按闸门挂/摘"：
+
+```java
+    @Inject(method = "flightControl", at = @At("HEAD"), remap = false)
+    private static void beloong$glideGravityGate(CallbackInfo ci) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null) {
+            // 滑翔 → 挂零重力（同时覆盖 DS :408 与原版 travel 的 d0）；非滑翔 → 摘除。
+            // 每 tick 必有一次写操作，故修饰符不会残留。
+            beloong$setZeroGravity(player, ServerFlightHandler.isGliding(player));
+        }
+    }
+```
+
+4. 重写该方法的 javadoc：说明"必须每 tick 无条件执行一次写操作（挂或摘）"这一不变式，以及"关掉 `fixStableHoverDrift` 时也必须摘除，否则重力永久为 0"
+
+**Verification:** `gradlew build` 通过
+
+---
+
+### T2: TAIL 滑翔分支 + 方向插值
+
+**Files:**
+- Modify: 同上（TAIL 处理器 `beloong$fixStableHoverDrift`，现 `:94-107`；新增常量与 helper）
+
+**Steps:**
+1. 新增常量与 helper（放在 HEAD/TAIL 处理器之前，与既有常量区同处）：
+
+```java
+    /**
+     * 滑翔时速度方向向视线插值的系数。
+     *
+     * <p><b>必须 {@code 0 < T < 0.5}</b>：{@code lerp} 结果为零要求 {@code (1-T)/T == 1} 即 {@code T == 0.5}，
+     * 此时 180° 掉头会让 {@code normalize()} 除零。{@code T = 0.10} 对应约 22 tick（≈1.1 s）转过 90%。</p>
+     */
+    private static final double beloong$GLIDE_TURN = 0.10;
+
+    /**
+     * 滑翔时让速度方向跟随视线，**大小严格保持**。
+     *
+     * <p>去重力后 DS 只提供向上的竖直分量（{@code ClientFlightHandler:430} 仅在抬头时给 {@code ay}），
+     * 所以低头能否下降完全由这里提供。末尾 {@code normalize().scale(speed)} 只抵消等长向量插值的弦长缩短，
+     * 不动 DS 在 TAIL 之前已施加的 {@code ELYTRA_FLY_DRAG} 拖曳。</p>
+     */
+    private static void beloong$followLook(LocalPlayer player) {
+        Vec3 delta = player.getDeltaMovement();
+        double speed = delta.length();
+        if (speed <= 1.0E-5) {
+            return;
+        }
+        Vec3 target = player.getLookAngle().scale(speed);
+        player.setDeltaMovement(delta.lerp(target, beloong$GLIDE_TURN).normalize().scale(speed));
+    }
+```
+
+2. 在 TAIL 处理器最前插入滑翔分支（**必须早于 `Config` 与 `beloong$isEligible`**），并把 `player` 判空提到最前：
+
+```java
+    @Inject(method = "flightControl", at = @At("TAIL"), remap = false)
+    private static void beloong$fixStableHoverDrift(CallbackInfo ci) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return;
+        }
+
+        // ===== 滑翔：独立于本模组开关、DS 的 stableHover 与飞行等级（需求 1/3）=====
+        // 必须最优先 return：需求 1 的"不受门控"由控制流保证，而非条件表达式。
+        if (ServerFlightHandler.isGliding(player)) {
+            // 旋转攻击保持 DS 原版动力学（只跳过滤线，重力仍已归零）
+            if (!ServerFlightHandler.isSpin(player)) {
+                beloong$followLook(player);
+            }
+            return;
+        }
+
+        if (!Config.FIX_STABLE_HOVER.get()) {
+            return;
+        }
+
+        if (!beloong$isEligible(player)) {
+            return;
+        }
+        // …以下 level>=1 悬停锁定 / level<1 追加 -g 全部保持现状…
+```
+
+3. 确认 `Vec3` 已在 import 列表中（现有文件已导入 `net.minecraft.world.phys.Vec3`）
+
+**Verification:** `gradlew build` 通过
+
+---
+
+### T3: 删除已成死代码的滑翔排除项
+
+**Files:**
+- Modify: 同上（`beloong$isEligible`，现 `:185-188`）
+
+**Steps:**
+1. 删除：
+
+```java
+        // 滑翔完全交给 DS 原版（含重力），本 Mixin 不接管
+        if (ServerFlightHandler.isGliding(player)) {
+            return false;
+        }
+```
+
+2. 同步更新 `beloong$isEligible` 的 javadoc（现 `:154-159`）：排除项列表里移除"滑翔"，改注"旋转只跳过滤线、不跳过去重力（滑翔分支已在更上游 `return`，本方法不会再遇到滑翔态）"
+
+**Verification:**
+```powershell
+# isEligible 内不应再出现 isGliding
+Select-String -Path src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java -Pattern 'isGliding'
+# 预期：只出现在 glideGravityGate（HEAD）、TAIL 滑翔分支、javadoc 里；不出现在 isEligible 范围内
+```
+`gradlew build` 通过
+
+---
+
+### T4: 文案同步（不得再说"滑翔不受影响"）
+
+**Files:**
+- Modify: `ClientFlightHandlerMixin.java`（类 javadoc `:44`、`:158`）
+- Modify: `src/main/java/com/zonlong/beloong/Config.java`（`:27`、`:30`）
+- Modify: `src/main/resources/assets/beloong/lang/zh_cn.json`
+- Modify: `src/main/resources/assets/beloong/lang/en_us.json`
+
+**Steps:**
+1. 类 javadoc `:44`：把"滑翔不再被接管：`isGliding` 被排除出判定，DS 原版滑翔物理一字不动"改写为"滑翔由本 mixin 接管：去重力 + 跟随视线（不受本开关与飞行等级门控）"
+2. 类 javadoc 增补设计要点：两个向下来源（DS `:408` 与原版 `travel` 的 `d0`）由 HEAD 的同一属性修饰符覆盖；并写明**前提**——`ClientFlightHandler` 内部不写 `isGliding()` 的任何判定输入，故 HEAD/TAIL 同 tick 恒同值（若 DS 改动此前提，最坏是一 tick 内挂了又摘）
+3. `Config.java:27`：`<p>滑翔不在本修复范围内，完全由 DS 原版处理。</p>` → `<p>滑翔由独立路径处理，不受本开关门控。</p>`
+4. `Config.java:30`：`.comment("稳定悬停修复总开关；需同时满足 DS 的 stable_hover=true 且 flight_level>=1；滑翔不受影响")` → `…；滑翔另有独立处理（不受本开关影响）"`
+5. 两份 lang 的 `beloong.configuration.fixStableHoverDrift.tooltip` 末句：
+   - zh：`滑翔不受本修复影响。` → `滑翔另有独立处理：不受重力、跟随视角，且不受本开关与飞行等级影响。`
+   - en：`Gliding is not affected.` → `Gliding is handled separately: gravity-free and look-directed, unaffected by this switch or the flight level.`
+
+**Verification:**
+```powershell
+# 键数与集合必须完全一致（预期 219 / 219）
+$z=(Get-Content src/main/resources/assets/beloong/lang/zh_cn.json -Raw|ConvertFrom-Json).PSObject.Properties.Name
+$e=(Get-Content src/main/resources/assets/beloong/lang/en_us.json -Raw|ConvertFrom-Json).PSObject.Properties.Name
+"$($z.Count) / $($e.Count)"; Compare-Object $z $e
+# 已失真表述不得残留
+Select-String -Path src/main/java/com/zonlong/beloong/Config.java,src/main/resources/assets/beloong/lang/*.json -Pattern '滑翔不受|Gliding is not affected'
+```
+`gradlew build` 通过
+
+---
+
+### T5: 静态门
+
+**Files:** 无（只读校验）
+
+**Steps:**
+1. `gradlew build` —— 必须成功，且 Mixin AP 警告仍为 **3 条**、不多不少
+2. 确认 `src/main/resources/beloong.mixins.json` **未被修改**（本次不新增 mixin 文件、不移动注入点）⇒ DS 侧仍为 14 个文件 / 19 个注入点
+3. 残留扫描：
+```powershell
+# 旧方法名不得残留
+Select-String -Path src/main/java -Pattern 'beloong\$clearZeroGravity'
+# 语言键
+$z=(Get-Content src/main/resources/assets/beloong/lang/zh_cn.json -Raw|ConvertFrom-Json).PSObject.Properties.Name
+$e=(Get-Content src/main/resources/assets/beloong/lang/en_us.json -Raw|ConvertFrom-Json).PSObject.Properties.Name
+"$($z.Count) / $($e.Count)"; Compare-Object $z $e
+```
+4. 记录 `git diff --stat` 供用户提交
+
+**Verification:** 上述命令输出符合预期 + `gradlew build` 成功
+
+---
+
+### T6: 实机验收（**由用户执行**）
+
+**Files:** `run/` 客户端
+
+**Steps:** 按设计文档 §2.5 逐条勾选。**每组必须记录三个变量**（诊断教训：任一不同会让结论反过来）：
+
+| 变量 | 取值 |
+|---|---|
+| DS `stable_hover` | true / false |
+| 玩家 `flight_level` | 数值 |
+| 饱食度 | 数值 |
+
+> ⚠️ **前置条件（设计 §2.6 B-1）**：A1–A4 必须在**饱食度 > 6** 时执行，并确认此刻 `isGliding()` 为真。
+> 生产服 `flight_hunger_threshold = 4`，饱食度 5~6 时原版会取消冲刺 ⇒ `isGliding()` 必为假 ⇒
+> 本改动对该状态零作用（且仍会被追加 `-g`）。**不得据此判定改动失效**——那是需求边界，不是缺陷。
+
+| # | 场景 | 期望 | 结果 |
+|---|---|---|---|
+| A1 | `stable_hover=false`、`flight_level=0`、滑翔中平视（饱食度 > 6） | 不下沉 | ☐ |
+| A2 | 同上，低头 45° | 能下降，俯角越大越快；**同期记录空袭速度/伤害**（B-4） | ☐ |
+| A3 | 同上，抬头 45° | 能爬升 | ☐ |
+| A4 | `stable_hover=true`、`flight_level≥1`，重做 A1–A3 | 与 A1–A3 一致 | ☐ |
+| A5 | 关掉 `fixStableHoverDrift`，重做 A1–A3 | 与 A1–A3 **完全一致** | ☐ |
+| A6 | 滑翔中松 Ctrl / 撞墙 / 入水 | 立刻回 DS 原版。**判读见 B-3**：切换那一 tick 仍零重力属正常 | ☐ |
+| A7 | 旋转攻击中 | 不跟随视线，重力仍归零 | ☐ |
+| A8 | 滑翔 → 松 Ctrl 悬停 → 再滑翔 | 过渡无抖动、无突然上跳 | ☐ |
+| A9 | 水中展翅飞行 | 完全 DS 原版 | ☐ |
+| R1 | 非滑翔悬停（level≥1） | 高度锁定不变 | ☐ |
+| R2 | 非滑翔 level<1 + `stable_hover=true` | 追加 `-g` 不变 | ☐ |
+| R3 | `stable_hover=false` 的非滑翔 | 本模组不介入 | ☐ |
+| R4 | 非龙 / 无翅 | 不介入 | ☐ |
+
+**数值锚点**（设计文档 §5.4，`T = 0.10` 理论值）：
+
+| 指标 | 期望 | 实测 |
+|---|---|---|
+| 平视滑翔 10 s 高度漂移 | `< 1 格` | |
+| 45° 低头 3 s 下降量 | `10 ~ 60 格` | |
+| 转过 90% | ≈ 22 tick ≈ 1.1 s | |
+
+**Verification:** 全部 ☑；若 `T` 手感不合适，只改 `beloong$GLIDE_TURN` 一个常量（`0.15 → 约 14 tick`、`0.20 → 约 10 tick`）后重跑 T2 的验证与 A1–A3。
+
+**验收期临时手段**：允许临时加一条英文 ASCII 的 `LOGGER.info` 打印 `isGliding/stableHover/flightLevel/foodLevel`（状态跳变时打，**不打逐 tick**）。**T6 结束必须删除**（先例 `93066f6 chore: 移除调试日志`）。
+
+---
+
+## 关键文件清单
+
+| 动作 | 路径 |
+|---|---|
+| Modify | `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java` |
+| Modify | `src/main/java/com/zonlong/beloong/Config.java` |
+| Modify | `src/main/resources/assets/beloong/lang/zh_cn.json` |
+| Modify | `src/main/resources/assets/beloong/lang/en_us.json` |
+| **不改** | `src/main/resources/beloong.mixins.json` |
+| **不改** | `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerAccessor.java` |
+
+## 非目标（本计划不做）
+
+- 水中去阻力；DS `:460`/`:531` 分支；`AirStrikeEffect`；滑翔动画分档；相机
+- F-4（level<1 的 `noMoveInput` 限制）
+- 清理 `beloong$setAy(0.0)` 的可疑空操作
+- 新增任何配置项与语言键

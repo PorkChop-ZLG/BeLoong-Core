@@ -107,6 +107,13 @@ if (!player.isInWater() && !ServerFlightHandler.isFlying(player)) return gravity
 
 **真正的缺陷在另一个地方**：该分支要求 `noMoveInput`，而 DS 的 stableHover 差异**在水平移动时同样存在**（`:496-499`：`false → -(gravity*2) + y`，`true → -gravity + y`）⇒ **低飞行等级的玩家只要按住 WASD，就仍然享受 `stableHover=true` 的竖直阻尼（−g 而非 −2g）**，"无法稳定悬停"的设定在移动时失效。
 
+> **2026-09-27 补充（滑翔侧的同一缺口）**：F-4 说的是"悬停分支漏掉了移动态"，
+> 实测还发现**对称的另一半**——滑翔侧的排除条件只用了 `ServerFlightHandler.isGliding()`，
+> 而 `isGliding()` 要求 `player.isSprinting()`，后者会被原版因"松开前进键 / 饱食度 ≤ 6 / 撞墙"
+> 取消 ⇒ "近滑翔态"被当成普通飞行，本模组的 `-g` 追加落在滑翔身上。
+> 诊断、量级拆分（`-0.25g/-1g/-2g/-(4g)`）与两个测试环境的配置差异见
+> **`docs/reviews/2026-09-27-glide-fast-fall-diagnosis.md`**。
+
 ### 🟠 F-5 中 — 依赖 DS 的 SERVER 配置在客户端判定
 
 `ServerFlightHandler.java:77-78` 是 `@ConfigOption(side = ConfigSide.SERVER)`，却在客户端被**三处**读取：DS 自己（`ClientFlightHandler.java:480`）、`ClientFlightHandlerMixin.java:66`、`LivingEntityStableHoverMixin.java:32`。
