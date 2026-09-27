@@ -90,7 +90,7 @@ public class BeLoongCoreClient {
         event.registerEntityRenderer(ModEntities.TORNADO.get(), TornadoRenderer::new);
         // 地黄龙 NPC：GeckoLib 渲染器（模型/动画/贴图三件套随 jar 分发，设计文档 2026-09-21）
         event.registerEntityRenderer(ModEntities.DIHUANG_LOONG.get(), DihuangLoongRenderer::new);
-        // 末 NPC：同为 GeckoLib 渲染器（YSM 移植模型，见 docs/models/末/mo-模型分析.md）
+        // 末 NPC：同为 GeckoLib 渲染器（YSM 移植模型，见 docs/末模型分析.md）
         event.registerEntityRenderer(ModEntities.MO.get(), MoRenderer::new);
     }
 

@@ -56,7 +56,7 @@ public class MoRenderer extends GeoEntityRenderer<MoEntity> {
      * 这是**唯一**影响模型大小的开关 —— 2026-09-27 实机反馈"模型比碰撞箱大太多"，
      * 主因其实不是这里，而是翅膀层动画泄露了 {@code Root.scale = 1.8}
      * （渲染放大 1.8 倍）；那一条已在资产里修掉，详见
-     * {@link MoEntity#registerControllers()} 与 {@code docs/models/末/mo-模型分析.md}。
+     * {@link MoEntity#registerControllers()} 与 {@code docs/末模型分析.md}。
      */
     private static final float MODEL_SCALE = 0.80F;
 

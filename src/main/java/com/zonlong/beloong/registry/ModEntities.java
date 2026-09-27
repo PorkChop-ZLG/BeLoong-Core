@@ -79,13 +79,14 @@ public final class ModEntities {
      * <p>
      * 与地黄龙同为站桩生物：AI 与全部定义性语义都在通用基类
      * {@link com.zonlong.beloong.entity.NpcEntity}，本处只负责类型绑定与碰撞箱。
-     * 三份资产由 {@code docs/models/末/} 原样迁移（YSM 玩家模型，
-     * 分析见 {@code docs/models/末/mo-模型分析.md}）。
+     * 三份资产由**本地模型暂存目录** {@code docs/models/末/} 迁移而来
+     * （该目录专门存放模型源文件、不入库；其中动画文件为修掉翅膀层的通道泄漏删过 5 个键
+     * —— YSM 玩家模型，完整分析见 {@code docs/末模型分析.md}）。
      * <ul>
      *   <li>{@code MobCategory.MISC} = 不占刷怪上限且持久 —— 布景不该和玩家的刷怪塔抢名额；</li>
      *   <li>碰撞箱 {@code 0.6 × 1.8} 取<b>玩家尺寸</b>：模型身体实测约 2 格高
      *       （脚底 y ≈ 0、头顶 y ≈ 32 单位），这是"贴身体"的取值。
-     *       注意模型的**几何远大于碰撞箱**（翅膀向后伸约 7.4 格），
+     *       注意模型的**几何远大于碰撞箱**（缩放 0.80 后翅膀仍向后伸约 5.9 格），
      *       因此 {@link com.zonlong.beloong.entity.MoEntity#getBoundingBoxForCulling()}
      *       另做了扩大，否则翅膀会在画面里凭空消失；</li>
      *   <li>{@code fireImmune()}：无敌之外再省掉火焰伤害的结算；</li>

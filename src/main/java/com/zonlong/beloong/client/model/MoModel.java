@@ -8,7 +8,7 @@ import software.bernie.geckolib.model.GeoModel;
 /**
  * 末（Mo）模型：三个资源路径。
  * <p>
- * 三份资产由 {@code docs/models/末/} 迁移而来：
+ * 三份资产由**本地模型暂存目录** {@code docs/models/末/} 迁移而来（该目录专门存放模型源文件、不入库）：
  * <ul>
  *   <li>{@code geo/mo.geo.json} —— 388 KB，<b>211 骨骼 / 752 立方体 / 1 根根骨骼（{@code Root}）</b>，
  *       无重名骨骼、无悬空 parent，{@code texture_width/height} 声明 256×256

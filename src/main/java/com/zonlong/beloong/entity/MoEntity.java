@@ -16,9 +16,10 @@ import software.bernie.geckolib.animation.RawAnimation;
  * {@code registry/ModEntities}，模型 / 贴图 / 渲染器在 {@code client/} 侧。
  *
  * <h2>资产来源</h2>
- * 三份资产（geo / animation / texture）由 {@code docs/models/末/} 迁移而来。
+ * 三份资产（geo / animation / texture）由**本地模型暂存目录** {@code docs/models/末/} 迁移而来
+ * （该目录专门存放模型源文件、**不入库**——模型是第三方作者的资产）。
  * 该模型原本是给 **Yes Steve Model（YSM）** 用的玩家模型——这一点决定了下面几处适配，
- * 完整分析见 {@code docs/models/末/mo-模型分析.md}（含 GeckoLib 与 YSM 双侧源码证据）。
+ * 完整分析见 {@code docs/末模型分析.md}（含 GeckoLib 与 YSM 双侧源码证据）。
  *
  * <h2>2026-09-27 实机反馈与修复：三个症状同一个根因</h2>
  * 实机报了三件事：① 模型比碰撞箱大太多；② 武器位置偏移、不在手上；③ 模型整体偏离碰撞箱。

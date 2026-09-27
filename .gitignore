@@ -59,3 +59,10 @@ spyglass.json
 
 ### SDD / 可视化对照板 暂存目录 ###
 .superpowers/
+
+### 模型源文件暂存目录（整目录不入库）###
+# docs/models/ 专门存放模型源文件（.geo.json / .animation.json / 贴图等）。
+# 这些是第三方作者的资产，**不可开源**，因此整目录忽略。
+# 注意：本规则只对"尚未被跟踪"的文件生效；gitignore 对已跟踪文件无效，
+# 要让某个已跟踪文件脱离版本控制必须显式 git rm --cached。
+docs/models/
