@@ -21,7 +21,29 @@ import software.bernie.geckolib.renderer.GeoEntityRenderer;
 @OnlyIn(Dist.CLIENT)
 public class DihuangLoongRenderer extends GeoEntityRenderer<DihuangLoongEntity> {
 
+    /**
+     * 脚下阴影半径。
+     * <p>
+     * <b>为什么必须显式设</b>：{@code EntityRenderer.java:31} 的 {@code shadowRadius} 字段
+     * <b>没有初值</b>（默认 0.0F），而阴影只在半径 &gt; 0 时才画
+     * （{@code EntityRenderDispatcher.java:168-176}）。GeckoLib 全仓不设这个值，
+     * 所以"GeckoLib 实体没有影子"是默认现象，不是本模型的问题 —— 地黄龙与末都中招。
+     * <p>
+     * <b>0.8 的依据</b>：{@code shadowRadius} 大致跟生物的碰撞箱宽度走。原版实测取值：
+     * 玩家/僵尸/骷髅（宽 0.6）是 {@code 0.5}（{@code PlayerRenderer.java:49}），
+     * 马（宽 1.4）是 {@code 0.75}（{@code AbstractHorseRenderer}），
+     * <b>蜘蛛（宽 1.4）是 {@code 0.8}</b>（{@code SpiderRenderer}），不死马是 {@code 1.0}。
+     * 地黄龙的碰撞箱宽 1.5，取蜘蛛那一档 {@code 0.8}。
+     * <p>
+     * 注：{@code GeoEntityRenderer} 继承的是 {@code EntityRenderer} 而非
+     * {@code LivingEntityRenderer}，所以这里**不会**被 {@code getShadowRadius} 乘以
+     * {@code entity.getScale()}（后者在 {@code LivingEntityRenderer.java:283}），
+     * 直接赋字段就是最终值。
+     */
+    private static final float SHADOW_RADIUS = 0.8F;
+
     public DihuangLoongRenderer(EntityRendererProvider.Context context) {
         super(context, new DihuangLoongModel());
+        this.shadowRadius = SHADOW_RADIUS;
     }
 }

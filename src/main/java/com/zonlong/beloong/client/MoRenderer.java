@@ -41,8 +41,8 @@ import software.bernie.geckolib.renderer.GeoEntityRenderer;
  *   <li><b>没有影子</b>：{@code shadowRadius} 默认 {@code 0.0F}
  *       （{@code EntityRenderer.java:31}），而只有半径 > 0 时才绘制
  *       （{@code EntityRenderDispatcher.java:168-176}）。这是**全仓既有现象**
- *       （地黄龙同样没有），属代码审查 P1-7；要修是构造器里一行
- *       （参考量级：原版末影龙 0.5F、不死马 1.0F）。</li>
+ * <h2>已知观感缺口（不修，记录备查）</h2>
+ * <ul>
  *   <li><b>发光件不发光</b>：资产里 7 根带几何体的 {@code ysmGlow*} 骨骼
  *       （瞳孔 / 虹膜 / 高光）在 YSM 里走独立的自发光通道，GeckoLib 无此概念，
  *       会按普通不透明几何体渲染 ⇒ 眼睛不亮。详见分析报告问题 5。</li>
@@ -60,9 +60,27 @@ public class MoRenderer extends GeoEntityRenderer<MoEntity> {
      */
     private static final float MODEL_SCALE = 0.80F;
 
+    /**
+     * 脚下阴影半径。
+     * <p>
+     * <b>为什么必须显式设</b>：{@code EntityRenderer.java:31} 的 {@code shadowRadius} 字段
+     * <b>没有初值</b>（默认 0.0F），而阴影只在半径 &gt; 0 时才画
+     * （{@code EntityRenderDispatcher.java:168-176}）。GeckoLib 全仓不设这个值，
+     * 所以"GeckoLib 实体没有影子"是默认现象，不是本模型的问题
+     * （2026-09-27 实机确认地黄龙与末都没有影子，代码审查 P1-7）。
+     * <p>
+     * <b>0.5 的依据</b>：末是玩家体型的类人（碰撞箱 0.6 × 1.8，模型缩放后头顶约 2 格），
+     * 所以直接取<b>原版玩家</b>的数值 —— {@code PlayerRenderer.java:49} 的
+     * {@code super(context, model, 0.5F)}。同档的还有僵尸、骷髅（宽同为 0.6）。
+     * 注意它**与上面的 {@code MODEL_SCALE} 无关**：阴影是原版按碰撞箱画的，
+     * 不随模型缩放走。
+     */
+    private static final float SHADOW_RADIUS = 0.5F;
+
     public MoRenderer(EntityRendererProvider.Context context) {
         super(context, new MoModel());
         // 官方缩放开关：GeckoLib 会在渲染前对模型做一次等比缩放
         this.withScale(MODEL_SCALE);
+        this.shadowRadius = SHADOW_RADIUS;
     }
 }
