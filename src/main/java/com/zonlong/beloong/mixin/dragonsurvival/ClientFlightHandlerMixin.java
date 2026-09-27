@@ -2,7 +2,6 @@ package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.client.handlers.ClientFlightHandler;
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
-import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.Config;
@@ -90,7 +89,7 @@ public abstract class ClientFlightHandlerMixin {
 
     /**
      * 滑翔时速度方向向视线插值的系数。<b>本系数只管方向</b>；速度大小由
-     * {@link #beloong$GLIDE_ACCEL} 负责。
+     * {@link #beloong$GLIDE_BASE_ACCEL} 与 {@link #beloong$GLIDE_FEEDBACK} 负责。
      *
      * <p><b>必须 {@code 0 < T < 0.5}</b>：{@code delta.lerp(target, T)} 结果为零向量要求
      * {@code (1-T)/T == 1}，即恰好 {@code T == 0.5}——那时 180° 掉头会让
@@ -108,43 +107,63 @@ public abstract class ClientFlightHandlerMixin {
     private static final double beloong$NORMALIZE_EPSILON = 1.0E-4;
 
     /**
-     * 滑翔时沿视线的每 tick 补速。
+     * 滑翔加速的基准量：DS 抬头 {@code ay = viewVector.y / 4} 的<b>上限</b>（正上方时的值）。
      *
-     * <p>取 {@code 0.25}：等于 DS 抬头 {@code ay = viewVector.y / 4} 的<b>上限</b>（正上方时的值），
-     * 即"与 DS 朝上同强度"。</p>
+     * <p>两个用途：① 竖直镜像项的常数部分；② 平视时的水平前向底座。</p>
      */
-    private static final double beloong$GLIDE_ACCEL = 0.25;
+    private static final double beloong$GLIDE_BASE_ACCEL = 0.25;
 
     /**
-     * 滑翔时让速度跟随视线：<b>先转方向，再按需沿视线补速</b>。
+     * 滑翔加速的正反馈系数：等于 DS {@code :415-419} 的 {@code 3.2 × 0.04}。
+     *
+     * <p><b>只能注入竖直分量。</b>DS 的反馈源是水平速度 {@code h}（{@code delta = h·|sinθ|·0.04}），
+     * 而 {@code h} 自己被原版 {@code travel} 的 {@code f3 = 0.91} 以每 tick 约 10% 钳住 ⇒
+     * {@code h} 有界 ⇒ 反馈有界，是一个"h → y"的<b>非自指</b>耦合。
+     * 若把它也注入水平方向，{@code h} 就会自己喂自己：反馈系数 {@code 0.128 > 0.10} 的刹车率
+     * ⇒ <b>指数发散</b>。</p>
+     */
+    private static final double beloong$GLIDE_FEEDBACK = 0.128;
+
+    /**
+     * 滑翔时让速度跟随视线：<b>先转方向，再按 DS 抬头的强度加速</b>。
      *
      * <h4>第一步：方向插值（大小严格保持）</h4>
      * <p>去重力后 DS 只提供向上的竖直分量（{@code ClientFlightHandler:430} 仅在抬头时给
      * {@code ay = viewVector.y / 4}，低头只累加水平的 {@code ax/az}），所以"低头能否下降"
-     * 完全由这里提供——这正是上一版"只去重力"方案飞不下去的原因。</p>
+     * 完全由这里提供——这正是最早那版"只去重力"方案飞不下去的原因。</p>
      *
-     * <p>末尾 {@code normalize().scale(speed)} 只抵消"两个等长向量插值会缩短弦长"这一几何效应，
-     * <b>不动</b> DS 在 TAIL 之前已施加的 {@code ELYTRA_FLY_DRAG}。</p>
+     * <h4>第二步：加速（仅"非抬头"）</h4>
+     * <p>DS 的竖直能量<b>只有向上</b>：{@code :449} 的 {@code ay} 与 {@code :415-419} 的
+     * {@code 3.2·delta}（{@code delta = h·|sinθ|·0.04}），两者都要求抬头；低头分支
+     * {@code :426-428} 只累加水平 {@code ax/az}，且 {@code :446-447} 明确 {@code add(ax, 0, az)}
+     * 不消费 {@code ay}；{@code :410-413} 名为 {@code downwardMomentum} 实为<b>向上</b>的回收阻尼。
+     * 向下的唯一能源是重力，已被 HEAD 归零。</p>
      *
-     * <h4>第二步：沿视线补速（仅"非抬头"）</h4>
-     * <p>DS 的竖直能量<b>只有向上</b>：{@code :415-419} 的 {@code +3.2·delta} 要求 {@code pitch < 0}
-     * （抬头），{@code :430}→{@code :449} 的 {@code ay} 同样只在 {@code viewVector.y >= 0} 时赋值；
-     * 低头分支 {@code :426-428} 只累加水平 {@code ax/az}，且滑翔分支 {@code :446-447} 明确
-     * {@code add(ax, 0, az)} 不消费 {@code ay}；而 {@code :410-413} 名为 {@code downwardMomentum}
-     * 实为<b>向上</b>的回收阻尼。向下的唯一能源是重力，已被 HEAD 归零。</p>
+     * <p>因此把 DS 抬头那套<b>镜像</b>到"非抬头"，竖直增量逐字对齐 DS：</p>
+     * <pre>
+     *   DS  抬头： y += |look.y| × (0.25 + 3.2 × 0.04 × h)
+     *   本模组： y +=  look.y  × (0.25 + 0.128 × h)      // 无上限
+     * </pre>
+     * <p>并额外给一个<b>常数水平底座</b>{@link #beloong$GLIDE_BASE_ACCEL}（沿视线的水平方向），
+     * 使平视（{@code look.y == 0}、竖直项为零）也有前向加速。</p>
      *
-     * <p>所以平视与低头必须由本模组补能量，否则表现为"只有抬头在加速"。补速是<b>叠加式</b>：
-     * 仅在 {@code look.y <= 0} 时介入，<b>抬头完全不碰</b>——DS 的抬头是"向上加速 + 水平略减速"，
-     * 并非沿视线加速，不介入才能保住其既有手感并避免双重加速。</p>
+     * <h4>两处有意的取舍</h4>
+     * <ul>
+     *   <li><b>竖直项在抬头时完全不碰</b>：DS 的抬头是"向上加速 + 水平略减速"，并非沿视线加速；
+     *       竖直上不介入才能保住其既有手感，也避免双重加速。<b>但水平底座不受此门控</b>
+     *       （见下方 2a）——它是与俯仰无关的常数量，挂在俯仰符号之后会产生悬崖与阶跃两种症状。</li>
+     *   <li><b>正反馈只进竖直</b>：见 {@link #beloong$GLIDE_FEEDBACK} 的发散论证。</li>
+     * </ul>
      *
-     * <p>目标速度取 {@code 0.8 × FLIGHT_SPEED × 2}，即 DS {@code :485} 用来钳制 {@code deltaMovement}
-     * 的 {@code maxForward}（唯一直接约束"速度"的量）。DS 的 {@code :421-423}（目标大小
-     * {@code FS × 当前速度}，{@code FS=1} 时中性）与 {@code :410-413}（仅下降时反向）都不构成上限，
-     * 故上限必须由这里给出。</p>
+     * <h4>量级（一阶解析，{@code g} 不参与）</h4>
+     * <p>竖直刹车率 = 拖曳 4% + {@code :410-413} 的 {@code 0.1·vd}；水平刹车率 ≈ 原版
+     * {@code f3 = 0.91} + 拖曳 0.99 ≈ 10%。故竖直终端 ≈ {@code 输入 / 9%}、水平终端 ≈ {@code 0.25 / 10% = 2.5}。
+     * <b>结果是"比重力时代更猛"而非"类似"</b>（重力时代平视水平终端仅 0.79），这是选定
+     * "以 DS 抬头为基准 + 加正反馈"的必然结果。</p>
      *
-     * <p><b>收敛性</b>：{@code speed} 取的是拖曳<b>之后</b>的值，补速按 {@code targetSpeed - speed}
-     * 夹住 ⇒ 恒不超调。落后时每 tick 最多补 {@link #beloong$GLIDE_ACCEL}，到顶即停；DS 的拖曳
-     * 随后把它压回下方，稳态在目标值略下方小幅锯齿。</p>
+     * <p>不会失控：水平速度由常数底座与 10% 刹车钳住（有界），竖直反馈的输入源正是它
+     * ⇒ 竖直也只在有限值收敛。但下坠时 {@code :410-413} 与 {@code :426-428} 会把下坠
+     * 转成前向速度，该耦合项无闭式解，需实机确认量级。</p>
      */
     private static void beloong$followLook(LocalPlayer player) {
         Vec3 delta = player.getDeltaMovement();
@@ -160,12 +179,29 @@ public abstract class ClientFlightHandlerMixin {
         Vec3 dir = delta.lerp(look.scale(speed), beloong$GLIDE_TURN).normalize();
         Vec3 result = dir.scale(speed);
 
-        // 2) 沿视线补速（叠加式：只在"非抬头"介入）
+        // 2) 加速
+        // 2a) 水平底座：常数前向推力，沿视线的水平方向。
+        //     **刻意不受 look.y 门控。** 它是与俯仰无关的常数量，若挂在 look.y <= 0 之后，
+        //     在水平附近会产生两个症状：
+        //       (i) look.y = -sin(xRot)，摄像机只要高出一丝（xRot = -0.0001 ⇒ look.y = +1.7e-6）
+        //           就整段失去推力，只剩原版 f3 = 0.91 的摩擦（≈9%/tick，1 秒掉到 15%）
+        //           ⇒ 表现为"完全平视时没有任何动力"，而水平恰好卡在这个悬崖边沿；
+        //       (ii) 穿越 look.y = 0 时 0.25/tick 的推力瞬间通断（创造飞行的推进冲量仅 0.15）
+        //           ⇒ 表现为"飞着飞着突然加速"。
+        //     竖直项不在此列：它 ∝ look.y，在边界处连续，不会产生阶跃。
+        Vec3 lookH = new Vec3(look.x, 0.0, look.z);
+        if (lookH.lengthSqr() > 1.0E-10) {
+            result = result.add(lookH.normalize().scale(beloong$GLIDE_BASE_ACCEL));
+        }
+
+        // 2b) 竖直：DS 抬头公式的镜像（:449 的 ay + :415-419 的 3.2·delta），无上限。
+        //     仍按"叠加式"只在"非抬头"介入——抬头竖直完全交给 DS 自己。
         if (look.y <= 0.0) {
-            double targetSpeed = 0.8 * player.getAttributeValue(DSAttributes.FLIGHT_SPEED) * 2.0;
-            if (speed < targetSpeed) {
-                result = result.add(look.scale(Math.min(beloong$GLIDE_ACCEL, targetSpeed - speed)));
-            }
+            // 反馈源取插值后的水平速度（与即将生效的速度一致）
+            double horizontalSpeed = result.horizontalDistance();
+            result = result.add(0.0,
+                    look.y * (beloong$GLIDE_BASE_ACCEL + beloong$GLIDE_FEEDBACK * horizontalSpeed),
+                    0.0);
         }
 
         player.setDeltaMovement(result);

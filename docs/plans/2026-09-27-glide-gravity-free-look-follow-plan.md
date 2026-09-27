@@ -305,3 +305,88 @@ $e=(Get-Content src/main/resources/assets/beloong/lang/en_us.json -Raw|ConvertFr
 | A13 | 三方向各 10 s | 均收敛、无超调、无失控增长 | ☐ |
 
 > 若 A10/A11 的强度不合手感，只改 `beloong$GLIDE_ACCEL`（0.25 → 0.12 → 0.08 递减）或目标系数（`0.8` → `0.5`），改完重跑 T7 验证 + A10–A12。
+
+---
+
+# 修订 rev 3：按 DS 抬头强度重做（取消上限 + 竖直镜像 + 水平底座）
+
+**动因**：用户实测 rev 2 后要求 ① 竖直不设上限 ② 竖直增量对齐 DS 抬头 ③ 加正反馈 ④ 水平/向下接近重力时代。设计与决策见设计文档 §7（D14–D18）。**rev 3 删除了 rev 2 的目标速度与上限机制。**
+
+## rev 3 任务
+
+### T11: 改写 `beloong$followLook`（竖直镜像 + 水平底座，删上限）
+
+**Files:**
+- Modify: `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java`
+
+**Steps:**
+1. 删除常量 `beloong$GLIDE_ACCEL`
+2. 新增两个常量（放在 `beloong$NORMALIZE_EPSILON` 之后）：
+   - `beloong$GLIDE_BASE_ACCEL = 0.25` —— DS `ay = viewVector.y/4` 的上限，同时用作水平底座
+   - `beloong$GLIDE_FEEDBACK = 0.128` —— 等于 DS `:415-419` 的 `3.2 × 0.04`（正反馈系数）
+   两者 javadoc 都要写明来源与"反馈只进竖直"的原因
+3. 按设计 §7.3 改写 `beloong$followLook`：
+   - 保留方向插值（第一步）与 `beloong$NORMALIZE_EPSILON` 守卫
+   - 删除 `targetSpeed` / `speed < targetSpeed` / `Math.min(...)` 整段
+   - 在 `look.y <= 0.0` 内加入：竖直镜像项 `look.y * (BASE + FEEDBACK * h)`（`h = delta.horizontalDistance()`）+ 水平底座 `lookH.normalize().scale(BASE)`
+4. 方法 javadoc 补：DS 抬头公式的出处（`:449` + `:415-419`）、镜像映射、**正反馈只进竖直的原因**（§7.2 的发散论证）、以及"水平/向下结果会比重力时代更强"是有意选择
+5. **确认 `DSAttributes` import 是否仍被使用**——若 rev 3 不再需要 `FLIGHT_SPEED`，删掉该 import（否则会有未使用 import）
+
+**Verification:** `gradlew compileJava --rerun-tasks --no-build-cache` 成功、警告仍 3 条
+
+### T12: 静态门（rev 3）
+
+**Steps:** 复用 T5/T9 的四项（build + 警告数、`mixins.json` 未动、残留扫描、键集 219/219），并确认：
+- `beloong$GLIDE_ACCEL` 与 `targetSpeed` **零残留**
+- `beloong$GLIDE_FEEDBACK` 只出现在常量声明、竖直项、javadoc
+- 无未使用 import（`DSAttributes` 已按 T11 步骤 5 处理）
+
+**Verification:** 全绿 + `compileJava --rerun-tasks --no-build-cache` 通过
+
+> **无需改 lang**：现有 tooltip"滑翔另有独立处理：不受重力、跟随视角并沿视线加速…"在 rev 3 下仍准确。
+
+### T13: 实机验收 rev 3（**由用户执行**）
+
+按设计 §7.6 的 A14–A18，并重跑 A1–A3、A17。
+
+| # | 场景 | 期望 | 结果 |
+|---|---|---|---|
+| A14 | 低头 45° 持续 10 s | 竖直持续增长至 ≈4~5 格/tick 并稳定，不再撞 1.6 | ☐ |
+| A15 | 竖直向下 | 可达 ≈6 格/tick 量级，且**不得无限增长**（失控判据） | ☐ |
+| A16 | 平视持续 10 s | 水平增至 ≈2.5 格/tick 并稳定 | ☐ |
+| A17 | 抬头 | 仍与 rev 1/2 一致（DS 原样） | ☐ |
+| A18 | 三方向各 15 s | 均收敛；关注 h 是否突破 ~4、竖直是否突破 ~7 | ☐ |
+
+> **失控时的第一处置**：把 `beloong$GLIDE_FEEDBACK` 从 `0.128` 降到 **0.09 以下**（低于竖直刹车率 9%）。其次调 `beloong$GLIDE_BASE_ACCEL`。
+
+---
+
+# 修订 rev 4：水平底座移出俯仰门控（方案 A）
+
+**动因**：rev 3 实测出现 ① 完全平视没有动力 ② 飞着飞着突然加速。两者同源——**常数量（水平底座 0.25）被 `look.y <= 0` 的符号门控**（`look.y = -sin(xRot)`，摄像机高出一丝即为正 ⇒ 整块跳过；穿越零点则 0.25/tick 瞬间通断）。设计与决策见设计文档 §8（D19–D20）。
+
+## rev 4 任务
+
+### T14: 把水平底座移出 `look.y <= 0` 门 ✅
+
+**Files:** `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java`
+
+**Steps:**
+1. `2a` 水平底座提到 `if (look.y <= 0.0)` **之前**，滑翔期间始终施加
+2. `2b` 竖直镜像项**留在门内**（保住"抬头竖直不介入 DS"），`horizontalSpeed` 随之移入该块
+3. 注释写明：`look.y = -sin(xRot)` 的浮点边界、9%/tick 悬崖（1 秒掉到 15%）、0.25 阶跃 vs 创造飞行的 0.15
+4. 方法 javadoc 的"两个有意的不对称"改为"两处有意的取舍"，注明**水平底座不受竖直的门控**（取舍：抬头水平不再等于 DS 原样）
+
+**Verification:** `gradlew compileJava --rerun-tasks --no-build-cache` 成功、警告仍 3 条 —— ✅ 已通过
+
+### T15: 实机验收 rev 4（**由用户执行**）
+
+| # | 场景 | 期望 | 结果 |
+|---|---|---|---|
+| A19 | 水平附近来回微调视角（±1°）保持 10 s | **速度不得出现台阶**；平视不再失去动力 | ☐ |
+| A20 | 完全平视持续 10 s | 稳定在 ≈2.5 格/tick（维持而非衰减） | ☐ |
+| A21 | 抬头滑翔 | 竖直仍与 rev 1/2 一致；水平**略强于 DS 原版**（D19 已知取舍） | ☐ |
+
+## 未决（记录，未改）
+
+**竖直偏快**：低头 45° 的竖直输入在 `h=2.5` 时约 0.403，是重力时代 0.143 的 **2.8 倍**；即使 `GLIDE_FEEDBACK` 归零，常数项 `0.707×0.25 = 0.177` 仍比重力时代快 1.24 倍。要回到重力时代量级需**同时**降 `GLIDE_BASE_ACCEL`（0.25 → ≈0.20）与 `GLIDE_FEEDBACK`。**等用户裁定。**
