@@ -3,6 +3,14 @@
 **日期：** 2026-09-27
 **状态：** 已批准（五节设计全部逐节确认）
 **采用方案：** Approach A —— 属性窗口（HEAD 挂/摘）+ TAIL 方向插值
+
+> ## ⚠️ 现行状态：以 **§9（rev 5）** 为准
+> 本文按 rev 1 → rev 5 叠加记录，**§2–§8 中下列内容均已被 §9 取代，保留仅为历史**：
+> - 常量名 `beloong$GLIDE_ACCEL`、`targetSpeed`、"目标速度 1.6 / 到顶即停 / 总速上限"（rev 2 机制，rev 3 已删）
+> - `speed <= 1.0E-5` 的守卫值（现行是 `1.0E-4/(1-2·GLIDE_TURN)`）
+> - §7.2 / §7.5-D16 的"h 有界 ⇒ 非自指 ⇒ 竖直有界"收敛论证（**不完整**，见 §9.2）
+> - §7.4 的量级表（未计入 `h ↔ |y|` 闭环，见 §9.2）
+> - §2.6 B-2"暂停无害"与 E6"服务端同步清修饰符最坏丢一 tick"（**两条都不成立**，见 §9.3）
 **上游文档：**
 - `docs/reviews/2026-09-27-glide-fast-fall-diagnosis.md`（诊断：`isGliding()` 判定窗、分支量级表、语义锚点）
 - `docs/reviews/2026-09-23-flight-system-conflicts-and-creative-flight-comparison.md`（F-1..F-9）
@@ -420,6 +428,10 @@ DS 的反馈源是**水平速度 h**，且**只注入 y 轴**（`:415-419` 全�
 
 ⇒ **落地形态必须是"沿视线施加、但正反馈只注入竖直分量"，水平分量用无自指反馈的项。**
 
+> ⚠️ **本节结论不完整，已被 §9.2 取代**：DS `:410-413` 会把下坠速度转成**水平**速度，
+> 于是 `h → |y| → h` 仍构成闭环；"只注入竖直"只切断了 `h` 直接喂自己，没有切断回流。
+> 现行做法是**把反馈源封顶**（`beloong$GLIDE_FEEDBACK_MAX_SPEED`），使环增益归零。
+
 ### 7.3 rev 3 设计（Approach 1）
 
 ```java
@@ -556,3 +568,106 @@ if (look.y <= 0.0) {
 ### 8.5 仍未处理（记录在案）
 
 **竖直偏快**（rev 3 引入）：低头 45° 的竖直输入 `0.707×(0.25+0.128h)` 在 `h=2.5` 时约 0.403，是重力时代 0.143 的 **2.8 倍**；且**即使把 `GLIDE_FEEDBACK` 设为 0，仍有 `0.707×0.25 = 0.177`，比重力时代快 1.24 倍**。若要回到重力时代量级，需**同时**把 `beloong$GLIDE_BASE_ACCEL` 从 0.25 降到 ≈0.20 并调低 `GLIDE_FEEDBACK`。**用户尚未裁定，代码未改。**
+（注：本节写于 rev 4；该"竖直偏快"未决项已被 §9.2 的闭环分析放大并连同处理。）
+
+---
+
+## 9. 修订 rev 5（2026-09-27）：代码审查后的七项修复
+
+**状态**：已批准并实施（用户逐条裁定：C-1/I-1/I-2/S-1/S-2/S-4/S-5/S-7 修复；C-2/I-3/I-4/S-3/S-6 不修）
+**动因**：`code-review` 技能产出的审查报告（1 Critical + I-1..I-4 + S-1..S-7，合并了独立审查者的发现）。
+**审查对象**：commit `cff0020`。
+
+### 9.1 修了什么
+
+| 编号 | 修复 | 落地 |
+|---|---|---|
+| **C-1** | 滑翔分支缺暂停守卫 | TAIL 在 `player == null` 之后新增 `if (Minecraft.getInstance().isPaused()) return;` |
+| **I-1** | `h ↔ |y|` 闭环放大 → 反馈源封顶 | 新增 `GLIDE_FEEDBACK_MAX_SPEED = 1.0`，竖直项改用 `min(h, cap)`（见 §9.2） |
+| **I-2** | 镜像漏掉 `FLIGHT_SPEED` | 反馈项改为 `0.128 × FS × min(h, cap)`（**只乘反馈项**：`ay = viewVector.y/4` 本身不带 FS） |
+| **S-1** | `normalize` 的零向量窗口 | `NORMALIZE_EPSILON = 1.0E-4 / (1 - 2·GLIDE_TURN)`（= `1.25E-4`） |
+| **S-2** | `lookH` 阈值与 `normalize` 不一致 | 守卫改为 `lookH.length() > NORMALIZE_EPSILON` |
+| **S-4** | 命名/注释漂移 | 修饰符 id → `beloong:zero_gravity`；TAIL 处理器 → `beloong$flightTweaks`；`DSAttributesMixin` 的 `dragonturvival` 笔误与"加载顺序"理由改写为三条真正承重的机制 |
+| **S-5** | 文档漂移 | 本文加"现行状态"横幅、§7.2 加更正、修正 `:225` 反向的最坏情况措辞、新增本节 |
+| **S-7** | 死代码 | 删除 `ClientFlightHandlerAccessor`（含 `beloong.mixins.json` 条目）与 `beloong$setAy(0.0)` 调用；DS 侧 mixin 由 14 → **13** 个文件 |
+
+### 9.2 I-1：闭环与封顶（取代 §7.2/§7.4/D16 的相应结论）
+
+**闭环**：DS `:410-413` 在下坠时沿视线水平方向注入 `Δh ≈ 0.1·vd·FS·|y|`；我们的竖直项又 `∝ h`
+⇒ `h → |y| → h`。线性化环增益
+
+```
+g(θ) = vd · 0.128 · FS · |sinθ| / (0.04 + 0.1·vd)
+```
+
+`FS=1` 时在 45° 附近最大 ≈ **0.5** ⇒ 稳态被抬到单轴估算的约 **2 倍**，且 `GLIDE_FEEDBACK` 的
+**临界值只有约 0.255**（裕度 2 倍）。**§7.2 的"非自指"论证只切断了 `h` 直接喂自己，漏了这条回流**。
+
+**修复**：反馈源封顶 `min(h, 1.0)`。`h` 超过封顶后 `∂(竖直注入)/∂h = 0` ⇒ 环增益归零、稳态可解析。
+1.0 不是随手取的：DS 滑翔时 `h` 通常只有 0.5~0.8（它 `:415-419` 的水平分量**向后**），
+**超出即属把 DS 的公式外推到有效域之外**。
+
+**封顶后的量级**（`FS=1`）：
+
+| 轴 | 注入 | 刹车率 | 稳态 |
+|---|---|---|---|
+| 竖直 45° | `0.707·(0.25 + 0.128·1.0) = 0.267` | 9% | **≈3.0** |
+| 竖直 90° | `0.25 + 0.128 = 0.378` | 4% | ≈9.5 |
+| 水平平视 | 底座 `0.25` | 10% | **≈2.5**（与 rev 4 相同） |
+
+⇒ 45° 的竖直约为重力时代 `1.59` 的 **1.9 倍**，正是"以 DS 抬头为基准"应有的比例；
+封顶前（rev 4）实际是 `h ≈ 7~9 / v ≈ 9~11`，也就是用户体感到的"朝下太快"。
+
+### 9.3 两条被推翻的旧结论
+
+| 旧结论 | 复核结果 |
+|---|---|
+| §2.6 B-2"`!isPaused` 无害"（理由"暂停时实体不 tick"） | **不成立** ⇒ 这就是 C-1。`ClientHooks.fireClientTickPre()` 在 `Minecraft.tick()` 开头**无条件**触发（`Minecraft.java:1799`），`level.tickEntities()`/`level.tick()` 才被 `!pause` 挡住；且 DS 方法体自身因 `isPaused()` 提前返回 ⇒ 暂停期间只有我们的注入在跑，没有任何拖曳/摩擦对冲 |
+| E6"服务端属性同步清修饰符，最坏丢一 tick" | **不成立**：`runAllTasks()`（`Minecraft.java:1161`，属性同步包在此处理）在 tick 循环**之前** ⇒ `handleUpdateAttributes` 的 `removeModifiers()` 不可能插在 HEAD 与 `travel` 之间 |
+
+### 9.4 rev 5 验收增量
+
+| # | 场景 | 期望 |
+|---|---|---|
+| A22 | 滑翔中按 Esc 暂停 10 s 后恢复 | **速度不跳变、不瞬移、不被服务端拉回**（C-1 判据） |
+| A23 | 低头 45° 持续 15 s | 竖直收敛于 **≈3 格/tick**（不再到 9~11）；水平不超过 ≈5 |
+| A24 | 平视持续 10 s | 水平仍稳定在 ≈2.5（与 rev 4 一致，不应变化） |
+| A25 | 用生长阶段不同的两条龙 | 因 FS 进入反馈项，竖直强度随 `FLIGHT_SPEED` 变化（±20% 量级） |
+| A26 | 重跑 A1–A3、A19–A21 | 全部不变（本次只封顶与守卫，方向/连续性与 rev 4 一致） |
+
+---
+
+## 10. 收尾（2026-09-27）
+
+**状态：已实施、已通过实机验收（用户确认"基本完美"）。** 需求（滑翔去重力、可上可下、跟随视线、各方向有加速、不受 `stable_hover` 与飞行等级门控）全部达成。
+
+**交付物**
+
+| 类型 | 文件 |
+|---|---|
+| 代码 | `mixin/dragonsurvival/ClientFlightHandlerMixin.java`（HEAD 重力闸门 + TAIL 三路分流）、`DSAttributesMixin.java`（注入 `dragonsurvival:flight_level`）、`ToggleFlightMixin.java`（展翅门控）、`registry/{ModAttributes,FlightBanEffect,ModMobEffects}.java`（等级读取、禁空效果） |
+| 配置 | `Config.FIX_STABLE_HOVER`（仅管非滑翔的悬停/非稳定；**滑翔不受它门控**），双语 tooltip |
+| 文档 | 本设计（rev 1–5）、`docs/plans/2026-09-27-glide-gravity-free-look-follow-plan.md`、`docs/reviews/2026-09-27-glide-fast-fall-diagnosis.md` |
+| 已删除 | `ClientFlightHandlerAccessor`（死代码，rev 5） |
+
+**最终常量（唯一的调参面）**
+
+| 常量 | 值 | 来源 / 改动的后果 |
+|---|---|---|
+| `beloong$GLIDE_TURN` | 0.10 | 方向插值率（约 22 tick 转 90°）；只影响转向快慢 |
+| `beloong$GLIDE_BASE_ACCEL` | 0.25 | DS `ay` 的上限；同时是平视前向底座 ⇒ 水平稳态 ≈ `0.25/10% = 2.5` |
+| `beloong$GLIDE_FEEDBACK` | 0.128 | DS `:415-419` 的 `3.2×0.04`；**45° 的稳定临界值 ≈0.255，不得越过** |
+| `beloong$GLIDE_FEEDBACK_MAX_SPEED` | 1.0 | 反馈源封顶（DS 自身 `h` 的量级）；抬高等于重新外推 DS 公式 |
+| `beloong$NORMALIZE_EPSILON` | `1.0E-4/(1-2·GLIDE_TURN)` | 由 `Vec3.normalize()` 阈值与插值取模下界共同决定，**不要单独改** |
+
+**已知残留（用户裁定不修，记录在案）**
+
+| 编号 | 内容 | 影响 |
+|---|---|---|
+| C-2 | 新滑翔速度按 `damage = lostSpeed×10 − 3` 放大撞墙伤害 | 仅在 `enable_collision_damage=true` 的世界生效；本整合包为 `false`，DS 默认与开发环境为 `true` |
+| I-3 | `fixStableHoverDrift` 在 `stable_hover=false` 时静默无效 | 配置项看起来能开却无事发生（已文档化） |
+| I-4 | `ToggleFlightMixin` 绑定 `lambda$handleServer$1` 序号 | DS 增删同类 lambda 即启动期硬崩（**升级 DS 必查**） |
+| S-3 | 禁空强制收翅只在 `onEffectStarted` 触发一次 | 等级经其它来源跌破 0 时存在"带负等级继续飞"的窗口 |
+| S-6 | `ModAttributes` 两个静态字段非 volatile、`warnedMissing` 可能过早置位 | 仅日志语义与极端竞态 |
+
+**升级 DS 时的必查项**：① `ServerFlightHandler.isGliding/isFlying/stableHover/isSpin` 的签名与语义；② `ClientFlightHandler` 的 `:395/:408/:410-413/:415-419/:426-433/:445-458/:460/:481/:525/:531` 行号与分支结构；③ `ToggleFlight.lambda$handleServer$1` 与 `DragonDestructionHandler` 的两个 lambda 序号；④ `Attributes.GRAVITY` 仍被 DS 与原版 `travel` 同源读取。

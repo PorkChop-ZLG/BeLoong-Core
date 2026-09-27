@@ -2,6 +2,7 @@ package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.client.handlers.ClientFlightHandler;
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
+import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.Config;
@@ -73,9 +74,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = ClientFlightHandler.class, remap = false)
 public abstract class ClientFlightHandlerMixin {
 
-    /** 零重力修饰符的 id，需与 {@link #beloong$ZERO_GRAVITY} 一致以便摘除。 */
+    /**
+     * 零重力修饰符的 id，需与 {@link #beloong$ZERO_GRAVITY} 一致以便摘除。
+     *
+     * <p>取中性的 {@code zero_gravity}：同一个修饰符既服务滑翔（HEAD 挂），也服务飞行等级
+     * ≥1 的悬停锁定（TAIL 挂），不再只对应"稳定悬停"。</p>
+     */
     private static final ResourceLocation beloong$ZERO_GRAVITY_ID =
-            ResourceLocation.fromNamespaceAndPath("beloong", "stable_hover_zero_gravity");
+            ResourceLocation.fromNamespaceAndPath("beloong", "zero_gravity");
 
     /**
      * 把重力乘成 0 的瞬时修饰符。
@@ -100,29 +106,57 @@ public abstract class ClientFlightHandlerMixin {
     /**
      * 速度下限：低于此值不做方向插值。
      *
-     * <p>必须 <b>≥</b> {@code Vec3.normalize()} 内部的零向量阈值 {@code 1.0E-4}（该实现低于此值
-     * 直接返回 {@code ZERO}）。若守卫取得更小，落在两者之间的速度会被 {@code normalize} 清零，
-     * 与"大小严格保持"矛盾。</p>
+     * <p>由 {@code Vec3.normalize()} 的零向量阈值决定：该实现长度低于 {@code 1.0E-4} 时直接返回
+     * {@code ZERO}。而插值后的长度下界是 {@code (1 - 2·GLIDE_TURN)·speed = 0.8·speed}
+     * （两个等长向量插值的取模最小值为 {@code |1-2T|}），所以守卫必须留出这个折扣——
+     * 否则 {@code speed ∈ (1.0E-4, 1.25E-4]} 时 {@code normalize} 仍返回零向量，
+     * 速度被随后的底座冲量顶替，"大小严格保持"在该窗口不成立。</p>
      */
-    private static final double beloong$NORMALIZE_EPSILON = 1.0E-4;
+    private static final double beloong$NORMALIZE_EPSILON = 1.0E-4 / (1.0 - 2.0 * beloong$GLIDE_TURN);
 
     /**
      * 滑翔加速的基准量：DS 抬头 {@code ay = viewVector.y / 4} 的<b>上限</b>（正上方时的值）。
      *
      * <p>两个用途：① 竖直镜像项的常数部分；② 平视时的水平前向底座。</p>
+     *
+     * <p>刻意<b>不</b>乘 {@code FLIGHT_SPEED}：它镜像的是 DS 的 {@code ay}，而 DS 的
+     * {@code ay = viewVector.y / 4} 本身不含 FS（带 FS 的是 {@code :415-419} 的
+     * {@code 3.2·delta}，见 {@link #beloong$GLIDE_FEEDBACK}）。本模组新增的水平底座同理，
+     * 属本模组自己的常量、以 FS=1 标定。</p>
      */
     private static final double beloong$GLIDE_BASE_ACCEL = 0.25;
 
     /**
-     * 滑翔加速的正反馈系数：等于 DS {@code :415-419} 的 {@code 3.2 × 0.04}。
+     * 滑翔加速的正反馈系数：等于 DS {@code :415-419} 里的 {@code 3.2 × 0.04}。
      *
-     * <p><b>只能注入竖直分量。</b>DS 的反馈源是水平速度 {@code h}（{@code delta = h·|sinθ|·0.04}），
-     * 而 {@code h} 自己被原版 {@code travel} 的 {@code f3 = 0.91} 以每 tick 约 10% 钳住 ⇒
-     * {@code h} 有界 ⇒ 反馈有界，是一个"h → y"的<b>非自指</b>耦合。
-     * 若把它也注入水平方向，{@code h} 就会自己喂自己：反馈系数 {@code 0.128 > 0.10} 的刹车率
-     * ⇒ <b>指数发散</b>。</p>
+     * <p>DS 的抬头项是 {@code 3.2 × delta}，其中 {@code delta = h·|sinθ|·0.04·FS}——
+     * 反馈源是<b>水平速度 h</b>，且该项<b>带 FLIGHT_SPEED 因子</b>。本常量只是
+     * {@code 3.2 × 0.04 = 0.128}，FS 由调用处单独乘上。</p>
+     *
+     * <p><b>只能注入竖直分量。</b>若把它也注入水平方向，{@code h} 就会自己喂自己：
+     * {@code 0.128·FS} 大于水平刹车率约 {@code 0.10} ⇒ 指数发散。</p>
+     *
+     * <p><b>但"只注入竖直"并不等于非自指。</b>DS {@code :410-413} 会把下坠速度转成水平速度
+     * （{@code Δh ≈ 0.1·vd·FS·|y|}），于是 {@code h → |y| → h} 仍构成闭环。线性化环增益为
+     * {@code g(θ) = vd·0.128·FS·|sinθ| / (0.04 + 0.1·vd)}，在 45° 附近最大：
+     * {@code FS=1} 时约 {@code 0.5} ⇒ 稳态被抬到单轴估算的约 2 倍，且本系数的临界值
+     * 只有约 {@code 0.255}（裕度 2 倍）。</p>
+     *
+     * <p>因此反馈源必须封顶在 {@link #beloong$GLIDE_FEEDBACK_MAX_SPEED}：一旦 {@code h} 超过它，
+     * {@code ∂(竖直注入)/∂h = 0} ⇒ 环增益归零、稳态重新可预测。这不是权宜之计——
+     * DS 这条公式只在它自己的水平速度量级上成立，超出即属外推。</p>
      */
     private static final double beloong$GLIDE_FEEDBACK = 0.128;
+
+    /**
+     * 反馈源（水平速度 {@code h}）的封顶值，取 DS 自身的水平速度量级。
+     *
+     * <p>DS 滑翔时 {@code h} 通常只有 0.5~0.8（它 {@code :415-419} 的水平分量是<b>向后</b>的），
+     * 而去重力后我们加了常开底座，{@code h} 会稳定在 2.5 以上 ⇒ 直接外推 DS 的反馈公式会把它
+     * 放大 3~5 倍，并闭合 {@code h → |y| → h} 环。封顶到 1.0 后环增益归零、稳态有界，
+     * 同时保留"低速时越飞越快"的加速感。</p>
+     */
+    private static final double beloong$GLIDE_FEEDBACK_MAX_SPEED = 1.0;
 
     /**
      * 滑翔时让速度跟随视线：<b>先转方向，再按 DS 抬头的强度加速</b>。
@@ -155,15 +189,19 @@ public abstract class ClientFlightHandlerMixin {
      *   <li><b>正反馈只进竖直</b>：见 {@link #beloong$GLIDE_FEEDBACK} 的发散论证。</li>
      * </ul>
      *
-     * <h4>量级（一阶解析，{@code g} 不参与）</h4>
+     * <h4>量级（一阶解析，{@code g} 不参与；{@code FS = FLIGHT_SPEED}）</h4>
      * <p>竖直刹车率 = 拖曳 4% + {@code :410-413} 的 {@code 0.1·vd}；水平刹车率 ≈ 原版
-     * {@code f3 = 0.91} + 拖曳 0.99 ≈ 10%。故竖直终端 ≈ {@code 输入 / 9%}、水平终端 ≈ {@code 0.25 / 10% = 2.5}。
-     * <b>结果是"比重力时代更猛"而非"类似"</b>（重力时代平视水平终端仅 0.79），这是选定
-     * "以 DS 抬头为基准 + 加正反馈"的必然结果。</p>
+     * {@code f3 = 0.91} + 拖曳 0.99 ≈ 10%。</p>
      *
-     * <p>不会失控：水平速度由常数底座与 10% 刹车钳住（有界），竖直反馈的输入源正是它
-     * ⇒ 竖直也只在有限值收敛。但下坠时 {@code :410-413} 与 {@code :426-428} 会把下坠
-     * 转成前向速度，该耦合项无闭式解，需实机确认量级。</p>
+     * <p>反馈源封顶（{@link #beloong$GLIDE_FEEDBACK_MAX_SPEED}）之后环增益归零，稳态可解析：</p>
+     * <ul>
+     *   <li><b>水平</b>：{@code h_eq ≈ (底座 + ax/az)/0.10} ⇒ 平视约 <b>2.5</b>（与 rev 4 相同）</li>
+     *   <li><b>竖直 45°</b>：注入 {@code 0.707·(0.25 + 0.128·FS·1.0)} ⇒
+     *       {@code v_eq ≈ 0.267/0.09} ≈ <b>3.0</b>（FS=1）——约为重力时代 1.59 的 1.9 倍，
+     *       正是"以 DS 抬头为基准"的应有比例</li>
+     * </ul>
+     * <p>封顶前（rev 4）则是 {@code h ≈ 7~9}、{@code v ≈ 9~11}：{@code h} 被外推到 DS 公式的
+     * 有效域之外，且 {@code h → |y| → h} 闭环把稳态再放大约 2 倍。</p>
      */
     private static void beloong$followLook(LocalPlayer player) {
         Vec3 delta = player.getDeltaMovement();
@@ -189,18 +227,25 @@ public abstract class ClientFlightHandlerMixin {
         //       (ii) 穿越 look.y = 0 时 0.25/tick 的推力瞬间通断（创造飞行的推进冲量仅 0.15）
         //           ⇒ 表现为"飞着飞着突然加速"。
         //     竖直项不在此列：它 ∝ look.y，在边界处连续，不会产生阶跃。
+        //     阈值与 NORMALIZE_EPSILON 对齐（即 normalize 的零向量阈值），
+        //     故只有"视线几乎正上/正下"（|look.y| 距 1 不足 ~1e-8）时底座才不施加。
         Vec3 lookH = new Vec3(look.x, 0.0, look.z);
-        if (lookH.lengthSqr() > 1.0E-10) {
+        if (lookH.length() > beloong$NORMALIZE_EPSILON) {
             result = result.add(lookH.normalize().scale(beloong$GLIDE_BASE_ACCEL));
         }
 
         // 2b) 竖直：DS 抬头公式的镜像（:449 的 ay + :415-419 的 3.2·delta），无上限。
         //     仍按"叠加式"只在"非抬头"介入——抬头竖直完全交给 DS 自己。
         if (look.y <= 0.0) {
-            // 反馈源取插值后的水平速度（与即将生效的速度一致）
-            double horizontalSpeed = result.horizontalDistance();
+            // 反馈源 = 插值后的水平速度（与即将生效的速度一致），并**封顶**在 DS 自身的量级：
+            // 超过封顶后 ∂(注入)/∂h = 0，h → |y| → h 的闭环增益归零（见 GLIDE_FEEDBACK 的论证）
+            double feedbackSpeed = Math.min(result.horizontalDistance(),
+                    beloong$GLIDE_FEEDBACK_MAX_SPEED);
+            // FS 只乘反馈项：DS 的 3.2·delta 带 FS，而 ay = viewVector.y / 4 不带
+            double flightSpeed = player.getAttributeValue(DSAttributes.FLIGHT_SPEED);
             result = result.add(0.0,
-                    look.y * (beloong$GLIDE_BASE_ACCEL + beloong$GLIDE_FEEDBACK * horizontalSpeed),
+                    look.y * (beloong$GLIDE_BASE_ACCEL
+                            + beloong$GLIDE_FEEDBACK * flightSpeed * feedbackSpeed),
                     0.0);
         }
 
@@ -222,7 +267,9 @@ public abstract class ClientFlightHandlerMixin {
      * 而 {@code flightControl} 方法体不写 {@code isGliding()} 的任何判定输入（sprint / 翅膀 /
      * onGround / 食物均只读；sprint 的翻转在 {@code LocalPlayer.aiStep}，属同一 tick 但更晚的
      * {@code player.tick()}），故本处与 TAIL 处调 {@code ServerFlightHandler.isGliding} 必然同值。
-     * 若 DS 日后改动这一点，最坏表现是"一 tick 内挂了又摘"，不会崩溃。</p>
+     * 若 DS 日后改动这一点，最坏表现是 TAIL 这一 tick 按"非滑翔"处理（在已归零的重力之上
+     * 多追一次 {@code -g}，或白挂一 tick 修饰符）——不会崩溃、不会残留，因为 HEAD 是唯一的
+     * 摘除点且每 tick 必复位。</p>
      */
     @Inject(method = "flightControl", at = @At("HEAD"), remap = false)
     private static void beloong$glideGravityGate(CallbackInfo ci) {
@@ -233,15 +280,25 @@ public abstract class ClientFlightHandlerMixin {
     }
 
     /**
-     * 在 {@code flightControl} 完成所有飞行动力学计算后注入。
+     * 在 {@code flightControl} 完成所有飞行动力学计算后注入，按状态分流：滑翔 → 悬停锁定 → 非稳定模拟。
      *
-     * <p>分流顺序即语义优先级：<b>滑翔最先</b>（去重力已由 HEAD 完成，这里只做视线跟随），
-     * 之后才是 {@code fixStableHoverDrift} 的悬停锁定与非稳定模拟。</p>
+     * <p>分流顺序即语义优先级：<b>滑翔最先</b>（去重力已由 HEAD 完成，这里做视线跟随与加速），
+     * 之后才是悬停锁定与非稳定模拟。</p>
      */
     @Inject(method = "flightControl", at = @At("TAIL"), remap = false)
-    private static void beloong$fixStableHoverDrift(CallbackInfo ci) {
+    private static void beloong$flightTweaks(CallbackInfo ci) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
+            return;
+        }
+
+        // ===== 暂停守卫 =====
+        // ClientTickEvent 在 Minecraft.tick() 开头无条件触发（fireClientTickPre 排在 !pause 之前），
+        // 而 level.tickEntities() / level.tick() 被暂停挡住、DS 自己的方法体也因 isPaused() 提前返回。
+        // 于是暂停期间：我们的注入照跑，DS 的 ELYTRA_FLY_DRAG 与原版 travel 的 0.91 摩擦却全都不执行
+        // ⇒ 推力无任何对冲地逐 tick 累积（单机滑翔中按 Esc 数秒即可到几十格/tick），恢复后被一次性
+        // 消费（瞬移数千格，或被服务端判 moved too quickly）。必须在这里直接返回。
+        if (Minecraft.getInstance().isPaused()) {
             return;
         }
 
@@ -280,8 +337,10 @@ public abstract class ClientFlightHandlerMixin {
             // 早先这里会在无水平输入时清零 ax/az，等于把 DS 的推力累加器一次性抹掉：
             // 滑翔结束后残余推力消失，表现为"立刻停下"，而 DS 原版是"慢慢减速然后停下"。
             // 用户实测后裁定保留 DS 的手感，故本 Mixin 只负责竖直方向与重力。
-            ClientFlightHandlerAccessor.beloong$setAy(0.0);
-
+            //
+            // 注：早先这里还通过一个 @Accessor 把 DS 的 ay 清零，该调用与访问器均已删除——
+            // 那是语义空操作：本分支生效时 stableHover 必为真，DS 下一 tick 会在 :481
+            // 把 ay 抬回 max(ay, 1.1g)（快时），或走 :531 自行清零（慢时），两种结果都不取决于该调用。
             Vec3 delta = player.getDeltaMovement();
             player.setDeltaMovement(delta.x, 0, delta.z);
 

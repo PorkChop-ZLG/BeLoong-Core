@@ -390,3 +390,66 @@ $e=(Get-Content src/main/resources/assets/beloong/lang/en_us.json -Raw|ConvertFr
 ## 未决（记录，未改）
 
 **竖直偏快**：低头 45° 的竖直输入在 `h=2.5` 时约 0.403，是重力时代 0.143 的 **2.8 倍**；即使 `GLIDE_FEEDBACK` 归零，常数项 `0.707×0.25 = 0.177` 仍比重力时代快 1.24 倍。要回到重力时代量级需**同时**降 `GLIDE_BASE_ACCEL`（0.25 → ≈0.20）与 `GLIDE_FEEDBACK`。**等用户裁定。**
+
+---
+
+# 修订 rev 5：代码审查后的七项修复
+
+**动因**：`code-review` 技能产出的审查报告（1 Critical + I-1..I-4 + S-1..S-7，含独立审查者发现）。**审查对象 = commit `cff0020`。** 设计与决策见设计文档 §9。
+
+**用户裁定**：修复 **C-1 / I-1 / I-2 / S-1 / S-2 / S-4 / S-5 / S-7**；不修 **C-2**（整合包已关撞墙伤害）、**I-3**、**I-4**（判定为非 bug）、**S-3**、**S-6**。
+
+## rev 5 任务
+
+### T16: C-1 滑翔分支加暂停守卫 ✅
+**Files:** `ClientFlightHandlerMixin.java`（TAIL）
+**Steps:** 在 `player == null` 判空之后、滑翔分流之前插入 `if (Minecraft.getInstance().isPaused()) return;`，注释写明：`ClientHooks.fireClientTickPre()` 在 `Minecraft.tick():1799` **无条件**触发，而 `level.tickEntities()`/`level.tick()` 与 DS 方法体都被暂停挡住 ⇒ 暂停期间注入无对冲。
+
+### T17: I-1 反馈源封顶（杀掉 `h↔|y|` 闭环） ✅
+**Files:** 同上（常量区 + `beloong$followLook`）
+**Steps:** 新增 `beloong$GLIDE_FEEDBACK_MAX_SPEED = 1.0`；竖直项改用 `min(result.horizontalDistance(), cap)`；`GLIDE_FEEDBACK` 的 javadoc 重写为完整收敛论证（环增益公式、临界值 0.255、为何 1.0 是 DS 自身量级而非随手取值）。
+
+### T18: I-2 反馈项补 `FLIGHT_SPEED` ✅
+**Files:** 同上
+**Steps:** 重新 import `DSAttributes`；竖直项改为 `0.128 × FS × min(h, cap)`；`GLIDE_BASE_ACCEL` 的 javadoc 注明**刻意不乘 FS**（它镜像的 `ay` 本身不带 FS，水平底座是本模组自有常量、以 FS=1 标定）。
+
+### T19: S-1 / S-2 阈值 ✅
+`NORMALIZE_EPSILON = 1.0E-4 / (1.0 - 2.0 * GLIDE_TURN)`；`lookH` 守卫改为 `length() > NORMALIZE_EPSILON`。
+
+### T20: S-4 命名/注释漂移 ✅
+修饰符 id → `beloong:zero_gravity`；TAIL 处理器 → `beloong$flightTweaks`；`DSAttributesMixin` 的 `dragonturvival` 笔误修正，"加载顺序"理由改写为三条真正承重的机制（DeferredRegister 排队 / 类加载早于 RegisterEvent / `GameData` 把 ATTRIBUTE 排最前）。
+
+### T21: S-7 删除死代码 ✅
+删除 `ClientFlightHandlerAccessor.java` + `beloong.mixins.json` 的 `client` 条目 + `beloong$setAy(0.0)` 调用（语义空操作，理由写入原处注释）。DS 侧 mixin **14 → 13** 个文件。
+
+### T22: S-5 文档漂移 ✅
+设计文档加"现行状态"横幅、§7.2 加更正指向、修正反向的最坏情况措辞、新增 §9（含 §9.3 两条被推翻的旧结论）。本文件追加 rev 5 段落。
+
+### T23: 静态门（rev 5） ✅
+`compileJava --rerun-tasks --no-build-cache` 通过、警告仍 3 条；`ClientFlightHandlerAccessor`/`stable_hover_zero_gravity`/`beloong$fixStableHoverDrift`/`dragonturvival`/`1.0E-5` 零残留；键集 219/219。
+
+### T24: 实机验收 rev 5（**由用户执行**）
+
+| # | 场景 | 期望 | 结果 |
+|---|---|---|---|
+| A22 | 滑翔中按 Esc 暂停 10 s 后恢复 | **速度不跳变、不瞬移、不被服务端拉回**（C-1 判据） | ☐ |
+| A23 | 低头 45° 持续 15 s | 竖直收敛于 **≈3 格/tick**；水平不超过 ≈5 | ☐ |
+| A24 | 平视持续 10 s | 水平仍 ≈2.5（与 rev 4 一致） | ☐ |
+| A25 | 用不同生长阶段的龙 | 竖直强度随 `FLIGHT_SPEED` 变化（±20% 量级） | ☐ |
+| A26 | 重跑 A1–A3、A19–A21 | 全部不变 | ☐ |
+
+> **若 A23 仍偏快**：按设计 §8.5 同时降 `GLIDE_BASE_ACCEL`（0.25 → ≈0.20）与 `GLIDE_FEEDBACK`。
+
+---
+
+## 计划状态：✅ 全部完成（2026-09-27 收尾）
+
+| 任务 | 状态 |
+|---|---|
+| T1–T6（rev 1：去重力 + 跟随视线 + 文案 + 静态门 + 实机 A1–A9） | ✅ |
+| T7–T10（rev 2：沿视线补速 + tooltip + 静态门 + 实机 A10–A13） | ✅ |
+| T11–T13（rev 3：竖直镜像 + 水平底座 + 删上限 + 实机 A14–A18） | ✅ |
+| T14–T15（rev 4：水平底座移出俯仰门控 + 实机 A19–A21） | ✅ |
+| T16–T24（rev 5：审查后七项修复 + 静态门 + 实机 A22–A26） | ✅ |
+
+**验收结论**：用户实机确认"基本完美"。未修项见设计 §10「已知残留」（C-2 / I-3 / I-4 / S-3 / S-6，均已裁定不修并记录）。
