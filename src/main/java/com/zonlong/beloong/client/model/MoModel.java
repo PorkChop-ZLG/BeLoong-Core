@@ -8,16 +8,23 @@ import software.bernie.geckolib.model.GeoModel;
 /**
  * 末（Mo）模型：三个资源路径。
  * <p>
- * 三份资产由 {@code docs/models/末/} **原样迁移**（逐文件 SHA256 比对一致），内容未做任何改动：
+ * 三份资产由 {@code docs/models/末/} 迁移而来：
  * <ul>
  *   <li>{@code geo/mo.geo.json} —— 388 KB，<b>211 骨骼 / 752 立方体 / 1 根根骨骼（{@code Root}）</b>，
  *       无重名骨骼、无悬空 parent，{@code texture_width/height} 声明 256×256
  *       （与贴图实测一致）。其 {@code identifier} 是 {@code geometry.unknown}，**无需修正**：
  *       GeckoLib 按本类返回的<b>文件路径</b>取模型，{@code identifier} 只是可空元数据。</li>
+ *   <li>{@code textures/entity/mo.png} —— 256×256 贴图。</li>
  *   <li>{@code animations/mo.animation.json} —— <b>9.1 MB / 29 个动画</b>，整份放上来备用；
  *       目前播四个：{@code 待机动画}、{@code walk}、{@code run}（主状态机）与
- *       {@code 翅膀默认（展开）}（翅膀常驻层，注册顺序见 {@link MoEntity#registerControllers}）。</li>
- *   <li>{@code textures/entity/mo.png} —— 256×256 贴图。</li>
+ *       {@code 翅膀默认（展开）}（翅膀常驻层，注册顺序见 {@link MoEntity#registerControllers}）。
+ *       <p>
+ *       ⚠️ <b>这一个文件被改过</b>（其余两份与源文件逐字节相同）：2026-09-27 从
+ *       {@code 翅膀默认（展开）} 里删掉了 5 个泄漏键
+ *       （{@code Root.position} / {@code Root.scale} / {@code Weapen.position} /
+ *       {@code Weapen.scale} / {@code Tail.scale}，共 188 字节、24 → 22 骨骼）。
+ *       缘由与证据见 {@link MoEntity} 的类注释 —— 那 5 个通道让整个模型被放大 1.8 倍、
+ *       整体位移、武器脱手。29 条动画的数量与其余内容未变。</li>
  * </ul>
  *
  * <h2>为什么没有 {@code applyMolangQueries}</h2>

@@ -16,19 +16,34 @@ import software.bernie.geckolib.animation.RawAnimation;
  * {@code registry/ModEntities}，模型 / 贴图 / 渲染器在 {@code client/} 侧。
  *
  * <h2>资产来源</h2>
- * 三份资产（geo / animation / texture）由 {@code docs/models/末/} **原样迁移**，
- * 内容未做任何改动（迁移时逐文件 SHA256 比对一致）。该模型原本是给
- * **Yes Steve Model（YSM）** 用的玩家模型——这一点决定了下面几处适配，
+ * 三份资产（geo / animation / texture）由 {@code docs/models/末/} 迁移而来。
+ * 该模型原本是给 **Yes Steve Model（YSM）** 用的玩家模型——这一点决定了下面几处适配，
  * 完整分析见 {@code docs/models/末/mo-模型分析.md}（含 GeckoLib 与 YSM 双侧源码证据）。
  *
- * <h2>本类相对地黄龙多做的三件事</h2>
- * <ol>
- *   <li><b>待机动画名是中文</b>（{@code 待机动画}）—— 资产里没有 {@code idle}。
- *       见 {@link #idleAnimationName()} 里关于**字符集**的警告。</li>
- *   <li><b>多一个常驻的翅膀控制器</b> —— 待机动画完全不含翅膀骨骼（0 个），
- *       若不额外播翅膀层，静止姿态下右翼会插进地面 1.7 格。见 {@link #registerControllers}。</li>
- *   <li><b>扩大视锥剔除盒</b> —— 几何体远超碰撞箱（见 {@link #getBoundingBoxForCulling()}）。</li>
- * </ol>
+ * <h2>2026-09-27 实机反馈与修复：三个症状同一个根因</h2>
+ * 实机报了三件事：① 模型比碰撞箱大太多；② 武器位置偏移、不在手上；③ 模型整体偏离碰撞箱。
+ * 三者**同源**，而且都不是"模型做得太大"，是我把 {@code 翅膀默认（展开）} 当叠加层用错了。
+ * <p>
+ * 该动画**不是"翅膀姿势层"，而是一整套「有翼形态」的全身姿态**：它给
+ * {@code Root} 设了 {@code scale = 1.8} 与 {@code position = [-13, -7.98, 16.89]}，
+ * 给 {@code Weapen} 设了 {@code position} 与 {@code scale = 1.2}。
+ * 而 {@code AnimationProcessor.java:107-127} 对每根骨骼是**按通道独立**写值的：
+ * 某控制器**没设**的通道，它**不会**把骨骼复位。
+ * {@code 待机动画}里**根本没有 {@code Root} 这一轨**，也不给 {@code Weapen} 设位移/缩放 ⇒
+ * 那三个通道从翅膀层**原样泄漏**到最终姿态：
+ * <ul>
+ *   <li>{@code Root.scale = 1.8} ⇒ 整个模型被放大 1.8 倍（症状 ①）；</li>
+ *   <li>{@code Root.position} ⇒ 整个模型被平移约 0.8 格横 / 0.5 格下 / 1.1 格前（症状 ③）；</li>
+ *   <li>{@code Weapen.position} + {@code Weapen.scale} ⇒ 武器被推离手并放大 1.2 倍；
+ *       而武器的**旋转**来自 {@code 待机动画} ⇒ 混合姿态（症状 ②）。</li>
+ * </ul>
+ * <b>修法</b>（用户裁定"保留翅膀张开"）：从资产 {@code animations/mo.animation.json} 的
+ * {@code 翅膀默认（展开）} 里删掉 5 个泄漏键 —— {@code Root.position}、{@code Root.scale}、
+ * {@code Weapen.position}、{@code Weapen.scale}、{@code Tail.scale}（共 188 字节，
+ * 括号内的 24 → 22 根骨骼）。其余 29 条动画一字未动，{@code Root}/{@code Tail}/{@code Weapen}
+ * 三根骨骼本身当然仍在 geo 中，只是不再被翅膀层改。
+ * 另加了 0.80 的渲染缩放（见 {@code MoRenderer}）——模型按原版玩家的骨架尺寸算是偏大的，
+ * 缩放后头顶与原版玩家齐平。这是**与上述泄漏无关的另一件事**。
  *
  * <h2>已知的、来自资产的缺陷（本次刻意不修）</h2>
  * GeckoLib 对"动画/骨骼找不到"**完全静默**，因此这些不会报错，只会表现为"某些东西不动"：
@@ -69,7 +84,8 @@ public class MoEntity extends NpcEntity {
      * {@code IOUtils.toString(inputStream, Charset.defaultCharset())}
      * （{@code FileLoader.java:73}）—— **平台默认字符集，不是 UTF-8**。
      * 而 Java 21（JEP 400）起该默认值就是 UTF-8，本机实测也是
-     * {@code file.encoding=UTF-8}（{@code native.encoding=GBK}），因此现在能对上。
+     * {@code file.encoding=UTF-8}（{@code native.encoding=GBK}），因此现在能对上；
+     * 迁移时也已用字节比对验证过类文件与 json 里的名字一致。
      * <p>
      * 但若启动器额外传了 {@code -Dfile.encoding=GBK}（部分旧版中文启动器会这么干），
      * 资产里的中文动画名会被按 GBK 解码、与这里的 UTF-8 字面量**对不上**；
@@ -77,7 +93,7 @@ public class MoEntity extends NpcEntity {
      * {@code if (animation != null)}）⇒ 症状是**待机动画永远不播，且没有任何日志**。
      * <p>
      * 彻底免疫的唯一办法是把资产里的动画名改成 ASCII（如 {@code 待机动画} → {@code idle}），
-     * 但那会改动"原样迁移"的资产，故留待用户裁定。
+     * 但那会改动"迁移"的资产，故留待用户裁定。
      */
     @Override
     protected String idleAnimationName() {
@@ -85,7 +101,7 @@ public class MoEntity extends NpcEntity {
     }
 
     /**
-     * 翅膀常驻层：{@code 翅膀默认（展开）}（24 骨骼 / 0 缺失骨骼）。
+     * 翅膀常驻层：{@code 翅膀默认（展开）}（改后 22 骨骼）。
      * <p>
      * 做成 {@code static final} 常量而不是每 tick 构造：它不依赖任何可覆写方法
      * （与基类里那三个"名字来自虚方法"的情况不同），没有构造期求值问题。
@@ -104,15 +120,14 @@ public class MoEntity extends NpcEntity {
      * （{@code AnimationProcessor.java:107-110} 的 {@code bone.setRotX(...)}）
      * ⇒ **后注册者覆盖前者**。
      * <p>
-     * 两条动画在 {@code Tail} 与 {@code Weapen} 上有重叠（翅膀那条 24 骨骼里含这两个）。
-     * 把主状态机放在后面，效果就是：
-     * <ul>
-     *   <li>{@code Tail} / {@code Weapen} 归主状态机 ⇒ <b>待机时尾巴会动</b>；</li>
-     *   <li>翅膀骨骼主状态机根本不碰（待机动画 0 个翅膀骨骼）⇒ 由翅膀层提供姿态，
-     *       不会被覆盖。</li>
-     * </ul>
-     * 若把顺序调成"主在前、翅膀在后"，结果是翅膀层每帧都把尾巴盖成固定姿态，
-     * 尾巴就不动了。
+     * 两条动画至今仍在这些骨骼上重叠：{@code Weapen}、{@code LeftHand}、{@code RightArm}、
+     * {@code RightForeArm}（翅膀层给的是"有翼形态"的手臂姿势，主状态机给的是待机姿势）。
+     * 把主状态机放在后面 ⇒ 手臂与武器一律以**待机姿势**为准；翅膀骨骼主状态机根本不碰
+     * （待机动画 0 个翅膀骨骼）⇒ 由翅膀层提供姿态，不会被覆盖。
+     * <p>
+     * 若把顺序调成"主在前、翅膀在后"，翅膀层那套手臂/武器姿势会盖掉待机姿势
+     * —— 那正是 2026-09-27 那批症状的来源之一（当时的 {@code Root}/{@code Weapen}
+     * 位移缩放泄漏已另行从资产里删掉，但**手臂旋转仍在重叠**，所以顺序依然必须保持）。
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
@@ -124,16 +139,19 @@ public class MoEntity extends NpcEntity {
     // ===================== 视锥剔除 =====================
 
     /**
-     * 模型最远几何延伸（格）。实测包围盒为
-     * {@code X ±1.67 / Y -1.69~+3.63 / Z -0.50~+7.41}（16 单位 = 1 格），
-     * 即翅膀向后伸约 <b>7.4 格</b>；碰撞箱只有 {@code 0.6 × 1.8}。
+     * 模型最远几何延伸（格），**按渲染缩放 0.80 折算后**。
      * <p>
-     * 取 {@code 8.0} 是为了盖住 7.41 + 半个箱宽；geojson 里作者自己标的
-     * {@code visible_bounds_width: 16}（= 16 格宽）与此基本一致，可作旁证
-     * —— 但要注意那个字段在 GeckoLib 4.x 里是**死数据**（全仓无消费者），
-     * 所以这里必须自己写，改 geojson 没用。
+     * 原始包围盒（16 单位 = 1 格）：{@code X ±26.74 / Y -27.04~+58.04 / Z -8.02~+118.58} 单位，
+     * 乘 0.80 后为 {@code X ±1.34 / Y -1.35~+2.90 / Z -0.40~+5.93} 格 ——
+     * 最远是翅膀向后 <b>5.93 格</b>，而碰撞箱只有 {@code 0.6 × 1.8}。
+     * 取 {@code 7.0} 以盖住 5.93 + 半个箱宽并留余量
+     * （geo 里作者标的 {@code visible_bounds_width: 16} 也与此量级一致，
+     * 但那个字段在 GeckoLib 4.x 里是**死数据**、全仓无消费者，改 geojson 没有用）。
+     * <p>
+     * 注意：这个外扩量**依赖 {@code MoRenderer.MODEL_SCALE}**。若将来改缩放，
+     * 这里要按同一比例跟着改，否则会出现"翅膀在画面里消失"的回归。
      */
-    private static final double CULLING_INFLATE = 8.0D;
+    private static final double CULLING_INFLATE = 7.0D;
 
     /**
      * 扩大视锥剔除盒 —— <b>不这么做，翅膀会在画面里凭空消失。</b>
@@ -143,10 +161,9 @@ public class MoEntity extends NpcEntity {
      * （{@code EntityRenderer.java:58}，另见 {@code :76} 的距离判断）——
      * 取的是**实体上的这个方法**，不是渲染器上的，所以覆写点在本类而不在 {@code MoRenderer}。
      * 默认实现返回碰撞箱，于是"身体离开视锥"就等价于"整个模型不画"，
-     * 而本模型的翅膀在身体之外还有 7 格。
+     * 而本模型的翅膀在身体之外还有近 6 格。
      * <p>
-     * <b>本仓先例</b>：{@code TornadoRenderer} 走的是另一条路（把 {@code shadowRadius} 设 0），
-     * 与本条无关；地黄龙没有这个问题（它 9 格长但碰撞箱 1.5×2.5，且是"贴地"造型，
+     * <b>本仓先例</b>：地黄龙没有这个问题（它 9 格长但碰撞箱 1.5×2.5，且是"贴地"造型，
      * 该缺口记在代码审查 P1-8）。
      * <p>
      * 对称外扩而不是"按模型方向外扩"是必须的：本实体会被

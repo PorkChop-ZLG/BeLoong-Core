@@ -1027,10 +1027,6 @@
 				"Right_Wing_7_1": {
 					"rotation": [-14, 0, 0]
 				},
-				"Root": {
-					"position": [-13, -7.97607, 16.89326],
-					"scale": 1.8
-				},
 				"ysmGlow_LeftEye_pupil": {
 					"position": [0.25, 0.05, 0]
 				},
@@ -1050,9 +1046,7 @@
 					"rotation": [-12.5, 0, 0]
 				},
 				"Weapen": {
-					"rotation": [-214.25725, 54.54363, 168.8977],
-					"position": [4.54765, -3.41597, 9.16249],
-					"scale": 1.2
+					"rotation": [-214.25725, 54.54363, 168.8977]
 				},
 				"LeftHand": {
 					"rotation": [-56.15096, -5.16464, 11.8058]
@@ -1065,9 +1059,6 @@
 				},
 				"LeftClaw3": {
 					"rotation": [0, 0, -2.5]
-				},
-				"Tail": {
-					"scale": 1.1
 				},
 				"RightClaw3": {
 					"rotation": [-12.5, 0, -22.5]
