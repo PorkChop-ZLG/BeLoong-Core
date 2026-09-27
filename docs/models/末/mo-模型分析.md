@@ -270,11 +270,13 @@ private static double calculateAnimationLength(BoneAnimation[] boneAnimations) {
 
 ### 问题 5【中】`ysmGlow*` 会被当普通几何体渲染 ⇒ 不发光
 
-> **§九 已核实**：`ysmGlow*` 是 YSM 的**既成骨骼命名约定**（YSM 自己的内置模型里有
-> `ysmGlowFrontHeadlights`、`ysmGlowTrunkLight` 等，共出现在 **55 个**模型/动画 JSON 中）。
-> 但它的判定**不是 Java 侧的字符串字面量**（933 个 class 里 `ysmGlow` 0 命中），
-> 因此具体判定位置（模型包 `ysm.json`？贴图？geo 的 material？）**尚未定位**，
-> 机制描述以下为推断、已降级标注。
+> **§九 + §十 已核实**：`ysmGlow*` 确为 YSM 的**引擎级**约定 ——
+> `GeoBone.java` 里有 `private static final String GLOWING_PREFIX = "ysmGlow";`，
+> `YSMClientMapper.java` 在烘焙时 `if (rb.name.startsWith("ysmGlow")) bb.glow = true;`
+> （证据来自 OpenYSM 参考源，见 §十）。GeckoLib **没有**这个概念，
+> `AnimationController`/`GeoRenderer` 里不存在任何按骨骼名切换渲染通道的逻辑，
+> 所有带 cubes 的骨骼都按同一个 `RenderType` 画 ⇒ 哪 7 根带几何体的 `ysmGlow*`
+> 会当普通不透明几何体渲染（**眼睛不亮**，而不是"多出一块几何体"）。
 
 YSM 对 `ysmGlow` 前缀的骨骼走**额外的自发光渲染通道**（这是角色模型的"眼睛发亮"效果）。
 GeckoLib **没有这个概念**——`AnimationController`/`GeoRenderer` 里不存在任何按骨骼名切换渲染通道的逻辑，
@@ -391,11 +393,11 @@ geo 本身**结构干净**（211 骨骼、单根、无重名、无悬空 parent�
    > 3.5 MB 级的混淆代码里定位"应用动画"的那一处成本较高，且**只在真要移植时才需要**。
    > 预期结论是"一致"（两者都直接消费 Blockbench 导出的 Bedrock 标准 JSON），
    > 但**在移植前必须实机确认，不能靠预期**。
-3. **`ysmGlow*` 在 YSM 里的确切判定与渲染方式**。
-   > §九 追加：约定本身**已确认**（YSM 内置模型普遍使用，55 个文件）；
-   > 但判定**不在 Java 字符串里**（`ysmGlow` 在 933 个 class 中 0 命中），
-   > 具体落点（`ysm.json`？贴图？geo material？）**仍未定位**。
-   > 这直接决定问题 5 的修法成本，是最值得继续追的一条。
+3. ~~**`ysmGlow*` 在 YSM 里的确切判定与渲染方式**~~
+   > **§十 已结案**：判定就是 `bone.name.startsWith("ysmGlow")` → 打 `glow` 标记 → 单独渲染通道
+   > （OpenYSM `GeoBone.GLOWING_PREFIX` + `YSMClientMapper`，见 §10.3）。
+   > 修法成本由此确定：GeckoLib 侧要对这 7 根带几何体的骨骼单独用一次自发光 `RenderType`
+   > 再画一遍（或接受"眼睛不亮"）。
 4. **`以巴` 是否为 `尾巴`（tail）错别字**；`*备份` 系列的动画是否还有用。
 5. **英文那批动画的来源**：能否找到匹配的原始 geo（若找到，155 个缺失骨骼可一次性补齐）。
 6. **实机渲染效果**：本报告全部结论都是静态解析 + 源码对照得出的，
@@ -558,19 +560,41 @@ return Constant.ZERO;    // ← 失败时优雅降级为常量
 | **实体/物品** | `armor_value`、`attack_damage`、`attack_knockback`、`attack_speed`、`attack_time`、`swing_time`、`hurt_time`、`air_supply`、`arrow_count`、`food_level`、`frozen_ticks`、`entity_gravity`、`entity_reach`、`block_reach`、`eye_in_water`、`effect_level`、`has_boots`/`has_helmet`/…、`hit_target_id`/`hit_target_type`、`projectile_owner`、`shoot_item_id`、`hooked_in`、`is_fishing`/`is_biting`/`is_riptide`/`is_sleep`/`is_sneak`/`is_spectral_arrow`/… |
 | **模组兼容** | `is_maid`、`touhou_little_maid`（车万女仆）、`left/right_shoulder_parrot_variant` |
 
-### 9.7 `_Molang` 机制：**未定位**
+### 9.7 `_Molang` 机制：**它不是引擎概念**（原判"未定位"是假阳性）
 
-`_Molang` 字符串只在 1 个 class 中出现（`O0O0oOOOOo00o0o00o0o00oO`，即上面的 Molang 包装类），
-但**反编译出的该类的可见代码里并没有用到它**（Vineflower 会省略未被引用的常量）。
+> **2026-09-27 纠正。** 原文写"`_Molang` 字符串只在 1 个 class 中出现"——
+> 那是一次**假阳性**：PowerShell 的 `Select-String` **默认不区分大小写**，
+> 命中的其实是 `error.yes_steve_model.parse_molang_exp` 里的 `_molang`。
+> 用 `-CaseSensitive` 复查，混淆版与 OpenYSM 参考源里**都没有任何 `_Molang`**。
 
-⇒ 本次**未能确证** `<BoneName>_Molang` 的精确语义。可以确定的只有：
+**真实机制**：YSM 把**动画里出现的字符串值**当 Molang 表达式求值，
+**与骨骼名无关** —— OpenYSM 的 `JsonKeyFrameUtils.java:86,100,125`：
 
-- 它是一个**命名约定**，在 geo 里表现为**空骨骼（0 cubes）**，且总是作为
-  `ysmGlow<同名>` 的父节点（见 §2.2 的交替链）；
-- 它与"把 Molang 结果施加到骨骼"有关（因为它出现在 Molang 相关类里）。
+```java
+if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) { ... }
+...
+if (primitive.isString()) {
+    IValue value = parser.parseExpression(primitive.getAsString(), false);
+```
 
-**不要**基于推断下结论。若需要，下一步应反编译 `OoooO0O00Oo0ooO0o0O00000`
-（`O0O0oOOOOo00o0o00o0o00oO` 构造时传入的那个解析器）与 geo 解析类。
+⇒ `<BoneName>_Molang` **纯粹是给模型师看的命名约定**（一个空骨骼，标明"这一轨写的是
+Molang 而不是数字"），引擎不需要认识这个后缀。
+
+**这条纠正对结论的影响**：
+
+| | 原结论 | 纠正后 |
+|---|---|---|
+| `_Molang` 骨骼在 GeckoLib 下 | "未定位，可能有关" | **完全没有问题** —— GeckoLib 的 `MathParser.parseJson`（`:158-175`）同样把字符串当 Molang 编译，处理方式一致 |
+| 真正的差异在哪 | —— | **只在于变量与函数是否存在**：`ysm.*` 是 YSM 私有的（§9.2），GeckoLib 没有 |
+
+⇒ 也就是说，`AllBody_Molang` / `Head_Molang` / `Root_Molang` 这三根**缺失骨骼**
+（问题 3 的一部分）仍然是真的缺失（geo 里没有），但它们的**后缀本身不构成额外障碍**。
+
+**方法论教训（值得带走）**：在二进制/混淆产物里搜字符串时，
+① PowerShell `Select-String` 默认不区分大小写，必须显式 `-CaseSensitive`；
+② **在混淆产物里"搜不到某个字符串"是弱证据** —— 混淆器常做字符串加密，
+YSM 2.6.5 里 `second_order`/`head_yaw` 等能搜到而 `ysmGlow` 搜不到，
+就不能据此断定后者不存在（实际存在，见问题 5）。
 
 ### 9.8 对前文结论的净影响
 
@@ -581,6 +605,101 @@ return Constant.ZERO;    // ← 失败时优雅降级为常量
 | 问题 2（`ysm.*` 变量恒为 0） | **加强**：确证为 YSM 私有变量，且 GeckoLib 无对应物 |
 | 问题 3（155 缺失骨骼） | 不变（纯几何对比，与 YSM 无关） |
 | 问题 4（`Double.MAX_VALUE`） | 不变（GeckoLib 侧行为） |
-| 问题 5（`ysmGlow`） | **部分修正**：约定**确认存在**（55 个文件），但**判定位置未定位** ⇒ 前文的"机制描述"已降级为推断 |
+| 问题 5（`ysmGlow`） | **部分修正**：约定**确认存在**（55 个文件），但**判定位置未定位** ⇒ 前文的"机制描述"已降级为推断 —— **此结论已被 §10.3 取代：判定已定位（`startsWith("ysmGlow")`），问题 5 完全成立** |
 | 新增 | **问题 7**：`first_order`/`second_order` 是**有状态滤波器** ⇒ 连"用 GeckoLib 变量模拟"都做不到，必须 Java 侧维护状态 |
 | 新增 | §9.5：作者没发现的原因是 **YSM 的错误报告远比 GeckoLib 友好**，且失败语义不同（降级 vs 丢动画） |
+
+---
+
+## 十、OpenYSM 参考源与本次实机修复（2026-09-27 追加）
+
+### 10.1 OpenYSM 参考源
+
+YSM 是**闭源且混淆**的，直接读它的字节码收益有限（§9.1）。用户提供了一个第三方开源实现
+作为参照，已克隆到 `D:\Minecraft\开源模组参考文件\OpenYSM`。
+
+| 项 | 值 |
+|---|---|
+| 来源 | `https://github.com/OpenYSM/OpenYSM` |
+| 分支 / 提交 | `1.20.1-forge`（默认分支）@ `a515d44`（2026-08-02 "goodbye"） |
+| 版本 / 平台 | `mod_version 2.6.6.6`；**MC 1.20.1**、Forge 1.20.1-47.4.20 + Fabric（Architectury 多加载器） |
+| 检出规模 | 1158 文件 / 4.8 MB（1133 个 `.java` + 14 个 `.molang`） |
+| 结构 | `common/`（912 java）+ `forge/`（155）+ `fabric/`（66） |
+
+> ⚠️ **局限性（用户已声明，必须记住）**：这是**非官方**实现、**MC 1.20.1**、
+> 与出货的 YSM 2.6.5（1.21.1 NeoForge）**差异较大**。
+> ⇒ 它只能用来**印证约定与思路**，不能当作 YSM 行为的权威依据；
+> 凡用它下的结论都要标注"来自 OpenYSM 参照、非官方版本"。
+
+**克隆方式（值得复用）**：该仓库约 **200 MB**，本机到 GitHub 的大文件传输不可用
+（`git clone --depth 1` 与 8 MB 的 HTTP range 请求都长时间零进展），但
+**无 blob 部分克隆 + 稀疏检出**可以绕开：
+
+```powershell
+git clone --filter=blob:none --no-checkout --depth 1 --single-branch <url> <dir>   # 4.5 秒 / 0.1 MB
+git -C <dir> sparse-checkout init --no-cone
+git -C <dir> sparse-checkout set '/**/*.java' '/*.gradle' '/*.properties' '**/*.molang'
+git -C <dir> checkout                                                             # 57 秒 / 4.8 MB
+```
+（要哪些就写哪些模式；`git ls-tree -r --name-only HEAD` 只需要 tree 对象，
+在检出前就能列出全部文件名与扩展名分布，用来决定稀疏模式。）
+
+### 10.2 本次实机反馈与修复：一个值得带走的 GeckoLib 陷阱
+
+实机报了三件事：① 模型比碰撞箱大太多；② 武器位置偏移、不在手上；③ 模型整体偏离碰撞箱。
+**三者同源**，而且都不是"模型被做得太大"。
+
+**根因：把「一整套形态姿态」当成了「叠加层」。**
+
+`翅膀默认（展开）` 不是"翅膀姿势层"，而是**有翼形态的全身姿态**——
+它给 `Root` 设了 `scale = 1.8` 与 `position = [-13, -7.98, 16.89]`、
+给 `Weapen` 设了 `position` 与 `scale = 1.2`、给 `Tail` 设了 `scale = 1.1`。
+而 `待机动画`**根本没有 `Root` 这一轨**，也不给 `Weapen` 设位移/缩放。
+
+**关键机制（GeckoLib 侧，与 YSM 无关）**：
+`AnimationProcessor.java:107-127` 对每根骨骼是**按通道独立**写值的 ——
+
+```java
+AnimationPoint rotXPoint = boneAnimation.rotationXQueue().poll();   // 每通道各自一条队列
+...
+if (rotXPoint != null && rotYPoint != null && rotZPoint != null) { bone.setRotX(...); ... }
+if (posXPoint != null && ...) { bone.setPosX(...); ... }
+if (scaleXPoint != null && ...) { bone.setScaleX(...); ... }
+```
+
+⇒ **某控制器"没设"的通道，它不会把骨骼复位**，于是另一个控制器设的值会**原样泄漏**到最终姿态。
+后果：
+
+| 泄漏的通道 | 症状 |
+|---|---|
+| `Root.scale = 1.8` | 整个模型被放大 1.8 倍（症状 ①） |
+| `Root.position` | 整体平移约 0.8 / 0.5 / 1.1 格（症状 ③） |
+| `Weapen.position` + `scale` | 武器脱手并放大 1.2 倍；而武器**旋转**来自待机动画 ⇒ **混合姿态**（症状 ②） |
+
+**规则（写给下一个人）**：
+
+1. **多控制器叠加时，"两条动画重叠的骨骼"不是唯一的冲突面，要逐通道看。**
+   一条动画给某骨骼设了 `scale` 而另一条只设 `rotation`，两帧叠加后得到的是
+   "A 的 rotation + B 的 scale"——**没有任何一项会被报错或警告**。
+2. **根骨骼（`Root`）上的 `position`/`scale` 尤其危险**：它影响整个模型，
+   症状会表现为"模型大小/位置不对"，让人误以为是自己缩放写错了。
+3. **判断一个动画是"姿态"还是"层"**：看它是否动了 `Root`。
+   动了 `Root` 的动画基本可以断定是**整套形态姿态**（用于状态切换），不适合当叠加层。
+4. 顺序仍然重要：`后注册的控制器覆盖前者`（同一通道内）。
+   本次保留了"翅膀层在前、主状态机在后"，使手臂/武器以**待机姿势**为准。
+
+**修法**（用户裁定"保留翅膀张开"）：从资产的 `翅膀默认（展开）` 里删掉 5 个泄漏键
+（`Root.position` / `Root.scale` / `Weapen.position` / `Weapen.scale` / `Tail.scale`，
+188 字节，24 → 22 骨骼），另加 0.80 的渲染缩放
+（模型按原版玩家骨架算是偏大的：脚 0 → 头顶 39.82 单位 = 2.49 格，
+原版玩家 32 单位 = 2.00 格 ⇒ `32/39.82 ≈ 0.804`）。
+注意**缩放本身与泄漏是两件独立的事**：删掉泄漏后模型仍有 1.24 倍偏高，必须另外缩放。
+
+### 10.3 由 OpenYSM 印证/纠正的结论
+
+| 结论 | 状态 |
+|---|---|
+| 问题 5 `ysmGlow*` 走独立自发光通道 | **印证**：`GeoBone.GLOWING_PREFIX = "ysmGlow"` + `YSMClientMapper` 里 `startsWith("ysmGlow") → bb.glow = true` |
+| §9.7 `_Molang` 有引擎语义 | **纠正**：无引擎语义，纯命名约定（原判是大小写不敏感的假阳性），详见 §9.7 |
+| §9.2 `ysm.*` 是 YSM 私有命名空间 | **印证**：`client/animation/molang/YSMBinding.java` 里注册了 `head_yaw` / `input_vertical` / `ground_speed2` / `first_order` / `second_order` |
+| YSM 用 `Charset.defaultCharset()` 读 JSON | **不适用**：这是 GeckoLib 的行为（`FileLoader.java:73`），YSM 用自己的解析器（OpenYSM 用 `MolangParser` + Gson），不受该字符集问题影响 |
