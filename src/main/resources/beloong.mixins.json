@@ -5,8 +5,6 @@
   "client": [
     "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
-    "dragonsurvival.DamageEffectMixin",
-    "dragonsurvival.ModifierMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "AsteorBarHealthFixMixin"
@@ -38,7 +36,6 @@
     "dragonsurvival.DSAttributesMixin",
     "dragonsurvival.ToggleFlightMixin",
     "dragonsurvival.DragonStateHandlerMixin",
-    "dragonsurvival.ProjectileDamageEffectMixin",
     "betterendisland.DragonSummonMixin",
     "betterendisland.ExitPortalUtilsMixin",
     "legendarymonsters.AnnihilationPursuerDamageCapMixin",

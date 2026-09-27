@@ -61,11 +61,6 @@ public class Config {
             .comment("修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题")
             .define("fixCataclysmStructureHeight", true);
 
-    /** 修复龙之生存弹射物崩溃（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_DS_PROJECTILE_CRASH = COMMON_BUILDER
-            .comment("修复龙之生存弹射物崩溃")
-            .define("fixDragonsurvivalProjectileCrash", true);
-
     /** 修复Fsweep打开部分容器崩溃（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_FSWEEP_CONTAINER_CRASH = COMMON_BUILDER
             .comment("修复Fsweep打开部分容器崩溃")

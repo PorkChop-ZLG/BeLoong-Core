@@ -60,8 +60,6 @@
   "beloong.configuration.fallbackY.tooltip": "落点区块未加载（或该列为虚空）无法查高度图时的回退Y坐标",
   "beloong.configuration.fixCataclysmStructureHeight": "修复灾变结构生成",
   "beloong.configuration.fixCataclysmStructureHeight.tooltip": "修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题",
-  "beloong.configuration.fixDragonsurvivalProjectileCrash": "修复龙之生存弹射物崩溃",
-  "beloong.configuration.fixDragonsurvivalProjectileCrash.tooltip": "修复龙之生存弹射物在非玩家实体上查询DRAGON_ABILITY_DAMAGE属性时崩溃的问题\n当弹射物主人不具备该属性时，使用默认倍率1.0计算伤害",
   "beloong.configuration.fixFsweepContainerCrash": "修复Fsweep打开容器崩溃",
   "beloong.configuration.fixFsweepContainerCrash.tooltip": "修复F-Sweep在打开马/载具等特定容器时，因调用getType()抛出UnsupportedOperationException导致的单人模式连接丢失崩溃",
   "beloong.configuration.fixStableHoverDrift": "稳定悬停修复",
