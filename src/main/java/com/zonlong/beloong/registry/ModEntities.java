@@ -2,6 +2,7 @@ package com.zonlong.beloong.registry;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.entity.DihuangLoongEntity;
+import com.zonlong.beloong.entity.MoEntity;
 import com.zonlong.beloong.entity.TornadoEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -17,6 +18,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * <ul>
  *   <li>{@link #TORNADO} — 龙卷风（{@code beloong:tornado}），由龙技能「龙卷风」发射</li>
  *   <li>{@link #DIHUANG_LOONG} — 地黄龙 NPC（{@code beloong:dihuang_loong}），站桩生物 NPC</li>
+ *   <li>{@link #MO} — 末 NPC（{@code beloong:mo}），站桩生物 NPC（YSM 移植模型）</li>
  * </ul>
  *
  * @see BeLoongCore
@@ -71,6 +73,32 @@ public final class ModEntities {
                     .clientTrackingRange(10)
                     .fireImmune()
                     .build("beloong:dihuang_loong"));
+
+    /**
+     * 末（Mo）NPC（{@code beloong:mo}）。
+     * <p>
+     * 与地黄龙同为站桩生物：AI 与全部定义性语义都在通用基类
+     * {@link com.zonlong.beloong.entity.NpcEntity}，本处只负责类型绑定与碰撞箱。
+     * 三份资产由 {@code docs/models/末/} 原样迁移（YSM 玩家模型，
+     * 分析见 {@code docs/models/末/mo-模型分析.md}）。
+     * <ul>
+     *   <li>{@code MobCategory.MISC} = 不占刷怪上限且持久 —— 布景不该和玩家的刷怪塔抢名额；</li>
+     *   <li>碰撞箱 {@code 0.6 × 1.8} 取<b>玩家尺寸</b>：模型身体实测约 2 格高
+     *       （脚底 y ≈ 0、头顶 y ≈ 32 单位），这是"贴身体"的取值。
+     *       注意模型的**几何远大于碰撞箱**（翅膀向后伸约 7.4 格），
+     *       因此 {@link com.zonlong.beloong.entity.MoEntity#getBoundingBoxForCulling()}
+     *       另做了扩大，否则翅膀会在画面里凭空消失；</li>
+     *   <li>{@code fireImmune()}：无敌之外再省掉火焰伤害的结算；</li>
+     *   <li>同样**不做刷怪蛋、不注册自然生成**，只用 {@code /summon} 或结构放置。</li>
+     * </ul>
+     */
+    public static final DeferredHolder<EntityType<?>, EntityType<MoEntity>> MO =
+            ENTITIES.register("mo", () -> EntityType.Builder
+                    .<MoEntity>of(MoEntity::new, MobCategory.MISC)
+                    .sized(0.6F, 1.8F)
+                    .clientTrackingRange(10)
+                    .fireImmune()
+                    .build("beloong:mo"));
 
     /** 将实体注册到 Mod 事件总线。在 {@link BeLoongCore} 构造函数中调用。 */
     public static void register(IEventBus bus) {
