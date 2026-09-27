@@ -63,7 +63,7 @@
   "beloong.configuration.fixFsweepContainerCrash": "修复Fsweep打开容器崩溃",
   "beloong.configuration.fixFsweepContainerCrash.tooltip": "修复F-Sweep在打开马/载具等特定容器时，因调用getType()抛出UnsupportedOperationException导致的单人模式连接丢失崩溃",
   "beloong.configuration.fixStableHoverDrift": "稳定悬停修复",
-  "beloong.configuration.fixStableHoverDrift.tooltip": "总开关。实际生效需同时满足：\n①龙之生存配置中开启「稳定悬浮」(stable_hover)；\n②本模组的飞行等级 ≥ 1。\n生效后高度会被锁定（取消重力），升降仍用跳跃/下潜键；\n飞行等级不足时按原版非稳定悬停下坠。\n滑翔另有独立处理：不受重力、跟随视角，且不受本开关与飞行等级影响。",
+  "beloong.configuration.fixStableHoverDrift.tooltip": "总开关。实际生效需同时满足：\n①龙之生存配置中开启「稳定悬浮」(stable_hover)；\n②本模组的飞行等级 ≥ 1。\n生效后高度会被锁定（取消重力），升降仍用跳跃/下潜键；\n飞行等级不足时按原版非稳定悬停下坠。\n滑翔另有独立处理：不受重力、跟随视角并沿视线加速，且不受本开关与飞行等级影响。",
   "beloong.configuration.fixTreasureDuplication": "修复财宝堆复制",
   "beloong.configuration.fixTreasureDuplication.tooltip": "移除财宝堆重力下落行为，从根源杜绝刷沙机复制财宝堆\n关闭后恢复龙之生存原版下落机制",
   "beloong.configuration.loongPalaceEnvironmentProtectionEnabled": "启用环境保护",

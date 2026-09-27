@@ -2,6 +2,7 @@ package com.zonlong.beloong.mixin.dragonsurvival;
 
 import by.dragonsurvivalteam.dragonsurvival.client.handlers.ClientFlightHandler;
 import by.dragonsurvivalteam.dragonsurvival.common.capability.DragonStateProvider;
+import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.zonlong.beloong.Config;
@@ -88,7 +89,8 @@ public abstract class ClientFlightHandlerMixin {
             new AttributeModifier(beloong$ZERO_GRAVITY_ID, -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
 
     /**
-     * 滑翔时速度方向向视线插值的系数。
+     * 滑翔时速度方向向视线插值的系数。<b>本系数只管方向</b>；速度大小由
+     * {@link #beloong$GLIDE_ACCEL} 负责。
      *
      * <p><b>必须 {@code 0 < T < 0.5}</b>：{@code delta.lerp(target, T)} 结果为零向量要求
      * {@code (1-T)/T == 1}，即恰好 {@code T == 0.5}——那时 180° 掉头会让
@@ -106,16 +108,43 @@ public abstract class ClientFlightHandlerMixin {
     private static final double beloong$NORMALIZE_EPSILON = 1.0E-4;
 
     /**
-     * 滑翔时让速度方向跟随视线，**大小严格保持**。
+     * 滑翔时沿视线的每 tick 补速。
      *
+     * <p>取 {@code 0.25}：等于 DS 抬头 {@code ay = viewVector.y / 4} 的<b>上限</b>（正上方时的值），
+     * 即"与 DS 朝上同强度"。</p>
+     */
+    private static final double beloong$GLIDE_ACCEL = 0.25;
+
+    /**
+     * 滑翔时让速度跟随视线：<b>先转方向，再按需沿视线补速</b>。
+     *
+     * <h4>第一步：方向插值（大小严格保持）</h4>
      * <p>去重力后 DS 只提供向上的竖直分量（{@code ClientFlightHandler:430} 仅在抬头时给
      * {@code ay = viewVector.y / 4}，低头只累加水平的 {@code ax/az}），所以"低头能否下降"
      * 完全由这里提供——这正是上一版"只去重力"方案飞不下去的原因。</p>
      *
      * <p>末尾 {@code normalize().scale(speed)} 只抵消"两个等长向量插值会缩短弦长"这一几何效应，
-     * <b>不动</b> DS 在 TAIL 之前已施加的 {@code ELYTRA_FLY_DRAG} 与
-     * {@code ClientFlightHandler:410-413} 的俯冲阻尼——后者用的是 {@code deltaMovement.y}
-     * 而非重力，所以去重力后"俯冲换速度"与自限终端速度都照常工作。</p>
+     * <b>不动</b> DS 在 TAIL 之前已施加的 {@code ELYTRA_FLY_DRAG}。</p>
+     *
+     * <h4>第二步：沿视线补速（仅"非抬头"）</h4>
+     * <p>DS 的竖直能量<b>只有向上</b>：{@code :415-419} 的 {@code +3.2·delta} 要求 {@code pitch < 0}
+     * （抬头），{@code :430}→{@code :449} 的 {@code ay} 同样只在 {@code viewVector.y >= 0} 时赋值；
+     * 低头分支 {@code :426-428} 只累加水平 {@code ax/az}，且滑翔分支 {@code :446-447} 明确
+     * {@code add(ax, 0, az)} 不消费 {@code ay}；而 {@code :410-413} 名为 {@code downwardMomentum}
+     * 实为<b>向上</b>的回收阻尼。向下的唯一能源是重力，已被 HEAD 归零。</p>
+     *
+     * <p>所以平视与低头必须由本模组补能量，否则表现为"只有抬头在加速"。补速是<b>叠加式</b>：
+     * 仅在 {@code look.y <= 0} 时介入，<b>抬头完全不碰</b>——DS 的抬头是"向上加速 + 水平略减速"，
+     * 并非沿视线加速，不介入才能保住其既有手感并避免双重加速。</p>
+     *
+     * <p>目标速度取 {@code 0.8 × FLIGHT_SPEED × 2}，即 DS {@code :485} 用来钳制 {@code deltaMovement}
+     * 的 {@code maxForward}（唯一直接约束"速度"的量）。DS 的 {@code :421-423}（目标大小
+     * {@code FS × 当前速度}，{@code FS=1} 时中性）与 {@code :410-413}（仅下降时反向）都不构成上限，
+     * 故上限必须由这里给出。</p>
+     *
+     * <p><b>收敛性</b>：{@code speed} 取的是拖曳<b>之后</b>的值，补速按 {@code targetSpeed - speed}
+     * 夹住 ⇒ 恒不超调。落后时每 tick 最多补 {@link #beloong$GLIDE_ACCEL}，到顶即停；DS 的拖曳
+     * 随后把它压回下方，稳态在目标值略下方小幅锯齿。</p>
      */
     private static void beloong$followLook(LocalPlayer player) {
         Vec3 delta = player.getDeltaMovement();
@@ -124,8 +153,22 @@ public abstract class ClientFlightHandlerMixin {
             // 速度过零时"方向"无意义，且 normalize 不可用
             return;
         }
-        Vec3 target = player.getLookAngle().scale(speed);
-        player.setDeltaMovement(delta.lerp(target, beloong$GLIDE_TURN).normalize().scale(speed));
+
+        Vec3 look = player.getLookAngle();
+
+        // 1) 方向插值：方向向视线靠 GLIDE_TURN，大小严格保持
+        Vec3 dir = delta.lerp(look.scale(speed), beloong$GLIDE_TURN).normalize();
+        Vec3 result = dir.scale(speed);
+
+        // 2) 沿视线补速（叠加式：只在"非抬头"介入）
+        if (look.y <= 0.0) {
+            double targetSpeed = 0.8 * player.getAttributeValue(DSAttributes.FLIGHT_SPEED) * 2.0;
+            if (speed < targetSpeed) {
+                result = result.add(look.scale(Math.min(beloong$GLIDE_ACCEL, targetSpeed - speed)));
+            }
+        }
+
+        player.setDeltaMovement(result);
     }
 
     /**

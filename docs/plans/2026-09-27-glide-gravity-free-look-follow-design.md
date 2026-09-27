@@ -257,6 +257,9 @@ T2  下一 tick HEAD 复位修饰符
 
 **B-4（Minor，需实测）—— 平视巡航不再自动增速，`AirStrikeEffect` 的速度剖面已变**
 
+> ⚠️ **本节前半已被 rev 2 取代**（见 §6）：rev 2 补齐了"平视/低头沿视线加速"，"平视巡航不再自动增速"**不再成立**。
+> 仍成立的部分：`AirStrikeEffect` 的速度剖面确实变了，A2/A3 仍需同期记录空袭速度/伤害。
+
 去重力后 DS `:408` 在平视时那 `-0.25g` 的持续下沉消失，而 `:410-413`"俯冲换速度"的能量原本正来自这个下沉 ⇒ **平视巡航不再自动增速**，俯冲/空袭的速度只能靠主动低头获得。
 `ability/AirStrikeEffect.java:67-76` 的伤害按 `getDeltaMovement().length()` 线性计算；本设计严格保大小，所以**单 tick 伤害不变量未被破坏**，但**可达速度剖面变了**。⇒ A2/A3 同期记录空袭速度/伤害（改前 vs 改后），必要时重调 `speed_factor` / `min_speed`。
 
@@ -279,6 +282,10 @@ T2  下一 tick HEAD 复位修饰符
 | D7 | 判定口径严格用 `ServerFlightHandler.isGliding(player)`（同函数、同参数、同 tick） | 全仓库唯一滑翔状态定义；`FlightData` 无滑翔字段，`wasGliding` 只是派生闩锁 |
 | D8 | 不加任何配置 | 用户裁定 |
 | D9 | 单一 TAIL 注入，不拆两个 | 同点注入先后无约定 |
+| D10 | **rev 2**：滑翔补一台"沿视线的能量源"，目标速度 `0.8 × FLIGHT_SPEED × 2`（= DS `:485` 钳制 `deltaMovement` 用的 `maxForward`），每 tick 补 `0.25`，到顶即停 | 用户实测"只有抬头有加速"：DS 的竖直能量**只有向上**（`:415-419`、`:430`→`:449`），低头/平视一个都没有；而 rev 1 的保大小插值只转向不加能 ⇒ 需求扩为"各方向都要加速" |
+| D11 | **rev 2**：补速采**叠加式**——只在 `look.y <= 0`（平视/低头）介入，抬头 100% 走 DS 原样 | 用户裁定。抬头那套是"向上加速 + 水平减速"，并非"沿视线加速"；不介入才能保住已认可的抬头手感并避免双重加速 |
+| D12 | **rev 2**：目标速度**不新增配置**，写成常量 | 延续 D8 |
+| D13 | **rev 2**：方向插值（D3）保留不变，补速是叠加在它之上的第二步 | 保住已实机验证过的"低头能下降"响应速度 |
 
 ## 4. Non-Goals
 
@@ -292,3 +299,88 @@ T2  下一 tick HEAD 复位修饰符
 ## 5. Next Steps
 
 交棒给 `planning` 技能，产出实施计划（任务分解 + 每步验收）。
+
+---
+
+## 6. 修订 rev 2（2026-09-27）：滑翔各方向加速
+
+**状态**：已批准（架构/组件两节均确认）
+**动因**：rev 1 实机验收"功能正常"，但用户发现**只有视角朝上才有加速**，平视与低头都没有。诊断结论见下。
+
+### 6.1 原因（已回源码核实）
+
+DS 的滑翔分支里，**竖直方向的能量注入只有向上的两条**，向下的唯一来源是重力：
+
+| 项 | 位置 | 平视 | 低头 | 抬头 |
+|---|---|---|---|---|
+| 重力项 `gravity·(−1+0.75·vd)` | `:408` | `−0.25g` | `−0.625g`@45° | 更小 |
+| `downwardMomentum` | `:410-413` | 0（`y≥0` 不触发） | **`+dM`（向上）** + 沿视线水平推力 | 0 |
+| `delta*3.2` | `:415-419` | 跳过（要求 `pitch<0`） | 跳过 | **`+3.2·delta` 向上** |
+| `ay` 赋值 | `:426-433` | `ay = 0`，且 `ax/az ×= 0.98` | **只累加水平 `ax/az`，`ay` 不动** | `ay = viewVector.y/4` |
+| 滑翔分支是否用 `ay` | `:445-452` | 用（=0） | **不用**：`add(ax, 0, az)` | 用（向上） |
+| 拖曳 | `:454` | y 每 tick −2% | 同 | 同 |
+
+⇒ ① DS **没有任何产生向下推力的代码**；② 重力是唯一的向下能源，被需求 1 归零；③ rev 1 的插值"严格保大小"只转向不加能；④ `:410-413` 名为"俯冲动量"实为**向上回收**，反向抵消下坠。
+结果：平视只受拖曳（减速），低头只拿到方向（下沉但不加速），**只有抬头**有 `:415-419` 与 `ay` 两个纯加法项 ⇒ 加速。
+
+### 6.2 rev 2 设计
+
+**架构不变**（HEAD 重力闸门、TAIL 三路分流、`isSpin` 跳过、无配置门控全部保留）。唯一变化：`beloong$followLook` 从"只旋转"升级为"**旋转 + 按需补速**"。
+
+| 视线 | 能量来源 | 相对 rev 1 |
+|---|---|---|
+| 抬头（`look.y > 0`） | **DS 自己**（`:415-419` + `:449`） | **零变化** |
+| 平视（`look.y == 0`） | 本模组：沿视线补速 → 水平向前加速 | **新增** |
+| 低头（`look.y < 0`） | 本模组：沿视线补速 → 俯冲加速 | **新增** |
+
+**新增常量**：`beloong$GLIDE_ACCEL = 0.25`（DS 抬头 `ay = viewVector.y/4` 的上限，即正上方时的值）
+**新增 import**：`by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes`
+
+```java
+    private static void beloong$followLook(LocalPlayer player) {
+        Vec3 delta = player.getDeltaMovement();
+        double speed = delta.length();
+        if (speed <= beloong$NORMALIZE_EPSILON) {
+            return;
+        }
+
+        Vec3 look = player.getLookAngle();
+
+        // 1) 方向插值：方向向视线靠 GLIDE_TURN，大小严格保持（rev 1 行为，不变）
+        Vec3 dir = delta.lerp(look.scale(speed), beloong$GLIDE_TURN).normalize();
+        Vec3 result = dir.scale(speed);
+
+        // 2) 沿视线补速。叠加式：只在"非抬头"介入 —— 抬头完全交给 DS 自己的
+        //    :415-419（+3.2·delta）与 :449（+ay），避免双重加速、保住既有手感。
+        //    到顶即停（按 targetSpeed - speed 夹住），故不会超调、也不会无界增长；
+        //    DS 在 TAIL 之前已施加的 ELYTRA_FLY_DRAG 会让稳态停在目标值略下方。
+        if (look.y <= 0.0) {
+            double targetSpeed = 0.8 * player.getAttributeValue(DSAttributes.FLIGHT_SPEED) * 2.0;
+            if (speed < targetSpeed) {
+                result = result.add(look.scale(Math.min(beloong$GLIDE_ACCEL, targetSpeed - speed)));
+            }
+        }
+
+        player.setDeltaMovement(result);
+    }
+```
+
+**为何到顶即停就足够收敛**：`speed` 是**拖曳之后**的值；当 `speed < target` 时最多补 `target − speed` ⇒ 恒不超调。达到目标后拖曳把它压回下方，下一 tick 再补上，稳态在目标值略下方小幅锯齿。DS 的 `:421-423`（目标大小 `FS × 当前速度`）与 `:410-413` 都不构成额外约束，所以**上限必须由这里给出**。
+
+**同步改动**：`beloong$GLIDE_TURN` 的 javadoc 补"本系数只管方向"；`beloong$followLook` 的 javadoc 写明"抬头走 DS、平视/低头走本模组"这一有意的不对称及原因；两份 lang 的 `fixStableHoverDrift.tooltip` 由"跟随视角"补为"跟随视角并沿视线加速"（zh/en 同步，键集仍 219/219）。
+
+**非目标（rev 2 新增）**：不改 DS 的 `ay` 体系（Approach 2 被否：`viewVector.y = 0` 时它无法给平视加速，且与叠加式冲突）；不"只消除拖曳"（Approach 3 只能得恒速）；不新增配置。
+
+### 6.3 rev 2 验收增量
+
+在 rev 1 的 A1–A9 之上补：
+
+| # | 场景 | 期望 |
+|---|---|---|
+| A10 | 平视滑翔，饱食度 > 6，持续 3 s | **速度明显增长**并稳定在约 1.6 格/tick（32 格/秒）附近，不再单调减速 |
+| A11 | 低头 45° 滑翔 | **俯冲加速**（与抬头同强度），不再是"下沉但减速" |
+| A12 | 抬头滑翔 | **与 rev 1 手感一致**（叠加式，不应变快） |
+| A13 | 三方向各 10 s | 速度均收敛、**无超调、无失控增长** |
+
+> 参考：`FLIGHT_SPEED` 默认 1（`DSAttributes` → `RangedAttribute(..., 1, 0, 1024)`），故默认目标 1.6/tick；
+> 龙种/成长阶段若给 `FLIGHT_SPEED` 加了 modifier，目标会随之变化（这是有意复用 DS 的量）。

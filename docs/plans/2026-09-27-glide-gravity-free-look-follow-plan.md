@@ -252,3 +252,56 @@ $e=(Get-Content src/main/resources/assets/beloong/lang/en_us.json -Raw|ConvertFr
 - F-4（level<1 的 `noMoveInput` 限制）
 - 清理 `beloong$setAy(0.0)` 的可疑空操作
 - 新增任何配置项与语言键
+
+---
+
+# 修订 rev 2：滑翔各方向加速（2026-09-27）
+
+**动因**：rev 1 验收"功能正常"，但只有视角朝上才有加速——DS 的竖直能量只有向上两条（`:415-419`、`:430`→`:449`），向下的唯一来源重力已被 rev 1 归零，而 rev 1 的保大小插值只转向不加能。设计与决策见设计文档 §6（D10–D13）。
+
+## rev 2 追加任务
+
+### T7: `beloong$followLook` 增加"沿视线补速"
+
+**Files:**
+- Modify: `src/main/java/com/zonlong/beloong/mixin/dragonsurvival/ClientFlightHandlerMixin.java`
+
+**Steps:**
+1. 新增 import `by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes`
+2. 新增常量 `beloong$GLIDE_ACCEL = 0.25`（放在 `beloong$NORMALIZE_EPSILON` 之后），javadoc 注明"取自 DS 抬头 `ay = viewVector.y/4` 的上限（正上方 0.25）"
+3. 按设计 §6.2 的代码替换 `beloong$followLook` 方法体：先方向插值（不变），再在 `look.y <= 0` 且 `speed < targetSpeed` 时沿 `look` 补 `min(0.25, targetSpeed − speed)`，`targetSpeed = 0.8 × getAttributeValue(DSAttributes.FLIGHT_SPEED) × 2`
+4. 在 `beloong$GLIDE_TURN` 的 javadoc 补一句"本系数只管方向；速度由 `beloong$GLIDE_ACCEL` 管"
+5. 在 `beloong$followLook` 的 javadoc 写明"抬头走 DS、平视/低头走本模组"这一**有意的不对称**及其原因（DS 竖直能量只有向上）
+
+**Verification:** `gradlew compileJava --rerun-tasks --no-build-cache` 成功，警告仍 3 条
+
+### T8: 文案同步（tooltip 补"沿视线加速"）
+
+**Files:**
+- Modify: `src/main/resources/assets/beloong/lang/zh_cn.json`
+- Modify: `src/main/resources/assets/beloong/lang/en_us.json`
+
+**Steps:**
+1. `fixStableHoverDrift.tooltip` 末句由"滑翔另有独立处理：不受重力、跟随视角，且不受本开关与飞行等级影响。"改为"…不受重力、跟随视角并沿视线加速，且不受本开关与飞行等级影响。"
+2. en 同步：`gravity-free and look-directed` → `gravity-free, look-directed and accelerating along the look`
+
+**Verification:** 键集 `zh_cn=219 / en_us=219` 且 `Compare-Object` 无差异
+
+### T9: 静态门（rev 2）
+
+**Steps:** 复用 T5 的四项（build + 警告数、`beloong.mixins.json` 未动、残留扫描、键集），并额外确认 `DSAttributes` import 已加、`beloong$GLIDE_ACCEL` 只出现于常量声明与那一处 `Math.min`。
+
+**Verification:** 四项全绿 + `gradlew compileJava --rerun-tasks --no-build-cache` 通过
+
+### T10: 实机验收 rev 2（**由用户执行**）
+
+按设计 §6.3 的 A10–A13，并重跑 rev 1 的 A1–A9（至少 A1–A3 与 A12）。四个新场景：
+
+| # | 场景 | 期望 | 结果 |
+|---|---|---|---|
+| A10 | 平视滑翔 3 s | 速度明显增长并稳定在约 1.6 格/tick，不再单调减速 | ☐ |
+| A11 | 低头 45° 滑翔 | 俯冲加速，强度与抬头相当 | ☐ |
+| A12 | 抬头滑翔 | **与 rev 1 一致**（叠加式，不应变快） | ☐ |
+| A13 | 三方向各 10 s | 均收敛、无超调、无失控增长 | ☐ |
+
+> 若 A10/A11 的强度不合手感，只改 `beloong$GLIDE_ACCEL`（0.25 → 0.12 → 0.08 递减）或目标系数（`0.8` → `0.5`），改完重跑 T7 验证 + A10–A12。
