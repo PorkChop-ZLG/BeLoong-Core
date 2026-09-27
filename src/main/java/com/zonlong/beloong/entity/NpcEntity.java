@@ -1,5 +1,6 @@
 package com.zonlong.beloong.entity;
 
+import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.entity.ai.NpcAttackGoal;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -14,6 +15,7 @@ import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.fluids.FluidType;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -150,11 +152,21 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 想要与玩家同速就把属性改成 {@code √0.1 ≈ 0.3162}；想更慢就继续减小
      * （比值恒等于 `属性² / 0.1`，只需改这一个数）。原版自己也承认这个平方：
      * {@code PathNavigation#doStuckDetection:312} 估算预期位移时显式平方了速度。
+     * <p>
+     * <b>"站桩不动"在属性层要两件东西，缺一不可</b>：
+     * {@code KNOCKBACK_RESISTANCE}（挡攻击/近战击退）与
+     * {@code EXPLOSION_KNOCKBACK_RESISTANCE}（挡爆炸位移）；
+     * 外加一个方法覆写 {@link #isPushedByFluid(FluidType)}（挡流体流）。
+     * 三者各挡一条**互不相通**的代码路径 —— 详见各自的注释。
      */
     public static AttributeSupplier.Builder createNpcAttributes() {
         return PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 1000.0D)
                 .add(Attributes.KNOCKBACK_RESISTANCE, 1.0D)
+                // 爆炸推动走的是**另一个**属性，KNOCKBACK_RESISTANCE 挡不住它：
+                // Explosion.java:294 `d10 = d13 * (1.0 - getAttributeValue(EXPLOSION_KNOCKBACK_RESISTANCE))`
+                // —— 该属性默认 0（Attributes.java:52-53，范围 [0,1]），取 1.0 即把爆炸位移乘 0。
+                .add(Attributes.EXPLOSION_KNOCKBACK_RESISTANCE, 1.0D)
                 .add(Attributes.ATTACK_DAMAGE, 100.0D)
                 .add(Attributes.MOVEMENT_SPEED, 0.3D);
     }
@@ -163,6 +175,44 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 是否处于"被下令攻击"状态。只有它为 true 时 {@link NpcAttackGoal} 才会运行。 */
     private boolean attackCommandActive;
+
+    /**
+     * 行走指令的目标点；{@code null} = 没有行走指令。
+     * <p>
+     * <b>为什么要把目标点存下来而不是只调一次 {@code getNavigation().moveTo(...)}</b>：
+     * 原版寻路是**有距离上限**的，一次 {@code moveTo} 走不到远处。见
+     * {@link #tickWalkCommand()} 的说明。
+     */
+    @Nullable
+    private Vec3 walkTarget;
+
+    /** 距下次重新寻路的 tick 数（节流用）。 */
+    private int walkRepathCooldown;
+
+    /** 迄今离目标最近的水平距离平方；用于"卡住就放弃"的有界失败判断。 */
+    private double walkBestDistSqr = Double.MAX_VALUE;
+
+    /** 连续多少次重新寻路都没有更靠近目标。 */
+    private int walkNoProgressCount;
+
+    /** 到位判定（水平距离，格）。与寻路 {@code accuracy=1} 的口径一致。 */
+    private static final double WALK_ARRIVE_DISTANCE = 1.0D;
+
+    /**
+     * 重新寻路的节流间隔（tick）。
+     * <p>
+     * 20 = 每秒一次。取这个量级是因为：路走完会<b>立刻</b>续（见 {@link #tickWalkCommand()}），
+     * 这个间隔只是兜住"路径还在走但我已经偏离"的情况，不需要太频繁。
+     */
+    private static final int WALK_REPATH_INTERVAL = 20;
+
+    /**
+     * 连续多少次重新寻路都没更靠近目标就判定"不可达"并放弃。
+     * <p>
+     * 5 次 × 20 tick ≈ 5 秒。这是刻意的**有界失败**：目标点在虚空 / 墙里 / 无路可达时，
+     * 不能让 NPC 永远每 20 tick 白跑一次寻路。
+     */
+    private static final int WALK_MAX_NO_PROGRESS = 5;
 
     protected NpcEntity(EntityType<? extends PathfinderMob> entityType, Level level) {
         super(entityType, level);
@@ -195,6 +245,34 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /** 站桩 NPC 不该被玩家推着走。原版先例：{@code Warden:555}、{@code Bat:85}、{@code Parrot:392}。 */
     @Override
     public boolean isPushable() {
+        return false;
+    }
+
+    /**
+     * 也不该被<b>流体流</b>推走 —— {@link #isPushable()} 挡不住这一条。
+     * <p>
+     * 流体推动走的是完全独立的一条路：{@code Entity#updateFluidHeightAndDoFluidPushing()}
+     * 里直接把流速矢量 {@code add} 进 {@code deltaMovement}
+     * （{@code Entity.java:3391} 的 {@code setDeltaMovement(...add(interim.flowVector))}），
+     * 与 {@code isPushable()} 无关。
+     * <p>
+     * <b>为什么覆写的是带 {@link FluidType} 的重载而不是无参版</b>：
+     * <ul>
+     *   <li>真正做判断的是 {@code Entity.java:3358} 的
+     *       {@code if (this.isPushedByFluid(fluidType))} —— 带参版；</li>
+     *   <li>无参版在 NeoForge 里标了 {@code @Deprecated}（"Use FluidType sensitive version"），
+     *       而且它在本版本里<b>只剩声明、无人使用</b>（{@code Entity.java:3331} 那个局部变量
+     *       全方法内未被引用）；</li>
+     *   <li>{@code IEntityExtension} 的默认实现是
+     *       {@code self().isPushedByFluid() && type.canPushEntity(self())}，
+     *       覆写带参版即可完全接管，不必去碰那个已弃用的无参版。</li>
+     * </ul>
+     * 覆写带参版还有个好处：{@code Entity.java:3374-3394} 那段
+     * {@code setFluidTypeHeight(...)} 照常执行 ⇒ <b>只挡推动，不动流体高度追踪</b>
+     * （后者影响 {@code isInWater()} 一类的判定，不该被殃及）。
+     */
+    @Override
+    public boolean isPushedByFluid(FluidType type) {
         return false;
     }
 
@@ -248,12 +326,21 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 攻击指令的失效兜底（{@code Mob#serverAiStep} 内部调用，需要 AI 生效）。
+     * 每 tick 的服务端 AI 兜底（{@code Mob#serverAiStep} 内部调用，需要 AI 生效）。
      * <p>
+     * <b>调用时机很关键</b>：{@code Mob.java:792 goalSelector.tick()} →
+     * {@code :797 navigation.tick()} → <b>{@code :800} 本方法</b>。
+     * 也就是说本方法在 <b>goal 仲裁之后</b>运行 —— 下面续行路指令正是靠这一点
+     * 才不会被任何 goal 的拆解抹掉。
+     *
+     * <h4>① 攻击指令的失效兜底</h4>
      * 目标死亡、或目标变成创造 / 旁观玩家时，{@code MeleeAttackGoal.canUse()} 会返回 false；
      * 但若该 goal **从未启动过**，它的 {@code stop()} 就不会被调用 ⇒
      * {@code attackCommandActive} 与 {@code getTarget()} 会一直挂着
      * （实体永久保留一个已死的目标，{@link NpcAttackGoal} 还会每 20 tick 白轮询一次）。
+     *
+     * <h4>② 行走指令的持续续路</h4>
+     * 见 {@link #tickWalkCommand()}。
      */
     @Override
     protected void customServerAiStep() {
@@ -264,12 +351,17 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 this.clearAttackCommand();
             }
         }
+
+        this.tickWalkCommand();
     }
 
     // ===================== 外部驱动 API（只在服务端生效）=====================
 
     /**
      * 走到目标点。
+     * <p>
+     * <b>本方法只登记目标点，不直接下发路径</b> —— 真正的 {@code getNavigation().moveTo(...)}
+     * 在 {@link #tickWalkCommand()} 里做，原因是原版寻路有距离上限（见该方法）。
      * <p>
      * 档位固定给原版惯例的 {@code 1.0}（= 该生物的基础速度，即
      * {@link #createNpcAttributes()} 里那个 0.3，约为走路玩家的九成）。
@@ -284,7 +376,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.clearMotionCommands();
         this.attackCommandActive = false;
         this.setTarget(null);
-        this.getNavigation().moveTo(pos.x, pos.y, pos.z, 1.0D);
+        this.walkTarget = pos;
+        this.walkRepathCooldown = 0;      // 下一次 customServerAiStep 立刻寻路
+        this.walkBestDistSqr = Double.MAX_VALUE;
+        this.walkNoProgressCount = 0;
     }
 
     /** 命令它去攻击某个目标（会先取消移动指令）。传 {@code null} 取消攻击。 */
@@ -314,7 +409,83 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 速度差异改由原版进度/效果经移速属性体现。
      */
     private void clearMotionCommands() {
+        this.walkTarget = null;
+        this.walkRepathCooldown = 0;
         this.getNavigation().stop();
+    }
+
+    /**
+     * 行走指令的持续续路 —— <b>这是 walk 指令能真正走到远距离目标点的关键</b>。
+     *
+     * <h4>问题：原版寻路一次走不到远处</h4>
+     * {@code PathNavigation#moveTo(x,y,z,speed)} 只做一次寻路，而那次寻路的
+     * <b>探索半径就是 {@code Attributes.FOLLOW_RANGE}</b>：
+     * <pre>
+     *   PathNavigation.java:151  createPath(..., (float)this.mob.getAttributeValue(Attributes.FOLLOW_RANGE))
+     *   PathNavigation.java:169  this.pathFinder.findPath(..., followRange, accuracy, ...)
+     *   PathFinder.java:91,99    只展开 distanceTo/walkedDistance &lt; maxRange 的节点
+     *   PathFinder.java:116-122  到不了目标时用 getBestNode() 重建**部分路径**，
+     *                            并带 reachesTarget = false 返回
+     * </pre>
+     * 而 {@code Mob.createMobAttributes()} 给的 {@code FOLLOW_RANGE} 默认是 <b>16</b>。
+     * ⇒ 目标超过约 16 格时，NPC 只会走到离目标最近的**可达**节点就停下 ——
+     * 实机症状正是"走了一半就停"。
+     * <p>
+     * 之所以**不**直接把 {@code FOLLOW_RANGE} 调大：它在 {@code PathNavigation.java:65}
+     * 还决定访问节点预算（{@code floor(FOLLOW_RANGE * 16)}），且在构造时只算一次；
+     * 调大等于同时把搜索区域放大到三次方级别，反而更容易撞上预算而寻路失败。
+     * 原版 mob 也正是靠 goal 定期重新寻路来解决长距离移动的。
+     *
+     * <h4>为什么放在这里而不是放在 goal 里</h4>
+     * {@code customServerAiStep} 在 {@code Mob.java:800}，位于
+     * {@code :792 goalSelector.tick()} 与 {@code :797 navigation.tick()} <b>之后</b>。
+     * 于是本方法续的路不会被任何 goal 的拆解抹掉 —— 顺带解决了另一处已知缺陷：
+     * {@code MeleeAttackGoal.stop()} 会<b>无条件</b>调 {@code nav.stop()}
+     * （{@code MeleeAttackGoal.java:94}），而 {@code NpcAttackGoal#clearAttackCommand()}
+     * 也会停寻路；两者现在都只造成最多 1 tick 的停顿——因为 {@code nav.stop()} 会让
+     * {@code isDone()} 立刻为真，下一 tick 本方法就会把路续回来。
+     */
+    private void tickWalkCommand() {
+        if (this.walkTarget == null) {
+            return;
+        }
+
+        // 到位判定只看水平距离：寻路本身会把 Y 规整到可站立面
+        // （GroundPathNavigation#createPath:54-82 会找地面或抬到方块上方），
+        // 拿 Y 参与比较只会因为落差错判。
+        final double dx = this.walkTarget.x - this.getX();
+        final double dz = this.walkTarget.z - this.getZ();
+        final double distSqr = dx * dx + dz * dz;
+
+        if (distSqr <= WALK_ARRIVE_DISTANCE * WALK_ARRIVE_DISTANCE) {
+            this.walkTarget = null;
+            this.getNavigation().stop();
+            return;
+        }
+
+        if (this.walkRepathCooldown > 0) {
+            --this.walkRepathCooldown;
+        }
+        // 两个续路时机：路径已经走完（含被 nav.stop() 抹掉），或节流到期
+        if (this.walkRepathCooldown > 0 && !this.getNavigation().isDone()) {
+            return;
+        }
+
+        // 有界失败：连续若干次续路都没有更靠近目标 ⇒ 判定不可达，放弃
+        if (distSqr < this.walkBestDistSqr - 1.0E-4D) {
+            this.walkBestDistSqr = distSqr;
+            this.walkNoProgressCount = 0;
+        } else if (++this.walkNoProgressCount > WALK_MAX_NO_PROGRESS) {
+            BeLoongCore.LOGGER.debug(
+                    "[BeLoong] npc walk target unreachable, giving up at {} for {}",
+                    this.blockPosition(), this.walkTarget);
+            this.walkTarget = null;
+            this.getNavigation().stop();
+            return;
+        }
+
+        this.walkRepathCooldown = WALK_REPATH_INTERVAL;
+        this.getNavigation().moveTo(this.walkTarget.x, this.walkTarget.y, this.walkTarget.z, 1.0D);
     }
 
     /** 供 {@link NpcAttackGoal} 查询是否被下令攻击。 */
