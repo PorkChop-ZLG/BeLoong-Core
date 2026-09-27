@@ -3,6 +3,11 @@
 > 分析对象：`docs/models/末/`（`mo.geo.json` 388 KB、`mo.animation.json` 9.1 MB、`mo.png` 45 KB）
 > 分析方式：**只读**结构化解析 + 逐条对照 **GeckoLib 4.9.2 源码**（`开源模组参考文件\Geckolib`，git `0d9d3ea3`）
 > 结论依据的是**加载期/运行期的实际代码路径**，不是经验推测
+>
+> **2026-09-27 追加**：已用 **YSM 2.6.5 的反编译产物**（`闭源模组解压文件\YSM`）
+> 核实了前文标注为"未核实"的条目，见 **§九**。该模组是**混淆过的**，
+> 因此本报告以**常量池字符串**（可靠）为主、反编译逻辑（仅供参考）为辅，
+> 凡引用反编译逻辑处均注明不确定性。
 
 ---
 
@@ -20,6 +25,7 @@
 | **4** | 4 个动画**没有 `animation_length`** | 0 骨骼的退化成 **`Double.MAX_VALUE`** | `hover`/`武器拆分` 长度无穷大；`jump` = 100 秒 | 中 |
 | **5** | `ysmGlow*` 骨骼带立方体 | 当**普通几何体**渲染 | 眼睛等部位**不发光**（YSM 有额外的自发光渲染通道） | 中 |
 | **6** | 动画名混用中文 | 字符串键，能用 | 可维护性差；且**只有中文名的那批骨骼零缺失** | 低 |
+| **7** | `ysm.first_order` / `ysm.second_order` | 未注册函数 ⇒ 同问题 1；即使注册也**无法模拟** | 平滑跟随类效果无法移植（**有状态**，见 §9.3） | **高（移植时）** |
 
 ### 一句话回答"能不能直接用"
 
@@ -105,7 +111,7 @@ LeftEyeball                    cubes=4    ← 真正的眼球几何体
 
 ---
 
-## 三、六类问题逐条
+## 三、七类问题逐条
 
 ### 问题 1【致命，会丢动画】表达式含 `'` 与中文 ⇒ 整条动画被丢弃
 
@@ -264,7 +270,13 @@ private static double calculateAnimationLength(BoneAnimation[] boneAnimations) {
 
 ### 问题 5【中】`ysmGlow*` 会被当普通几何体渲染 ⇒ 不发光
 
-YSM 对 `ysmGlow` 前缀的骨骼走**额外的自发光渲染通道**（这是 GAL/角色模型的"眼睛发亮"效果）。
+> **§九 已核实**：`ysmGlow*` 是 YSM 的**既成骨骼命名约定**（YSM 自己的内置模型里有
+> `ysmGlowFrontHeadlights`、`ysmGlowTrunkLight` 等，共出现在 **55 个**模型/动画 JSON 中）。
+> 但它的判定**不是 Java 侧的字符串字面量**（933 个 class 里 `ysmGlow` 0 命中），
+> 因此具体判定位置（模型包 `ysm.json`？贴图？geo 的 material？）**尚未定位**，
+> 机制描述以下为推断、已降级标注。
+
+YSM 对 `ysmGlow` 前缀的骨骼走**额外的自发光渲染通道**（这是角色模型的"眼睛发亮"效果）。
 GeckoLib **没有这个概念**——`AnimationController`/`GeoRenderer` 里不存在任何按骨骼名切换渲染通道的逻辑，
 所有带 cubes 的骨骼都按同一个 `RenderType` 画。
 
@@ -280,6 +292,19 @@ GeckoLib **没有这个概念**——`AnimationController`/`GeoRenderer` 里不�
   - 与 `RawAnimation.thenLoop("...")` 的调用点容易因编码问题不一致；
   - `以巴` 很可能是 `尾巴` 的错别字；`*备份` 是"backup"——说明文件经过人工反复改动；
 - 更实质的问题：**同一个文件里混了两批来源**（§2.3），英文那批是导入的、与本 geo 不匹配（问题 3）。
+
+### 问题 7【移植时高】`ysm.first_order` / `ysm.second_order` 是**有状态**的，无法模拟
+
+`fly` / `swim` / `swim_stand` 里的 10 条表达式全都包在 `ysm.second_order(...)` 里。
+它不是一个纯计算函数——**详细核实见 §9.3**。这里只给结论：
+
+- 它是**一阶/二阶平滑滤波器**，状态**按通道 ID 存在实体模型对象上、跨帧保持**；
+- 通道 ID 来自那个字符串参数（`'飞行身体前倾'` → int）；
+- ⇒ 即使在模型类里注册一个同名 `MathParser` 函数，**也做不到**——
+  GeckoLib 的 `MathValue` 求值是无状态的，没有地方挂接跨帧状态。
+
+**修法方向**：在模型类里用 Java 侧字段维护滤波器状态，每帧算好后 `setVariable`
+（与地黄龙 `query.head_yaw` 的做法同型，只是多了一个积分环节）。
 
 ---
 
@@ -361,10 +386,16 @@ geo 本身**结构干净**（211 骨骼、单根、无重名、无悬空 parent�
 
 1. **本模型的原宿主**：它是否来自某个具体 YSM 角色包？如果原作者还在维护，
    向作者要一版"为 GeckoLib 导出"的资产比我们自己改便宜得多。
-2. **YSM 的旋转符号约定**是否与 GeckoLib 的 `X、Y 取负、Z 不取负` 完全一致
-   （本机没有 YSM 源码，无法核实）。若不一致，移植后模型会**镜像**。
-3. **`ysmGlow*` 在 YSM 里的确切渲染方式**（额外通道？alpha 混合？全亮度？）——
-   决定问题 5 的修法成本。
+2. **YSM 的旋转符号约定**是否与 GeckoLib 的 `X、Y 取负、Z 不取负` 完全一致。
+   > §九 追加：YSM 源码现已可得（混淆，需反编译），但**本次未查这一条**。
+   > 3.5 MB 级的混淆代码里定位"应用动画"的那一处成本较高，且**只在真要移植时才需要**。
+   > 预期结论是"一致"（两者都直接消费 Blockbench 导出的 Bedrock 标准 JSON），
+   > 但**在移植前必须实机确认，不能靠预期**。
+3. **`ysmGlow*` 在 YSM 里的确切判定与渲染方式**。
+   > §九 追加：约定本身**已确认**（YSM 内置模型普遍使用，55 个文件）；
+   > 但判定**不在 Java 字符串里**（`ysmGlow` 在 933 个 class 中 0 命中），
+   > 具体落点（`ysm.json`？贴图？geo material？）**仍未定位**。
+   > 这直接决定问题 5 的修法成本，是最值得继续追的一条。
 4. **`以巴` 是否为 `尾巴`（tail）错别字**；`*备份` 系列的动画是否还有用。
 5. **英文那批动画的来源**：能否找到匹配的原始 geo（若找到，155 个缺失骨骼可一次性补齐）。
 6. **实机渲染效果**：本报告全部结论都是静态解析 + 源码对照得出的，
@@ -384,3 +415,172 @@ geo 本身**结构干净**（211 骨骼、单根、无重名、无悬空 parent�
 3. **注释里的方法名也要核实**：`DihuangLoongModel.java:27` 写的 `shouldCrashOnMissingBone()`
    在 4.9.2 里并不存在（真名 `crashIfBoneMissing()`）——
    与本项目"注释要解释为什么并附原版行号"的约定相符，**注释里的 API 名也是需要维护的事实**。
+4. **"有状态"的 Molang 函数无法用纯表达式移植**（§九 核实）：YSM 的
+   `first_order` / `second_order` 不是纯函数，而是**按通道 ID 存于实体模型上的跨帧平滑滤波器**。
+   ⇒ 若将来要给我们的模型引入"平滑跟随"效果，正确位置是 **Java 侧维护状态**
+   （在 `applyMolangQueries` 里累加后 `setVariable`），而不是写进动画 JSON 的表达式里。
+
+---
+
+## 九、从 YSM 反编译源码核实的事实（2026-09-27 追加）
+
+**来源**：`D:\Minecraft\闭源模组解压文件\YSM`（`ysm-2.6.5-neoforge+mc1.21.1-release.jar`，已解压为 933 个 `.class`）。
+**反编译**：Vineflower 1.10.1（取自 Gradle 缓存）。
+
+### 9.1 方法与可靠性声明
+
+该模组**经过混淆**（类名如 `Oo000O00O0OOoO00OOOO000O`），因此：
+
+- 本节的**主要依据是常量池字符串**（`javap -v`）——混淆不会改动字符串，**可靠**；
+- **反编译出的控制流**只作辅助，凡引用处均标注。样例：Vineflower 在
+  `Oo000O00O0OOoO00OOOO000O` 上报了 `Unable to simplify switch on enum` 错误，
+  说明该类的反编译**不完整**；
+- 结论中凡无法确证的一律标"未定位"，不用推断填空。
+
+### 9.2 决定性证据：`ysm.*` 是 YSM 的私有命名空间
+
+YSM 的 Molang 注册类（`Oo000O00O0OOoO00OOOO000O`，常量池含 **605** 个 `Utf8`）里，
+注册名是**裸名**（反编译可见）：
+
+```java
+this.oOo0OO0O0o000OO0O000oo0o("head_yaw",        v -> v.<...>().OO000o0ooOooooOOOOO0Ooo0);   // 变量
+this.oOo0OO0O0o000OO0O000oo0o("head_pitch",      v -> v.<...>().Oo0O0OoOo0O0oOoo0000O0oO);
+this.oOoo00O0o0oO0o0oO00OO0O0("ground_speed2",   Oo000O00O0OOoO00OOOO000O::Oo0O0OoOo0O0oOoo0000O0oO);
+this.oOoo00O0o0oO0o0oO00OO0O0("input_vertical",  OO00O0O0OOOo0oo0o0o00oo0::oOo0OO0O0o000OO0O000oo0o);
+this.oOoo00O0o0oO0o0oO00OO0O0("input_horizontal",OO00O0O0OOOo0oo0o0o00oo0::oOoo00O0o0oO0o0oO00OO0O0);
+...
+this.oOo0OO0O0o000OO0O000oo0o("first_order",  new oooo00oo0000oOOOO0o0o000());   // 函数
+this.oOo0OO0O0o000OO0O000oo0o("second_order", new oo0OoO0O00000o0ooo0O0OoO());
+this.oOo0OO0O0o000OO0O000oo0o("defer",        new OO0O0O0o0Oo00Ooo0O00o0OO());
+```
+
+模型里写的是 **`ysm.head_yaw` / `ysm.second_order(...)`**，注册的是**裸名** ⇒
+**`ysm.` 前缀由 YSM 的 Molang 引擎处理**（前缀剥离或命名空间绑定，
+**本次未定位到那一处**——但无论哪种实现，GeckoLib 都没有）。
+
+**这套约定不是 `mo` 的作者自创**，YSM 自己的内置模型里到处都在用（实测使用次数）：
+
+| 名称 | 在 YSM 内置模型中的出现次数 |
+|---|---|
+| `ysm.head_yaw` | **6834** |
+| `ysm.head_pitch` | **5894** |
+| `ysm.second_order` | **715** |
+| `ysm.bone_rot` | 274 |
+| `ysm.input_vertical` | 264 |
+| `ysm.ground_speed2` | 28 |
+| `ysm.input_horizontal` | 3 |
+| `ysm.first_order` / `ysm.defer` / `ysm.perlin_noise` | 0（已注册，但内置模型未用） |
+| `ysmGlow*` 骨骼 | 出现在 **55** 个模型/动画 JSON 中 |
+
+### 9.3 `first_order` / `second_order` 的真实语义：**有状态的跨帧平滑滤波器**
+
+这是本次核实**最有价值的一条**。反编译 `oo0OoO0O00000o0ooo0O0OoO`（`second_order`）：
+
+```java
+int   id     = args.getInt(0);                    // ← 参数 0：通道 ID
+float target = args.getFloat(1);                  // ← 参数 1：目标值
+int   argc   = args.count();
+float f = 1.0F, d = 1.0F, e = 1.0F;
+if (argc >= 3) f = args.getFloat(2);              // ← 参数 2/3/4：滤波参数
+if (argc >= 4) d = args.getFloat(3);
+if (argc >= 5) e = args.getFloat(4);
+
+StateMap map   = ((ModelHolder) args.owner()).state().O0O0Oo0Oooo0OOoOOO0ooo0O();
+State    state = map.get(id);
+if (state == null) { map.put(id, new State(target, f, d, e)); return target; }
+state.update(target, f, d, e);
+return state.value();
+```
+
+`first_order`（`oooo00oo0000oOOOO0o0o000`）是它的简化版（只有 `id, value, speed`）。
+
+⇒ 三个结论：
+
+1. **它们不是纯函数**：状态存在**实体模型对象上**（`args.owner()` 即 animatable），**跨帧保持**
+   ⇒ **无法用纯 Molang 表达式复现**。想在 GeckoLib 里做同样效果，状态必须放在 Java 侧。
+2. **参数 0 是"通道 ID"，来自那个中文/英文字符串**（`'飞行身体前倾'` 被转成 int）。
+   ⇒ 字符串在 YSM 的 Molang 方言里是**合法且必需**的字面量语法 —— 这正是问题 1 的另一面。
+3. 签名要求 `argc >= 2`，与模型里的 5 参调用 `('名字', 值, 1.5, 1, 1)` 一致。
+
+### 9.4 YSM 支持单引号字面量 ⇒ 从反面确认问题 1
+
+YSM 的 Molang 包装类（`O0O0oOOOOo00o0o00o0o00oO`）里有一个**预处理器**，
+逐字符扫描并**维护 `'...'` 字面量状态**（在该状态下 `//` 与 `/* */` 不被当注释）：
+
+```java
+} else if (var6 == '\'') {           // 进入/离开单引号字面量
+    var4 = true;
+    var1.append('\'');
+}
+```
+
+⇒ **单引号字符串是 YSM Molang 方言的正式语法**。
+
+而 GeckoLib 的 `EXPRESSION_FORMAT`（`MathParser.java:46`）**不含 `'`、也不含 CJK**，
+`:187-188` 直接抛异常 ⇒ 这就是问题 1 的完整闭环。
+
+### 9.5 为什么模型作者从来没有发现这些问题
+
+YSM 的解析失败处理**比 GeckoLib 友好得多**（`O0O0oOOOOo00o0o00o0o00oO:20-31`）：
+
+```java
+YesSteveModel.LOGGER.error("Failed to parse molang expression: {}\n{}", ex.getMessage(), 表达式原文);
+// 并且在玩家客户端弹一条可翻译消息：
+Component.translatable("error.yes_steve_model.parse_molang_exp")
+         .append(ex.getMessage()).append("\n---\n").append(表达式原文);
+...
+return Constant.ZERO;    // ← 失败时优雅降级为常量
+```
+
+对比：
+
+| | 解析失败时 |
+|---|---|
+| **YSM** | 日志打**表达式原文** + 给玩家一条可翻译提示 + 优雅降级为常量 |
+| **GeckoLib** | `Unable to parse animation: <动画名>` + 堆栈，**并把整条动画丢弃** |
+
+⇒ 在 YSM 里这些问题**根本不会出现**（表达式本来就合法）；
+一旦搬到 GeckoLib，失败方式从"报错降级"变成"整条动画消失"，而作者没有任何理由预期这一点。
+
+### 9.6 YSM Molang API 面（按用途分组，摘自常量池）
+
+**GeckoLib 完全没有这些**：
+
+| 类别 | 名称 |
+|---|---|
+| **有状态滤波** | `first_order`、`second_order`、`defer` |
+| **特效/声音** | `perlin_noise`、`particle`、`play_sound`、`stop_sound`、`stop_all_sounds` |
+| **跨端/调试** | `sync`、`eval`、`literal`、`byId`、`byString`、`copyOnClickText`、`dump_biome`/`dump_effects`/`dump_equipped_item`/`dump_mods`/`dump_relative_block` |
+| **输入/视角** | `head_yaw`、`head_pitch`、`input_vertical`、`input_horizontal`、`xxa`、`yya`、`zza`、`mouse`、`keyboard`、`fps`、`person_view`、`time_delta` |
+| **骨骼读写** | `bone_rot`、`bone_pos`、`bone_scale`、`bone_pivot_abs` |
+| **渲染上下文** | `texture_name`、`rendering_in_inventory`、`rendering_in_paperdoll`、`first_person_mod_hide` |
+| **状态/环境** | `ground_speed2`、`delta_movement_length`、`on_ground_time`、`in_ground`、`ladder_facing`、`sky_light`、`block_light`、`weather`、`biome_category`、`dimension_name`、`elytra_rot_x/y/z`、`step_height_addition`、`relative_block_name(_any)` |
+| **实体/物品** | `armor_value`、`attack_damage`、`attack_knockback`、`attack_speed`、`attack_time`、`swing_time`、`hurt_time`、`air_supply`、`arrow_count`、`food_level`、`frozen_ticks`、`entity_gravity`、`entity_reach`、`block_reach`、`eye_in_water`、`effect_level`、`has_boots`/`has_helmet`/…、`hit_target_id`/`hit_target_type`、`projectile_owner`、`shoot_item_id`、`hooked_in`、`is_fishing`/`is_biting`/`is_riptide`/`is_sleep`/`is_sneak`/`is_spectral_arrow`/… |
+| **模组兼容** | `is_maid`、`touhou_little_maid`（车万女仆）、`left/right_shoulder_parrot_variant` |
+
+### 9.7 `_Molang` 机制：**未定位**
+
+`_Molang` 字符串只在 1 个 class 中出现（`O0O0oOOOOo00o0o00o0o00oO`，即上面的 Molang 包装类），
+但**反编译出的该类的可见代码里并没有用到它**（Vineflower 会省略未被引用的常量）。
+
+⇒ 本次**未能确证** `<BoneName>_Molang` 的精确语义。可以确定的只有：
+
+- 它是一个**命名约定**，在 geo 里表现为**空骨骼（0 cubes）**，且总是作为
+  `ysmGlow<同名>` 的父节点（见 §2.2 的交替链）；
+- 它与"把 Molang 结果施加到骨骼"有关（因为它出现在 Molang 相关类里）。
+
+**不要**基于推断下结论。若需要，下一步应反编译 `OoooO0O00Oo0ooO0o0O00000`
+（`O0O0oOOOOo00o0o00o0o00oO` 构造时传入的那个解析器）与 geo 解析类。
+
+### 9.8 对前文结论的净影响
+
+| 前文结论 | 核实后 |
+|---|---|
+| 它是 YSM 模型 | **加强**：`ysm.*` 命名空间 + 内置模型使用规模（`head_yaw` 6834 次） |
+| 问题 1（`'` + 中文 ⇒ 丢动画） | **加强**：YSM 侧预处理器专门维护 `'...'` 状态 ⇒ 单引号是正式语法，GeckoLib 收不了 |
+| 问题 2（`ysm.*` 变量恒为 0） | **加强**：确证为 YSM 私有变量，且 GeckoLib 无对应物 |
+| 问题 3（155 缺失骨骼） | 不变（纯几何对比，与 YSM 无关） |
+| 问题 4（`Double.MAX_VALUE`） | 不变（GeckoLib 侧行为） |
+| 问题 5（`ysmGlow`） | **部分修正**：约定**确认存在**（55 个文件），但**判定位置未定位** ⇒ 前文的"机制描述"已降级为推断 |
+| 新增 | **问题 7**：`first_order`/`second_order` 是**有状态滤波器** ⇒ 连"用 GeckoLib 变量模拟"都做不到，必须 Java 侧维护状态 |
+| 新增 | §9.5：作者没发现的原因是 **YSM 的错误报告远比 GeckoLib 友好**，且失败语义不同（降级 vs 丢动画） |
