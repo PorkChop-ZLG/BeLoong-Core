@@ -138,6 +138,11 @@ dependencies {
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:8350073"
 
+    // ChatBox — 必选依赖（视觉小说式对话框，GALGAME 风格）
+    // 参考源：开源模组参考文件\chatbox（github.com/zhenshiz/chatbox，GPL-3.0）
+    // 其自身只 required neoforge ≥21.1.199 与 minecraft [1.21,1.22)，KubeJS/GeckoLib 等均为软依赖
+    implementation "curse.maven:chatbox-for-mc-1276866:8947867"
+
     // LockDown - required dependency
     implementation "curse.maven:lockdown-reneoforged-1492416:8245680"
     // Mixin Annotation Processor - generates refmap for @Inject resolution

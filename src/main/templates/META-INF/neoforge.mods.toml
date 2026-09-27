@@ -190,6 +190,18 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# ChatBox（视觉小说式对话框）—— 必选依赖。
+# 版本号取自实际下载的 jar（CF 文件 8947867）：modId=chatbox、version=1.1.5。
+# 它自身只 required neoforge >=21.1.199 与 minecraft [1.21,1.22)，
+# KubeJS / GeckoLib / watermedia / terra_entity 均为软依赖（其 mods.toml 未声明），
+# 故本模组只需声明 chatbox 本身，不必连带声明它们。
+[[dependencies.${mod_id}]]
+    modId="chatbox"
+    type="required"
+    versionRange="[1.1.5,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.
