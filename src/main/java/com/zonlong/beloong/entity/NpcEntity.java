@@ -15,7 +15,6 @@ import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.fluids.FluidType;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -131,6 +130,37 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return 8.0F;
     }
 
+    /**
+     * 脚下阴影半径（格）。默认 <b>0.5 = 原版玩家</b>。
+     * <p>
+     * <b>为什么这个默认值放在实体类里、而不是各个渲染器里</b>：
+     * 阴影半径是"这个 NPC 看起来该有多大"的一部分，与
+     * {@link #idleAnimationName()}、{@link #facePlayerDistance()} 同类，
+     * 属于**通用 NPC 基类该给的默认**。子类要例外就在这里覆写，渲染器不用管。
+     * <p>
+     * <b>为什么必须有默认值（不能靠原版默认）</b>：
+     * {@code EntityRenderer.java:31} 的 {@code shadowRadius} 字段<b>没有初值</b>（默认 0.0F），
+     * 而阴影只在半径 &gt; 0 时才绘制（{@code EntityRenderDispatcher.java:168-169}
+     * 的 {@code float f = entityrenderer.getShadowRadius(entity); if (f > 0.0F)}）。
+     * GeckoLib 全仓不设这个值 ⇒ <b>"GeckoLib 实体没有影子"是默认现象</b>，
+     * 曾让地黄龙与末都没有影子（代码审查 P1-7）。
+     * <p>
+     * <b>取值 0.5 的依据</b>：原版 {@code shadowRadius} 大致跟碰撞箱宽度走，实测：
+     * 玩家/僵尸/骷髅（宽 0.6）是 {@code 0.5}（{@code PlayerRenderer.java:49}），
+     * 马（宽 1.4）{@code 0.75}，蜘蛛（宽 1.4）{@code 0.8}，不死马 {@code 1.0}。
+     * 通用 NPC 的默认碰撞箱就是玩家尺寸，故直接取玩家那一档。
+     * <p>
+     * 由 {@link com.zonlong.beloong.client.NpcRenderer#getShadowRadius} 读取 ——
+     * 那条链路能成立是因为阴影绘制用的是<b>方法</b>
+     * （{@code EntityRenderDispatcher.java:168}）而不是字段本身。
+     * <p>
+     * 注：数值与渲染缩放（如 {@code MoRenderer.MODEL_SCALE}）**无关** ——
+     * 阴影由原版按碰撞箱画，不随模型缩放走。
+     */
+    public float shadowRadius() {
+        return 0.5F;
+    }
+
     // ===================== 属性默认值 =====================
 
     /**
@@ -155,9 +185,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * <p>
      * <b>"站桩不动"在属性层要两件东西，缺一不可</b>：
      * {@code KNOCKBACK_RESISTANCE}（挡攻击/近战击退）与
-     * {@code EXPLOSION_KNOCKBACK_RESISTANCE}（挡爆炸位移）；
-     * 外加一个方法覆写 {@link #isPushedByFluid(FluidType)}（挡流体流）。
-     * 三者各挡一条**互不相通**的代码路径 —— 详见各自的注释。
+     * {@code EXPLOSION_KNOCKBACK_RESISTANCE}（挡爆炸位移）—— 两者各挡一条**互不相通**的
+     * 代码路径，详见 {@code EXPLOSION_KNOCKBACK_RESISTANCE} 那行的注释。
+     * <p>
+     * ⚠️ <b>但"被水流冲走"是设计目的，不要当成漏挡去"修"</b> ——
+     * 流体推动是第三条路径，本类**刻意不挡**，理由与机理见
+     * {@link #isPushable()} 之后那段注释。
      */
     public static AttributeSupplier.Builder createNpcAttributes() {
         return PathfinderMob.createMobAttributes()
@@ -248,33 +281,23 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return false;
     }
 
-    /**
-     * 也不该被<b>流体流</b>推走 —— {@link #isPushable()} 挡不住这一条。
-     * <p>
-     * 流体推动走的是完全独立的一条路：{@code Entity#updateFluidHeightAndDoFluidPushing()}
-     * 里直接把流速矢量 {@code add} 进 {@code deltaMovement}
-     * （{@code Entity.java:3391} 的 {@code setDeltaMovement(...add(interim.flowVector))}），
-     * 与 {@code isPushable()} 无关。
-     * <p>
-     * <b>为什么覆写的是带 {@link FluidType} 的重载而不是无参版</b>：
-     * <ul>
-     *   <li>真正做判断的是 {@code Entity.java:3358} 的
-     *       {@code if (this.isPushedByFluid(fluidType))} —— 带参版；</li>
-     *   <li>无参版在 NeoForge 里标了 {@code @Deprecated}（"Use FluidType sensitive version"），
-     *       而且它在本版本里<b>只剩声明、无人使用</b>（{@code Entity.java:3331} 那个局部变量
-     *       全方法内未被引用）；</li>
-     *   <li>{@code IEntityExtension} 的默认实现是
-     *       {@code self().isPushedByFluid() && type.canPushEntity(self())}，
-     *       覆写带参版即可完全接管，不必去碰那个已弃用的无参版。</li>
-     * </ul>
-     * 覆写带参版还有个好处：{@code Entity.java:3374-3394} 那段
-     * {@code setFluidTypeHeight(...)} 照常执行 ⇒ <b>只挡推动，不动流体高度追踪</b>
-     * （后者影响 {@code isInWater()} 一类的判定，不该被殃及）。
+    // ===================== 刻意【不】阻挡的位移来源 =====================
+
+    /*
+     * 流体流：**被水流冲走是设计目的**（用户裁定 2026-09-27），故此处刻意不覆写
+     * isPushedByFluid，本类也不对它做任何处理。
+     *
+     * 留这段注释是因为：代码审查总报告 P1-3 曾把"流体能推动 NPC"列为待修缺陷，
+     * 而这个位置正是将来有人想去"修"它时会找的地方。不要再加这个覆写。
+     *
+     * 机理备查（若哪天需求变了，改法就在这里）：流体推动走的是独立路径 ——
+     * Entity#updateFluidHeightAndDoFluidPushing() 直接把流速矢量 add 进 deltaMovement
+     * （Entity.java:3391 的 setDeltaMovement(...add(interim.flowVector))），
+     * 与 isPushable() / KNOCKBACK_RESISTANCE 都无关。真正做判断的是
+     * Entity.java:3358 的 isPushedByFluid(fluidType)（带 FluidType 的重载；
+     * 无参版在 NeoForge 已 @Deprecated 且本版本里无人引用），
+     * IEntityExtension 的默认实现是 self().isPushedByFluid() && type.canPushEntity(self())。
      */
-    @Override
-    public boolean isPushedByFluid(FluidType type) {
-        return false;
-    }
 
     /**
      * 永不消失 —— 用原版**官方钩子**而不是覆写 {@code isPersistenceRequired()}。

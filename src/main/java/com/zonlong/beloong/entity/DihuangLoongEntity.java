@@ -46,4 +46,23 @@ public class DihuangLoongEntity extends NpcEntity {
     public static AttributeSupplier.Builder createAttributes() {
         return NpcEntity.createNpcAttributes();
     }
+
+    /**
+     * 脚下阴影半径 —— 覆写通用 NPC 的默认值 {@code 0.5F}（玩家大小）为 {@code 0.8F}。
+     * <p>
+     * <b>为什么地黄龙要大一点</b>：原版 {@code shadowRadius} 大致跟碰撞箱宽度走。实测原版取值：
+     * 玩家/僵尸/骷髅（宽 0.6）是 {@code 0.5}（{@code PlayerRenderer.java:49}），
+     * 马（宽 1.4）{@code 0.75}（{@code AbstractHorseRenderer}），
+     * <b>蜘蛛（宽 1.4）{@code 0.8}</b>（{@code SpiderRenderer}），不死马 {@code 1.0}。
+     * 地黄龙碰撞箱宽 1.5（见 {@code registry/ModEntities}），取蜘蛛那一档。
+     * <p>
+     * <b>放在实体侧而不是渲染器里</b>：这样 {@code DihuangLoongRenderer} 一行阴影代码都不用写，
+     * 由 {@code NpcRenderer#getShadowRadius} 统一读取 —— 与
+     * {@link NpcEntity#idleAnimationName()} 等"可覆写默认值"是同一套做法。
+     * 完整理由（含"GeckoLib 实体默认没影子"这条坑）见 {@link NpcEntity#shadowRadius()}。
+     */
+    @Override
+    public float shadowRadius() {
+        return 0.8F;
+    }
 }
