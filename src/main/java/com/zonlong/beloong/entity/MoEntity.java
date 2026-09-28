@@ -6,6 +6,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import software.bernie.geckolib.animation.AnimatableManager;
 import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.animation.RawAnimation;
 
 /**
@@ -148,8 +149,17 @@ public class MoEntity extends NpcEntity {
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "wings", 0,
-                state -> state.setAndContinue(WINGS_IDLE)));
+        controllers.add(new AnimationController<>(this, "wings", 0, state -> {
+            // 飞行时**停掉整个翅膀层**：fly 动画本身已经含翅膀动作，两层同时写同一批骨骼
+            // 会互相拉扯（GeckoLib 对同一根骨骼是绝对赋值、后注册者覆盖前者，
+            // 见 AnimationProcessor.java:107-127）。
+            // 用 STOP 而不是"换成一条空动画"：停掉该控制器后，被 fly 驱动的骨骼由主控制器写，
+            // 两者都没驱动的骨骼按既有复位机制回到 initial snapshot，**不会残留旧姿态**。
+            if (state.getAnimatable().isFlying()) {
+                return PlayState.STOP;
+            }
+            return state.setAndContinue(WINGS_IDLE);
+        }));
         super.registerControllers(controllers);
     }
 
