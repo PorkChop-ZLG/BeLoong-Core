@@ -4,10 +4,6 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
-import software.bernie.geckolib.animation.AnimatableManager;
-import software.bernie.geckolib.animation.AnimationController;
-import software.bernie.geckolib.animation.PlayState;
-import software.bernie.geckolib.animation.RawAnimation;
 
 /**
  * 末（Mo）NPC —— {@link NpcEntity} 的第二个子类。
@@ -52,6 +48,13 @@ import software.bernie.geckolib.animation.RawAnimation;
  * 三根骨骼本身当然仍在 geo 中，只是不再被翅膀层改。
  * 另加了 0.80 的渲染缩放（见 {@code MoRenderer}）——模型按原版玩家的骨架尺寸算是偏大的，
  * 缩放后头顶与原版玩家齐平。这是**与上述泄漏无关的另一件事**。
+ * <p>
+ * 📌 <b>2026-09-27 后续（用户裁定）</b>：换用与动画匹配的新几何后，翅膀已是完整的两条链，
+ * 且 {@code idle}/{@code walk}/{@code run}/{@code fly}/{@code sit}/{@code descend}/{@code attack}
+ * **每一条都自带 54~55 根翅膀骨的通道** ⇒ 这一层被**整个删除**，本类不再注册任何控制器。
+ * 因此下面（以及旧版本里）关于"翅膀层必须注册在主控制器**之前**""飞行时要把翅膀层 STOP"
+ * 之类**关于注册顺序的结论随之失效**，保留本节只作历史记录 ——
+ * 它记录了"用独立叠加层去补姿态"这条路为什么走不通（会与主控制器争同一批骨骼）。
  *
  * <h2>来自资产的其余缺陷</h2>
  * GeckoLib 对"动画/骨骼找不到"**完全静默**，因此这些不会报错，只会表现为"某些东西不动"：
@@ -143,58 +146,22 @@ public class MoEntity extends NpcEntity {
         return "fly";
     }
 
-    /**
-     * 翅膀常驻层：{@code wings_idle}（22 骨骼）。
-     * <p>
-     * 做成 {@code static final} 常量而不是每 tick 构造：它不依赖任何可覆写方法
-     * （与基类里那三个"名字来自虚方法"的情况不同），没有构造期求值问题。
-     * <p>
-     * 键名与 {@link #idleAnimationName()} 一起英文化，理由见那里。
-     */
-    private static final RawAnimation WINGS_IDLE =
-            RawAnimation.begin().thenLoop("wings_idle");
-
-    /**
-     * 两个控制器：<b>翅膀层在前、主状态机在后</b>。
-     * <p>
-     * <b>顺序是刻意反的，不要"顺手"调换。</b>
-     * GeckoLib 按**注册顺序**应用控制器
-     * （{@code AnimatableManager.ControllerRegistrar#build} 用保序的
-     * {@code Object2ObjectArrayMap}，{@code AnimationProcessor.java:80} 顺序遍历），
-     * 而对同一根骨骼是**绝对赋值**而非叠加
-     * （{@code AnimationProcessor.java:107-110} 的 {@code bone.setRotX(...)}）
-     * ⇒ **后注册者覆盖前者**。
-     * <p>
-     * 两条动画至今仍在这些骨骼上重叠：{@code Weapen}、{@code LeftHand}、{@code RightArm}、
-     * {@code RightForeArm}（翅膀层给的是"有翼形态"的手臂姿势，主状态机给的是待机姿势）。
-     * 把主状态机放在后面 ⇒ 手臂与武器一律以**待机姿势**为准；翅膀骨骼主状态机根本不碰
-     * （{@code idle} 0 个翅膀骨骼）⇒ 由翅膀层提供姿态，不会被覆盖。
-     * <p>
-     * 若把顺序调成"主在前、翅膀在后"，翅膀层那套手臂/武器姿势会盖掉待机姿势
-     * —— 那正是 2026-09-27 那批症状的来源之一（当时的 {@code Root}/{@code Weapen}
-     * 位移缩放泄漏已另行从资产里删掉，但**手臂旋转仍在重叠**，所以顺序依然必须保持）。
-     */
-    @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "wings", 0, state -> {
-            // 飞行时**停掉整个翅膀层**：fly 动画本身已经含翅膀动作，两层同时写同一批骨骼
-            // 会互相拉扯（GeckoLib 对同一根骨骼是绝对赋值、后注册者覆盖前者，
-            // 见 AnimationProcessor.java:107-127）。
-            // 用 STOP 而不是"换成一条空动画"：停掉该控制器后，被 fly 驱动的骨骼由主控制器写，
-            // 两者都没驱动的骨骼按既有复位机制回到 geo 的静止姿态，**不会永久残留旧姿态**。
-            // ⚠️ 机制细节（2026-09-27 核 4.9.2 字节码）：STOP 那一帧
-            // AnimationController.process 会提前 return，**不重建**该控制器的骨骼队列
-            // （队列此时已空 ⇒ 不写骨骼）；而"复位"并非瞬时，是 AnimationProcessor 用
-            // getBoneResetTime()（GeoAnimatable 默认 5.0）做的**限时插值**
-            // ⇒ 翅膀层停写后，那批骨骼会在约 5 tick 内插值回静止姿态。
-            // 想让过渡立刻完成可以覆写 getBoneResetTime() → 0，本类没这么做。
-            if (state.getAnimatable().isFlying()) {
-                return PlayState.STOP;
-            }
-            return state.setAndContinue(WINGS_IDLE);
-        }));
-        super.registerControllers(controllers);
-    }
+    // ===================== 动画控制器 =====================
+    //
+    // 本类**不再注册任何自己的控制器**（2026-09-27 第二次改动，用户裁定）。
+    //
+    // 原先这里有一个名为 "wings" 的常驻层：每 tick 循环播 wings_idle，专门给翅膀一个姿态。
+    // 那是为**旧几何**准备的 —— 旧模型的翅膀只有一条左右对称压在同一批骨上的链，
+    // 而当时的 idle / walk / run 都不驱动翅膀骨，所以必须靠一个独立层提供翅膀姿态。
+    // 换用新几何后（见 MoModel 的类注释），翅膀已是完整的两条链（geo 里 55 根含 Wing 的骨），
+    // 且 idle / walk / run / fly / sit / descend / attack **每一条都自带 54~55 根翅膀骨的通道**
+    // ⇒ 独立层不但多余，还会与基类主控制器**争同一批骨骼**
+    // （GeckoLib 对同一根骨骼是按通道绝对赋值、后注册者覆盖前者，
+    // 见 AnimationProcessor.java:107-110）⇒ 整层删除。
+    // 现在只由基类 NpcEntity 的状态机控制器驱动，本类一行控制器代码都不需要。
+    //
+    // 当初为什么会引入这一层、以及它曾经造成的三个症状，见类注释
+    // "2026-09-27 实机反馈与修复：三个症状同一个根因"一节（保留作历史记录）。
 
     // ===================== 视锥剔除 =====================
 
