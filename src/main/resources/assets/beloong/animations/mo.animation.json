@@ -992,7 +992,7 @@
 				}
 			}
 		},
-		"翅膀默认（展开）": {
+		"wings_idle": {
 			"loop": "hold_on_last_frame",
 			"bones": {
 				"Right_Wing_Root": {
@@ -1307,7 +1307,7 @@
 		"武器拆分": {
 			"loop": true
 		},
-		"待机动画": {
+		"idle": {
 			"loop": true,
 			"animation_length": 4,
 			"bones": {
@@ -139956,12 +139956,6 @@
 						"1.98": [57.749, 0, 0],
 						"2.0": [58.087, 0, 0]
 					}
-				},
-				"AllBody_Molang": {
-					"rotation": ["ysm.second_order('游泳待机身体前倾',ysm.input_vertical*30,2,1,1)", 0, "ysm.second_order('游泳待机身体侧倾', -ysm.input_horizontal*20,2,1,1)"]
-				},
-				"Head_Molang": {
-					"rotation": ["ysm.second_order('头部前倾', -ysm.input_vertical*35,2,1,1)", 0, 0]
 				}
 			}
 		},
@@ -206224,12 +206218,6 @@
 						"4.98": [62.363, 0.059, -0.161],
 						"5.0": [58.087, 0, 0]
 					}
-				},
-				"AllBody_Molang": {
-					"rotation": ["ysm.second_order('游泳身体前倾',-ysm.head_pitch,2,1,1)", 0, "ysm.second_order('游泳身体侧倾', ysm.head_yaw,2,1,1)"]
-				},
-				"Head_Molang": {
-					"rotation": ["ysm.second_order('游泳头部',ysm.head_pitch,2,1,1)", 0, 0]
 				}
 			}
 		},
@@ -224075,20 +224063,6 @@
 						"1.3167": [34.375, -3.167, -2.678],
 						"1.3333": [34.463, -3.167, -2.678]
 					}
-				},
-				"AllBody_Molang": {
-					"rotation": [
-						"math.clamp(ysm.second_order('飞行身体前倾',ysm.input_vertical*ysm.ground_speed2*5.5,1.5,1,1), -20, 60)",
-						0,
-						"ysm.second_order('飞行身体侧倾', -ysm.input_horizontal*ysm.ground_speed2*3,1.5,1,1)"
-					]
-				},
-				"Head_Molang": {
-					"rotation": [
-						"math.clamp(ysm.second_order('飞行头部前倾',-ysm.input_vertical*ysm.ground_speed2*5,1.5,1,1), -60, 20)",
-						0,
-						"ysm.second_order('飞行头部侧倾', -ysm.input_horizontal*ysm.ground_speed2*2.5,1.5,1,1)"
-					]
 				}
 			}
 		},

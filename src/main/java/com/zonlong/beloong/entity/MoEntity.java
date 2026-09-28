@@ -23,36 +23,47 @@ import software.bernie.geckolib.animation.RawAnimation;
  *
  * <h2>2026-09-27 实机反馈与修复：三个症状同一个根因</h2>
  * 实机报了三件事：① 模型比碰撞箱大太多；② 武器位置偏移、不在手上；③ 模型整体偏离碰撞箱。
- * 三者**同源**，而且都不是"模型做得太大"，是我把 {@code 翅膀默认（展开）} 当叠加层用错了。
+ * 三者**同源**，而且都不是"模型做得太大"，是我把 {@code wings_idle}（当时还叫 {@code 翅膀默认（展开）}）当叠加层用错了。
  * <p>
  * 该动画**不是"翅膀姿势层"，而是一整套「有翼形态」的全身姿态**：它给
  * {@code Root} 设了 {@code scale = 1.8} 与 {@code position = [-13, -7.98, 16.89]}，
  * 给 {@code Weapen} 设了 {@code position} 与 {@code scale = 1.2}。
  * 而 {@code AnimationProcessor.java:107-127} 对每根骨骼是**按通道独立**写值的：
  * 某控制器**没设**的通道，它**不会**把骨骼复位。
- * {@code 待机动画}里**根本没有 {@code Root} 这一轨**，也不给 {@code Weapen} 设位移/缩放 ⇒
+ * {@code idle} 里**根本没有 {@code Root} 这一轨**，也不给 {@code Weapen} 设位移/缩放 ⇒
  * 那三个通道从翅膀层**原样泄漏**到最终姿态：
  * <ul>
  *   <li>{@code Root.scale = 1.8} ⇒ 整个模型被放大 1.8 倍（症状 ①）；</li>
  *   <li>{@code Root.position} ⇒ 整个模型被平移约 0.8 格横 / 0.5 格下 / 1.1 格前（症状 ③）；</li>
  *   <li>{@code Weapen.position} + {@code Weapen.scale} ⇒ 武器被推离手并放大 1.2 倍；
- *       而武器的**旋转**来自 {@code 待机动画} ⇒ 混合姿态（症状 ②）。</li>
+ *       而武器的**旋转**来自 {@code idle} ⇒ 混合姿态（症状 ②）。</li>
  * </ul>
  * <b>修法</b>（用户裁定"保留翅膀张开"）：从资产 {@code animations/mo.animation.json} 的
- * {@code 翅膀默认（展开）} 里删掉 5 个泄漏键 —— {@code Root.position}、{@code Root.scale}、
+ * {@code wings_idle} 里删掉 5 个泄漏键 —— {@code Root.position}、{@code Root.scale}、
  * {@code Weapen.position}、{@code Weapen.scale}、{@code Tail.scale}（共 188 字节，
- * 括号内的 24 → 22 根骨骼）。其余 29 条动画一字未动，{@code Root}/{@code Tail}/{@code Weapen}
+ * 括号内的 24 → 22 根骨骼）。当时其余 29 条动画一字未动
+ * （{@code fly}/{@code swim}/{@code swim_stand} 是 2026-09-27 另一次改动修的，见下），
+ * {@code Root}/{@code Tail}/{@code Weapen}
  * 三根骨骼本身当然仍在 geo 中，只是不再被翅膀层改。
  * 另加了 0.80 的渲染缩放（见 {@code MoRenderer}）——模型按原版玩家的骨架尺寸算是偏大的，
  * 缩放后头顶与原版玩家齐平。这是**与上述泄漏无关的另一件事**。
  *
- * <h2>已知的、来自资产的缺陷（本次刻意不修）</h2>
+ * <h2>来自资产的其余缺陷</h2>
  * GeckoLib 对"动画/骨骼找不到"**完全静默**，因此这些不会报错，只会表现为"某些东西不动"：
  * <ul>
- *   <li>{@code fly} / {@code swim} / {@code swim_stand} 三条动画在加载期就被丢弃
- *       （其 Molang 表达式含单引号与中文，违反 GeckoLib 的
- *       {@code MathParser.EXPRESSION_FORMAT}）—— 代码请求它们时**毫无反应也不报错**；</li>
- *   <li>{@code walk} / {@code run} 各引用了 74 / 75 根本模型不存在的骨骼
+ *   <li>✅ <b>已修（2026-09-27）</b>：{@code fly} / {@code swim} / {@code swim_stand} 原先在加载期
+ *       就被**整条丢弃** —— 它们的 Molang 表达式含单引号与中文，违反 GeckoLib 的
+ *       {@code MathParser.EXPRESSION_FORMAT}（{@code MathParser.java:46} 那个既不含 {@code '}
+ *       也不含 CJK 的字符类），而 {@code BakedAnimationsAdapter} 是**按条 try/catch、失败即丢整条**。
+ *       症状是"代码请求它们时毫无反应也不报错"。
+ *       <p>
+ *       修法是**删掉那 10 条表达式所在的 6 个骨骼条目**（{@code AllBody_Molang} 与
+ *       {@code Head_Molang}，三条各一对）—— 这两根骨骼**都不在 geo 里**，GeckoLib 本来就会
+ *       {@code if (bone == null) continue} 跳过 ⇒ 删它们是**纯删死数据，不改变任何可见姿态**，
+ *       却让三条动画从此能加载。{@code fly} 因此可用于飞行 AI（见 {@code NpcEntity#flyAnimationName()}）。
+ *       <br>⚠️ <b>{@code run} 里也有一条 {@code AllBody_Molang}，但那条内容合法，未动</b> ——
+ *       改这类问题时不要按骨骼名全局替换，要按「所在动画 + 是否真的违规」逐个确认。</li>
+ *   <li>{@code walk} / {@code run} 各引用了 74 / 75 根模型不存在的骨骼
  *       （翅膀、头发、披风、发光件），这些骨骼只是**不动**，不影响身体；</li>
  *   <li>{@code walk} / {@code run} 里的 {@code ysm.head_yaw} 是 YSM 私有变量，
  *       在 GeckoLib 下未注册 ⇒ **恒为 0** ⇒ 走路时头不随视角转（有意先不处理）。</li>
@@ -77,38 +88,43 @@ public class MoEntity extends NpcEntity {
     // ===================== 动画名 =====================
 
     /**
-     * 待机动画名 —— 资产里这条叫 {@code 待机动画}（117 骨骼 / 4 秒 / <b>0 缺失骨骼</b>），
-     * 没有 {@code idle}。{@code walk} / {@code run} 的名字与基类默认一致，故不覆写。
+     * 待机动画名 —— 资产里这条叫 {@code idle}（117 骨骼 / 4 秒 / <b>0 缺失骨骼</b>）。
+     * {@code walk} / {@code run} 的名字与基类默认一致，故不覆写。
      * <p>
-     * ⚠️ <b>这里有一个字符集陷阱，动它之前先读完。</b>
-     * GeckoLib 读取 json 用的是
+     * <b>2026-09-27：键名已从中文改为 ASCII，那条字符集陷阱就此闭环。</b>
+     * 原名是 {@code 待机动画}，与 {@code 翅膀默认（展开）}（→ {@code wings_idle}）一起英文化。
+     * 依据留档如下，<b>不要再改回中文</b>。
+     * <p>
+     * GeckoLib 读 json 用的是
      * {@code IOUtils.toString(inputStream, Charset.defaultCharset())}
      * （{@code FileLoader.java:73}）—— **平台默认字符集，不是 UTF-8**。
-     * 而 Java 21（JEP 400）起该默认值就是 UTF-8，本机实测也是
-     * {@code file.encoding=UTF-8}（{@code native.encoding=GBK}），因此现在能对上；
-     * 迁移时也已用字节比对验证过类文件与 json 里的名字一致。
+     * Java 21（JEP 400）起该默认值就是 UTF-8，本机实测也是
+     * {@code file.encoding=UTF-8}（{@code native.encoding=GBK}），所以中文键名**平时**能对上；
+     * 迁移时也曾用字节比对验证过类文件与 json 里的名字一致。
      * <p>
      * 但若启动器额外传了 {@code -Dfile.encoding=GBK}（部分旧版中文启动器会这么干），
-     * 资产里的中文动画名会被按 GBK 解码、与这里的 UTF-8 字面量**对不上**；
+     * 资产里的中文键名会被按 GBK 解码、与类里的 UTF-8 字面量**对不上**；
      * 而 GeckoLib 对"找不到动画"是**静默跳过**（{@code AnimationProcessor.java:60-61} 的
-     * {@code if (animation != null)}）⇒ 症状是**待机动画永远不播，且没有任何日志**。
+     * {@code if (animation != null)}）⇒ 症状是**待机动画永远不播、且没有任何日志**，极难排查。
      * <p>
-     * 彻底免疫的唯一办法是把资产里的动画名改成 ASCII（如 {@code 待机动画} → {@code idle}），
-     * 但那会改动"迁移"的资产，故留待用户裁定。
+     * 改成 ASCII 后，编译期字面量与资产字节**都不再依赖任何字符集**，该隐患彻底消失。
+     * 资产的另 6 个中文键名（{@code 躯体选择备份} 等）代码从不引用，故未改。
      */
     @Override
     protected String idleAnimationName() {
-        return "待机动画";
+        return "idle";
     }
 
     /**
-     * 翅膀常驻层：{@code 翅膀默认（展开）}（改后 22 骨骼）。
+     * 翅膀常驻层：{@code wings_idle}（22 骨骼）。
      * <p>
      * 做成 {@code static final} 常量而不是每 tick 构造：它不依赖任何可覆写方法
      * （与基类里那三个"名字来自虚方法"的情况不同），没有构造期求值问题。
+     * <p>
+     * 键名与 {@link #idleAnimationName()} 一起英文化，理由见那里。
      */
-    private static final RawAnimation WINGS_EXPANDED =
-            RawAnimation.begin().thenLoop("翅膀默认（展开）");
+    private static final RawAnimation WINGS_IDLE =
+            RawAnimation.begin().thenLoop("wings_idle");
 
     /**
      * 两个控制器：<b>翅膀层在前、主状态机在后</b>。
@@ -124,7 +140,7 @@ public class MoEntity extends NpcEntity {
      * 两条动画至今仍在这些骨骼上重叠：{@code Weapen}、{@code LeftHand}、{@code RightArm}、
      * {@code RightForeArm}（翅膀层给的是"有翼形态"的手臂姿势，主状态机给的是待机姿势）。
      * 把主状态机放在后面 ⇒ 手臂与武器一律以**待机姿势**为准；翅膀骨骼主状态机根本不碰
-     * （待机动画 0 个翅膀骨骼）⇒ 由翅膀层提供姿态，不会被覆盖。
+     * （{@code idle} 0 个翅膀骨骼）⇒ 由翅膀层提供姿态，不会被覆盖。
      * <p>
      * 若把顺序调成"主在前、翅膀在后"，翅膀层那套手臂/武器姿势会盖掉待机姿势
      * —— 那正是 2026-09-27 那批症状的来源之一（当时的 {@code Root}/{@code Weapen}
@@ -133,7 +149,7 @@ public class MoEntity extends NpcEntity {
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         controllers.add(new AnimationController<>(this, "wings", 0,
-                state -> state.setAndContinue(WINGS_EXPANDED)));
+                state -> state.setAndContinue(WINGS_IDLE)));
         super.registerControllers(controllers);
     }
 

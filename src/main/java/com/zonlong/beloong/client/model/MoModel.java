@@ -16,15 +16,25 @@ import software.bernie.geckolib.model.GeoModel;
  *       GeckoLib 按本类返回的<b>文件路径</b>取模型，{@code identifier} 只是可空元数据。</li>
  *   <li>{@code textures/entity/mo.png} —— 256×256 贴图。</li>
  *   <li>{@code animations/mo.animation.json} —— <b>9.1 MB / 29 个动画</b>，整份放上来备用；
- *       目前播四个：{@code 待机动画}、{@code walk}、{@code run}（主状态机）与
- *       {@code 翅膀默认（展开）}（翅膀常驻层，注册顺序见 {@link MoEntity#registerControllers}）。
+ *       目前播四个：{@code idle}、{@code walk}、{@code run}（主状态机）与
+ *       {@code wings_idle}（翅膀常驻层，注册顺序见 {@link MoEntity#registerControllers}）；
+ *       另有 {@code fly} 留给飞行 AI（这些键名都可被 {@code NpcEntity} 的可覆写方法改写）。
  *       <p>
- *       ⚠️ <b>这一个文件被改过</b>（其余两份与源文件逐字节相同）：2026-09-27 从
- *       {@code 翅膀默认（展开）} 里删掉了 5 个泄漏键
- *       （{@code Root.position} / {@code Root.scale} / {@code Weapen.position} /
- *       {@code Weapen.scale} / {@code Tail.scale}，共 188 字节、24 → 22 骨骼）。
- *       缘由与证据见 {@link MoEntity} 的类注释 —— 那 5 个通道让整个模型被放大 1.8 倍、
- *       整体位移、武器脱手。29 条动画的数量与其余内容未变。</li>
+ *       ⚠️ <b>这一个文件被改过</b>（其余两份与源文件逐字节相同），共两次，都在 2026-09-27：
+ *       <ol>
+ *         <li>从 {@code 翅膀默认（展开）} 里删掉 5 个泄漏键
+ *             （{@code Root.position} / {@code Root.scale} / {@code Weapen.position} /
+ *             {@code Weapen.scale} / {@code Tail.scale}，共 188 字节、24 → 22 骨骼）。
+ *             缘由与证据见 {@link MoEntity} 的类注释 —— 那 5 个通道让整个模型被放大 1.8 倍、
+ *             整体位移、武器脱手。</li>
+ *         <li>两个键名英文化（{@code 待机动画} → {@code idle}、
+ *             {@code 翅膀默认（展开）} → {@code wings_idle}），消除对
+ *             {@code Charset.defaultCharset()} 的依赖，理由见
+ *             {@code MoEntity#idleAnimationName()}；并删掉 {@code fly} / {@code swim} /
+ *             {@code swim_stand} 里 6 个**挂在不存在骨骼上**的条目，
+ *             使这三条原本被整条丢弃的动画恢复加载。</li>
+ *       </ol>
+ *       29 条动画的<b>数量</b>未变。</li>
  * </ul>
  *
  * <h2>为什么没有 {@code applyMolangQueries}</h2>
