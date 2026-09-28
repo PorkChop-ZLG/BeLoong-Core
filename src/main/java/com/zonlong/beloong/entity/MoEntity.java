@@ -154,7 +154,13 @@ public class MoEntity extends NpcEntity {
             // 会互相拉扯（GeckoLib 对同一根骨骼是绝对赋值、后注册者覆盖前者，
             // 见 AnimationProcessor.java:107-127）。
             // 用 STOP 而不是"换成一条空动画"：停掉该控制器后，被 fly 驱动的骨骼由主控制器写，
-            // 两者都没驱动的骨骼按既有复位机制回到 initial snapshot，**不会残留旧姿态**。
+            // 两者都没驱动的骨骼按既有复位机制回到 geo 的静止姿态，**不会永久残留旧姿态**。
+            // ⚠️ 机制细节（2026-09-27 核 4.9.2 字节码）：STOP 那一帧
+            // AnimationController.process 会提前 return，**不重建**该控制器的骨骼队列
+            // （队列此时已空 ⇒ 不写骨骼）；而"复位"并非瞬时，是 AnimationProcessor 用
+            // getBoneResetTime()（GeoAnimatable 默认 5.0）做的**限时插值**
+            // ⇒ 翅膀层停写后，那批骨骼会在约 5 tick 内插值回静止姿态。
+            // 想让过渡立刻完成可以覆写 getBoneResetTime() → 0，本类没这么做。
             if (state.getAnimatable().isFlying()) {
                 return PlayState.STOP;
             }

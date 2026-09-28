@@ -159,7 +159,8 @@ controllers.add(new AnimationController<>(this, "main", this.animationTransition
         .then(Commands.argument("targets", EntityArgument.entities())
                 .executes(ctx -> reset(...))))
 ```
-2. `flyTo` 的前置校验：**全部选中目标都不在飞行状态时** `sendFailure("beloong.command.npc.not_flying")`；不隐式开启。
+2. `flyTo` 的前置校验：只要有**任意一个**选中目标不在飞行状态，就整体 `sendFailure("beloong.command.npc.not_flying")` 并返回 0 —— 不隐式开启，也**不对一部分静默生效**（那会让玩家以为命令成功了）。
+   > 本文档最初把这句写成"全部选中目标**都**不在飞行状态时"，与实现相反。2026-09-27 按实现改正：实现符合设计 §3.4② 与提交说明。
 3. 各有 `sendSuccess` 反馈（新 lang 键，见 T5）。
 4. 更新类 javadoc 里"刻意没有的子命令"一节（`fly`/`reset` 现已加入），避免与既有记述矛盾。
 

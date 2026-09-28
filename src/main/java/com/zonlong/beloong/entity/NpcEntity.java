@@ -20,6 +20,7 @@ import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.navigation.FlyingPathNavigation;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -143,16 +144,29 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 因为横向飞行会让 {@code walkAnimation} 非零（{@code LivingEntity.java:2373-2376}
      * 的 {@code includeHeight} 只决定是否算 Y 位移，X/Z 照算），
      * GeckoLib 的 {@code isMoving()} 会为真 ⇒ 不改的话腿会在空中走。
+     * <p>
+     * ⚠️ <b>但客户端只有"飞行标志"，没有"飞行导航"</b>（{@link #setFlying} 在客户端直接
+     * {@code return}，换字段是服务端独占的）⇒ GeckoLib 的
+     * {@code query.can_fly / can_walk / can_swim / can_climb} 在客户端**恒为地面值**
+     * （它们按 {@code getNavigation() instanceof ...} 现算）。
+     * 本模组当前不受影响（{@code mo.animation.json} 里 {@code query.} 命中 0 次，用的是
+     * 在 GeckoLib 下同样恒为 0 的 {@code ysm.*}）；但**将来若有人想在动画里用
+     * {@code query.can_fly}，得先解决这件事**，别指望在客户端也换字段
+     * —— 客户端不 tick 导航，换了只会引入状态分裂。
      */
     protected String flyAnimationName() {
         return "fly";
     }
 
     /**
-     * {@code fly on} 时飞到"当前 Y + 这个值"再悬停（格）。
+     * {@code fly on} 之后<b>最终</b>离起飞点的高度（格）—— 注意是"结果"，不是"目标点的 Y 偏移"。
      * <p>
      * 取 {@code 2.0} 是因为它约等于一个 NPC 的身高：起飞后脚底离开地面、头顶仍有净空，
      * 玩家抬头就能看到它悬在那里。
+     * <p>
+     * ⚠️ 目标点实际上是"当前 Y + 这个值 + {@code FLY_ARRIVE_DISTANCE}"，
+     * 因为到位判定是三维的、有一个半径；若直接以本值当目标，实际只会升起
+     * "本值 − 到位半径"。补偿写在 {@link #enableFlight()} 里，改本值时不必跟着改那里。
      */
     protected double takeoffHeight() {
         return DEFAULT_TAKEOFF_HEIGHT;
@@ -295,6 +309,30 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 连续多少次重新寻路都没有更靠近目标。 */
     private int moveNoProgressCount;
+
+    /**
+     * 进入飞行**之前**那个原版 {@code MoveControl} / {@code PathNavigation} 实例。
+     * <p>
+     * ⚠️ <b>必须存原实例、不能"新建一个同款的"。</b>
+     * 原版 {@code FloatGoal} 的<b>构造器</b>里就有
+     * {@code mob.getNavigation().setCanFloat(true)}（{@code FloatGoal.java:13}），
+     * 而它由 {@code Mob} 构造期调用的 {@code registerGoals()}（{@code Mob.java:152}）执行
+     * ⇒ 这个副作用<b>只发生一次，打在最初那个实例上</b>。
+     * 若关飞行时换成新建的实例，{@code canFloat} 会退回 {@code NodeEvaluator} 的默认
+     * {@code false} 且**永远不会自己恢复**，入水行为随之改变：
+     * {@code Mob#jumpInLiquidInternal} 会从 {@code +0.04 × SWIM_SPEED} 变成 {@code +0.3}
+     * （约 7.5 倍，表现为在水里弹跳），地面寻路对水的 {@code PathType} 与
+     * {@code GroundPathNavigation#getSurfaceY} 也跟着变。
+     * <p>
+     * 存原实例还顺带保住了任何别的既有状态。原版同一手法：
+     * {@code Drowned.java:58-59} 就持有 {@code waterNavigation} / {@code groundNavigation} 两个字段。
+     */
+    @Nullable
+    private MoveControl groundMoveControl;
+
+    /** 见 {@link #groundMoveControl}。 */
+    @Nullable
+    private PathNavigation groundNavigation;
 
     /** 到位判定（水平距离，格）。与寻路 {@code accuracy=1} 的口径一致。 */
     private static final double MOVE_ARRIVE_DISTANCE = 1.0D;
@@ -492,6 +530,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * <p>
      * <b>飞行状态下它等同于 {@link #flyTo}</b>：导航已经是飞行版，路径自然走空中。
      * 这不需要特判 —— 两者共用同一套"登记目标 + 续路"的机制。
+     * <p>
+     * ⚠️ 它（和 {@link #flyTo}）会**直接覆盖当前移动目标**，不排队、不报错：
+     * 走到一半时执行 {@code fly on}，原目标会被起飞目标顶掉（因为"开启即起飞"），
+     * 反之 {@code fly off} / {@code reset} 会清掉飞行目标。这是刻意的简单语义。
      */
     public void walkTo(Vec3 pos) {
         if (this.level().isClientSide()) {
@@ -537,14 +579,25 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 开关飞行。<b>只在服务端生效</b>（AI 只在服务端跑，客户端调它没有意义）。
      * <p>
-     * <b>幂等</b>：与当前状态相同时直接返回、**不重建那两个字段**。
-     * 这不是洁癖 —— {@link #enableFlight()} 会重建
+     * <b>幂等</b>：与当前状态相同时不重建那两个字段。
+     * 这不是洁癖 —— {@link #enableFlight()} 会换掉
      * {@code moveControl}/{@code navigation}，重复执行等于把正在执行的飞行路径丢掉，
      * 症状是"连按两次 {@code fly on}，NPC 定在半空不动"。
+     * <p>
+     * ⚠️ <b>但"关飞行"这一路即使在幂等分支里也要先 {@code setNoGravity(false)}。</b>
+     * 因为 {@code NoGravity} 是原版持久化的、也能被外部写入
+     * （{@code /data merge entity <npc> {NoGravity:1b}}、第三方模组），
+     * 而本类的飞行标志不持久化 ⇒ <b>"已经没在飞"不等于"重力已经恢复"</b>。
+     * 若把 {@code setNoGravity(false)} 只放在 {@link #disableFlight()} 里，
+     * 那么处于脱钩状态的 NPC 执行 {@code fly off} 会变成一个**静默的 no-op**，
+     * 只有 {@code reset} 能救 —— 那正是最容易让人困惑的行为。
      */
     public void setFlying(boolean flying) {
         if (this.level().isClientSide()) {
             return;
+        }
+        if (!flying) {
+            this.setNoGravity(false);      // 先闭合不变式，再做幂等判断
         }
         if (flying == this.isFlying()) {
             return;
@@ -578,8 +631,27 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * <b>空闲也不会关掉</b>（{@code :49-51} 的 {@code if (!this.hoversInPlace)}）。
      * ⇒ <b>"悬停" = 飞行中 + 没有移动目标</b>，不需要独立状态；
      * 但**关飞行时必须自己收回来**，那是 {@link #disableFlight()} 的责任。
+     *
+     * <h4>⚠️ 子类注册 goal 的两条红线（因为本类会在运行期换导航）</h4>
+     * <ol>
+     *   <li><b>不得把 {@code getNavigation()} 强转成 {@code GroundPathNavigation}</b> ——
+     *       飞行时它是 {@code FlyingPathNavigation}，会 {@code ClassCastException} 崩服。
+     *       原版踩这个坑的 goal 不少：{@code RestrictSunGoal.java:22,28}、
+     *       {@code DoorInteractGoal.java:57}、{@code MoveThroughVillageGoal.java:91}。
+     *       判类型请用 {@code GoalUtils}（{@code GoalUtils.java:13} 用的是 {@code instanceof}）。</li>
+     *   <li><b>不得在构造期把 {@code getNavigation()} 存进字段</b> ——
+     *       换字段之后那些 goal 操作的是**孤儿对象**：不崩，但"以为在走路其实没人 tick"。
+     *       原版先例：{@code AvoidEntityGoal.java:24,56}、{@code FollowOwnerGoal.java:17,26}、
+     *       {@code FollowMobGoal.java:23,36}。</li>
+     * </ol>
+     * 本类自己注册的三个 goal（{@code FloatGoal} / {@link NpcAttackGoal} /
+     * {@code LookAtPlayerGoal}）都不违反这两条。
      */
     private void enableFlight() {
+        // 先把原实例存起来，关飞行时原样换回（理由见 groundMoveControl 的注释）
+        this.groundMoveControl = this.moveControl;
+        this.groundNavigation = this.navigation;
+
         this.moveControl = new FlyingMoveControl(this, FLY_MAX_TURN, true);
         final FlyingPathNavigation flying = new FlyingPathNavigation(this, this.level());
         // 三个开关照原版飞生物（Bee.java:565-567 / Allay.java:159-161）：
@@ -590,8 +662,14 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.navigation = flying;
 
         this.setNoGravity(true);
-        // 立刻起飞：把目标点放到头顶上方，之后交给同一套续路逻辑（tickMoveCommand）
-        this.setMoveTarget(this.position().add(0.0D, this.takeoffHeight(), 0.0D));
+        // 立刻起飞。目标点为什么要**加上一个到位半径**：
+        // 到位判定是三维的、阈值 FLY_ARRIVE_DISTANCE（见 tickMoveCommand），
+        // 若目标就设在"头顶 takeoffHeight 格"，那么只升起
+        // takeoffHeight - FLY_ARRIVE_DISTANCE 就会被判为"到了"——
+        // takeoffHeight=2.0、FLY_ARRIVE_DISTANCE=1.5 时只剩 0.5 格，
+        // 与"起飞约 2 格"完全不符。加上这个半径后，
+        // **刚好升起 takeoffHeight 格时距离才降到阈值** ⇒ takeoffHeight 名副其实。
+        this.setMoveTarget(this.position().add(0.0D, this.takeoffHeight() + FLY_ARRIVE_DISTANCE, 0.0D));
     }
 
     /**
@@ -600,15 +678,34 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * ⚠️ <b>本方法刻意没有任何提前 return，保证 {@code setNoGravity(false)} 一定执行到。</b>
      * "浮空、但没人知道自己在飞"是最难查的一类状态：它不落地，又不接受地面移动控制。
      * <p>
-     * "先停旧路径、再换字段"的顺序是有意的：否则旧 {@code FlyingPathNavigation} 还持有
+     * <b>换回的是"原实例"而不是"新建一个同款的"</b> —— 原因见
+     * {@link #groundMoveControl}：{@code FloatGoal} 的 {@code setCanFloat(true)}
+     * 是打在最初那个实例上的，新建实例会把它永久丢掉。
+     * <p>
+     * 顺序上"先停旧路径、再换字段"是有意的：否则旧 {@code FlyingPathNavigation} 还持有
      * 下一个路点，而 {@code moveControl} 已经换成地面版，会出现一拍
      * "地面移动控制执行空中路点"的错配。
+     * 同理，换回的那个地面导航也要 {@code stop()} 一次 ——
+     * 它在被换下时可能还留着起飞前的旧路径，不清掉的话 NPC 一落地就接着走那条旧路。
      */
     private void disableFlight() {
         this.clearMotionCommands();      // moveTarget = null + 清冷却 + navigation.stop()
         this.setNoGravity(false);
-        this.moveControl = new MoveControl(this);
-        this.navigation = new GroundPathNavigation(this, this.level());
+
+        if (this.groundMoveControl != null) {
+            this.moveControl = this.groundMoveControl;
+        } else {
+            // 理论上不可达（enableFlight 总会存），留作防御
+            this.moveControl = new MoveControl(this);
+        }
+        if (this.groundNavigation != null) {
+            this.groundNavigation.stop();     // 清掉它被换下时残留的旧路径
+            this.navigation = this.groundNavigation;
+        } else {
+            this.navigation = new GroundPathNavigation(this, this.level());
+        }
+        this.groundMoveControl = null;
+        this.groundNavigation = null;
     }
 
     /**
