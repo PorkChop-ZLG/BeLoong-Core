@@ -117,6 +117,21 @@ public class MoEntity extends NpcEntity {
     }
 
     /**
+     * 飞行动画名 —— 资产里有 {@code fly}（2026-09-27 修好、能加载的那条）。
+     * <p>
+     * ⚠️ <b>末的资产**没有** {@code sit} / {@code dance}，所以本类刻意只覆写这一条。</b>
+     * 另外两条会用基类默认的 {@code "sit"} / {@code "dance"} ——
+     * 按实施计划 §七 选 **B**（用户 2026-09-27 裁定），这对末意味着
+     * <b>执行 {@code state … sitting} / {@code dancing} 会塌成 T-pose，属预期行为、不是缺陷</b>
+     * （依据：{@code AnimationProcessor.java:44-64}，动画名查不到时既得到空动画列表、也不报错）。
+     * 要让末也能坐/跳舞，得先在资产里补对应动画，再覆写那两条。
+     */
+    @Override
+    protected String flyAnimationName() {
+        return "fly";
+    }
+
+    /**
      * 翅膀常驻层：{@code wings_idle}（22 骨骼）。
      * <p>
      * 做成 {@code static final} 常量而不是每 tick 构造：它不依赖任何可覆写方法

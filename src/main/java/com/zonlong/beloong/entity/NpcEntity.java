@@ -32,6 +32,8 @@ import software.bernie.geckolib.animation.AnimationController;
 import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
+import java.util.EnumMap;
+
 /**
  * 本模组**通用 NPC 基类**。
  * <p>
@@ -140,12 +142,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 本类**刻意不加运行时回落保护**（用户裁定）：那需要引入客户端侧的
      * {@code GeckoLibCache} 耦合，代价大于收益。所以新增 NPC 时请自己确认资产里有这条动画。
      * <p>
-     * 另注：飞行时**只播这一条**，不进 idle/walk/run 分支 ——
+     * 另注：非待机状态时**只播该状态这一条**，不进 idle/walk/run 分支 ——
      * 因为横向飞行会让 {@code walkAnimation} 非零（{@code LivingEntity.java:2373-2376}
      * 的 {@code includeHeight} 只决定是否算 Y 位移，X/Z 照算），
      * GeckoLib 的 {@code isMoving()} 会为真 ⇒ 不改的话腿会在空中走。
      * <p>
-     * ⚠️ <b>但客户端只有"飞行标志"，没有"飞行导航"</b>（{@link #setFlying} 在客户端直接
+     * ⚠️ <b>但客户端只有"状态标志"，没有"飞行导航"</b>（{@link #setState} 在客户端直接
      * {@code return}，换字段是服务端独占的）⇒ GeckoLib 的
      * {@code query.can_fly / can_walk / can_swim / can_climb} 在客户端**恒为地面值**
      * （它们按 {@code getNavigation() instanceof ...} 现算）。
@@ -159,17 +161,39 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * {@code fly on} 之后<b>最终</b>离起飞点的高度（格）—— 注意是"结果"，不是"目标点的 Y 偏移"。
+     * 坐下动画名。默认 {@code "sit"}。
      * <p>
-     * 取 {@code 2.0} 是因为它约等于一个 NPC 的身高：起飞后脚底离开地面、头顶仍有净空，
-     * 玩家抬头就能看到它悬在那里。
-     * <p>
-     * ⚠️ 目标点实际上是"当前 Y + 这个值 + {@code FLY_ARRIVE_DISTANCE}"，
-     * 因为到位判定是三维的、有一个半径；若直接以本值当目标，实际只会升起
-     * "本值 − 到位半径"。补偿写在 {@link #enableFlight()} 里，改本值时不必跟着改那里。
+     * ⚠️ 与 {@link #flyAnimationName()} 是同一个坑：<b>资产里没有这条动画就会静默塌成 T-pose</b>。
+     * 而"缺动画时塌掉"是用户 2026-09-27 **明确选定**的口径
+     * （实施计划 §七 选 B：各状态默认名就是 {@code fly}/{@code sit}/{@code dance}，
+     * 资产缺动画属**预期行为**、不当缺陷处理）。
+     * ⇒ <b>没有这条动画的 NPC（例如末）不要对它执行 {@code state … sitting}</b>。
      */
-    protected double takeoffHeight() {
-        return DEFAULT_TAKEOFF_HEIGHT;
+    protected String sitAnimationName() {
+        return "sit";
+    }
+
+    /** 跳舞动画名。默认 {@code "dance"}。坑与口径同 {@link #sitAnimationName()}。 */
+    protected String danceAnimationName() {
+        return "dance";
+    }
+
+    /**
+     * 状态 → 动画名。{@link NpcState#IDLE} 不参与（它走 idle/walk/run 三选一，见 {@link #registerControllers}）。
+     * <p>
+     * <b>为什么动画名放在这个方法里、而不是塞进 {@link NpcState} 的枚举常量</b>：
+     * 原版 {@code Armadillo.java:410} 那样把数据挂在枚举上很诱人，但
+     * <b>同一个逻辑状态在不同模型上叫法不同</b>（Mo 与地黄龙的资产各自命名）⇒
+     * 枚举只承载**逻辑状态**，动画名留给每个 NPC 覆写。
+     * 子类通常只需覆写上面那几个单项方法，不必覆写本方法。
+     */
+    protected String stateAnimationName(NpcState state) {
+        return switch (state) {
+            case FLYING -> this.flyAnimationName();
+            case SITTING -> this.sitAnimationName();
+            case DANCING -> this.danceAnimationName();
+            case IDLE -> this.idleAnimationName();
+        };
     }
 
     /**
@@ -269,27 +293,31 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private boolean attackCommandActive;
 
     /**
-     * 是否处于飞行模式。
+     * NPC 的**状态**（同步数据）。取值见 {@link NpcState}。
      * <p>
      * ⚠️ <b>它必须是同步数据，不能是普通字段。</b>
-     * 飞行状态有两个读者，一个在服务端、一个在<b>客户端</b>：
+     * 状态有两个读者，一个在服务端、一个在<b>客户端</b>：
      * <ul>
-     *   <li>服务端：{@link #tickMoveCommand()} 判"是否到位"要用三维还是二维距离；</li>
-     *   <li>客户端：{@link #registerControllers} 的动画谓词要据此播 {@code fly}。</li>
+     *   <li>服务端：{@link #switchState} 按状态换导航/移动控制与重力；{@link #tickMoveCommand()}
+     *       判"是否到位"要用三维还是二维距离；</li>
+     *   <li>客户端：{@link #registerControllers} 的动画谓词要据此选动画。</li>
      * </ul>
-     * 普通字段只在服务端更新、不会发给客户端 ⇒ 客户端永远读到 {@code false}
-     * ⇒ <b>{@code fly} 动画根本不会播</b>，而且不报错（GeckoLib 静默失败那一族）。
+     * 普通字段只在服务端更新、不会发给客户端 ⇒ <b>客户端永远读到 {@link NpcState#IDLE}</b>
+     * ⇒ 状态动画根本不会播，而且不报错（GeckoLib 静默失败那一族）。
      * <p>
-     * 同步数据的范式照原版 {@code Allay} 的 {@code DATA_DANCING}：
-     * {@code Allay.java:84}（定义）、{@code :166-167}（{@code defineSynchedData}）、
-     * {@code :417,422}（读写）。{@code Entity.java:342} 的
+     * <b>为什么存 {@code int} 而不用自定义序列化器</b>：模组被禁止调用
+     * {@code EntityDataSerializers.registerSerializer}（{@code EntityDataSerializers.java:133-141}
+     * 直接抛 {@code UnsupportedOperationException}，要求注册到
+     * {@code NeoForgeRegistries.ENTITY_DATA_SERIALIZERS}）；用现成的 {@code INT} + {@code ByIdMap}
+     * 可以完全绕开这件事。还原走 {@link NpcState#byId(int)}（越界回落待机）。
+     * <p>
+     * 范式：原版 {@code Allay} 的 {@code DATA_DANCING}（{@code Allay.java:84} 定义、
+     * {@code :166-167} 注册、{@code :417,422} 读写）与 {@code Armadillo} 的状态访问器
+     * （{@code Armadillo.java:55,82-85}）。{@code Entity.java:342} 的
      * {@code defineSynchedData(SynchedEntityData.Builder)} 是抽象方法，每个实体子类都要实现。
-     * <p>
-     * 附带好处：同步数据<b>天然不持久化</b>（只有 {@code addAdditionalSaveData} 才落盘），
-     * 正好符合"飞行状态不进存档"的裁定 —— 见 {@link #readAdditionalSaveData} 的归一化。
      */
-    private static final EntityDataAccessor<Boolean> DATA_FLYING =
-            SynchedEntityData.defineId(NpcEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> DATA_STATE =
+            SynchedEntityData.defineId(NpcEntity.class, EntityDataSerializers.INT);
 
     /**
      * 移动指令的目标点；{@code null} = 没有移动指令。<b>地面与飞行共用同一套。</b>
@@ -360,13 +388,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private static final double FLY_ARRIVE_DISTANCE = 1.5D;
 
     /**
-     * 起飞偏移的默认值：{@code fly on} 时把目标点设成"当前 Y + 这个值"。
-     * <p>
-     * 子类要改就覆写 {@link #takeoffHeight()}。
-     */
-    private static final double DEFAULT_TAKEOFF_HEIGHT = 2.0D;
-
-    /**
      * 飞行移动控制的转向速率（度/tick）。
      * <p>
      * 20 是原版飞生物的值：{@code Bee.java:139}、{@code Allay.java:122} 都传 20。
@@ -381,13 +402,13 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 同步数据表。本类只加一项 {@link #DATA_FLYING}，且默认 {@code false}
-     * —— <b>"飞行默认不开启"这条需求在数据层就体现为这个默认值</b>。
+     * 同步数据表。本类只加一项 {@link #DATA_STATE}，默认 {@link NpcState#IDLE}
+     * —— <b>"状态默认是待机站桩"这条需求在数据层就体现为这个默认值</b>。
      */
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
-        builder.define(DATA_FLYING, false);
+        builder.define(DATA_STATE, NpcState.IDLE.id());
     }
 
     // ===================== 定义性语义 =====================
@@ -507,7 +528,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             LivingEntity target = this.getTarget();
             // 与 MeleeAttackGoal.canUse() 的排除条件保持一致
             if (target == null || !target.isAlive() || !EntitySelector.NO_CREATIVE_OR_SPECTATOR.test(target)) {
-                this.clearAttackCommand();
+                this.stopAttacking();
             }
         }
 
@@ -517,7 +538,11 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     // ===================== 外部驱动 API（只在服务端生效）=====================
 
     /**
-     * 走到目标点。
+     * 移动到目标点 —— <b>唯一的移动入口</b>（旧的 {@code walkTo} 与 {@code flyTo} 已合并）。
+     * <p>
+     * <b>"怎么走"由当前状态决定</b>，调用方不需要知道也不该判断：
+     * {@link NpcState#FLYING} ⇒ 空中飞；其它移动模式 ⇒ 地面走。这不需要特判 ——
+     * 两者共用同一套"登记目标 + 续路"的机制，导航本身就是按状态换过的。
      * <p>
      * <b>本方法只登记目标点，不直接下发路径</b> —— 真正的 {@code getNavigation().moveTo(...)}
      * 在 {@link #tickMoveCommand()} 里做，原因是原版寻路有距离上限（见该方法）。
@@ -528,85 +553,165 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * （{@code MeleeAttackGoal} 给 1.0、{@code FollowParentGoal}/{@code TemptGoal} 给 1.25、
      * {@code PanicGoal} 给 2.0），而位移对档位是**平方**关系 —— 这就是原版的速度语义。
      * <p>
-     * <b>飞行状态下它等同于 {@link #flyTo}</b>：导航已经是飞行版，路径自然走空中。
-     * 这不需要特判 —— 两者共用同一套"登记目标 + 续路"的机制。
+     * ⚠️ <b>处于姿态（{@link NpcState#isMovementMode()} 为 false）时会先隐式退出到
+     * {@link NpcState#IDLE}。</b>"坐下时收到移动指令 ⇒ 先站起来再走"是用户裁定的口径，
+     * 与"飞行中 {@code move} 保持飞行"一致：<b>姿态被移动指令挤出，移动模式不会</b>。
      * <p>
-     * ⚠️ 它（和 {@link #flyTo}）会**直接覆盖当前移动目标**，不排队、不报错：
-     * 走到一半时执行 {@code fly on}，原目标会被起飞目标顶掉（因为"开启即起飞"），
-     * 反之 {@code fly off} / {@code reset} 会清掉飞行目标。这是刻意的简单语义。
+     * ⚠️ <b>顺序不能反：必须先退出姿态，再登记目标。</b>
+     * 因为"退出姿态"本身是一次状态切换，而**进入姿态的切换会取消移动指令**
+     * （姿态的定义就是"不走"，见 {@link #switchState}）—— 先登记的话会被它立刻取消掉，
+     * 症状是"命令看起来成功了但 NPC 不动"，而且**不报错**。
+     * <p>
+     * ⚠️ 它会**直接覆盖当前移动目标**，不排队、不报错。要取消就用 {@link #stopMoving()}。
      */
-    public void walkTo(Vec3 pos) {
+    public void moveTo(Vec3 pos) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.exitPoseIfNeeded();
+        this.setMoveTarget(pos);
+    }
+
+    /**
+     * 停止移动（{@code move} 的反面）—— <b>只停寻路，不碰状态、不碰攻击</b>。
+     * <p>
+     * 于是"地面停下就是站桩待机、空中停下就是原地悬停"是**自然结果**：
+     * 状态没变、只是没有移动目标了（飞行态的悬停本来就等于"飞行中 + 没有移动目标"，
+     * 见 {@link #switchState}）。这里**不需要任何特判** —— 这也是它和 {@code reset} 的区别：
+     * {@code reset} 会把状态也打回待机。
+     */
+    public void stopMoving() {
         if (this.level().isClientSide()) {
             return;
         }
         this.clearMotionCommands();
-        this.attackCommandActive = false;
-        this.setTarget(null);
-        this.setMoveTarget(pos);
     }
 
-    /** 命令它去攻击某个目标（会先取消移动指令）。传 {@code null} 取消攻击。 */
+    /**
+     * 命令它去攻击某个目标。传 {@code null} 取消攻击（等价于 {@link #stopAttacking()}）。
+     * <p>
+     * ⚠️ <b>它会先取消当前移动指令</b>（"追着打"与"去某点"是两件事），
+     * 并且与 {@link #moveTo} 一样**处于姿态时会先隐式退出到 {@link NpcState#IDLE}**
+     * （攻击必然要移动，与姿态矛盾），顺序同样是"**先退出、再下令**"。
+     */
     public void attack(@Nullable LivingEntity target) {
         if (this.level().isClientSide()) {
             return;
         }
+        this.exitPoseIfNeeded();
         this.clearMotionCommands();
         this.attackCommandActive = target != null;
         this.setTarget(target);
     }
 
-    /** 取消全部外部指令（移动 / 攻击），回到站桩。注意它**不改飞行状态** —— 要回到默认状态用 {@link #resetToDefault()}。 */
-    public void stopAction() {
+    /**
+     * 停止攻击（{@code attack} 的反面）—— <b>只清攻击，不碰状态、不碰移动</b>。
+     * <p>
+     * 用户口径：地面攻击后停下就回到站桩待机、空中攻击后停下就回到悬停 ——
+     * 同样是"状态没变、只是动作没了"的自然结果。
+     * <p>
+     * ⚠️ 它**不停寻路**：攻击轴与移动轴是**正交**的。
+     * 旧的 {@code clearAttackCommand()} 里那句 {@code getNavigation().stop()} 已按新契约删除。
+     */
+    public void stopAttacking() {
         if (this.level().isClientSide()) {
             return;
         }
-        this.clearMotionCommands();
         this.attackCommandActive = false;
         this.setTarget(null);
     }
 
-    // ===================== 飞行 =====================
+    /**
+     * 处于姿态时隐式退出到 {@link NpcState#IDLE} —— 由 {@link #moveTo} 与 {@link #attack}
+     * 在**登记任何指令之前**调用。
+     * <p>
+     * 单独抽一个方法，是为了让"先退出、再登记"这条顺序约束**只有一个落实点**：
+     * 两处各写一遍 {@code if (!state().isMovementMode()) setState(IDLE);}，
+     * 迟早会有人只改其中一处。
+     */
+    private void exitPoseIfNeeded() {
+        if (!this.state().isMovementMode()) {
+            this.setState(NpcState.IDLE);
+        }
+    }
+
+    // ===================== 状态机 =====================
 
     /**
-     * 是否处于飞行模式。<b>双端都可读</b> —— 值来自同步数据 {@link #DATA_FLYING}，
-     * 不是服务端独有字段。这一点是刻意的：{@link #registerControllers} 的动画谓词
-     * 在<b>客户端</b>读它。
+     * 当前状态。<b>双端都可读</b> —— 值来自同步数据 {@link #DATA_STATE}，不是服务端独有字段。
+     * 这一点是刻意的：{@link #registerControllers} 的动画谓词在<b>客户端</b>读它。
      */
+    public NpcState state() {
+        return NpcState.byId(this.entityData.get(DATA_STATE));
+    }
+
+    /** 是否处于飞行模式。便捷方法，等价于 {@code state() == NpcState.FLYING}。 */
     public boolean isFlying() {
-        return this.entityData.get(DATA_FLYING);
+        return this.state() == NpcState.FLYING;
     }
 
     /**
-     * 开关飞行。<b>只在服务端生效</b>（AI 只在服务端跑，客户端调它没有意义）。
+     * 切换状态。<b>只在服务端生效</b>（换导航/移动控制是服务端的事，AI 也只在服务端跑）。
      * <p>
-     * <b>幂等</b>：与当前状态相同时不重建那两个字段。
-     * 这不是洁癖 —— {@link #enableFlight()} 会换掉
-     * {@code moveControl}/{@code navigation}，重复执行等于把正在执行的飞行路径丢掉，
-     * 症状是"连按两次 {@code fly on}，NPC 定在半空不动"。
+     * <b>幂等</b>：与当前状态相同时<b>不重建</b>那两个字段。
+     * 这不是洁癖 —— 重复执行等于把正在执行的移动路径丢掉，
+     * 症状是"连按两次同一个状态指令，NPC 定在半空不动"。
      * <p>
-     * ⚠️ <b>但"关飞行"这一路即使在幂等分支里也要先 {@code setNoGravity(false)}。</b>
+     * ⚠️ <b>但"离开飞行"这一路即使在幂等分支里也要先 {@code setNoGravity(false)}。</b>
      * 因为 {@code NoGravity} 是原版持久化的、也能被外部写入
      * （{@code /data merge entity <npc> {NoGravity:1b}}、第三方模组），
-     * 而本类的飞行标志不持久化 ⇒ <b>"已经没在飞"不等于"重力已经恢复"</b>。
+     * 而状态不保证与它同步 ⇒ <b>"状态说没在飞"不等于"重力已经恢复"</b>。
      * 若把 {@code setNoGravity(false)} 只放在 {@link #disableFlight()} 里，
-     * 那么处于脱钩状态的 NPC 执行 {@code fly off} 会变成一个**静默的 no-op**，
-     * 只有 {@code reset} 能救 —— 那正是最容易让人困惑的行为。
+     * 那么处于脱钩状态的 NPC 执行本方法会变成**静默的 no-op**，只有 {@code reset} 能救。
+     * <p>
+     * {@code final}：这是不变式 `noGravity ⟺ state == FLYING` 的唯一入口，子类不许改写它。
+     * 子类要定制状态的**表现**（动画名）请覆写 {@link #stateAnimationName(NpcState)}。
      */
-    public void setFlying(boolean flying) {
+    public final void setState(NpcState next) {
         if (this.level().isClientSide()) {
             return;
         }
-        if (!flying) {
+        if (next != NpcState.FLYING) {
             this.setNoGravity(false);      // 先闭合不变式，再做幂等判断
         }
-        if (flying == this.isFlying()) {
+        if (next == this.state()) {
             return;
         }
-        this.entityData.set(DATA_FLYING, flying);
-        if (flying) {
-            this.enableFlight();
-        } else {
+        this.entityData.set(DATA_STATE, next.id());
+        this.switchState(next);
+    }
+
+    /**
+     * 状态切换的**唯一**副作用集中点 —— 所有"进入某状态要做什么 / 离开某状态要收回什么"
+     * 都写在这里，别处不许再散落一份。
+     * <p>
+     * ⚠️ <b>第一步无条件收掉上一个状态的副作用，且不留任何提前 return。</b>
+     * 这是飞行那一轮的实机教训（当时的 I-3）：只要存在一条提前返回路径，
+     * 就可能留下"状态说没飞、实体却浮着"的不一致 —— 那是最难查的一类 bug。
+     * <p>
+     * 当前只有 {@link NpcState#FLYING} 有副作用（换导航/移动控制 + 关重力）；
+     * 其余状态只要求"不处于飞行"。**将来某个状态若需要更多副作用，加在这里。**
+     * <p>
+     * <b>进入姿态时取消移动与攻击指令</b>：姿态这个类别的定义就是"不走、不动手"，
+     * 留着指令只会让 NPC 一边坐着一边滑行。
+     * <b>移动模式之间切换则不取消</b> —— 移动指令保留并按新模式重新执行
+     * （同一条 {@code move} 在地面是"走"、在飞行是"飞"）。
+     */
+    private void switchState(NpcState next) {
+        // ① 无条件收掉"飞行"的副作用。用缓存字段判"当前是否在飞行"，
+        //    而不是读 state()（此刻 entityData 已经是新状态了）。
+        if (this.groundMoveControl != null || this.groundNavigation != null) {
             this.disableFlight();
+        }
+
+        // ② 装上新状态的副作用
+        if (next == NpcState.FLYING) {
+            this.enableFlight();
+        } else if (!next.isMovementMode()) {
+            // 进入姿态：移动与攻击指令都必须作废（理由见方法 javadoc）
+            this.clearMotionCommands();
+            this.attackCommandActive = false;
+            this.setTarget(null);
         }
     }
 
@@ -662,14 +767,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.navigation = flying;
 
         this.setNoGravity(true);
-        // 立刻起飞。目标点为什么要**加上一个到位半径**：
-        // 到位判定是三维的、阈值 FLY_ARRIVE_DISTANCE（见 tickMoveCommand），
-        // 若目标就设在"头顶 takeoffHeight 格"，那么只升起
-        // takeoffHeight - FLY_ARRIVE_DISTANCE 就会被判为"到了"——
-        // takeoffHeight=2.0、FLY_ARRIVE_DISTANCE=1.5 时只剩 0.5 格，
-        // 与"起飞约 2 格"完全不符。加上这个半径后，
-        // **刚好升起 takeoffHeight 格时距离才降到阈值** ⇒ takeoffHeight 名副其实。
-        this.setMoveTarget(this.position().add(0.0D, this.takeoffHeight() + FLY_ARRIVE_DISTANCE, 0.0D));
+        // ⚠️ **刻意不设任何移动目标** —— "开启飞行"不等于"起飞"。
+        // 用户 2026-09-27 改定的口径：状态切到 FLYING 就在**当前位置原地悬停**；
+        // 要上天请再下一条 `move <空中坐标>`。
+        // 这顺带从根上消灭了一整类问题：只要存在向上推力，在 noGravity 下
+        // 重力恒为 0（{@code Entity.java:1173-1175} 的 {@code getGravity()}，且该方法
+        // {@code final}、覆写不了）、竖直方向只剩 ×0.98 的衰减
+        // （{@code LivingEntity.java:2341}）⇒ 推力一停要滑行约 50 倍速度的距离；
+        // 而 {@code FlyingMoveControl.java:46} 对 Y 是 bang-bang（无比例项）、不会自行收力。
+        // **不上升就没有这段滑行。**
     }
 
     /**
@@ -709,42 +815,23 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 飞到指定点（需先处于飞行状态）。
+     * 恢复到"刚被召唤出来的状态"：{@link NpcState#IDLE}、无移动、无攻击、地面站桩。
      * <p>
-     * 与 {@link #walkTo} 共用 {@link #moveTarget} 与 {@link #tickMoveCommand()} 的续路循环，
-     * 差别只在"是否到位"的口径（空中用三维）。
-     * <b>飞行状态下 {@code walkTo} 与它等价</b> —— 因为导航已经是飞行版了。
+     * 它是 {@code state … idle} + {@code stop} + {@code attack … stop} 三条的合并 ——
+     * 存在的意义就是"一条命令回到默认"，不必记三条。
      * <p>
-     * 前置校验交给命令层做（未开飞行时明确报错）；本方法**不**自作主张开启飞行。
-     */
-    public void flyTo(Vec3 pos) {
-        if (this.level().isClientSide()) {
-            return;
-        }
-        this.attackCommandActive = false;
-        this.setTarget(null);
-        this.setMoveTarget(pos);
-    }
-
-    /**
-     * 恢复到"刚被召唤出来的状态"：无飞行、无移动、无攻击、地面站桩。
-     * <p>
-     * <b>{@code setNoGravity(false)} 是无条件执行的，不能写成 {@code if (isFlying())}。</b>
-     * 理由见 {@link #DATA_FLYING} 与 {@link #readAdditionalSaveData}：
-     * {@code NoGravity} 会被原版写进 NBT（{@code Entity.java:1769,1878}）而本类的飞行标志
-     * 不持久化 ⇒ 两者**可能脱钩**。脱钩状态下若还加判断，就正好修不回来。
+     * <b>末尾那句 {@code setNoGravity(false)} 是无条件执行的，不能写成 {@code if (isFlying())}。</b>
+     * 理由见 {@link #setState}：{@code NoGravity} 是原版持久化的、也能被外部写入，
+     * 而状态不保证与它同步 ⇒ 脱钩状态下加判断就正好修不回来。
+     * （{@link #setState} 自己也会清一次，这里是**独立的第二道保险**，刻意不省。）
      */
     public void resetToDefault() {
         if (this.level().isClientSide()) {
             return;
         }
-        this.clearMotionCommands();
-        this.attackCommandActive = false;
-        this.setTarget(null);
-        if (this.isFlying()) {
-            this.entityData.set(DATA_FLYING, false);
-            this.disableFlight();
-        }
+        this.stopMoving();
+        this.stopAttacking();
+        this.setState(NpcState.IDLE);
         this.getNavigation().stop();
         this.setNoGravity(false);
     }
@@ -758,22 +845,53 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 载入时把 {@code NoGravity} 拉回不变式：<b>{@code isFlying() == false ⇒ isNoGravity() == false}</b>。
+     * 状态落盘用的 NBT 键。
      * <p>
-     * 为什么需要这一步：{@code NoGravity} 是原版持久化的
-     * （{@code Entity.java:1769} 写、{@code :1878} 读），而本类的飞行标志在同步数据里、
-     * 不会被 {@code addAdditionalSaveData} 写出 ⇒ 飞行中存档再进游戏，会得到
-     * "<b>永久浮空、但 {@code isFlying() == false}</b>"的实体，
-     * 而且 {@link #disableFlight()} 与 {@link #resetToDefault()} 里的
-     * {@code if (isFlying())} 分支**都不会**被触发。
+     * <b>带模组前缀是刻意的</b>：实体 NBT 是最容易跨模组撞名的地方
+     * （本模组另两处先例风格还不统一：{@code TornadoEntity.java:376} 用 {@code "Life"}、
+     * {@code DisasterPortalFrameEntity.java:47} 用 {@code "eye_id"}）。
+     * 加前缀后零撞名风险，代价只是键名长一点。
+     */
+    private static final String STATE_NBT_KEY = "BeloongState";
+
+    /**
+     * 状态落盘。
      * <p>
-     * 既然加载后 {@code flying} 必然是 {@code false}（{@link #defineSynchedData} 的默认值），
-     * 那就顺手把重力也拉回来，让不变式成立。
+     * <b>写名字而不是 ordinal</b>：枚举顺序将来变了也不会把旧存档读错
+     * （原版同做法：{@code Armadillo.java:251} 写的是 {@code getState().getSerializedName()}）。
+     * <p>
+     * 只落盘<b>状态</b>，**不落盘移动目标**（{@code moveTarget}）——
+     * "去某点"是**指令**不是**状态**（与攻击目标同类），重登后原地待命即可。
+     */
+    @Override
+    public void addAdditionalSaveData(CompoundTag compound) {
+        super.addAdditionalSaveData(compound);
+        compound.putString(STATE_NBT_KEY, this.state().getSerializedName());
+    }
+
+    /**
+     * 状态读盘 —— <b>必须经 {@link #setState} 恢复，不能直接写 {@code entityData}</b>。
+     * <p>
+     * 因为"进入某个状态"是有**副作用**的（飞行要换导航与移动控制并关重力，见
+     * {@link #switchState}）；只写同步数据的话，重登后会得到"状态说在飞、实际却是地面导航
+     * 且重力照旧"的分裂实体 —— 正是飞行那一轮 I-3 那类最难查的不一致。
+     * <p>
+     * <b>名字对不上时回落 {@link NpcState#IDLE}</b>（{@link NpcState#byNameLenient}）：
+     * 旧存档、降级、玩家手改存档都会出现对不上的名字，崩掉等于坏档。
+     * ⚠️ 这与**指令参数**的处理是**刻意相反**的（那边必须严格报错，
+     * 见 {@link NpcState#byNameStrict}）—— 两种场合的正确行为相反，不许合并。
+     * <p>
+     * <b>向后兼容</b>：旧存档没有这个键 ⇒ {@code getString} 返回空串 ⇒ 回落 {@code IDLE}
+     * ⇒ 与"还没有状态系统之前"的行为一致；同时也会把旧存档里可能残留的
+     * {@code NoGravity} 清掉（{@link #setState} 对非飞行状态会清）。
+     * <p>
+     * ⚠️ 读取**只发生在这里** ⇒ 运行期用 {@code /data merge} 改这个键**不会即时生效**，
+     * 要重登一次。这与 {@code /data merge} 改 {@code NoGravity} 立刻生效不同，别混淆。
      */
     @Override
     public void readAdditionalSaveData(CompoundTag compound) {
         super.readAdditionalSaveData(compound);
-        this.setNoGravity(false);
+        this.setState(NpcState.byNameLenient(compound.getString(STATE_NBT_KEY)));
     }
 
     /**
@@ -819,9 +937,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * {@code :792 goalSelector.tick()} 与 {@code :797 navigation.tick()} <b>之后</b>。
      * 于是本方法续的路不会被任何 goal 的拆解抹掉 —— 顺带解决了另一处已知缺陷：
      * {@code MeleeAttackGoal.stop()} 会<b>无条件</b>调 {@code nav.stop()}
-     * （{@code MeleeAttackGoal.java:94}），而 {@code NpcAttackGoal#clearAttackCommand()}
-     * 也会停寻路；两者现在都只造成最多 1 tick 的停顿——因为 {@code nav.stop()} 会让
-     * {@code isDone()} 立刻为真，下一 tick 本方法就会把路续回来。
+     * （{@code MeleeAttackGoal.java:94}）；它现在只造成最多 1 tick 的停顿 ——
+     * 因为 {@code nav.stop()} 会让 {@code isDone()} 立刻为真，下一 tick 本方法就把路续回来。
+     * <p>
+     * （新契约下 {@code stopAttacking()} **不再**停寻路：攻击轴与移动轴是正交的。）
      */
     private void tickMoveCommand() {
         if (this.moveTarget == null) {
@@ -878,30 +997,33 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return this.attackCommandActive;
     }
 
-    /** 供 {@link NpcAttackGoal} 在停止时清理。 */
-    public void clearAttackCommand() {
-        this.attackCommandActive = false;
-        this.setTarget(null);
-        this.getNavigation().stop();
-    }
+    // 注：原来还有一个供 NpcAttackGoal 调用的 clearAttackCommand()，已删除 ——
+    // 它与 stopAttacking() 做的是同一件事，而后者才是"攻击轴的反面"这个对外语义的正名。
+    // NpcAttackGoal 现在直接调 stopAttacking()。
 
     // ===================== GeckoLib =====================
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     /**
-     * 主控制器：飞行 / 待机 / 走路 / 奔跑 四选一（飞行优先，且是**整体替换**）。
+     * 主控制器：**按状态**选动画 —— 非待机状态播该状态那一条；待机时才走 idle/walk/run 三选一。
      * <p>
      * <b>{@code RawAnimation} 刻意在这里构建而不在构造函数里</b>：动画名来自**可覆写**方法
-     * （{@link #idleAnimationName()} 等），构造函数里调虚方法会踩"子类字段尚未初始化"的经典坑。
+     * （{@link #idleAnimationName()} / {@link #stateAnimationName(NpcState)}），
+     * 构造函数里调虚方法会踩"子类字段尚未初始化"的经典坑。
      * 而 {@code registerControllers} 由 {@code AnimatableManager} **惰性**调用，那时子类早已构造完。
+     * <p>
+     * <b>为什么非待机状态要"整体替换"而不是"叠一层"</b>：横向飞行会让 {@code walkAnimation} 非零
+     * （{@code LivingEntity.java:2373-2376}：{@code includeHeight} 只决定是否把 Y 位移算进去，
+     * X/Z 照算）⇒ GeckoLib 的 {@code isMoving()} 会为真 ⇒ 不拦住的话腿会在空中走路。
+     * 改成状态分支后，这一条**不再是一条特判**，而是"非待机状态不走那一套"的自然结果。
      * <p>
      * <b>「跑」不是一种状态，而是「有额外移速加成」的表现</b>（用户裁定）：
      * 判据是 {@code getAttributeValue(MOVEMENT_SPEED) > getAttributeBaseValue(MOVEMENT_SPEED)}
      * —— 迅捷效果就是往这个属性挂修饰符（{@code MobEffect#addAttributeModifiers:166-174}），
      * 属性值又会同步给客户端（{@code ClientboundUpdateAttributesPacket}），
      * 因此**效果一生效自动切 run、一结束自动回 walk**，不需要状态机、也不需要网络包。
-     * 口径是"**任何**额外移速加成"（迅捷 / 信标 / 食物 / 其它模组的 modifier 都算），不只迅捷。
+     * 口径是"**任何**额外移动加成"（迅捷 / 信标 / 食物 / 其它模组的 modifier 都算），不只迅捷。
      * <p>
      * 移动判据用 GeckoLib 的 {@code isMoving()}（横向速度 ≥ 0.015/tick 且 {@code walkAnimation} 在动）。
      * 它要求实体**真的在位移** —— 所以"原地转身/扭头"不算移动，仍播 idle。
@@ -911,15 +1033,19 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         final RawAnimation idle = RawAnimation.begin().thenLoop(this.idleAnimationName());
         final RawAnimation walk = RawAnimation.begin().thenLoop(this.walkAnimationName());
         final RawAnimation run = RawAnimation.begin().thenLoop(this.runAnimationName());
-        final RawAnimation fly = RawAnimation.begin().thenLoop(this.flyAnimationName());
+        // 非待机状态各建一条。用 EnumMap 而不是"每个状态一个字段"：
+        // 将来加状态时**这里一行都不用改**（见 NpcState 的类注释）。
+        final EnumMap<NpcState, RawAnimation> posedAnimations = new EnumMap<>(NpcState.class);
+        for (NpcState candidate : NpcState.values()) {
+            if (candidate != NpcState.IDLE) {
+                posedAnimations.put(candidate, RawAnimation.begin().thenLoop(this.stateAnimationName(candidate)));
+            }
+        }
         controllers.add(new AnimationController<>(this, "main", this.animationTransitionTicks(), state -> {
             NpcEntity npc = state.getAnimatable();
-            // 飞行时**整体替换**，不进 idle/walk/run 分支。
-            // 为什么不能"只叠一层"就完事：横向飞行会让 walkAnimation 非零
-            // （LivingEntity.java:2373-2376：includeHeight 只决定是否把 Y 位移算进去，
-            //  X/Z 照算）⇒ GeckoLib 的 isMoving() 会为真 ⇒ 不拦住的话腿会在空中走路。
-            if (npc.isFlying()) {
-                return state.setAndContinue(fly);
+            RawAnimation posed = posedAnimations.get(npc.state());
+            if (posed != null) {
+                return state.setAndContinue(posed);      // 非待机：整体替换，不进下面那套
             }
             if (!state.isMoving()) {
                 return state.setAndContinue(idle);

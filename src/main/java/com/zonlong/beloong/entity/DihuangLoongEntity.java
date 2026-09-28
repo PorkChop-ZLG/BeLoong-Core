@@ -65,4 +65,34 @@ public class DihuangLoongEntity extends NpcEntity {
     public float shadowRadius() {
         return 0.8F;
     }
+
+    // ===================== 状态动画名 =====================
+
+    /*
+     * 地黄龙的资产（{@code animations/dihuang_loong.animation.json}，96 条动画）里
+     * 三条都有，所以这里三条都覆写 —— 与"基类默认就是 fly/sit/dance、有资产才覆写"
+     * 的约定一致（实施计划 §七 选 B）。
+     *
+     * 默认的 idle / walk / run 名字与基类一致（资产里就叫 idle / walk / run），故不覆写。
+     * 另注：该资产里还有 fly_idle / fly_soaring / fly_land 等更细的飞行段，
+     * 将来若要让飞行分状态（悬停/巡航/降落），扩展点在这里。
+     */
+
+    /** 飞行动画名。资产里有 {@code fly}（65 骨骼）。 */
+    @Override
+    protected String flyAnimationName() {
+        return "fly";
+    }
+
+    /** 坐下动画名。资产里有 {@code sit}（另有 {@code sit2} 等变体）。 */
+    @Override
+    protected String sitAnimationName() {
+        return "sit";
+    }
+
+    /** 跳舞动画名。资产里有 {@code dance}（另有 {@code dance2}）。 */
+    @Override
+    protected String danceAnimationName() {
+        return "dance";
+    }
 }
