@@ -30,13 +30,14 @@ import java.util.Optional;
  * op 级（{@code hasPermission(2)}）：它改的是世界里的实体。
  *
  * <h2>指令面：三条正交的轴 + 一条全清（2026-09-27 重构）</h2>
+ * <b>目标一律在 {@code npc} 之后、动作之前</b>（2026-09-27 统一格式，见 {@link #register}）：
  * <pre>
- *   state  &lt;targets&gt; &lt;state&gt;     ← idle | flying | sitting | dancing | …（可扩展）
- *   move   &lt;targets&gt; &lt;pos&gt;       ← 移动。走法（地面/空中）由当前状态决定
- *   stop   &lt;targets&gt;             ← 停止寻路（move 的反面）
- *   attack &lt;targets&gt; &lt;victim&gt;    ← 攻击
- *   attack &lt;targets&gt; stop        ← 停止攻击
- *   reset  &lt;targets&gt;             ← 回到"刚被召唤出来的样子"
+ *   /beloong npc &lt;targets&gt; state &lt;state&gt;     ← idle | flying | sitting | dancing | …（可扩展）
+ *   /beloong npc &lt;targets&gt; move &lt;pos&gt;        ← 移动。走法（地面/空中）由当前状态决定
+ *   /beloong npc &lt;targets&gt; stop              ← 停止寻路（move 的反面）
+ *   /beloong npc &lt;targets&gt; attack &lt;victim&gt;   ← 攻击
+ *   /beloong npc &lt;targets&gt; attack stop        ← 停止攻击
+ *   /beloong npc &lt;targets&gt; reset              ← 回到"刚被召唤出来的样子"
  * </pre>
  * <b>对称是刻意的</b>：{@code move ↔ stop}、{@code attack <victim> ↔ attack stop}。
  * 两条 {@code stop} 语义完全一致 —— <b>只取消各自轴上的指令，绝不碰状态</b>。
@@ -56,7 +57,7 @@ import java.util.Optional;
  *       而"旋转"本身可以直接从行为上看出来，不需要指令演示。</li>
  * </ul>
  * <p>
- * ⚠️ <b>{@code attack <targets> stop} 里 {@code stop} 落在"本该是实体参数"的位置</b>，
+ * ⚠️ <b>{@code npc <targets> attack stop} 里 {@code stop} 落在"本该是实体参数"的位置</b>，
  * Brigadier 会同时尝试"字面量 {@code stop}"与"一个名叫 {@code stop} 的实体"。
  * <b>这是原版接受的形状</b>（{@code /tag <targets> add|remove|list} 是同一构造，
  * {@code add} 也落在 targets 之后），实际风险只在"真有玩家/实体叫 stop"时可忽略。
@@ -79,28 +80,31 @@ public final class NpcCommand {
         dispatcher.register(Commands.literal("beloong")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("npc")
-                        .then(Commands.literal("state")
-                                .then(Commands.argument("targets", EntityArgument.entities())
+                        // ⚠️ <b>目标一律紧跟在 npc 之后、动作之前</b>（2026-09-27 统一）。
+                        // 于是"选择谁"与"让它做什么"在指令里各占固定位置，读法一致：
+                        //     /beloong npc @e state flying
+                        //     /beloong npc Mo attack @e[type=zombie]
+                        //     /beloong npc @e move 100 70 100
+                        // 不必每条子命令各记一遍参数顺序（旧格式是"动作在前、目标在后"）。
+                        .then(Commands.argument("targets", EntityArgument.entities())
+                                .then(Commands.literal("state")
                                         .then(Commands.argument("state", StringArgumentType.word())
                                                 .suggests(STATE_SUGGESTIONS)
                                                 .executes(ctx -> setState(
                                                         EntityArgument.getEntities(ctx, "targets"),
                                                         StringArgumentType.getString(ctx, "state"),
-                                                        ctx.getSource())))))
-                        .then(Commands.literal("move")
-                                .then(Commands.argument("targets", EntityArgument.entities())
+                                                        ctx.getSource()))))
+                                .then(Commands.literal("move")
                                         .then(Commands.argument("pos", Vec3Argument.vec3())
                                                 .executes(ctx -> move(
                                                         EntityArgument.getEntities(ctx, "targets"),
                                                         Vec3Argument.getVec3(ctx, "pos"),
-                                                        ctx.getSource())))))
-                        .then(Commands.literal("stop")
-                                .then(Commands.argument("targets", EntityArgument.entities())
+                                                        ctx.getSource()))))
+                                .then(Commands.literal("stop")
                                         .executes(ctx -> stopMoving(
                                                 EntityArgument.getEntities(ctx, "targets"),
-                                                ctx.getSource()))))
-                        .then(Commands.literal("attack")
-                                .then(Commands.argument("targets", EntityArgument.entities())
+                                                ctx.getSource())))
+                                .then(Commands.literal("attack")
                                         // 顺序有讲究：先接实体参数，再接 stop 字面量。
                                         // 两者落在同一 token 位置 ⇒ 见类注释里的歧义说明。
                                         .then(Commands.argument("victim", EntityArgument.entity())
@@ -111,9 +115,8 @@ public final class NpcCommand {
                                         .then(Commands.literal("stop")
                                                 .executes(ctx -> stopAttacking(
                                                         EntityArgument.getEntities(ctx, "targets"),
-                                                        ctx.getSource())))))
-                        .then(Commands.literal("reset")
-                                .then(Commands.argument("targets", EntityArgument.entities())
+                                                        ctx.getSource()))))
+                                .then(Commands.literal("reset")
                                         .executes(ctx -> reset(
                                                 EntityArgument.getEntities(ctx, "targets"),
                                                 ctx.getSource()))))));

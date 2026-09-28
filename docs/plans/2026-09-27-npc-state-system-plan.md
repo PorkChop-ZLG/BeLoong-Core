@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-27
 **Status:** **已批准**（2026-09-27；用户确认 §七 选 **B**：各状态默认名即 `fly`/`sit`/`dance`）
+**后续追加：** 设计 **D17'** —— 指令格式统一为 `npc <targets> <action> …`（目标移到动作之前），
+已实施；下文 T7 的片段与 §五 验收清单均已按新格式更新。
 **Design:** [2026-09-27-npc-state-system-design.md](./2026-09-27-npc-state-system-design.md)
 **取代:** [2026-09-27-npc-flight-plan.md](./2026-09-27-npc-flight-plan.md) 的任务切分与实机清单
 （该文档里的**飞行平台事实**仍然有效，本文引用不重复）
@@ -228,26 +230,25 @@ controllers.add(new AnimationController<>(this, "main", this.animationTransition
 **文件：** 改 `src/main/java/com/zonlong/beloong/command/NpcCommand.java`
 
 ```java
-.then(Commands.literal("state")
-        .then(Commands.argument("targets", EntityArgument.entities())
+// ⚠️ 目标一律紧跟在 npc 之后、动作之前（2026-09-27 统一格式，见设计 D17'）：
+//     /beloong npc @e state flying   /beloong npc Mo attack @e[type=zombie]
+.then(Commands.argument("targets", EntityArgument.entities())
+        .then(Commands.literal("state")
                 .then(Commands.argument("state", StringArgumentType.word())
                         .suggests(STATE_SUGGESTIONS)              // 枚举名补全
-                        .executes(ctx -> setState(...)))))
-.then(Commands.literal("move")
-        .then(Commands.argument("targets", EntityArgument.entities())
+                        .executes(ctx -> setState(...))))
+        .then(Commands.literal("move")
                 .then(Commands.argument("pos", Vec3Argument.vec3())
-                        .executes(ctx -> move(...)))))
-.then(Commands.literal("stop")
-        .then(Commands.argument("targets", EntityArgument.entities())
-                .executes(ctx -> stop(...))))
-.then(Commands.literal("attack")
-        .then(Commands.argument("targets", EntityArgument.entities())
+                        .executes(ctx -> move(...))))
+        .then(Commands.literal("stop")
+                .executes(ctx -> stopMoving(...)))
+        .then(Commands.literal("attack")
+                // 顺序有讲究：先接实体参数，再接 stop 字面量（两者落在同一 token 位置）
                 .then(Commands.argument("victim", EntityArgument.entity())
                         .executes(ctx -> attack(...)))
                 .then(Commands.literal("stop")
-                        .executes(ctx -> stopAttacking(...)))))
-.then(Commands.literal("reset")
-        .then(Commands.argument("targets", EntityArgument.entities())
+                        .executes(ctx -> stopAttacking(...))))
+        .then(Commands.literal("reset")
                 .executes(ctx -> reset(...))));
 ```
 
@@ -260,7 +261,7 @@ controllers.add(new AnimationController<>(this, "main", this.animationTransition
 **反馈消息里的状态名走 lang**：`Component.translatable("beloong.npc.state." + state.getSerializedName())`
 —— 枚举的序列化名正好当键后缀，加状态时只需补两条 lang 键。
 
-⚠️ **`attack <targets> stop` 的 Brigadier 歧义**：`stop` 落在"本该是实体参数"的位置，
+⚠️ **`npc <targets> attack stop` 的 Brigadier 歧义**：`stop` 落在"本该是实体参数"的位置，
 Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版接受的形状**
 （`/tag <targets> add|remove|list` 同构造），实际风险可忽略。**代码注释里记一句。**
 
@@ -333,22 +334,22 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 
 | # | 动作 | 期望 |
 |---|---|---|
-| B1' | `state @e flying` | **原地悬停、不上升**（D2'） |
-| B2' | `move @e <50 格外坐标>`（飞行态） | **能飞到**（`FOLLOW_RANGE` 续路的回归） |
-| B3' | `stop @e`（飞行中） | **原地继续悬停**，状态不变 |
-| B4' | `move @e <坐标>`（`idle` 态） | 地面走过去 |
-| B5' | `state @e sitting` → `move @e <坐标>` | **先站起来再走**（隐式退出姿态） |
-| B6' | 正在走时 `state @e sitting` | **停下并坐下**；且**不再追打**（D9' + T6） |
-| B7' | `attack @e <victim>` → `attack @e stop` | 停止攻击；地面回站桩、空中回悬停 |
-| B8' | 飞行中 `state @e idle` | 落到地面；若此前有 `move` 指令，**以地面方式继续走** |
+| B1' | `@e state flying` | **原地悬停、不上升**（D2'） |
+| B2' | `@e move <50 格外坐标>`（飞行态） | **能飞到**（`FOLLOW_RANGE` 续路的回归） |
+| B3' | `@e stop`（飞行中） | **原地继续悬停**，状态不变 |
+| B4' | `@e move <坐标>`（`idle` 态） | 地面走过去 |
+| B5' | `@e state sitting` → `@e move <坐标>` | **先站起来再走**（隐式退出姿态） |
+| B6' | 正在走时 `@e state sitting` | **停下并坐下**；且**不再追打**（D9' + T6） |
+| B7' | `@e attack <victim>` → `@e attack stop` | 停止攻击；地面回站桩、空中回悬停 |
+| B8' | 飞行中 `@e state idle` | 落到地面；若此前有 `move` 指令，**以地面方式继续走** |
 | B9' | **存档→退出→重进** | 状态保持：存档时在飞 ⇒ 重登后仍原地悬停；坐着 ⇒ 仍坐着；未飞 ⇒ 仍在地面 |
 | B10' | 关服重开 | 同上 |
-| B11' | `state @e fliing`（拼错） | **明确报错**并列出可用状态（严格策略） |
+| B11' | `@e state fliing`（拼错） | **明确报错**并列出可用状态（严格策略） |
 | B12' | 手改存档状态名为非法值 | **回落 `IDLE`，不崩**（宽松策略） |
-| B13'' | 末 `state @e sitting` / `state @e dancing` | `sitting` **正常播 `sit`**（资产里有，261 骨骼）；`dancing` **会塌成 T-pose，属预期行为** |
-| B14' | 两个 NPC 各 `state @e flying` | 都播 `fly` 且姿势正常 |
+| B13'' | 末 `@e state sitting` / `@e state dancing` | `sitting` **正常播 `sit`**（资产里有，261 骨骼）；`dancing` **会塌成 T-pose，属预期行为** |
+| B14' | 两个 NPC 各 `@e state flying` | 都播 `fly` 且姿势正常 |
 
-> **B13' 已改写为 B13''**：原文是"末执行 `state @e sitting` 不得塌成 T-pose"，它**基于一个错误前提**
+> **B13' 已改写为 B13''**：原文是"末执行 `@e state sitting` 不得塌成 T-pose"，它**基于一个错误前提**
 > —— 我当时只看了资产里"飞 / 翅膀"相关的动画子集，就断言"末没有 `sit`"。
 > 📌 **2026-09-27 核对全部 29 条动画后更正：末的资产里 `sit` 是存在的（261 骨骼），实测也能正常播放；
 > 只有 `dance` 确实没有。** 故 B13' 改为正向验证"末 `sitting` 正常播 `sit`"（见 B13''），

@@ -107,16 +107,21 @@ boolean isMovementMode();     // IDLE / FLYING → true ; SITTING / DANCING → 
 
 ### 3.2 三个轴与指令面
 
-指令面收敛为**三条正交的轴 + 一条全清**：
+指令面收敛为**三条正交的轴 + 一条全清**。
+**统一格式：目标一律紧跟在 `npc` 之后、动作之前**（2026-09-27 追加调整，见 D17'）：
 
 ```
-/beloong npc state  <targets> <state>     ← idle | flying | sitting | dancing | …（可扩展）
-/beloong npc move   <targets> <pos>       ← 移动：地面走 / 空中飞，由当前状态决定
-/beloong npc stop   <targets>             ← 停止寻路（move 的反面）
-/beloong npc attack <targets> <victim>    ← 攻击
-/beloong npc attack <targets> stop        ← 停止攻击
-/beloong npc reset  <targets>             ← 回到"刚被召唤出来的样子"
+/beloong npc <targets> state <state>     ← idle | flying | sitting | dancing | …（可扩展）
+/beloong npc <targets> move <pos>        ← 移动：地面走 / 空中飞，由当前状态决定
+/beloong npc <targets> stop              ← 停止寻路（move 的反面）
+/beloong npc <targets> attack <victim>   ← 攻击
+/beloong npc <targets> attack stop       ← 停止攻击
+/beloong npc <targets> reset             ← 回到"刚被召唤出来的样子"
 ```
+
+**为什么把目标提到最前**（用户裁定）：于是"**选择谁**"与"**让它做什么**"在指令里各占一个
+**固定位置**，读法、联想与补全都一致，不必每条子命令各记一遍参数顺序。
+旧格式是"动作在前、目标在后"（`npc state <targets> <state>`），已废弃。
 
 **被删除的旧指令**：`walk`（→ `move`）、`fly on|off`（→ `state … flying` / `state … idle`）、
 `fly to <pos>`（→ `move <pos>`）。
@@ -177,7 +182,7 @@ attack <victim> ↔ attack stop      攻击轴：打谁   ↔ 不打
 
 | 场合 | 策略 | 依据 |
 |---|---|---|
-| 指令 `state @e fliing` 拼错 | **严格报错** + 补全提示 | 静默变成 `idle` 会让玩家以为命令成功了 |
+| 指令 `@e state fliing` 拼错 | **严格报错** + 补全提示 | 静默变成 `idle` 会让玩家以为命令成功了 |
 | 读存档、状态名对不上（旧存档/降级/手改档） | **宽松回落 `IDLE`** | `Armadillo.java:446-447` 的 `CODEC.byName(name, IDLE)` |
 
 ⇒ 需要**严格版**与**宽松版**两个入口。⚠️ 后人很可能图省事把它们合成一个，
@@ -207,7 +212,7 @@ attack <victim> ↔ attack stop      攻击轴：打谁   ↔ 不打
 |---|---|---|
 | **D1'** | 状态用**单一互斥枚举**，不用多个布尔、也不用正交双轴 | 用户裁定；vanilla `Armadillo`/`Sniffer` 同模型 |
 | **D2'** | **`fly on`（现 `state … flying`）不起飞，只在原地悬停** | 用户裁定。这同时**从根上绕开**了飞行那一轮暴露的"竖直滑行几十格"问题（见 §六 C），比任何刹车方案都直接 |
-| **D3'** | 全部状态经 `npc state <targets> <state>` 控制，**包括 `idle` 与 `flying`** | 用户裁定；指令面可扩展，加状态不改指令树 |
+| **D3'** | 全部状态经 `npc <targets> state <state>` 控制，**包括 `idle` 与 `flying`** | 用户裁定；指令面可扩展，加状态不改指令树 |
 | **D4'** | `fly` 与 `walk` **合并成 `move`** —— 只要移动就用 `move`，走法由状态决定 | 用户裁定；用户不必记"现在该用 walk 还是 fly" |
 | **D5'** | **保留 `stop`**：只停寻路（`move` 的反面），**维持当前状态** | 用户裁定。它保住了"停下但保持状态"这个能力（如飞行中停下继续悬停） |
 | **D6'** | **保留 `reset`**：状态→`idle` + 取消移动 + 取消攻击 | 对应最初的"重置到刚被召唤出来的状态"需求 |
@@ -221,6 +226,7 @@ attack <victim> ↔ attack stop      攻击轴：打谁   ↔ 不打
 | **D14'** | 失败策略分两套：**指令严格 / 存档宽松** | 两种场合的正确行为相反 |
 | **D15'** | 不做自主状态切换（没有 goal 会自己改状态）；不做状态组合 | 用户裁定；与"纯能力 + 命令驱动"的既有定位一致 |
 | **D16'** | **各状态的动画名默认就是 `"fly"` / `"sit"` / `"dance"`**（实施计划 §七 选 B） | 用户裁定。好处：资产有动画时开箱即用。**代价（已明确接受）**：资产缺该动画的 NPC 执行对应状态会**静默塌成 T-pose**，且无日志（`AnimationProcessor.java:44-64`）—— **属预期行为，不要当缺陷报**。被否决的选项 A 是"所有状态默认回落 `idleAnimationName()`"，能把灾难级静默失败降级成轻微静默失败（注意 A 不是运行时探测）。<br>📌 **2026-09-27 更正**：本条此前举例说"末没有 `sit`/`dance`"——**错**。核对全部 29 条动画后确认末**有 `sit`（261 骨骼）**、只是**没有 `dance`**；`sit` 因基类默认名正好是 `"sit"` 而**开箱可用**。当时的错误在于**只看了资产里"飞 / 翅膀"相关子集就下断言** |
+| **D17'** | **指令格式统一为 `npc <targets> <action> …`** —— 目标紧跟在 `npc` 之后、动作之前 | 用户裁定 2026-09-27。收益：**"选择谁"与"让它做什么"各占一个固定位置**，读法/联想/补全一致，不必每条子命令各记一遍参数顺序（旧格式 `npc state <targets> <state>` 是"动作在前、目标在后"，已废弃）。实现上只需把整棵子树挪到 `argument("targets", entities())` 之下 —— 各 handler 一行未改 |
 
 ---
 
@@ -253,17 +259,17 @@ attack <victim> ↔ attack stop      攻击轴：打谁   ↔ 不打
 
 | # | 动作 | 期望 |
 |---|---|---|
-| B1' | `state @e flying` | **原地悬停、不上升**（D2'） |
-| B2' | `move @e <50 格外坐标>`（`flying` 态） | 能飞到（`FOLLOW_RANGE` 续路的回归） |
-| B3' | `stop @e`（飞行中） | **停在原地继续悬停**，状态不变 |
-| B4' | `move @e <坐标>`（`idle` 态） | 地面走过去 |
-| B5' | `state @e sitting` → `move @e <坐标>` | **先站起来再走**（隐式退出姿态） |
-| B6' | `state @e sitting`（正在走时） | **停下并坐下**（D9'） |
-| B7' | `attack @e <victim>` → `attack @e stop` | 停止攻击；**地面回到站桩、空中回到悬停**（D10'） |
-| B8' | `state @e idle`（飞行中） | 落到地面；若此前有 `move` 指令，**以地面方式继续走**（D9' 的正交） |
+| B1' | `@e state flying` | **原地悬停、不上升**（D2'） |
+| B2' | `@e move <50 格外坐标>`（`flying` 态） | 能飞到（`FOLLOW_RANGE` 续路的回归） |
+| B3' | `@e stop`（飞行中） | **停在原地继续悬停**，状态不变 |
+| B4' | `@e move <坐标>`（`idle` 态） | 地面走过去 |
+| B5' | `@e state sitting` → `@e move <坐标>` | **先站起来再走**（隐式退出姿态） |
+| B6' | `@e state sitting`（正在走时） | **停下并坐下**（D9'） |
+| B7' | `@e attack <victim>` → `@e attack stop` | 停止攻击；**地面回到站桩、空中回到悬停**（D10'） |
+| B8' | `@e state idle`（飞行中） | 落到地面；若此前有 `move` 指令，**以地面方式继续走**（D9' 的正交） |
 | B9' | **存档→退出→重进** | **状态保持**：存档时在飞 ⇒ 重登后仍在原地悬停；存档时坐下 ⇒ 仍坐着；未飞 ⇒ 仍在地面 |
 | B10' | 关服重开 | 同上 |
-| B11' | `state @e fliing`（拼错） | **明确报错** + 补全（严格策略） |
+| B11' | `@e state fliing`（拼错） | **明确报错** + 补全（严格策略） |
 | B12' | 手改存档里的状态名为非法值 | **回落 `IDLE`，不崩**（宽松策略） |
 
 ### C. 已知残留风险（记录，不修）
