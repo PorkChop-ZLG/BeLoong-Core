@@ -339,7 +339,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private int moveNoProgressCount;
 
     /**
-     * 进入飞行**之前**那个原版 {@code MoveControl} / {@code PathNavigation} 实例。
+     * 进入飞行**之前**那个原版 {@code PathNavigation} 实例。
+     * <b>非 {@code null} 即表示"当前处于飞行模式"</b>（{@link #switchState} 用它判断要不要先退出飞行）。
      * <p>
      * ⚠️ <b>必须存原实例、不能"新建一个同款的"。</b>
      * 原版 {@code FloatGoal} 的<b>构造器</b>里就有
@@ -353,12 +354,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * {@code GroundPathNavigation#getSurfaceY} 也跟着变。
      * <p>
      * 存原实例还顺带保住了任何别的既有状态。原版同一手法：
-     * {@code Drowned.java:58-59} 就持有 {@code waterNavigation} / {@code groundNavigation} 两个字段。
+     * {@code Drowned.java:58-59} 持有 {@code waterNavigation} / {@code groundNavigation} 两个字段。
+     * <p>
+     * <b>⚠️ 但移动控制 {@code MoveControl} 刻意**不**这样暂存</b>（2026-09-27 修实机 bug 时改的）：
+     * 它身上没有任何值得保留的状态，而"暂存再换回"可能让它带着一个**过期的 {@code MOVE_TO}**
+     * 复活 ⇒ 详见 {@link #disableFlight()}。
      */
-    @Nullable
-    private MoveControl groundMoveControl;
-
-    /** 见 {@link #groundMoveControl}。 */
     @Nullable
     private PathNavigation groundNavigation;
 
@@ -698,9 +699,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * （同一条 {@code move} 在地面是"走"、在飞行是"飞"）。
      */
     private void switchState(NpcState next) {
-        // ① 无条件收掉"飞行"的副作用。用缓存字段判"当前是否在飞行"，
+        // ① 无条件收掉"飞行"的副作用。判据是"暂存里还留着原导航"，
         //    而不是读 state()（此刻 entityData 已经是新状态了）。
-        if (this.groundMoveControl != null || this.groundNavigation != null) {
+        if (this.groundNavigation != null) {
             this.disableFlight();
         }
 
@@ -753,8 +754,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * {@code LookAtPlayerGoal}）都不违反这两条。
      */
     private void enableFlight() {
-        // 先把原实例存起来，关飞行时原样换回（理由见 groundMoveControl 的注释）
-        this.groundMoveControl = this.moveControl;
+        // 先把原导航暂存起来，关飞行时原样换回（理由见 groundNavigation 的注释）。
+        // 移动控制**不暂存** —— 它没有值得保留的状态，且换回一个可能停在旧 MOVE_TO 上的实例
+        // 会带来"状态切走了它还在往旧目标挪"的问题，见 disableFlight()。
         this.groundNavigation = this.navigation;
 
         this.moveControl = new FlyingMoveControl(this, FLY_MAX_TURN, true);
@@ -784,33 +786,41 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * ⚠️ <b>本方法刻意没有任何提前 return，保证 {@code setNoGravity(false)} 一定执行到。</b>
      * "浮空、但没人知道自己在飞"是最难查的一类状态：它不落地，又不接受地面移动控制。
      * <p>
-     * <b>换回的是"原实例"而不是"新建一个同款的"</b> —— 原因见
-     * {@link #groundMoveControl}：{@code FloatGoal} 的 {@code setCanFloat(true)}
-     * 是打在最初那个实例上的，新建实例会把它永久丢掉。
+     * <b>导航换回"原实例"、移动控制则用"新实例"</b>，两者不同是刻意的：
+     * <ul>
+     *   <li><b>导航</b>必须有原实例 —— {@code FloatGoal} 构造器打的 {@code setCanFloat(true)}
+     *       只作用于最初那个对象（见 {@link #groundNavigation}）；</li>
+     *   <li><b>移动控制</b>没有值得保留的状态（{@code operation} / {@code wantedX,Y,Z} /
+     *       {@code speedModifier} 全是瞬态），而暂存实例**可能停在旧的一次 {@code MOVE_TO} 上**
+     *       ⇒ 换回后它会朝那个过期的 {@code wantedPosition} 走一拍，必要时还会
+     *       {@code getJumpControl().jump()}（{@code MoveControl.java:109}），
+     *       表现为"状态已经切走了，它却还在往旧目标挪"。新实例从 {@code operation = WAIT} 起步，
+     *       没有这类残留。</li>
+     * </ul>
      * <p>
      * 顺序上"先停旧路径、再换字段"是有意的：否则旧 {@code FlyingPathNavigation} 还持有
      * 下一个路点，而 {@code moveControl} 已经换成地面版，会出现一拍
      * "地面移动控制执行空中路点"的错配。
      * 同理，换回的那个地面导航也要 {@code stop()} 一次 ——
      * 它在被换下时可能还留着起飞前的旧路径，不清掉的话 NPC 一落地就接着走那条旧路。
+     * <p>
+     * 另外 {@link #clearMotionCommands()} 现在会走 {@link Mob#stopInPlace()}，
+     * 那一句清掉的是**实体的输入字段**（{@code xxa}/{@code yya}/{@code speed}），
+     * 与这里换对象是两件事、缺一不可 —— 详见该方法的 javadoc。
      */
     private void disableFlight() {
-        this.clearMotionCommands();      // moveTarget = null + 清冷却 + navigation.stop()
+        this.clearMotionCommands();      // moveTarget=null + 清冷却 + stopInPlace（含清输入字段）
         this.setNoGravity(false);
 
-        if (this.groundMoveControl != null) {
-            this.moveControl = this.groundMoveControl;
-        } else {
-            // 理论上不可达（enableFlight 总会存），留作防御
-            this.moveControl = new MoveControl(this);
-        }
+        this.moveControl = new MoveControl(this);
+
         if (this.groundNavigation != null) {
             this.groundNavigation.stop();     // 清掉它被换下时残留的旧路径
             this.navigation = this.groundNavigation;
         } else {
+            // 理论上不可达（enableFlight 总会暂存），留作防御
             this.navigation = new GroundPathNavigation(this, this.level());
         }
-        this.groundMoveControl = null;
         this.groundNavigation = null;
     }
 
@@ -899,11 +909,40 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * <p>
      * 不再有冲刺复位：奔跑已取消（用户裁定"不要额外的奔跑状态"），
      * 速度差异改由原版进度/效果经移速属性体现。
+     *
+     * <h4>⚠️ 为什么必须用 {@link Mob#stopInPlace()} 而不是裸的 {@code getNavigation().stop()}</h4>
+     * <b>这是 2026-09-27 一个实机 bug 的修复，不要改回去。</b>
+     * 现象：NPC 飞行中收到 {@code move}、正在寻路时执行 {@code state … idle}，
+     * 落地后**站在地上一一直跳**，而且**退出重进就恢复正常**。
+     * <p>
+     * 根因是实体的**输入字段**没人清 —— {@code FlyingMoveControl} 每 tick 会写竖直输入
+     * {@code Mob#yya}（{@code FlyingMoveControl.java:41,46}），而它是**粘性字段**：
+     * <ul>
+     *   <li>{@code MoveControl} 的 WAIT 分支**只清 {@code zza}，从不清 {@code yya}**
+     *       （{@code MoveControl.java:117-118} 的 {@code } else { this.mob.setZza(0.0F); }}）；</li>
+     *   <li>每 tick 衰减的只有 {@code xxa} 与 {@code zza}，**{@code yya} 不在其中**
+     *       （{@code LivingEntity.java:2806-2807}）；</li>
+     *   <li>全仓唯一清 {@code yya} 的地方，除了飞行那个控制对象**自己的** WAIT 分支
+     *       （{@code FlyingMoveControl.java:53}，而我们正要把它丢掉），就只有
+     *       {@link Mob#stopInPlace()}（{@code Mob.java:562-567}）。</li>
+     * </ul>
+     * ⇒ 不清理的话，实体每 tick 都被加一个向上的输入 ⇒ 离地、被重力拉回、再推上去 ⇒ **一直跳**。
+     * 而 {@code yya} 与 {@code speed} 都是**瞬态字段**，所以重登即恢复 —— 极易被误判成
+     * "存档坏了"或"某个 goal 有问题"。
+     * <p>
+     * 顺带把 {@code speed} 也归零有两个理由：地面分支的加速度系数是
+     * {@code getFrictionInfluencedSpeed} = {@code getSpeed() × 0.216/f³}
+     * （{@code LivingEntity.java:2428-2429}），而 {@code FlyingMoveControl} 把它写过
+     * （{@code setSpeed}；{@code Mob.java:557-560} 会连带写 {@code zza}）⇒ 不归零会**放大**上面那个推力；
+     * 另外 {@code stopInPlace()} 的名字与语义本就与"停止移动"完全一致。
+     * <p>
+     * 放在这里而不是只放在 {@link #disableFlight()} 里：本方法是**所有**"取消移动"路径的
+     * 唯一出口（{@code stop} / {@code attack} / 进入姿态 / 离开飞行），修一处即全覆盖。
      */
     private void clearMotionCommands() {
         this.moveTarget = null;
         this.moveRepathCooldown = 0;
-        this.getNavigation().stop();
+        this.stopInPlace();      // 原版：停导航 + 清 xxa / yya / speed(连带 zza)
     }
 
     /**
