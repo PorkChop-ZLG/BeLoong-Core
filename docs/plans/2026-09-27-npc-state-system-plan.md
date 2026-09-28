@@ -299,10 +299,9 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 | 子类 | 覆写 | 依据 |
 |---|---|---|
 | `DihuangLoongEntity` | `flyAnimationName()`→`"fly"`、`sitAnimationName()`→`"sit"`、`danceAnimationName()`→`"dance"` | 其资产 96 条动画里三条都在（`fly`/`sit`/`dance`） |
-| `MoEntity` | `flyAnimationName()`→`"fly"`；**不覆写** `sit`/`dance` | 其资产只有 `fly`（且是 2026-09-27 修好能加载的），**没有 `sit`/`dance`** ⇒ 按 §七 选 B，对它执行 `state … sitting`/`dancing` **会塌成 T-pose，这是预期行为** |
+| `MoEntity` | `flyAnimationName()`→`"fly"`；**不覆写** `sit`、也不覆写 `dance` | 其资产 29 条动画里有 `fly` 与 **`sit`（261 骨骼）**、**没有 `dance`**。`sit` 无需覆写 —— 基类 `sitAnimationName()` 默认名正好是 `"sit"`，**开箱可用**。按 §七 选 B，对它执行 `state … dancing` **会塌成 T-pose，这是预期行为**；`sitting` 正常播放 |
 
-**验证：** `gradlew build` + 实机 B14'（两个 NPC 的 `fly` 姿势都正常）。
-**不再验证**"末的 `sitting` 不得塌" —— 按 §七 选 B，那是预期行为（原 B13' 已删）。
+**验证：** `gradlew build` + 实机 B14'（两个 NPC 的 `fly` 姿势都正常）、B13''（末 `sitting` 正常播 `sit`、`dancing` 塌掉属预期）。
 
 ---
 
@@ -346,10 +345,14 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 | B10' | 关服重开 | 同上 |
 | B11' | `state @e fliing`（拼错） | **明确报错**并列出可用状态（严格策略） |
 | B12' | 手改存档状态名为非法值 | **回落 `IDLE`，不崩**（宽松策略） |
+| B13'' | 末 `state @e sitting` / `state @e dancing` | `sitting` **正常播 `sit`**（资产里有，261 骨骼）；`dancing` **会塌成 T-pose，属预期行为** |
 | B14' | 两个 NPC 各 `state @e flying` | 都播 `fly` 且姿势正常 |
 
-> **原 B13'（末执行 `state @e sitting` 不得塌成 T-pose）已删除**：用户为 §七 选了 **B**，
-> 即"资产缺该动画时塌成 T-pose 是预期行为"。末的资产没有 `sit`/`dance` ⇒ 这件事**不要当缺陷报**。
+> **B13' 已改写为 B13''**：原文是"末执行 `state @e sitting` 不得塌成 T-pose"，它**基于一个错误前提**
+> —— 我当时只看了资产里"飞 / 翅膀"相关的动画子集，就断言"末没有 `sit`"。
+> 📌 **2026-09-27 核对全部 29 条动画后更正：末的资产里 `sit` 是存在的（261 骨骼），实测也能正常播放；
+> 只有 `dance` 确实没有。** 故 B13' 改为正向验证"末 `sitting` 正常播 `sit`"（见 B13''），
+> 并把"塌 T-pose 属预期"限定到 `dancing`。
 > 依据：`AnimationProcessor.java:44-64`（名字查不到不报错、得到空动画列表、骨骼复位到静止姿态）。
 
 ---
@@ -361,8 +364,11 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 2. **指令层的隐式退出与取消的顺序** —— `move`/`attack` 里的"先退出姿态再登记"若写反，
    表现为"命令看起来成功了但 NPC 不动"，且**不报错**。
 3. **资产缺动画时的表现是"预期行为"而不是"待修缺陷"** —— 按 §七 选 B，末执行
-   `state … sitting`/`dancing` **会塌成 T-pose**，`state … flying` 则正常（它有 `fly`）。
-   实机时**别把前者当 bug 报**；真要让末也能坐，得先在资产里补一条 `sit` 动画。
+   `state … dancing` **会塌成 T-pose**；而 `state … flying` / `state … sitting` 都正常
+   （它有 `fly` 与 `sit`）。实机时**别把 `dancing` 那个当 bug 报**；真要让它也能跳，
+   得先在资产里补一条 `dance`。
+   <br>📌 **2026-09-27 更正**：本条此前写作"`sitting`/`dancing` 都会塌"，是**基于错误前提**
+   —— 我当时只看了资产里"飞 / 翅膀"相关的动画子集就断言"末没有 `sit`"。
 
 ---
 
@@ -374,8 +380,12 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 
 ⇒ 与飞行那一轮的口径一致，**资产有动画时开箱即用**。
 ⇒ **代价（已明确接受）**：资产里没有该动画的 NPC 会**静默塌成 T-pose**，且无日志。
-末正是这种情况（它有 `fly`，但**没有** `sit`/`dance`）——
-**这是预期行为，不要当缺陷报**，故验收清单里的 B13' 已删除。
+末的情况是：**`fly` 与 `sit` 都有（`sit` 是 261 骨骼），只有 `dance` 没有**
+⇒ 对它执行 `state … dancing` 会塌，`sitting`/`flying` 都正常。
+<br>📌 **2026-09-27 更正**：本条此前写作"末没有 `sit`/`dance`"，那是我**只看了资产里
+"飞 / 翅膀"相关的动画子集就下的断言**；核对全部 29 条后确认 `sit` 存在（实测也能正常播）。
+⇒ **只有 `dancing` 会塌，这是预期行为、不要当缺陷报**（验收清单里对应 B13'' 的后半句；
+`flying`/`sitting` 都正常，见 B13''/B14'）。
 
 **T9 因此定为**：`MoEntity` 只覆写 `flyAnimationName()`；`DihuangLoongEntity` 覆写
 `flyAnimationName()` / `sitAnimationName()` / `danceAnimationName()` 三个（其资产三条都有）。

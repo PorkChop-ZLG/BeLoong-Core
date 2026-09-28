@@ -119,12 +119,20 @@ public class MoEntity extends NpcEntity {
     /**
      * 飞行动画名 —— 资产里有 {@code fly}（2026-09-27 修好、能加载的那条）。
      * <p>
-     * ⚠️ <b>末的资产**没有** {@code sit} / {@code dance}，所以本类刻意只覆写这一条。</b>
-     * 另外两条会用基类默认的 {@code "sit"} / {@code "dance"} ——
-     * 按实施计划 §七 选 **B**（用户 2026-09-27 裁定），这对末意味着
-     * <b>执行 {@code state … sitting} / {@code dancing} 会塌成 T-pose，属预期行为、不是缺陷</b>
-     * （依据：{@code AnimationProcessor.java:44-64}，动画名查不到时既得到空动画列表、也不报错）。
-     * 要让末也能坐/跳舞，得先在资产里补对应动画，再覆写那两条。
+     * ⚠️ <b>末的资产里有 {@code sit}（261 骨骼）、**没有** {@code dance}。</b>
+     * <ul>
+     *   <li>{@code sitting} 开箱可用 —— 基类 {@code sitAnimationName()} 默认正是 {@code "sit"}，
+     *       本类**无需覆写**它；</li>
+     *   <li>{@code dancing} 会用基类默认的 {@code "dance"}，而资产里没有 ⇒
+     *       <b>执行 {@code state … dancing} 会塌成 T-pose</b>。按实施计划 §七 选 **B**
+     *       （用户 2026-09-27 裁定），这属**预期行为、不是缺陷**（依据：
+     *       {@code AnimationProcessor.java:44-64}，动画名查不到时既得到空动画列表、也不报错）。
+     *       要让末也能跳舞，得先在资产里补一条 {@code dance}。</li>
+     * </ul>
+     * <p>
+     * 📌 <b>2026-09-27 更正</b>：本类注释此前写着"没有 {@code sit}"，那是**只看了资产里
+     * "飞 / 翅膀"相关子集就下的断言**——核对全部 29 条动画后确认 {@code sit} 存在（实测也能正常播）。
+     * <b>教训：说"某资产里没有某条动画"之前，必须把动画名**全列一遍**。</b>
      */
     @Override
     protected String flyAnimationName() {
