@@ -79,9 +79,10 @@ public final class ModEntities {
      * <p>
      * 与地黄龙同为站桩生物：AI 与全部定义性语义都在通用基类
      * {@link com.zonlong.beloong.entity.NpcEntity}，本处只负责类型绑定与碰撞箱。
-     * 三份资产由**本地模型暂存目录** {@code docs/models/末/} 迁移而来
-     * （该目录专门存放模型源文件、不入库；其中动画文件为修掉翅膀层的通道泄漏删过 5 个键
-     * —— YSM 玩家模型，完整分析见 {@code docs/末模型分析.md}）。
+     * 资产由**本地模型暂存目录** {@code docs/models/} 迁移而来（该目录专门存放模型源文件、
+     * 不入库）：几何与贴图取自 {@code docs/models/末2/}（2026-09-27 换用，逐字节拷贝），
+     * 动画取自 {@code docs/models/末/} 并经多轮修整 —— YSM 玩家模型，
+     * 逐项事实见 {@link com.zonlong.beloong.client.model.MoModel} 的类注释。
      * <ul>
      *   <li>{@code MobCategory.MISC} = 不占刷怪上限且持久 —— 布景不该和玩家的刷怪塔抢名额；</li>
      *   <li>碰撞箱 {@code 0.6 × 1.8} 取<b>玩家尺寸</b>：模型身体实测约 2 格高

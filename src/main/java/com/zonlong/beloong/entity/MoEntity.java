@@ -17,8 +17,12 @@ import software.bernie.geckolib.animation.RawAnimation;
  * {@code registry/ModEntities}，模型 / 贴图 / 渲染器在 {@code client/} 侧。
  *
  * <h2>资产来源</h2>
- * 三份资产（geo / animation / texture）由**本地模型暂存目录** {@code docs/models/末/} 迁移而来
- * （该目录专门存放模型源文件、**不入库**——模型是第三方作者的资产）。
+ * 资产由**本地模型暂存目录** {@code docs/models/} 迁移而来（该目录专门存放模型源文件、
+ * **不入库**——模型是第三方作者的资产）：**几何与贴图**取自 {@code docs/models/末2/}
+ * （2026-09-27 换用，逐字节拷贝），**动画**取自 {@code docs/models/末/} 并经多轮修整。
+ * 逐项事实（骨骼数、贴图尺寸、哪几条动画还对不上骨骼）见
+ * {@link com.zonlong.beloong.client.model.MoModel} 的类注释。
+ * <p>
  * 该模型原本是给 **Yes Steve Model（YSM）** 用的玩家模型——这一点决定了下面几处适配，
  * 完整分析见 {@code docs/末模型分析.md}（含 GeckoLib 与 YSM 双侧源码证据）。
  *
