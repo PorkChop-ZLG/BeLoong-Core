@@ -56,7 +56,11 @@ NeoForge 21.1.236 源码中只有 **4 个**生物使用 `FlyingMoveControl`，**
 
 ### 3.1 架构
 
-**状态放在 `NpcEntity`（实体侧）**，两个字段：`flying`(boolean) 与 `moveTarget`（由现有 `walkTarget` 泛化，地面/空中共用）。
+**状态放在 `NpcEntity`（实体侧）**：飞行标志 `flying` 与 `moveTarget`（由现有 `walkTarget` 泛化，地面/空中共用）。
+
+**⚠️ 修正（2026-09-27，planning 阶段发现）**：`flying` **必须存进同步数据**（`SynchedEntityData`，仿 `Allay` 的 `DATA_DANCING`：`Allay.java:84` 定义、`:166-167` `defineSynchedData`、`:417,422` 读写），**不能是普通字段**。原因：动画控制器的谓词跑在**客户端**（渲染时），而普通字段只在服务端更新 ⇒ 客户端永远读到 `false` ⇒ **`fly` 动画根本不会播**。
+用 `entityData` 作为唯一真相还有个附带好处：它**天然不持久化**，正好符合 §四 D7。
+（依据：`Entity.java:342` 的 `defineSynchedData(SynchedEntityData.Builder)` 是抽象方法，由每个 `Entity` 子类实现；`Entity.java:220,263,1161-1166` 证明连 `DATA_NO_GRAVITY` 本身都是同步项。）
 
 **不持久化 `flying`**，但必须补一步归一化（见 §3.4①）。
 
@@ -87,7 +91,7 @@ NeoForge 21.1.236 源码中只有 **4 个**生物使用 `FlyingMoveControl`，**
 
 #### ① `NpcEntity`（改动主体）
 
-- **新增状态**：`flying`；`walkTarget` 泛化为 `moveTarget`
+- **新增状态**：`flying`（**存同步数据**，见 §3.1 的修正）；`walkTarget` 泛化为 `moveTarget`
 - **新增可覆写默认值**（照 `idleAnimationName()` 那套）：
   - `flyAnimationName()` → 默认 `"fly"`（飞行的**唯一**动画）
   - `takeoffHeight()` → 默认 `2.0`（起飞偏移：当前 Y + 此值）
@@ -244,6 +248,7 @@ setNoGravity(false)         ← 【无条件】，见 §3.4①
 | D10 | **末的中文动画键名英文化**（`idle`/`wings_idle`），翅膀控制器飞行时 `PlayState.STOP` | 用户裁定；顺带免疫 F11 |
 | D11 | **⑥ 静默 T-pose 只写文档，不加代码保护** | 用户裁定，避免客户端 API 耦合 |
 | D12 | **不改 `MoModel`/`DihuangLoongModel` 逻辑**（只更新 javadoc 里的旧动画名）、不动碰撞箱/剔除盒/影子/`NpcAttackGoal` | 控制改动面 |
+| **D13** | **`flying` 存进同步数据（`SynchedEntityData`）而非普通字段** | planning 阶段发现：动画控制器谓词在**客户端**执行，普通字段在客户端永远为 `false` ⇒ `fly` 动画不会播。依据 `Entity.java:342`（`defineSynchedData` 抽象）+ `Allay.java:84,166-167,417,422`（vanilla 范式） |
 
 ---
 
