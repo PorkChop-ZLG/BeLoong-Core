@@ -1,7 +1,7 @@
 # 通用 NPC 状态系统 实施计划
 
 **Date:** 2026-09-27
-**Status:** **待批准**（批准后才动代码）
+**Status:** **已批准**（2026-09-27；用户确认 §七 选 **B**：各状态默认名即 `fly`/`sit`/`dance`）
 **Design:** [2026-09-27-npc-state-system-design.md](./2026-09-27-npc-state-system-design.md)
 **取代:** [2026-09-27-npc-flight-plan.md](./2026-09-27-npc-flight-plan.md) 的任务切分与实机清单
 （该文档里的**飞行平台事实**仍然有效，本文引用不重复）
@@ -299,9 +299,10 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 | 子类 | 覆写 | 依据 |
 |---|---|---|
 | `DihuangLoongEntity` | `flyAnimationName()`→`"fly"`、`sitAnimationName()`→`"sit"`、`danceAnimationName()`→`"dance"` | 其资产 96 条动画里三条都在（`fly`/`sit`/`dance`） |
-| `MoEntity` | `flyAnimationName()`→`"fly"`；**不覆写** `sit`/`dance` | 其资产只有 `fly`（且是 2026-09-27 修好能加载的），**没有 `sit`/`dance`** ⇒ 用 §七 的安全默认 |
+| `MoEntity` | `flyAnimationName()`→`"fly"`；**不覆写** `sit`/`dance` | 其资产只有 `fly`（且是 2026-09-27 修好能加载的），**没有 `sit`/`dance`** ⇒ 按 §七 选 B，对它执行 `state … sitting`/`dancing` **会塌成 T-pose，这是预期行为** |
 
-**验证：** `gradlew build` + 实机：两个 NPC 的 `fly` 姿势；末的 `sitting` **不得塌成 T-pose**。
+**验证：** `gradlew build` + 实机 B14'（两个 NPC 的 `fly` 姿势都正常）。
+**不再验证**"末的 `sitting` 不得塌" —— 按 §七 选 B，那是预期行为（原 B13' 已删）。
 
 ---
 
@@ -345,8 +346,11 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
 | B10' | 关服重开 | 同上 |
 | B11' | `state @e fliing`（拼错） | **明确报错**并列出可用状态（严格策略） |
 | B12' | 手改存档状态名为非法值 | **回落 `IDLE`，不崩**（宽松策略） |
-| B13' | 末执行 `state @e sitting` | **不得塌成 T-pose**（§七 的安全默认） |
 | B14' | 两个 NPC 各 `state @e flying` | 都播 `fly` 且姿势正常 |
+
+> **原 B13'（末执行 `state @e sitting` 不得塌成 T-pose）已删除**：用户为 §七 选了 **B**，
+> 即"资产缺该动画时塌成 T-pose 是预期行为"。末的资产没有 `sit`/`dance` ⇒ 这件事**不要当缺陷报**。
+> 依据：`AnimationProcessor.java:44-64`（名字查不到不报错、得到空动画列表、骨骼复位到静止姿态）。
 
 ---
 
@@ -356,31 +360,27 @@ Brigadier 会同时尝试字面量与"名为 `stop` 的实体"。**这是原版�
    这条同时涉及换导航、重力、与取消指令的路径。飞行那轮的 I-3 就是在这类地方翻的车。
 2. **指令层的隐式退出与取消的顺序** —— `move`/`attack` 里的"先退出姿态再登记"若写反，
    表现为"命令看起来成功了但 NPC 不动"，且**不报错**。
-3. **末的 `sit`/`dance` 走安全默认** —— 不塌 T-pose 是设计目标，但"播 `idle` 冒充坐下"
-   观感上可能像"没反应"。只能实机看（B13'）。
+3. **资产缺动画时的表现是"预期行为"而不是"待修缺陷"** —— 按 §七 选 B，末执行
+   `state … sitting`/`dancing` **会塌成 T-pose**，`state … flying` 则正常（它有 `fly`）。
+   实机时**别把前者当 bug 报**；真要让末也能坐，得先在资产里补一条 `sit` 动画。
 
 ---
 
-## 七、⚠️ 计划阶段新增的一条建议（**需要你单独确认**）
+## 七、✅ 已结案：动画名默认值 —— 用户选 **B**
 
 **问题**：`stateAnimationName(state)` 的**默认值**取什么？
 
-现状（飞行那一轮）：`flyAnimationName()` 默认 `"fly"`。若照此推广，`sit`/`dance` 默认
-`"sit"`/`"dance"` ⇒ **资产里没有这条动画的 NPC 会静默塌成 T-pose**
-（`AnimationProcessor.java:44-64`：名字查不到不报错，得到空动画列表 ⇒ 骨骼复位到静止姿态）。
-末正是这种情况——它的资产**没有** `sit`/`dance`。
+**结论（用户裁定 2026-09-27）：选 B —— 各状态默认名就是 `"fly"` / `"sit"` / `"dance"`。**
 
-**建议（两个选项，我推荐 A）：**
+⇒ 与飞行那一轮的口径一致，**资产有动画时开箱即用**。
+⇒ **代价（已明确接受）**：资产里没有该动画的 NPC 会**静默塌成 T-pose**，且无日志。
+末正是这种情况（它有 `fly`，但**没有** `sit`/`dance`）——
+**这是预期行为，不要当缺陷报**，故验收清单里的 B13' 已删除。
 
-| | 默认值 | 后果 |
-|---|---|---|
-| **A（推荐）** | **所有状态的默认动画名 = `idleAnimationName()`**；有对应资产的子类才覆写 | 资产缺动画时**播待机**而不是塌 T-pose。把"灾难级静默失败（整个模型垮掉）"降级成"轻微静默失败（这个姿态看不出区别）"。**注意这不是运行时探测**（你上一轮否决的是运行时检测），只是一个更安全的默认值 |
-| B | 各状态默认 `"fly"`/`"sit"`/`"dance"` | 与现状一致。资产有动画时开箱即用；缺动画时**整个模型塌成 T-pose**，且无日志 |
+**T9 因此定为**：`MoEntity` 只覆写 `flyAnimationName()`；`DihuangLoongEntity` 覆写
+`flyAnimationName()` / `sitAnimationName()` / `danceAnimationName()` 三个（其资产三条都有）。
 
-**选 A 的连带**：`MoEntity` **必须**显式覆写 `flyAnimationName()`（它有 `fly`），
-否则飞行会播待机；`DihuangLoongEntity` 三个都覆写。→ 这两条已写进 T9。
-
-**选 B 的连带**：T9 里 `MoEntity` 只覆写 `flyAnimationName()` 即可，`sit`/`dance` 不覆写
-就等着塌 —— 但 B13' 会失败。⇒ **若你选 B，B13' 要从验收清单删掉**（因为那是预期行为）。
-
-**在你确认 A 或 B 之前，我不会动 T5/T9 的代码。**
+> 留档：被否决的选项 A 是"所有状态默认回落 `idleAnimationName()`"——
+> 它能把"灾难级静默失败（整个模型垮掉）"降级成"轻微静默失败（姿态看不出区别）"。
+> 注意 A **不是**运行时探测（用户此前否决的是运行时检测 `GeckoLibCache`），只是更安全的默认值。
+> 将来若有人报"某个 NPC 坐下就塌了"，**原因就是本条选择**，不是 bug。
