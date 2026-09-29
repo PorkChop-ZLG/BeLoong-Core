@@ -3,7 +3,21 @@
 **审查基线**：`origin/NPC` .. `HEAD`（25 个提交；23 个文件 = 10 Java / 3 动画 / 1 geo / 1 贴图 / 2 语言 / 4 文档）
 **日期**：2026-09-29
 **方法**：两路子代理分片审查（① Java 逻辑 ② 资产与验证可信度，均**只读**）+ 主审逐条**自验**引用行号、SHA256 与字节数
-**结论**：**无 Critical**；**11 Important**（全部是"叙述与代码/资产不符"或"证据不可复现"，**没有一条是行为缺陷**）；**8 Minor**；**6 项只能实机判定**
+## 审查范围（用户 2026-09-29 裁定）
+
+**只审 `src/` 里的代码与资源**（`src/main/java`、`src/main/resources`）。
+智能体自己写的**工具与脚本不在范围内** —— 仓库内 `tools/`、仓库外 `D:\Minecraft\tools\` 均不计入发现。
+⇒ 凡"某个脚本不在仓库 / 某条断言会假通过"这类条目**不列为本报告的 finding**（那会把注意力从产品代码引开）；
+本报告初稿列过 3 条此类条目，已按本裁定删除，并对余下条目**重新编号**。
+唯一保留的相关提示：**`src/` 里的注释若引用了范围外的工具**（例如"由探针 X 守着"），
+本报告不对其可核查性下判断。
+
+**本次范围内的实际文件**：`NpcEntity` / `NpcState` / `NpcAttackGoal` / `MoEntity` / `DihuangLoongEntity` /
+`EmoteAnimationLookup` / `MoModel` / `DihuangLoongModel` / `NpcCommand` / `ModEntities`、两个语言文件、
+三个动画 JSON、`geo/mo.geo.json`、`textures/entity/mo.png`。
+
+
+**结论**：**无 Critical**；**8 Important**（全部是"`src/` 内的叙述与代码/资产不符"，**没有一条是行为缺陷**）；**8 Minor**；**6 项只能实机判定**
 
 > **本文只记录审查结果，不含修复。** 修复时按编号点即可。
 > 编号：`I-` = Important，`M-` = Minor，`V-` = 只能实机判定。
@@ -28,38 +42,30 @@
 
 ## 三、Important（11）
 
-**I-1｜三个探针与 `verify_mo_anims.py` 不在仓库里。** 文档与 memory 把它们当证据引用，却无法从 git 复现。
-*（主审自验：仓库内 `tools/` 只跟踪 4 个**别的**脚本（`README.md` + 3 个 `.py`），而探针位于仓库外的 `D:\Minecraft\tools\YSMParser\`。子代理"`tools/` 在仓库外"的表述不准，结论正确。）*
-**修法**：拷进仓库内 `tools/`。
-
-**I-2｜入库的 `probe_emote_assets.py` 完全不看关键帧内容。** 它只断言动画名集合 / 交集 / fallback 路径字符串 / git 跟踪状态 ⇒ 一次**越界抽稀它照样全绿**；真正的证据在仓库外的 `verify_mo_anims.py`。
-
-**I-3｜`probe_emote_java.py` 多条断言是"文本存在"级、会假通过。** B15/B18 直接 `in npc` 搜原文（**注释里出现同样文字即通过**）；`method_body(text, name)` 取**首次**出现的 `name(` ⇒ 会绑到调用点或 `{@link}`（B10 曾因此误报，作者改成定义签名，但 B12/B13/B16 仍用同一 helper）；B11 只在首个 `emoteDone = true` 之后 **260 字符窗口**内找 `forceAnimationReset` ⇒ 代码一重排就假通过。
-
-**I-4｜`MoModel`「仍然对不上的 5 个骨骼」整节已与资产相反。** 抽稀提交已把 `Skirt` / `Wave_1` / `ysmGlowWave_1_1` / `_1_2` / `Eyes` 的通道**全部删除**（现各出现 0 次），而注释仍称它们"被动画引用、但 geo 里不存在"。
+**I-1｜`MoModel`「仍然对不上的 5 个骨骼」整节已与资产相反。** 抽稀提交已把 `Skirt` / `Wave_1` / `ysmGlowWave_1_1` / `_1_2` / `Eyes` 的通道**全部删除**（现各出现 0 次），而注释仍称它们"被动画引用、但 geo 里不存在"。
 位置：`client/model/MoModel.java:72-82`、`:115-119`。
 
-**I-5｜`NpcEntity` 注释"本类只加一项 `DATA_STATE`"，实际定义了两项**（`DATA_STATE` + `DATA_EMOTE`）。
+**I-2｜`NpcEntity` 注释"本类只加一项 `DATA_STATE`"，实际定义了两项**（`DATA_STATE` + `DATA_EMOTE`）。
 位置：`entity/NpcEntity.java:420`（代码在 `:426` 与 `:430`）。
 
-**I-6｜`EmoteAnimationLookup` 的立项理由写错。** 注释称"名字不存在会让 `AnimationProcessor` 打 `ERROR` + `printStackTrace`"——实际上 `AnimationProcessor.java:49-57` 的 catch **只在该方法抛异常（动画文件缺失）时**才触发；名字不存在时 `GeoModel.getAnimation` 只是返回 `null`。
+**I-3｜`EmoteAnimationLookup` 的立项理由写错。** 注释称"名字不存在会让 `AnimationProcessor` 打 `ERROR` + `printStackTrace`"——实际上 `AnimationProcessor.java:49-57` 的 catch **只在该方法抛异常（动画文件缺失）时**才触发；名字不存在时 `GeoModel.getAnimation` 只是返回 `null`。
 **结论仍对**（缺名字会让控制器被 `stop()`，在双控制器结构下正是 T-pose 的成因），但**理由是错的**。
 位置：`client/model/EmoteAnimationLookup.java:20-22`。
 
-**I-7｜`resetToDefault` 的方法注释漏了第四样（表情）。** 正文仍写"`IDLE`、无移动、无攻击、地面站桩"，且称它是"`state … idle` + `stop` + `attack … stop` **三条**的合并"，而代码实际清**四**样（`:956` 的 `clearEmote()`）。
+**I-4｜`resetToDefault` 的方法注释漏了第四样（表情）。** 正文仍写"`IDLE`、无移动、无攻击、地面站桩"，且称它是"`state … idle` + `stop` + `attack … stop` **三条**的合并"，而代码实际清**四**样（`:956` 的 `clearEmote()`）。
 位置：`entity/NpcEntity.java:938-940`。
 
-**I-8｜`ModEntities` 的"逐字节拷贝"已过期。**
+**I-5｜`ModEntities` 的"逐字节拷贝"已过期。**
 *（主审自跑 SHA256：`docs/models/末2/mo.geo.json` 544,087 B → 仓库内 464,665 B；`mo.png` 68,279 B → 56,823 B，两份均不同。）*
 位置：`registry/ModEntities.java:83`。**修法**：改为"取自 … 并经后续修改"。
 
-**I-9｜承重顺序警告写"下面两个 add"，实际是三个**（`main` / `emote` / `attack`）。
+**I-6｜承重顺序警告写"下面两个 add"，实际是三个**（`main` / `emote` / `attack`）。
 位置：`entity/NpcEntity.java:1217`。
 
-**I-10｜`NpcState` 类首段仍以"飞行、坐下、跳舞"举例**，并称它们"要活过存档重登"——坐下/跳舞已不是状态，且表情明确**不落盘**（设计 D5）。
+**I-7｜`NpcState` 类首段仍以"飞行、坐下、跳舞"举例**，并称它们"要活过存档重登"——坐下/跳舞已不是状态，且表情明确**不落盘**（设计 D5）。
 位置：`entity/NpcState.java:16-18`。
 
-**I-11｜地黄龙动画被删 90 条发生在 `c471461「简化动画」`，不是 `e24e28d`。**
+**I-8｜地黄龙动画被删 90 条发生在 `c471461「简化动画」`，不是 `e24e28d`。**
 基线 488,150 B / 96 条 → `c471461` 59,720 B / 7 条；`e24e28d` 相对其父**只改了 `attack.loop`（`true` → 缺省）**，其余 6 条（`dance`/`fly`/`idle`/`run`/`sit`/`walk`）与基线同名动画**逐字节相同**，`attack` 在基线里**不存在**（新增或改名）。
 ⇒ 主审此前"477 KB/96 条是 09-25 准确、之后变陈旧"的**归属说法要更正**为"由 `c471461` 一次删除"。
 
@@ -106,15 +112,19 @@
 
 ## 六、采信说明（可追溯性）
 
-- **主审自验**：I-1（并更正了子代理的证据表述）、I-4～I-11、M-4、M-6、M-7 与 M-8 的关键数字 —— 均以**打印行号原文 / `git cat-file -s` / SHA256** 独立确认。
-- **采信子代理证据**：I-2、I-3（对探针脚本的评判，与主审自己两次踩到"探针误报"的经历一致）、M-1～M-3、M-5。
-- 子代理 A 引用的 7 条 Important 与 3 条 Minor 的行号，主审**抽查全部属实**。
+- **主审自验**：I-1（`MoModel` 那节与资产相反）、I-3（GeckoLib 源码机制）、I-5（SHA256）、
+  I-8（逐提交字节数）、M-6（全源码搜消费者）、M-7、M-8 的关键数字 ——
+  均以**打印行号原文 / SHA256 / `git cat-file -s`** 独立确认。
+- **采信子代理证据**：I-2、I-4、I-6、I-7 与 M-1～M-5（子代理给出了行号；主审抽查其中多条属实，
+  且其行号引用**零错**）。
+- 两路子代理均**只读**；主审亦未在审查期间改动任何文件。
 
 ---
 
 ## 七、建议的修复优先级
 
-1. **先做 I-1 / I-2 / I-3**（把探针入库 + 让断言真正看关键帧）—— 否则"证据"一直不可复现，且会继续假通过；
-2. 然后 I-4～I-10（低成本叙述修正，不涉及行为）；I-11 只需一句归属更正；
+1. **先做 I-1**（`MoModel` 那节与资产相反，最容易被后人当真）与 **I-3**（预检的立项理由写错，
+   会误导后来者判断"为什么要有这个类"）；
+2. 然后 I-2 / I-4 / I-5 / I-6 / I-7（五处一句话级叙述修正）；**I-8** 只需一句归属更正；
 3. M 组可顺手带上（M-2/M-3 各是一行守卫）；M-6 建议顺带决定那个 `visible_bounds` 改动是否有意义；
 4. **V 组需要你实机**，其中 V-1 与 V-4 最值得先看。
