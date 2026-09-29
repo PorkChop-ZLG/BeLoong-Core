@@ -87,7 +87,7 @@
 | C5 | `client/NpcDialogueScreen` | 构造参数 += `entityId`/`replyKeys`；`showOptions()` 自下而上排；回复点击 = `setScreen(null)` + 发 C2S | 复用 `NpcDialogueOptionButton`；布局常量本就支持向上堆 |
 | C6 | `BeLoongCore` | `registerPayloads` 加一行 `.playToServer(...)` | 照 `:151/:155` 的写法 |
 | C7 | 数据 ×2 | `npc_dialogue/mo.json` 加 `replies`；`chatbox/dialogues/mo.json` 的 `start` 组改成两页 | 用户裁定"改现有 start 组" |
-| C8 | 语言键 ×2 语言 | +`beloong.dialogue.mo.reply1`、`beloong.chatbox.mo.p1`、`.p2`；删旧的 `beloong.chatbox.mo.text` | 净 +2 键（240 → 242） |
+| C8 | 语言键 ×2 语言 | +`beloong.dialogue.mo.reply1`、`beloong.chatbox.mo.p1`、`.p2`；删旧的 `beloong.chatbox.mo.text` **与**早先遗留的 `beloong.dialogue.mo.p2` | 净 +1 键（240 → **241**） |
 | C9 | 注释与文档 | `LEAVE_KEY` 的"v1 只有这一个选项，硬编码"必须改；两个 record 的类注释补字段；本设计文档 + memory | 项目硬要求 |
 
 **服务端处理器形状**（C3 + C4，约 40 行）：找实体 → 查回本模组对话表 → 下标越界就丢 →

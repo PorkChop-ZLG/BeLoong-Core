@@ -5,9 +5,13 @@
   "pages": [
     {
       "text": "beloong.dialogue.mo.p1"
-    },
+    }
+  ],
+  "replies": [
     {
-      "text": "beloong.dialogue.mo.p2"
+      "text": "beloong.dialogue.mo.reply1",
+      "chatbox": "beloong:mo",
+      "group": "start"
     }
   ]
 }

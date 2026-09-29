@@ -7,7 +7,13 @@
       {
         "dialogBox": {
           "name": "beloong.chatbox.mo.name",
-          "text": "beloong.chatbox.mo.text"
+          "text": "beloong.chatbox.mo.p1"
+        }
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.p2"
         }
       }
     ]

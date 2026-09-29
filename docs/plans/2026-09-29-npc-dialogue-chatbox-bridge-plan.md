@@ -151,7 +151,10 @@ $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat build --console=plain   # �
 2. `chatbox/dialogues/mo.json` 的 `start` 组改成两页：`beloong.chatbox.mo.p1`（这里是龙宫。）、
    `beloong.chatbox.mo.p2`（走，我带你去觐见龙王。）。
 3. 语言键：两语言各 +3（`beloong.dialogue.mo.reply1`、`beloong.chatbox.mo.p1`、`beloong.chatbox.mo.p2`），
-   删 1（旧的 `beloong.chatbox.mo.text`）⇒ 净 +2（**240 → 242**），保持**键集合两语言一致**与文件内**字母序**。
+   删 2（旧的 `beloong.chatbox.mo.text`，以及**早先误解第 2 步时遗留的** `beloong.dialogue.mo.p2`）
+   ⇒ 净 +1（**240 → 241**），保持**键集合两语言一致**。
+   > 📌 实施时的更正：我方对话数据当时有 **2 页**（p2 是那次误解的产物），
+   > 而按用户明确的流程（"我是…" → 点击 → **立刻**弹选项）必须有且只有 1 页 ⇒ 已删。
 
 **Verification:**
 ```powershell
