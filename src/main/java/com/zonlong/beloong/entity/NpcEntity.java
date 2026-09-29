@@ -648,7 +648,31 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.level().isClientSide()) {
             return;
         }
-        this.entityData.set(DATA_EMOTE, animationName == null ? "" : animationName);
+        // ⚠️ 必须走三参 set（force = true）：两参版在"值没变"时会短路、**不发同步包**
+        // （SynchedEntityData.java:81：`if (force || ObjectUtils.notEqual(value, dataitem.getValue()))`）。
+        // 而"再播一次同一条一次性表情"（play attack → 播完 → 再 play attack，
+        // 甚至 play attack → play stop → play attack）**正是值没变**的情形 ——
+        // 不 force 的话客户端收不到通知，表现是**指令报成功、却什么都没发生**。
+        this.entityData.set(DATA_EMOTE, animationName == null ? "" : animationName, true);
+    }
+
+    /**
+     * 同步数据变化时，把表情的**客户端瞬态状态**清成"从没见过这条表情"。
+     * <p>
+     * 这是"再播一次同名表情"能生效的另一半：服务端用 {@code force = true} 强制发包后，
+     * 客户端会**无条件**收到通知（{@code SynchedEntityData.assignValues} 对每个条目都调本方法、
+     * 不比较新旧值）⇒ 下一个谓词帧就会重新走一遍"换名"分支、重新钉计时起点。
+     * <p>
+     * 在服务端被调用也无害 —— 这三个字段只在客户端的谓词里被读。
+     */
+    @Override
+    public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
+        super.onSyncedDataUpdated(accessor);
+        if (DATA_EMOTE.equals(accessor)) {
+            this.emoteSeen = "";
+            this.emoteDone = false;
+            this.emoteStartTick = 0;
+        }
     }
 
     /** 清除表情（等价于 {@code setEmote("")}）。{@code play … stop} 与 {@code reset} 都走它。 */
@@ -1145,6 +1169,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             NpcEntity npc = state.getAnimatable();
             String name = npc.emote();
             if (name.isEmpty() || npc.emoteDone) {
+                // 顺手清掉 emoteSeen：万一同步通知因故没到（force 发包这条链路我们只有静态依据），
+                // 下次 play 同名时这里仍能凭"名字 != emoteSeen"重新起表。
+                npc.emoteSeen = "";
                 state.getController().forceAnimationReset();
                 return PlayState.STOP;
             }
@@ -1170,9 +1197,14 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             //    拿它去比长度会立刻判成"播完"。
             // 长度单位是 tick（BakedAnimationsAdapter.java:59：animation_length * 20d）。
             if (npc.tickCount - npc.emoteStartTick >= animation.length()) {
+                // ⚠️ 收工：**照常写这一帧的骨骼**，不要 return STOP！
+                // 理由：main 注册在前，本帧已经跑过（那时 emoteDone 还是 false ⇒ 它让位了）。
+                // 若这里也 STOP，则该帧**没有任何控制器写骨骼** ⇒ GeckoLib 的复位分支会把
+                // 全部骨骼吸附到初始快照（AnimationProcessor.java:174-176，配合 :217,236-237
+                // 每帧清标记 ⇒ percentageReset = 1）⇒ 表现为"收工瞬间整具模型闪一下"。
+                // 照常 setAndContinue 就没有这个空档，下一帧 main 自然接管。
                 npc.emoteDone = true;
-                state.getController().forceAnimationReset();
-                return PlayState.STOP;
+                return state.setAndContinue(RawAnimation.begin().thenPlay(name));
             }
             return state.setAndContinue(RawAnimation.begin().thenPlay(name));
         }));
@@ -1185,7 +1217,19 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * {@code main} 会一直让位、而 {@code emote} 又返回 STOP，两边都不写骨骼。
      */
     private boolean hasActiveEmote() {
-        return !this.emote().isEmpty() && !this.emoteDone;
+        String name = this.emote();
+        if (name.isEmpty() || this.emoteDone) {
+            return false;
+        }
+        // ⚠️ **还必须查得到这条动画**，否则会出现"两个控制器一起返回 STOP"的帧：
+        // main 让位了、emote 又因为查不到而 STOP ⇒ **没有任何控制器写骨骼** ⇒
+        // GeckoLib 的复位分支把全部骨骼吸附到初始快照（AnimationProcessor.java:174-176；
+        // 标记每帧被清、lastResetRotationTick 陈旧 ⇒ percentageReset = 1）
+        // ⇒ 表现是**永久塌成初始姿态**，而不是设计 D4 想要的"状态动画照旧"。
+        // 这条是 2026-09-29 代码审查抓到的 Critical，必须在**这一侧**也挡住 ——
+        // 光让 emote 谓词返回 STOP 是不够的。
+        // 代价：表情生效期间每帧多一次哈希查找（刻意不复缓存，以便 F3+T 后自愈）。
+        return EmoteAnimationLookup.find(this, name) != null;
     }
 
     @Override
