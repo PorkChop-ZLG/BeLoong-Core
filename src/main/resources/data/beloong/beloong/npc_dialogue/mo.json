@@ -1,0 +1,10 @@
+{
+  "entity": "beloong:mo",
+  "trigger": "any",
+  "name": "beloong.dialogue.mo.name",
+  "pages": [
+    {
+      "text": "beloong.dialogue.mo.p1"
+    }
+  ]
+}
