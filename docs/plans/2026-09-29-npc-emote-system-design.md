@@ -140,9 +140,12 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | 攻击 | `attack <t> <victim>` | `attack <t> stop` | ❌ 瞬态 |
 | **表情** | **`play <t> <动画名>`** | **`play <t> stop`** | ❌ **不落盘** |
 
-**正交性推论（均为用户裁定）：**
-- `state` / `move` / `attack` **都不清表情**；只有 `play` 换名、`play … stop`、`reset` 会（D3）。
-- 表情**不影响**寻路与飞行 ⇒ `move` 着播 `sit` 会"坐着滑行"，**有意接受**（D2）。
+**⚠️ 2026-09-29 实机后修订（用户裁定）：表情**不再**与状态/移动/攻击正交**
+- `state` / `move` / `attack` **都会清掉表情**（且 `state` 那句放在幂等判断**之前** ⇒ 重复下发同一状态也清）。
+  理由：表情整层盖住状态动画，玩家分不清"指令到底生效没有"。
+- 代价（已确认接受）：**表情不能跨状态存在**，"坐着飞"这类组合不再可能。
+- 仍然成立的只有一条：表情**不影响**寻路与飞行 ⇒ `move` 着播 `sit` 会"坐着滑行"（这仍是 D2 的取舍）。
+- 能改变表情的入口现在是：`play` 换名、`play … stop`、`state`、`move`、`attack`、`reset`。
 
 ### 3.2 指令面
 
@@ -204,7 +207,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 
 | 情形 | 行为 |
 |---|---|
-| 跨轴组合（R4） | `state flying` + `play dance` 互不干扰 ⇒ 表现"坐着飞"（D3：切 state 不清表情） |
+| 跨轴组合（R4） | **已作废**：`state`/`move`/`attack` 都会清表情 ⇒ 不再有"坐着飞" |
 | 表情 + 移动/攻击（D2） | `move`/`attack` 照常执行，动画层被表情占着 ⇒ "用坐姿走路" |
 | 名字不存在（D4） | 预检失败 ⇒ 什么都不播、**不动 `emoteDone`**、**不做负缓存**（每帧重查，自愈） |
 | 重登/读档（D5） | 表情不落盘 ⇒ 新实体 `DATA_EMOTE=""` ⇒ 直接是状态动画 |
@@ -219,6 +222,10 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | `true` | `LOOP` | 持续到 `play stop`/`reset`/换名 | — |
 | `false` | `PLAY_ONCE` | 播完自动回落 | `hasAnimationFinished()`（快路径）或时间判定 |
 | `"hold_on_last_frame"` | `HOLD_ON_LAST_FRAME` | 播完自动回落 | **时间判定**（`hasAnimationFinished()` 对它恒 false） |
+| **`loop` 字段缺失** | `PLAY_ONCE` | 播完自动回落 | `Animation.java:69-71`：`json == null ⇒ PLAY_ONCE` ⇒ 控制器正常进 `STOPPED`，`hasAnimationFinished()` 可用 |
+
+> **实践结论（2026-09-29）**：想让一条动画"只播一遍"，**在资产里删掉 `loop` 字段**（或写 `"loop": false`）
+> 是最干净的表达 —— 地黄龙的 `attack` 就是这么改的。代码只认「`LOOP` vs 非 `LOOP`」，不新增特例。
 
 > **一次性动画的完成判据只有一条**：`npc.tickCount - emoteStartTick >= Animation.length()`（单位 tick，客户端自记）。
 > `hasAnimationFinished()`（`AnimationController.java:330-332`）只对 `PLAY_ONCE` 成立，可作快路径，**不能当通用判据**。
@@ -239,6 +246,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | 10 | 同步开销 | 短字符串，仅变化时发包 |
 | 11 | 名字带空格/特殊字符 | `word()` 不接受 ⇒ Brigadier 报错；将来若需要改 `string()` |
 | 12 | 未知名字每帧重查 | **刻意**不做负缓存（为自愈），代价几次哈希查找 |
+| 13 | ⚠️ **失败曾被完全静默** | 2026-09-29 实机教训：末的 `attack` 不播，日志里既无 GeckoLib 的 ERROR 也无我们的 WARN ⇒ 无法区分"名字拼错"与"预检链路坏了"。现在 `EmoteAnimationLookup` 对**每种失败**都打一条**英文 WARN**（渲染器不是 `GeoEntityRenderer` / 无 `GeoModel` / 名字找不到 / 查询抛异常），按动画名去重；表情启停另打 `debug`。**本项目日志一律纯英文**，已由探针 B14 守着 |
 
 ```
 防线一（运行时）：客户端预检 + try/catch      ⇒ 未知名字/坏路径都不会把异常或脏日志带进渲染管线
@@ -261,7 +269,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 |---|---|---|
 | **D1** | 表情生命周期**尊重资产的 `loop` 字段**，但"播完"用**时间判定**（非 `hasAnimationFinished()`） | `hold_on_last_frame` 不进入 `STOPPED`（§2.4），若不改判据，`attack`/`descend` 会永久定格 |
 | **D2** | 表情**只覆盖动画，不管移动** | 与 R4"任意组合"一致；实现最简、两轴正交；代价是"坐着滑行"，有意接受 |
-| **D3** | **只有 `play … stop`（与 `reset`）能终止**表情；`state`/`move`/`attack` 都不清 | 保持三轴正交；代价是"坐着飞"，有意接受 |
+| **D3**（**2026-09-29 实机后推翻**） | ~~只有 `play … stop`（与 `reset`）能终止表情~~ ⇒ 改为 **`state`/`move`/`attack` 也都清表情**，且 `state` 那句在幂等判断之前 | 玩家分不清"指令是否生效"；代价是"坐着飞"不再可能 |
 | **D4** | 不存在的动画名 ⇒ **客户端预检、静默不播** | 与 DS 的 `doesAnimationExist` 一致；避开 GeckoLib 的 `ERROR + 堆栈`；代价是拼错无反馈 |
 | **D5** | 表情**不落盘** | 它是纯表现层；代价是重登后坐着的 NPC 站起来（相对今天 `state sitting` 是退化，已知并接受） |
 | **D6** | 采用**路径 A：双控制器 + 后注册覆盖** | DS 在同族引擎上验证过；回归隐式、无需保存"原动画"；给将来的局部/blend 表情留位置 |
@@ -321,8 +329,8 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | 3 | `play attack` | **打一遍后自动回到** idle/walk（D1 时间判定） |
 | 4 | `play descend` | 11.25 秒后自动回落 |
 | 5 | idle 态 `play fly` | 跨状态播放成立（R4） |
-| 6 | `state flying` + `play sit` | "坐着飞"，且切 state **不清**表情（D3） |
-| 7 | `move` + `play sit` | 坐着滑行（D2 有意接受） |
+| 6 | `state flying` + `play sit` | **表情被清掉**（新 D3），且 `state` 重复下发同样清 |
+| 7 | `move` + `play sit` | **表情被清掉**（新 D3）；若在 `move` 之后再 `play sit`，才是"坐着滑行" |
 | 8 | `play stop` | 立刻回落，过渡自然 |
 | 9 | `reset` | 同时清掉移动 + 攻击 + 状态 + 表情 |
 | 10 | `play 不存在的名字` | 无变化、无报错、**日志无 ERROR/堆栈**（D4） |
