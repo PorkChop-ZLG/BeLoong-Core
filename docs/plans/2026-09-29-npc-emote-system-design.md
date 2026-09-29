@@ -145,7 +145,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
   理由：表情整层盖住状态动画，玩家分不清"指令到底生效没有"。
 - 代价（已确认接受）：**表情不能跨状态存在**，"坐着飞"这类组合不再可能。
 - 仍然成立的只有一条：表情**不影响**寻路与飞行 ⇒ `move` 着播 `sit` 会"坐着滑行"（这仍是 D2 的取舍）。
-- 能改变表情的入口现在是：`play` 换名、`play … stop`、`state`、`move`、`attack`、`reset`。
+- 能改变表情的入口现在是：`play` 换名、`play … stop`、`state`、`move`、`attack`、`reset`，**以及一次挥砍**（见 §3.8）。
 
 ### 3.2 指令面
 
@@ -277,6 +277,22 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 `animations/` 下所有 json 由 GeckoLib 自动烘焙；同名主文件优先。
 ⇒ 两文件构成"主 + 扩展"的**逻辑合并**，查找代价是 1~2 次哈希查找。
 
+### 3.8 攻击动画层（2026-09-29 追加）
+
+**目标**：通用 NPC 每次**挥砍**时播一遍攻击动画，播完自动回到状态动画。
+
+| 关注点 | 设计 | 依据 |
+|---|---|---|
+| **触发源** | 覆写 `LivingEntity#swing(InteractionHand)` —— **原版唯一的挥砍事件** | `MeleeAttackGoal.java:150-155`：`checkAndPerformAttack` 里 `mob.swing(MAIN_HAND)`（` :153`）紧接 `doHurtTarget`（`:154`）⇒ **与伤害同帧** |
+| **边沿判定** | **不需要**：原版已做 | `LivingEntity.java:1864` 的 `!swinging \|\| swingTime >= duration/2 \|\| swingTime < 0` ⇒ 每次调用即"一次新挥砍" |
+| **同步** | **零新增**：客户端由 `ClientPacketListener#handleAnimate` 调同一个 `swing()`，而包由 `LivingEntity.java:1868-1875` 广播 | 一个覆写同时挂住两侧，天然一致 ⇒ 不加字段、不加包 |
+| **服务端职责** | `clearEmote()` —— **攻击行为清表情**（用户裁定） | 与 `attack` 指令的口径一致 |
+| **客户端职责** | 预检 `attackAnimationName()` 存在 ⇒ `cache.getManagerForId(getId()).tryTriggerAnimation("swing")` | 查不到就**不触发**（避免"两个控制器同时 STOP ⇒ 塌成初始姿态"）；`AnimatableInstanceCache#getManagerForId` 是 public（`:46`） |
+| **动画挂哪** | 新控制器 `attack`，**注册在最后**（`main` → `emote` → `attack`） | 后注册者最后写骨骼 ⇒ **攻击优先于表情**（用户裁定）。它谓词恒 STOP、只播点播；`tryTriggerAnimation` 会把 STOPPED 的控制器拉起（`AnimationController.java:402-406`） |
+| **收工** | 交给 GeckoLib：`handleAnimationState`（`:434-449`）在点播播完时置空 `triggeredAnimation` ⇒ 回落状态动画 | 不必自记计时（比表情那条路径更干净） |
+
+**非目标**：不同武器不同攻击动画 · 受击/格挡/连招 · 攻击动画落盘 · 前摇早于伤害（用户选"挥砍同帧"）。
+
 ---
 
 ## 四、决策记录
@@ -291,6 +307,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | **D4** | 不存在的动画名 ⇒ **客户端预检、静默不播** | 与 DS 的 `doesAnimationExist` 一致；避开 GeckoLib 的 `ERROR + 堆栈`；代价是拼错无反馈 |
 | **D5** | 表情**不落盘** | 它是纯表现层；代价是重登后坐着的 NPC 站起来（相对今天 `state sitting` 是退化，已知并接受） |
 | **D6** | 采用**路径 A：双控制器 + 后注册覆盖** | DS 在同族引擎上验证过；回归隐式、无需保存"原动画"；给将来的局部/blend 表情留位置 |
+| **D7**（2026-09-29 追加） | 攻击动画：**每次挥砍播一遍**、**攻击优先且顺带清表情**、**与伤害同帧**，且**只用原版 `swing` 事件** | 原版信号现成 ⇒ 零新增同步；`swing()` 自带边沿判定、两侧都会走到（§3.8） |
 
 ### 继承的既有决策（不变）
 
@@ -357,6 +374,11 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | 13 | 旧档（`BeloongState="sitting"`）载入 | 回落 idle、不崩 |
 | 14 | 表情在播时 F3+T | 不崩、继续播 |
 | 15 | 地黄龙走 1/3/8 | 它的 `sit`/`dance` 在自带单文件里 ⇒ `play sit` 生效 |
+
+| 16 | `attack @e[type=zombie]` | **每挥一次播一遍**攻击动画，播完回到 walk/run |
+| 17 | 连续追击（多次挥砍） | 每次都能重播，不漏 |
+| 18 | 先 `play sit`，再让它攻击 | **攻击优先**，且表情被清掉（D7） |
+| 19 | 对资产里**没有** `attack` 的 NPC 挥砍 | 不播、姿势**不塌**、日志一条英文 WARN |
 
 ### C. 已知残留风险（记录，不修）
 

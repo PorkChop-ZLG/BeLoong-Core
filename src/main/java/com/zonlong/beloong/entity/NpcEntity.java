@@ -8,6 +8,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntitySelector;
 import net.minecraft.world.entity.EntityType;
@@ -161,6 +162,17 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      */
     protected String flyAnimationName() {
         return "fly";
+    }
+
+    /**
+     * 攻击动画名。默认 {@code "attack"}。
+     * <p>
+     * ⚠️ 与 {@link #flyAnimationName()} 是同一个坑：<b>资产里没有这条动画就不会播</b> ——
+     * 客户端在触发前会预检（{@link #swing}），查不到就什么都不做。
+     * 这比"静默塌成初始姿态"好，但仍不会报错；失败会留一条<b>英文 WARN</b>（见 {@code EmoteAnimationLookup}）。
+     */
+    protected String attackAnimationName() {
+        return "attack";
     }
 
     /**
@@ -632,6 +644,44 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         }
         this.attackCommandActive = false;
         this.setTarget(null);
+    }
+
+    // ===================== 攻击表现：挂在**原版挥砍事件**上的两个钩子 =====================
+
+    /**
+     * 每次挥砍都会被调用 —— 本模组的「攻击动画」与「攻击清表情」都挂在这**一个原版事件**上。
+     *
+     * <h4>为什么是它（而不是自己造一个信号）</h4>
+     * <ol>
+     *   <li><b>它是原版唯一的挥砍事件</b>：{@code MeleeAttackGoal.java:150-155} 的
+     *       {@code checkAndPerformAttack} 里，{@code this.mob.swing(MAIN_HAND)}（{@code :153}）
+     *       紧跟着 {@code this.mob.doHurtTarget(target)}（{@code :154}）
+     *       ⇒ <b>与伤害结算同帧</b>（用户裁定的"挥砍同帧"）。</li>
+     *   <li><b>它自带边沿判定</b>：{@code LivingEntity.java:1864} 的
+     *       {@code if (!this.swinging || this.swingTime >= this.getCurrentSwingDuration() / 2 || this.swingTime < 0)}
+     *       ⇒ <b>每次调用就是"一次新挥砍"</b>，我们不需要自己跟踪上升沿。</li>
+     *   <li><b>它两侧都会走到</b>：服务端由 goal 调用（{@code :153}）；客户端由
+     *       {@code ClientPacketListener#handleAnimate} 调用，而那个包由
+     *       {@code LivingEntity.java:1868-1875} 在服务端广播
+     *       ⇒ <b>零新增同步字段、零新增网络包</b>。</li>
+     * </ol>
+     * 于是"服务端清表情、客户端触发攻击动画"挂在**同一次事件**上，两侧天然一致。
+     */
+    @Override
+    public void swing(InteractionHand hand) {
+        super.swing(hand);
+        if (this.level().isClientSide()) {
+            // 客户端：点播攻击动画。**先预检** —— 资产里没有这条动画就不要触发：
+            // 否则 main 会让位、而这里没有能播的东西 ⇒ 该帧没有任何控制器写骨骼
+            // ⇒ GeckoLib 的复位分支把全部骨骼吸附到初始快照（详见 EmoteAnimationLookup 的注释）。
+            if (EmoteAnimationLookup.find(this, this.attackAnimationName()) != null) {
+                this.cache.getManagerForId(this.getId()).tryTriggerAnimation(ATTACK_TRIGGER);
+            }
+            return;
+        }
+        // 服务端：**攻击行为清掉当前表情**（用户裁定）—— 与 `attack` 指令的口径一致。
+        // 这里的 clearEmote() 自带 isClientSide 守门，故上面客户端分支直接 return 更清楚。
+        this.clearEmote();
     }
 
     // ===================== 表情（纯表现层，与状态正交）=====================
@@ -1112,6 +1162,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     // 服务端只知道 DATA_EMOTE（那个名字），"播完了没有"只有客户端能判断
     // —— 因为"这支动画有多长、是不是循环动画"都是**资产数据**（见 EmoteAnimationLookup）。
 
+    /**
+     * 攻击动画的**点播键** —— 只是 GeckoLib 里查表用的键，与动画**名字**无关
+     * （动画名由 {@link #attackAnimationName()} 给，默认 {@code "attack"}）。
+     */
+    private static final String ATTACK_TRIGGER = "swing";
+
     /** 上一次看到的 {@link #emote()} 值，用来检测"换了一条表情"。 */
     private String emoteSeen = "";
 
@@ -1229,6 +1285,14 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             }
             return state.setAndContinue(RawAnimation.begin().thenPlay(name));
         }));
+
+        // 攻击控制器：**注册在最后** ⇒ 最后写骨骼 ⇒ **攻击动画优先于表情**（用户裁定）。
+        // 它不承载任何状态：谓词恒返回 STOP，只播由 swing() 点播的那一条；
+        // 而 tryTriggerAnimation 会把 STOPPED 的控制器重新拉起
+        // （AnimationController.java:402-406），所以"恒 STOP"不会妨碍点播。
+        controllers.add(new AnimationController<>(this, "attack", this.animationTransitionTicks(),
+                        state -> PlayState.STOP)
+                .triggerableAnim(ATTACK_TRIGGER, RawAnimation.begin().thenPlay(this.attackAnimationName())));
     }
 
     /**
