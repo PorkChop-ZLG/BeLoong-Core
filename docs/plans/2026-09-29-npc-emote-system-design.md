@@ -221,11 +221,29 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 |---|---|---|---|
 | `true` | `LOOP` | 持续到 `play stop`/`reset`/换名 | — |
 | `false` | `PLAY_ONCE` | 播完自动回落 | `hasAnimationFinished()`（快路径）或时间判定 |
-| `"hold_on_last_frame"` | `HOLD_ON_LAST_FRAME` | 播完自动回落 | **时间判定**（`hasAnimationFinished()` 对它恒 false） |
+| `"hold_on_last_frame"` | `HOLD_ON_LAST_FRAME` | ⚠️ **实测：完全不播** | **不要用这种写法表达一次性**（见下） |
 | **`loop` 字段缺失** | `PLAY_ONCE` | 播完自动回落 | `Animation.java:69-71`：`json == null ⇒ PLAY_ONCE` ⇒ 控制器正常进 `STOPPED`，`hasAnimationFinished()` 可用 |
 
-> **实践结论（2026-09-29）**：想让一条动画"只播一遍"，**在资产里删掉 `loop` 字段**（或写 `"loop": false`）
-> 是最干净的表达 —— 地黄龙的 `attack` 就是这么改的。代码只认「`LOOP` vs 非 `LOOP`」，不新增特例。
+> ### ⚠️ 2026-09-29 实机结论：`"loop": "hold_on_last_frame"` 的动画**完全不播**
+>
+> 末的 `attack` 原先用的就是这个值，实机表现为「**没有任何动画**」；把该字段**删掉**（⇒ `PLAY_ONCE`）后
+> 立刻正常播出 —— 日志侧的铁证：`emote start name='attack' lengthTicks=30` @17:12:57.848，
+> `emote finished name='attack'` @17:12:59.320，即 **1.47 秒**后按 30 tick 的长度正常收工。
+>
+> **机制未查明**（诚实标注）：`Animation.java:43-47` 显示它把控制器设成 `PAUSED` 并返回"再播一次"，
+> 推测与"控制器被暂停后不再写骨骼 ⇒ 走 GeckoLib 复位分支"有关，但本次**没有验证**。
+> （这条与"两个控制器同时 STOP ⇒ 全骨骼吸附初始快照"可能是同一个机制 —— 那条已由代码审查证实。）
+>
+> ⇒ **规矩**：**一律不要用 `hold_on_last_frame` 表达"只播一遍"**。
+>
+> ✅ **正确写法：删掉 `loop` 字段**（或写 `"loop": false`）⇒ `PLAY_ONCE`。
+> 本项目 `mo.animation.json` 的 `attack` 与 `mo.extra.animation.json` 的 `descend` 现已**全部**改为该写法，
+> 于是**当前资产里没有任何动画使用 `hold_on_last_frame`**。
+>
+> 📌 **一并核实（排除误因）**：那次提交还顺手把 `attack` 里约 197 个时间键从 `"1"` 改写成 `"1.0"` ——
+> **这不影响任何行为**：`BakedAnimationsAdapter.java:273` 是
+> `NumberUtils.isCreatable(timestamp) ? Double.parseDouble(timestamp) : 0`，两种写法都合法且等价。
+> ⇒ 修复原因**只是** `loop` 字段，不是格式化。
 
 > **一次性动画的完成判据只有一条**：`npc.tickCount - emoteStartTick >= Animation.length()`（单位 tick，客户端自记）。
 > `hasAnimationFinished()`（`AnimationController.java:330-332`）只对 `PLAY_ONCE` 成立，可作快路径，**不能当通用判据**。
