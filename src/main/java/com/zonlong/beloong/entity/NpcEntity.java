@@ -570,6 +570,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.level().isClientSide()) {
             return;
         }
+        // 2026-09-29（用户裁定）：**任何 move 指令都清表情**。
+        // 理由：表情会整层盖住状态动画，不清的话玩家分不清"指令到底生效没有"。
+        // ⚠️ 这一句**必须在下面的幂等判断之前** —— 于是"已是 idle 再下发 state idle"
+        // 同样会清表情（这正是用户要的语义）。
+        // 代价（已确认接受）：表情不再能跨状态存在，"坐着飞"这类组合不再可能。
+        this.clearEmote();
         this.setMoveTarget(pos);
     }
 
@@ -600,6 +606,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.level().isClientSide()) {
             return;
         }
+        // 2026-09-29（用户裁定）：**任何 attack 指令都清表情**。
+        // 理由：表情会整层盖住状态动画，不清的话玩家分不清"指令到底生效没有"。
+        // ⚠️ 这一句**必须在下面的幂等判断之前** —— 于是"已是 idle 再下发 state idle"
+        // 同样会清表情（这正是用户要的语义）。
+        // 代价（已确认接受）：表情不再能跨状态存在，"坐着飞"这类组合不再可能。
+        this.clearEmote();
         this.clearMotionCommands();
         this.attackCommandActive = target != null;
         this.setTarget(target);
@@ -716,6 +728,12 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.level().isClientSide()) {
             return;
         }
+        // 2026-09-29（用户裁定）：**任何 state 指令都清表情**。
+        // 理由：表情会整层盖住状态动画，不清的话玩家分不清"指令到底生效没有"。
+        // ⚠️ 这一句**必须在下面的幂等判断之前** —— 于是"已是 idle 再下发 state idle"
+        // 同样会清表情（这正是用户要的语义）。
+        // 代价（已确认接受）：表情不再能跨状态存在，"坐着飞"这类组合不再可能。
+        this.clearEmote();
         if (next != NpcState.FLYING) {
             this.setNoGravity(false);      // 先闭合不变式，再做幂等判断
         }
@@ -883,6 +901,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         }
         this.stopMoving();
         this.stopAttacking();
+        // 2026-09-29：补上遗漏的一步 —— reset 也要清表情。
+        // （原先漏了；现由探针 S2 的 B12 守着，防止再漏。）
+        this.clearEmote();
         this.setState(NpcState.IDLE);
         this.getNavigation().stop();
         this.setNoGravity(false);
@@ -1175,13 +1196,19 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 state.getController().forceAnimationReset();
                 return PlayState.STOP;
             }
-            if (!name.equals(npc.emoteSeen)) {
+            boolean changed = !name.equals(npc.emoteSeen);
+            if (changed) {
                 // 换了一条表情：重置本地状态，并把计时起点钉在**当前 tick**上。
                 npc.emoteSeen = name;
                 npc.emoteDone = false;
                 npc.emoteStartTick = npc.tickCount;
             }
             Animation animation = EmoteAnimationLookup.find(npc, name);
+            if (animation != null && changed) {
+                // 纯英文（本项目日志规则）。只在**换名那一帧**打，不刷屏。
+                BeLoongCore.LOGGER.debug("[BeLoong] emote start: {} name='{}' loopType={} lengthTicks={}",
+                        npc.getType(), name, animation.loopType(), animation.length());
+            }
             if (animation == null) {
                 // 资产里没有这条动画（或名字拼错）：静默不播（设计 D4）。
                 // **不做负缓存** —— 下一帧还会再查，于是 F3+T 重载资源后能自愈。
@@ -1204,6 +1231,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 // 每帧清标记 ⇒ percentageReset = 1）⇒ 表现为"收工瞬间整具模型闪一下"。
                 // 照常 setAndContinue 就没有这个空档，下一帧 main 自然接管。
                 npc.emoteDone = true;
+                BeLoongCore.LOGGER.debug("[BeLoong] emote finished: {} name='{}' lengthTicks={}",
+                        npc.getType(), name, animation.length());
                 return state.setAndContinue(RawAnimation.begin().thenPlay(name));
             }
             return state.setAndContinue(RawAnimation.begin().thenPlay(name));
