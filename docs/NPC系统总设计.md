@@ -263,16 +263,40 @@ registerGoals() {
 > **不需要"移速补偿""自定义加速度"之类的自研机制。** 首版曾把移速设成 0.1 并试图用
 > `1/√attr` 之类的系数补偿，结果是走得像蜗牛；改回原版刻度后一切正常。
 
-### 3.6 动画：idle / walk / run 三档
+### 3.6 动画：三层控制器（状态 / 表情 / 攻击）
 
-单个 `AnimationController`（名字 `"main"`，过渡 `animationTransitionTicks()` = 5 tick，
-0 = 硬切）用谓词三选一：
+> 📌 **2026-09-29 改版**：本节原文只有"idle/walk/run 三档、单个控制器"。
+> 此后依次加入了**飞行状态**、**表情轴**、**攻击动画层**，故重写为"三层"。
+
+`NpcEntity` 注册**三个** GeckoLib 控制器。**注册顺序是承重结构**：GeckoLib 按注册顺序遍历、
+且对骨骼是**直接赋值**（`AnimationProcessor.java:80,107-131`、`AnimatableManager.java:202-208`）
+⇒ **后注册者最后写骨骼、覆盖前者**：
+
+| 顺序 | 控制器 | 播什么 | 何时让位 |
+|---|---|---|---|
+| ① | `main` | **状态动画**：`FLYING` 播 `fly`；`IDLE` 按下面三选一 | 有表情时 `stop()` 让位 |
+| ② | `emote` | **表情**：`play <动画名>` 的点播层（循环型保持、非循环型播完自动回落） | 无表情时 `forceAnimationReset()` |
+| ③ | `attack` | **挥砍瞬发**：GeckoLib `triggerableAnim` 点播（谓词恒 STOP） | 点播期间由库自行接管 |
+
+顺序由探针 `tools/YSMParser/probe_emote_bytecode.py` 的 C1 守着（`main` < `emote` < `attack`）。
+过渡均为 `animationTransitionTicks()` = 5 tick（0 = 硬切）。
+
+**`main` 的 IDLE 三选一**：
 
 | 条件 | 动画 |
 |---|---|
 | `!state.isMoving()` | `idle` |
 | `getAttributeValue(MOVEMENT_SPEED) > getAttributeBaseValue(MOVEMENT_SPEED)` | `run` |
 | 其余 | `walk` |
+
+**挥砍瞬发**：覆写 `LivingEntity#swing(InteractionHand)` —— 原版唯一的挥砍事件
+（`MeleeAttackGoal.java:153` 服务端调、`ClientPacketListener#handleAnimate` 客户端调，
+包由 `LivingEntity.java:1868-1875` 广播）⇒ **零新增同步字段**。服务端顺带清表情，
+客户端预检资产里有没有这条动画，再 `tryTriggerAnimation`。
+
+**表情与状态不是正交的**：`state` / `move` / `attack` / `reset` **都会清掉表情**
+（用户 2026-09-29 裁定，理由：表情整层盖住状态动画，分不清指令是否生效）。
+完整设计见 `docs/plans/2026-09-29-npc-emote-system-design.md`。
 
 **「跑」不是一种状态，而是「有额外移速加成」的表现**（用户裁定）。
 判据是**属性值 > 基础值**：
@@ -295,15 +319,27 @@ registerGoals() {
 ### 3.7 外部驱动 API
 
 ```java
-public void walkTo(Vec3 pos)          // 走到目标点（导航档位 1.0）
-public void attack(@Nullable LivingEntity target)  // 下令攻击；null = 取消
-public void stopAction()              // 取消全部指令，回到站桩
-public boolean isAttackCommandActive()
-public void clearAttackCommand()
+// 四条指令轴（各由指令面暴露，见 §六）—— 名字即语义，反面成对
+public final void setState(NpcState next)          // 状态：IDLE / FLYING（**落盘**）
+public void moveTo(Vec3 pos)                       // 移动：走到目标点（档位 1.0）
+public void stopMoving()                           // 移动的反面
+public void attack(@Nullable LivingEntity target)  // 攻击：下令攻击；null = 取消
+public void stopAttacking()                        // 攻击的反面
+public void setEmote(String animationName)         // 表情：播一条动画（**不落盘**）
+public void clearEmote()                           // 表情的反面
+public void resetToDefault()                       // 全清：状态→IDLE + 无移动 + 无攻击 + 无表情
+
+// 查询
+public NpcState state()      public boolean isFlying()      public boolean isAttackCommandActive()
+public String emote()
 ```
 
-三个公开方法**都只在服务端生效**（`level().isClientSide()` 时直接 return）。
-`attack()` 会把 `attackCommandActive` 置位并 `setTarget()`；`walkTo()` 会清掉攻击指令。
+**服务端权威**：`setState()` / `setEmote()` 在 `level().isClientSide()` 时直接 return；
+而 `state()` 与 `emote()` **双端可读** —— 客户端动画谓词要用它们。
+
+**清表情是刻意的例外**（2026-09-29 用户裁定）：`state` / `move` / `attack` / `reset` **都会清掉表情**；
+且 `setState()` 里那句在**幂等判断之前** ⇒ **重复下发同一状态也会清**。
+`stopMoving()`（`stop` 指令）**不清** —— 它只是 `move` 的反面。
 
 **攻击指令的失效兜底**在 `customServerAiStep()`：
 
@@ -323,6 +359,9 @@ public void clearAttackCommand()
 | `idleAnimationName()` | `"idle"` | 子类资产里叫别的名字就覆写 |
 | `walkAnimationName()` | `"walk"` | |
 | `runAnimationName()` | `"run"` | 只在有额外移速加成时移动才播 |
+| `flyAnimationName()` | `"fly"` | `FLYING` 状态播它 |
+| `attackAnimationName()` | `"attack"` | 每次挥砍播一遍；**资产里没有就不播**（客户端预检） |
+| `stateAnimationName(NpcState)` | 见 §3.6 | 上述各项的汇总口；一般不必覆写 |
 | `animationTransitionTicks()` | `5` | 0 = 硬切 |
 | `facePlayerDistance()` | `8.0F` | `LookAtPlayerGoal` 的跟随距离；`protected` |
 | `createNpcAttributes()` | 见 §3.9 | `static`，子类用它作起点追加/覆盖 |
@@ -360,8 +399,8 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 | 文件 | 大小 | 内容 |
 |---|---|---|
 | `assets/beloong/geo/dihuang_loong.geo.json` | 196 KB | 145 骨骼、340 立方体；两个根骨骼 `Magic` / `Dragon`；`identifier` 为 `geometry.unknown` |
-| `assets/beloong/animations/dihuang_loong.animation.json` | 477 KB | 96 个动画 |
-| `assets/beloong/textures/entity/dihuang_loong.png` | 153 KB | 256×256 |
+| `assets/beloong/animations/dihuang_loong.animation.json` | 58 KB | 7 个动画（`idle`/`fly`/`walk`/`run`/`sit`/`dance`/`attack`） |
+| `assets/beloong/textures/entity/dihuang_loong.png` | 153 KB | **512×512**（📌 2026-09-29 更正：本文曾写 256×256） |
 
 **`idle`（32 骨骼 / 4.75s）与 `walk`（63 骨骼 / 1.375s）骨骼覆盖 0 缺失。**
 `run`（77 骨骼 / 1s）引用了 3 根本模型没有的骨骼（`Drip1-3`）——GeckoLib 对缺失骨骼是
@@ -656,10 +695,23 @@ PlayerInteractEvent.EntityInteract
 ## 六、调试命令
 
 ```
-/beloong npc walk   <targets> <pos>     // 让这些 NPC 走到坐标
-/beloong npc attack <targets> <victim>  // 下令攻击某个生物
-/beloong npc stop   <targets>           // 取消移动与攻击，回到站桩
+/beloong npc <targets> state <state>      // idle | flying（补全来自枚举）
+/beloong npc <targets> move <pos>         // 移动（走法由当前状态决定）
+/beloong npc <targets> stop               // 停止寻路（move 的反面）
+/beloong npc <targets> attack <victim>    // 下令攻击
+/beloong npc <targets> attack stop        // 停止攻击
+/beloong npc <targets> play <动画名>       // 播放表情（任意动画名，覆盖状态动画）
+/beloong npc <targets> play stop          // 停止表情
+/beloong npc <targets> reset              // 回到默认（状态/移动/攻击/表情全清）
 ```
+
+> 📌 **2026-09-27 起格式统一为"目标在前、动作在后"**；`walk` 已并入 `move`，
+> `fly on|off` 与 `fly to` 分别并入 `state … flying` 与 `move`。
+> **2026-09-29 增补 `play` 轴**（`state` 同时收缩为 `idle`/`flying` 两态）。
+>
+> ⚠️ **`play` 的参数刻意没有补全**：动画名是**客户端**资产数据，服务端不知道有哪些名字 ——
+> 这与 `state` 用枚举补全形成对照。拼错时客户端预检会**静默不播**（但会留一条英文 WARN）。
+> **清表情**：`state` / `move` / `attack` / `reset` 都会清；`stop` 不清（它只是 `move` 的反面）。
 
 op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模组**所有** NPC 生效；
 选到的不是 NPC 时**明确报错**（`beloong.command.npc.no_targets`），不静默。
@@ -722,9 +774,11 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
-| `entity/NpcEntity.java` | 373 | 通用基类（**本系统的主体**） |
-| `entity/DihuangLoongEntity.java` | 49 | 地黄龙（构造 + 属性） |
-| `entity/ai/NpcAttackGoal.java` | 47 | 命令式攻击 goal |
+| `entity/NpcEntity.java` | 1324 | 通用基类（**本系统的主体**：状态/移动/攻击/表情 + 三层动画） |
+| `entity/NpcState.java` | 139 | 状态枚举（IDLE / FLYING，落盘） |
+| `entity/MoEntity.java` | 202 | 末（构造 + 属性 + 资产覆写） |
+| `entity/DihuangLoongEntity.java` | 90 | 地黄龙（构造 + 属性） |
+| `entity/ai/NpcAttackGoal.java` | 59 | 命令式攻击 goal |
 | `dialogue/NpcDialogueEntry.java` | 164 | 数据定义 + Codec |
 | `dialogue/NpcDialogueLoader.java` | 127 | 服务端加载器 |
 | `dialogue/NpcDialogueHandler.java` | 77 | 服务端右键受理 |
@@ -733,7 +787,10 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | `client/NpcDialogueOptionButton.java` | 147 | 选项按钮 |
 | `client/DihuangLoongRenderer.java` | 27 | 渲染器 |
 | `client/model/DihuangLoongModel.java` | 118 | 模型 + Molang |
-| `command/NpcCommand.java` | 121 | 调试命令 |
+| `client/MoRenderer.java` | 70 | 末的渲染器（`MODEL_SCALE = 0.80`） |
+| `client/model/MoModel.java` | 185 | 末的模型（含合并 extra 动画文件的 fallback） |
+| `client/model/EmoteAnimationLookup.java` | 126 | 表情预检（查不到就静默不播，失败留英文 WARN） |
+| `command/NpcCommand.java` | 308 | 调试命令（八条子命令） |
 
 > **比例值得注意**：基类 373 行、对话系统 655 行，而具体的 NPC 只有 49 行。
 > 前两者是一次性成本，后者才是每个新 NPC 的边际成本。
@@ -743,8 +800,12 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | 文件 | 大小 |
 |---|---|
 | `assets/beloong/geo/dihuang_loong.geo.json` | 196 KB |
-| `assets/beloong/animations/dihuang_loong.animation.json` | 477 KB |
-| `assets/beloong/textures/entity/dihuang_loong.png` | 153 KB（256×256） |
+| `assets/beloong/animations/dihuang_loong.animation.json` | 58 KB |
+| `assets/beloong/textures/entity/dihuang_loong.png` | 153 KB（512×512） |
+| `assets/beloong/geo/mo.geo.json` | 454 KB（271 骨骼 / 858 立方体，**1 根根骨骼** `Root_Molang`） |
+| `assets/beloong/animations/mo.animation.json` | 756 KB（`idle`/`fly`/`walk`/`run`/`attack`） |
+| `assets/beloong/animations/mo.extra.animation.json` | 2.2 MB（`sit`/`dance`/`descend`；`descend` 占 86%） |
+| `assets/beloong/textures/entity/mo.png` | 55 KB（512×512） |
 
 ### 数据包
 
@@ -912,6 +973,16 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 
 ---
 
+### 2026-09-27 / 2026-09-29 的后续决策（本文写作之后）
+
+| 主题 | 决策要点 | 依据 |
+|---|---|---|
+| **状态系统**（09-27） | 状态收敛为**单一互斥枚举**并**落盘**；指令面统一为"目标在前、动作在后" | `docs/plans/2026-09-27-npc-state-system-{design,plan}.md` |
+| **表情系统**（09-29） | 新增「表情轴」：`DATA_EMOTE` + `emote` 控制器（后注册覆盖）；`sit`/`dance` 迁出状态轴改由 `play` 播；末用 `getAnimationResourceFallbacks` 合并 extra 动画文件 | `docs/plans/2026-09-29-npc-emote-system-design.md` |
+| **表情语义修订** | **`state`/`move`/`attack`/`reset` 都会清表情**（推翻初版"完全正交"）；表情**不落盘** | 同上 §3.1 / §四 D3、D5 |
+| **攻击动画** | 每**挥砍**播一遍，挂在**原版 `swing` 事件**上（零新增同步）；攻击控制器**最后注册** ⇒ 攻击优先，并顺带清表情 | 同上 §3.8 / D7 |
+| **资产体量** | Mo 的两个动画文件按**分档容差**抽稀：4.38 MiB → 2.86 MiB（`descend` 整条不动） | 提交 `a28e865` |
+
 ## 十、已知问题与后续可选项
 
 ### 10.1 已结案的风险
@@ -973,6 +1044,10 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | `docs/plans/2026-09-25-npc-base-class-plan.md` | 上述设计的实施计划 | **已执行**（`dc0d763`），已被后续工作取代 |
 | `docs/plans/2026-09-25-npc-vanilla-ai-design.md` | "尽量用原版机制"的裁定文档（D48–D57 + R-impl-2） | **已实现 + 实机通过**。本文 §3 的正文来源 |
 | `docs/plans/2026-09-25-npc-vanilla-ai-plan.md` | 上述设计的实施计划（T1–T12） | **T1–T9 已完成并验证；T10–T12 见 §10.2** |
+| `docs/plans/2026-09-27-npc-state-system-design.md` | 状态系统设计（互斥枚举 + 落盘 + 指令面重构） | **部分被取代**：`SITTING`/`DANCING` 两态与 `isMovementMode()` 已随表情系统删除。落盘判据、四种还原入口、指令面思想仍有效 |
+| `docs/plans/2026-09-27-npc-state-system-plan.md` | 上述设计的实施计划 | 已执行（`3c85d6c`）；本文 §3.6/§3.7 的正文来源之一 |
+| `docs/plans/2026-09-29-npc-emote-system-design.md` | **表情系统 + 攻击动画层**设计（含 `hold_on_last_frame` 等实机结论） | **已实现**（`a679791` … `a82dc3a`）；本文 §3.6/§3.7/§六 的正文来源之一 |
+| `docs/plans/2026-09-29-npc-emote-system-plan.md` | 上述设计的实施计划（T1–T13 + 三个探针脚本） | **已执行完毕**，含"实施记录"与三处偏离 |
 
 ### 相关但不在整合范围的文档
 

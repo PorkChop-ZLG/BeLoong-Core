@@ -36,7 +36,7 @@ import software.bernie.geckolib.model.GeoModel;
  *   <li>{@code textures/entity/mo.png} —— 512×512 贴图，来自 {@code 末2/} 并经用户精简；
  *       2026-09-27 补嘴时只改了 1 个像素（{@code (511,511)}：透明 → 粉色），
  *       已逐像素校验"除该像素外与前一版完全相同"，PNG 头属性也未变。</li>
- *   <li>{@code animations/mo.animation.json} —— <b>5.44 MB / 9 个动画</b>，取自 {@code 末/}
+ *   <li>{@code animations/mo.animation.json}（5 条）+ {@code animations/mo.extra.animation.json}（3 条） —— <b>2026-09-29 由一份拆成两份，并按"分档容差"抽稀（4.38 MiB → 2.86 MiB）</b>，取自 {@code 末/}
  *       并经多轮修整（29 → 11 → 9 条）。代码目前播其中 6 条：{@code idle} / {@code walk} /
  *       {@code run}（主状态机）、{@code fly}（飞行态）、{@code sit}（坐下态）、
  *       {@code dance}（跳舞态，即 20.5 秒循环的星辉闪耀）；

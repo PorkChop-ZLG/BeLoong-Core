@@ -684,7 +684,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.clearEmote();
     }
 
-    // ===================== 表情（纯表现层，与状态正交）=====================
+    // ========== 表情（一层动画覆盖：盖住状态动画；`state`/`move`/`attack`/`reset` 都会清掉它）==========
 
     /**
      * 当前表情动画名，<b>空串表示没有表情</b>。双端可读。
@@ -808,7 +808,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 2026-09-29：这里原本还有"进入姿态就取消移动与攻击指令"一条。姿态迁入表情系统后，
      * 剩下的两个状态都是移动模式 ⇒ <b>切换状态不再取消任何指令</b>
      * （移动指令保留并按新模式重新执行：同一条 {@code move} 在地面是"走"、在飞行是"飞"），
-     * <b>表情也不受状态切换影响</b>（两轴正交）。
+     * <b>表情会被状态切换清掉</b>（2026-09-29 用户裁定：`state`/`move`/`attack`/`reset` 都清表情）。
      */
     private void switchState(NpcState next) {
         // ① 无条件收掉"飞行"的副作用。判据是"暂存里还留着原导航"，

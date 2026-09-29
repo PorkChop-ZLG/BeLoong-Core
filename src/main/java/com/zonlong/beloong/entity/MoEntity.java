@@ -133,7 +133,7 @@ public class MoEntity extends NpcEntity {
      * <p>
      * 于是"坐下 / 跳舞"<b>不再是状态</b>，而是用
      * {@code /beloong npc <targets> play sit} / {@code play dance} 播的<b>表情</b>
-     * （与状态完全正交，见 {@code NpcState} 的类注释）。本类因此<b>不再覆写</b>任何
+     * （`state`/`move`/`attack`/`reset` 都会清掉它，见 {@code NpcState} 的类注释）。本类因此<b>不再覆写</b>任何
      * "某状态的动画名"方法 —— 基类只留 {@link #flyAnimationName()} 与 idle/walk/run 这几个。
      * <p>
      * ⚠️ <b>保留下面的教训</b>：本类注释曾写着"没有 {@code sit}"，那是**只看了资产里

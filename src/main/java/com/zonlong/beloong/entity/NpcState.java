@@ -27,7 +27,10 @@ import java.util.function.IntFunction;
  *
  * <h2>为什么是「互斥」而不是「移动模式 × 姿态」两个正交轴</h2>
  * 用户裁定互斥（vanilla 的 {@code Armadillo}/{@code Sniffer} 也都是互斥枚举），代价是
- * "一边飞一边跳"做不到 —— 已明确列为非目标。判据见 {@link #isMovementMode()}。
+ * "一边飞一边跳"做不到 —— 已明确列为非目标。
+ * <p>
+ * 📌 2026-09-29：本节的"判据"（{@code isMovementMode()}）已随姿态迁出而删除，
+ * 讨论对象只剩 {@link #IDLE} 与 {@link #FLYING} 两个**都是移动模式**的状态。
  *
  * <h2>⚠️ 两种状态**都是移动模式** —— 姿态已迁出本枚举</h2>
  * 这里曾经还有 {@code SITTING} / {@code DANCING} 两个「姿态」常量，并靠 {@code isMovementMode()}

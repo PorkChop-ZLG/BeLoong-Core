@@ -16,11 +16,18 @@ import software.bernie.geckolib.model.GeoModel;
  *   <li>{@code geo/dihuang_loong.geo.json} —— 145 骨骼 / 340 立方体，
  *       其 {@code identifier} 是 {@code geometry.unknown}。**无需修正**：GeckoLib 按本类返回的
  *       <b>文件路径</b>取模型，{@code identifier} 只是可空元数据（{@code ModelProperties.java:35}）。</li>
- *   <li>{@code animations/dihuang_loong.animation.json} —— 96 个动画，整份放上来备用；
- *       目前播三个：{@code idle}（32 骨骼 / 4.75s）、{@code walk}（63 骨骼 / 1.375s）、
- *       {@code run}（77 骨骼 / 1s，缺 3 根骨骼 {@code Drip1-3}）—— 前三者中的
- *       {@code idle}/{@code walk} 骨骼覆盖 **0 缺失**。</li>
- *   <li>{@code textures/entity/dihuang_loong.png} —— 256×256 贴图。</li>
+ *   <li>{@code animations/dihuang_loong.animation.json} —— <b>7 个动画</b>（`idle`/`fly`/
+ *       `walk`/`run`/`sit`/`dance`/`attack`），58 KB。
+ *       📌 2026-09-29 更正：本注释曾写"96 个动画"——那是 2026-09-25 时的数字，
+ *       此后资产已被裁到 7 条；同一批陈旧数字也抄进了 {@code docs/NPC系统总设计.md} §4.1/§八，一并改了；
+ *       <b>目前全都会用到</b>：{@code idle}/{@code walk}/{@code run} 由状态动画播（§3.6）、
+ *       {@code fly} 由飞行状态播、{@code sit}/{@code dance} 由 {@code play sit}/{@code play dance} 播、
+ *       {@code attack} 由挥砍时的攻击动画播（后三者见 2026-09-29 表情系统）。
+ *       骨骼覆盖：{@code idle}（32 骨骼 / 4.75s）与 {@code walk}（63 骨骼 / 1.375s）**0 缺失**；
+ *       {@code run}（77 骨骼 / 1s）缺 3 根 {@code Drip1-3}（GeckoLib 会静默跳过）。</li>
+ *   <li>{@code textures/entity/dihuang_loong.png} —— <b>512×512</b> 贴图。
+ *       📌 2026-09-29 更正：本注释曾写 256×256，与实测不符（`PIL` 读出 512×512，
+ *       文件 153 KB）。同类错误当时也抄进了 {@code docs/NPC系统总设计.md} §4.1/§八，一并改了。</li>
  * </ul>
  * <b>已知的动画骨骼缺口</b>：该动画文件源自"龙之生存"的另一个龙种模型，其中 {@code jump} 等
  * 动作引用了本模型没有的骨骼（如 {@code Mustache*}、{@code Whisker*}）。GeckoLib 对缺失骨骼是

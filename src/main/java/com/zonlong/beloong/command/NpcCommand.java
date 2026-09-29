@@ -29,7 +29,7 @@ import java.util.Optional;
  * 只调实体 API，**不碰实体字段**；目标过滤 {@link NpcEntity}，因此对本模组**所有** NPC 生效。
  * op 级（{@code hasPermission(2)}）：它改的是世界里的实体。
  *
- * <h2>指令面：四条正交的轴 + 一条全清（2026-09-29 增补「表情」轴）</h2>
+ * <h2>指令面：四条轴 + 一条全清（2026-09-29 增补「表情」轴）</h2>
  * <b>目标一律在 {@code npc} 之后、动作之前</b>（2026-09-27 统一格式，见 {@link #register}）：
  * <pre>
  *   /beloong npc &lt;targets&gt; state &lt;state&gt;     ← idle | flying（可扩展）
@@ -44,6 +44,10 @@ import java.util.Optional;
  * <b>对称是刻意的</b>：{@code move ↔ stop}、{@code attack [victim] ↔ attack stop}、
  * {@code play [animation] ↔ play stop}。
  * 三条 {@code stop} 语义完全一致 —— <b>只取消各自轴上的指令，绝不碰别的轴</b>。
+ * <p>
+ * ⚠️ <b>但"清表情"是刻意的例外</b>：{@code state} / {@code move} / {@code attack} / {@code reset}
+ * 都会顺带清掉表情（用户 2026-09-29 裁定：表情整层盖住状态动画，玩家分不清指令是否生效）。
+ * {@code stop}（停移动）**不清** —— 它只是 {@code move} 的反面。
  * 于是"地面停下就是站桩待机、空中停下就是原地悬停"是"状态没变 + 动作没了"的**自然结果**，
  * <b>不需要为它们写任何特判</b>。
  * <p>
@@ -244,8 +248,10 @@ public final class NpcCommand {
      * <b>不校验名字，也不声称该动画存在</b>：动画名是客户端的资产数据，服务端无从知道
      * （见类注释里 {@code play} 那条警告）。客户端会在真正播放前预检。
      * <p>
-     * 表情与状态 / 移动 / 攻击<b>完全正交</b>：它只是一层动画覆盖，既不取消任何指令，
-     * 也不会被它们取消 —— 只有 {@code play} 换名、{@code play stop}、{@code reset} 能改变它。
+     * ⚠️ <b>表情不是正交的</b>（2026-09-29 用户裁定）：它只是一层动画覆盖、不取消任何指令，
+     * 但<b>会被</b> {@code state} / {@code move} / {@code attack} / {@code reset} 清掉。
+     * 能改变它的入口：{@code play} 换名、{@code play stop}、{@code state}、{@code move}、
+     * {@code attack}、{@code reset}，以及<b>一次挥砍</b>（服务端那次 `swing` 也会清）。
      */
     private static int play(Collection<? extends Entity> targets, String animation, CommandSourceStack source) {
         List<NpcEntity> npcs = npcsIn(targets);
