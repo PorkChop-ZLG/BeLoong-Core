@@ -17,9 +17,18 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复稳定悬浮漂移（默认启用） */
+    /**
+     * 稳定悬停修复总开关（默认启用，客户端侧）。
+     *
+     * <p>实际生效还需同时满足：DS 配置 {@code stable_hover = true}（该值由 NeoForge 在连接时
+     * 自动同步给客户端，判定处直接读 {@code ServerFlightHandler.stableHover}），
+     * 且玩家的 {@code dragonsurvival:flight_level} ≥ 1。飞行等级不足时按 DS 原版非稳定悬停下坠。</p>
+     *
+     * <p>滑翔由独立路径处理（{@code ClientFlightHandlerMixin} 的滑翔分支）：去重力 + 跟随视线，
+     * <b>不受本开关与飞行等级门控</b>。</p>
+     */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
-            .comment("修复稳定悬浮漂移")
+            .comment("稳定悬停修复总开关；需同时满足 DS 的 stable_hover=true 且 flight_level>=1；滑翔另有独立处理（不受本开关影响）")
             .define("fixStableHoverDrift", true);
 
     /** 禁用王国场地的冰火天空特效（默认禁用） */
@@ -52,11 +61,6 @@ public class Config {
     public static final ModConfigSpec.BooleanValue FIX_CATACLYSM_STRUCTURE_HEIGHT = COMMON_BUILDER
             .comment("修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题")
             .define("fixCataclysmStructureHeight", true);
-
-    /** 修复龙之生存弹射物崩溃（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_DS_PROJECTILE_CRASH = COMMON_BUILDER
-            .comment("修复龙之生存弹射物崩溃")
-            .define("fixDragonsurvivalProjectileCrash", true);
 
     /** 修复Fsweep打开部分容器崩溃（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_FSWEEP_CONTAINER_CRASH = COMMON_BUILDER
