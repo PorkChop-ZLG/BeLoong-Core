@@ -29,7 +29,10 @@ import java.util.Optional;
  *       {@link net.minecraft.world.entity.EntityType#getDescriptionId()}（普通字符串）；</li>
  *   <li>需要实体本体的场合（取名要用命名牌自定义名）由 {@link #entityId()} 在客户端按网络 id 找，
  *       找不到就退到兜底名；</li>
- *   <li>{@code trigger} 不上线 —— 触发判定只在服务端做，客户端渲染用不到它。</li>
+ *   <li>{@code trigger} 不上线 —— 触发判定只在服务端做，客户端渲染用不到它；</li>
+ *   <li><b>回复选项只发标签键、不发目标</b>（缺省空表）—— 客户端点击后只回传"实体 id + 下标"，
+ *       目标由服务端用自己的表解析。这样改过的客户端无法让服务端播放任意 ChatBox 对话，
+ *       且载荷里因此只有 {@code List<String>}，天然满足下面那条"全函数永不抛"的不变量。</li>
  * </ul>
  * 结果：线格式**全函数、永不抛**。
  *
@@ -37,12 +40,14 @@ import java.util.Optional;
  * @param fallbackNameKey 兜底名的翻译键（服务端取实体类型名，如 {@code entity.minecraft.iron_golem}）
  * @param pages           逐页文本
  * @param entityId        目标实体的网络 id（客户端用于取命名牌自定义名；实体未加载时允许找不到）
+ * @param replyTextKeys   回复选项的**标签翻译键**（缺省空表 ⇒ 界面与从前一致，只有「离开」）
  */
 public record NpcDialogueOpenPayload(
         Optional<String> nameKey,
         String fallbackNameKey,
         List<NpcDialogueEntry.Page> pages,
-        int entityId
+        int entityId,
+        List<String> replyTextKeys
 ) implements CustomPacketPayload {
 
     public static final Type<NpcDialogueOpenPayload> TYPE =
@@ -63,6 +68,7 @@ public record NpcDialogueOpenPayload(
                     ByteBufCodecs.STRING_UTF8, NpcDialogueOpenPayload::fallbackNameKey,
                     NpcDialogueEntry.Page.STREAM_CODEC.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::pages,
                     ByteBufCodecs.VAR_INT, NpcDialogueOpenPayload::entityId,
+                    ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::replyTextKeys,
                     NpcDialogueOpenPayload::new
             ).mapStream(buf -> (ByteBuf) buf);
 

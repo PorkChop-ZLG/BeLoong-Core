@@ -12,6 +12,7 @@ import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 import com.zonlong.beloong.dialogue.NpcDialogueHandler;
 import com.zonlong.beloong.dialogue.NpcDialogueLoader;
 import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
+import com.zonlong.beloong.dialogue.NpcDialogueReplyPayload;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -144,6 +145,8 @@ public class BeLoongCore {
      *   <li>{@link TreasureSyncPayload} —— 玩家登录时**全量**同步一次（客户端要拿整张表做本地预测）；</li>
      *   <li>{@link NpcDialogueOpenPayload} —— **不**做登录同步，只在玩家右键命中时把**那一条**发给他
      *       （对话是请求/响应式的，客户端只需要"这一次要显示的这一段"）。</li>
+     *   <li>{@link NpcDialogueReplyPayload} —— 本项目**第一个客户端 → 服务端**包：玩家点了回复选项。
+     *       只带"实体网络 id + 回复下标"，目标由服务端解析（见该包的类注释与联动设计文档 §3）。</li>
      * </ul>
      */
     private void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -156,6 +159,11 @@ public class BeLoongCore {
                 NpcDialogueOpenPayload.TYPE,
                 NpcDialogueOpenPayload.STREAM_CODEC,
                 NpcDialogueOpenPayload::handleClient);
+        // 注意方向：这是**服务端受理**的包（playToServer），不是 playToClient。
+        registrar.playToServer(
+                NpcDialogueReplyPayload.TYPE,
+                NpcDialogueReplyPayload.STREAM_CODEC,
+                NpcDialogueReplyPayload::handleServer);
     }
 
     /** FML 通用设置（双端都执行）。 */

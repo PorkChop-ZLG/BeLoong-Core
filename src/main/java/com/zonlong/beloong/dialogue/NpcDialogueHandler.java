@@ -72,6 +72,8 @@ public class NpcDialogueHandler {
                 entry.name(),
                 target.getType().getDescriptionId(),
                 entry.pages(),
-                target.getId()));
+                target.getId(),
+                // 只把标签键发给客户端；目标（chatbox RL / 组 / 页号）留在服务端（设计 D1）
+                entry.replies().stream().map(NpcDialogueEntry.Reply::text).toList()));
     }
 }

@@ -30,19 +30,24 @@ import java.util.Optional;
  *   <li>{@code entity} —— 绑定到哪个实体类型；</li>
  *   <li>{@code trigger} —— {@code empty_hand}（缺省）/ {@code any}，见 {@link Trigger}；</li>
  *   <li>{@code name} —— 说话人名字的**翻译键**；缺省用实体自身的显示名；</li>
- *   <li>{@code pages} —— 逐页文本，每页一个翻译键；页数即数组长度（不设计数字段，避免两处不同步）。</li>
+ *   <li>{@code pages} —— 逐页文本，每页一个翻译键；页数即数组长度（不设计数字段，避免两处不同步）；</li>
+ *   <li>{@code replies} —— 播放完毕后出现在「离开」**上方**的回复选项（可选，缺省空表）；
+ *       每项指向一段 ChatBox 对话，是本系统与 ChatBox 的**唯一数据耦合点**，
+ *       见 {@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}。</li>
  * </ul>
  *
  * @param entity  绑定的实体类型
  * @param trigger 触发方式
  * @param name    说话人名字的翻译键（缺省用实体显示名）
  * @param pages   逐页文本（非空；空数组由加载器丢弃并报错）
+ * @param replies 回复选项（可为空表 ⇒ 与从前完全一致，只有「离开」）
  */
 public record NpcDialogueEntry(
         EntityType<?> entity,
         Trigger trigger,
         Optional<String> name,
-        List<Page> pages
+        List<Page> pages,
+        List<Reply> replies
 ) {
 
     /**
@@ -106,6 +111,37 @@ public record NpcDialogueEntry(
     }
 
     /**
+     * 一条「回复」选项 —— NPC 对话播放完毕后出现在「离开」**上方**，点击后进入 ChatBox 的某段对话。
+     * <p>
+     * <b>这是本模组对话系统与 ChatBox 的唯一数据耦合点。</b>{@code chatbox} + {@code group} + {@code index}
+     * 指向 {@code data/<ns>/chatbox/dialogues/} 里的一段对话；能否真的打开由服务端在点击时预检
+     * （ChatBox 自己对未知 RL/组/页号是**零校验零日志**的）。设计见
+     * {@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}。
+     * <p>
+     * <b>为什么 {@code index} 是 {@link Optional} 而不是 {@code int} 缺省 0</b>：ChatBox 那侧的页序号
+     * <b>绝不可为 null</b> —— 它会被编码成字符串 {@code "null"}，让客户端 {@code Integer.parseInt} 抛异常。
+     * 用 {@code Optional} 把"未填写"与"填了 0"分开表达，缺省在**我们这一侧**就折成 0，
+     * 这样那条约束在类型层面就不可违反。
+     * <p>
+     * <b>标签文本与 {@code pages} 一样是翻译键</b>；而页序与目标**不会发给客户端** ——
+     * 客户端点击后只回传"实体网络 id + 回复下标"，目标由服务端用自己的表解析
+     * （客户端因此无法让服务端播放任意对话；见设计的 D1）。
+     *
+     * @param text    标签的翻译键
+     * @param chatbox ChatBox 对话文件的 ResourceLocation（如 {@code beloong:mo}）
+     * @param group   该文件里的组名（如 {@code start}）
+     * @param index   页序号（0 基；缺省 0）
+     */
+    public record Reply(String text, ResourceLocation chatbox, String group, Optional<Integer> index) {
+        public static final Codec<Reply> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.fieldOf("text").forGetter(Reply::text),
+                ResourceLocation.CODEC.fieldOf("chatbox").forGetter(Reply::chatbox),
+                Codec.STRING.fieldOf("group").forGetter(Reply::group),
+                Codec.INT.optionalFieldOf("index").forGetter(Reply::index)
+        ).apply(instance, Reply::new));
+    }
+
+    /**
      * 实体类型编解码。
      * <p>
      * 用 {@code flatXmap}（**双向**都可失败）而 {@code comapFlatMap}（只有解码可失败）
@@ -154,7 +190,9 @@ public record NpcDialogueEntry(
             ENTITY_CODEC.fieldOf("entity").forGetter(NpcDialogueEntry::entity),
             TRIGGER_CODEC.optionalFieldOf("trigger", Trigger.EMPTY_HAND).forGetter(NpcDialogueEntry::trigger),
             Codec.STRING.optionalFieldOf("name").forGetter(NpcDialogueEntry::name),
-            Codec.list(Page.CODEC).fieldOf("pages").forGetter(NpcDialogueEntry::pages)
+            Codec.list(Page.CODEC).fieldOf("pages").forGetter(NpcDialogueEntry::pages),
+            // 缺省空表 ⇒ 已有的数据文件（如铁傀儡）行为完全不变
+            Codec.list(Reply.CODEC).optionalFieldOf("replies", List.of()).forGetter(NpcDialogueEntry::replies)
     ).apply(instance, NpcDialogueEntry::new));
 
     /** 供日志使用：本条绑定的实体 id。 */

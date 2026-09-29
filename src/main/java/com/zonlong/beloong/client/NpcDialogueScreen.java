@@ -4,6 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.dialogue.NpcDialogueEntry;
 import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
+import com.zonlong.beloong.dialogue.NpcDialogueReplyPayload;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -90,7 +92,11 @@ public class NpcDialogueScreen extends Screen {
 
     /** 原版格式代码前缀（{@code §}）。 */
     private static final char SECTION_SIGN = '\u00a7';
-    /** 「离开」选项的翻译键（v1 只有这一个选项，硬编码而非放进 JSON）。 */
+    /**
+     * 「离开」选项的翻译键 —— 唯一**硬编码**的选项：它不属于任何一条数据，每段对话都有。
+     * <p>
+     * 数据驱动的**回复**选项见 {@link NpcDialogueEntry#replies()}，它们排在「离开」**上方**。
+     */
     private static final String LEAVE_KEY = "beloong.dialogue.option.leave";
 
     // ===================== 状态 =====================
@@ -99,6 +105,10 @@ public class NpcDialogueScreen extends Screen {
 
     private final Component speakerName;
     private final List<NpcDialogueEntry.Page> pages;
+    /** 被右键实体的网络 id —— 点回复时原样回发，服务端据此找回实体与实体类型。 */
+    private final int entityId;
+    /** 回复选项的标签翻译键（服务端只下发标签，**目标留在服务端**）。 */
+    private final List<String> replyTextKeys;
 
     private State state = State.TYPING;
     private int pageIndex;
@@ -110,10 +120,13 @@ public class NpcDialogueScreen extends Screen {
     private int visibleTotal;
     private int tickCount;
 
-    public NpcDialogueScreen(Component speakerName, List<NpcDialogueEntry.Page> pages) {
+    public NpcDialogueScreen(Component speakerName, List<NpcDialogueEntry.Page> pages,
+                             int entityId, List<String> replyTextKeys) {
         super(Component.empty());
         this.speakerName = speakerName;
         this.pages = pages;
+        this.entityId = entityId;
+        this.replyTextKeys = replyTextKeys;
     }
 
     /**
@@ -147,7 +160,8 @@ public class NpcDialogueScreen extends Screen {
                         ? speaker.getDisplayName()
                         : Component.translatable(payload.fallbackNameKey()));
 
-        minecraft.setScreen(new NpcDialogueScreen(name, payload.pages()));
+        minecraft.setScreen(new NpcDialogueScreen(
+                name, payload.pages(), payload.entityId(), payload.replyTextKeys()));
     }
 
     // ===================== 生命周期 =====================
@@ -231,15 +245,45 @@ public class NpcDialogueScreen extends Screen {
         }
     }
 
-    /** 弹出选项：v1 只有一个「离开」。**固定长度、左缘对齐**（与参考图一致）。 */
+    /**
+     * 弹出选项：**自下而上**排 —— 最下一颗固定是「离开」，其上方依次是数据里的回复选项
+     * （{@code replies[0]} 最靠近「离开」）。布局常量本就是按"向上依次排"定的。
+     * <p>
+     * 选项**固定长度、左缘对齐**（与参考图一致）；回复的标签来自服务端下发的翻译键。
+     */
     private void showOptions() {
         this.state = State.SHOWING_OPTIONS;
-        Component label = Component.translatable(LEAVE_KEY);
         int width = (int) (this.width * OPTION_WIDTH);
         int x = (int) (this.width * OPTION_LEFT);
         int bottom = (int) (this.height * OPTION_BOTTOM);
+
+        // 最下一颗：离开
         addRenderableWidget(new NpcDialogueOptionButton(
-                x, bottom - OPTION_HEIGHT, width, OPTION_HEIGHT, label, this::onClose));
+                x, bottom - OPTION_HEIGHT, width, OPTION_HEIGHT,
+                Component.translatable(LEAVE_KEY), this::onClose));
+
+        // 往上依次是回复选项（第 0 条最靠近「离开」）
+        for (int i = 0; i < this.replyTextKeys.size(); i++) {
+            int y = bottom - OPTION_HEIGHT * (i + 2) - OPTION_GAP * (i + 1);
+            final int replyIndex = i;
+            addRenderableWidget(new NpcDialogueOptionButton(
+                    x, y, width, OPTION_HEIGHT,
+                    Component.translatable(this.replyTextKeys.get(i)),
+                    () -> this.onReply(replyIndex)));
+        }
+    }
+
+    /**
+     * 点了某个回复：先关掉自己（**与点「离开」完全等价**），再回发"哪个实体、第几个回复"。
+     * <p>
+     * 客户端**不知道**这条回复会跳到哪段 ChatBox 对话 —— 目标由服务端按自己的表解析，
+     * 所以改过的客户端也无法让服务端播放任意对话（设计 D1）。
+     */
+    private void onReply(int replyIndex) {
+        if (this.minecraft != null) {
+            this.minecraft.setScreen(null);
+        }
+        PacketDistributor.sendToServer(new NpcDialogueReplyPayload(this.entityId, replyIndex));
     }
 
     @Override
