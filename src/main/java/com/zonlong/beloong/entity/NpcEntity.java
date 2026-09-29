@@ -1196,19 +1196,13 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 state.getController().forceAnimationReset();
                 return PlayState.STOP;
             }
-            boolean changed = !name.equals(npc.emoteSeen);
-            if (changed) {
+            if (!name.equals(npc.emoteSeen)) {
                 // 换了一条表情：重置本地状态，并把计时起点钉在**当前 tick**上。
                 npc.emoteSeen = name;
                 npc.emoteDone = false;
                 npc.emoteStartTick = npc.tickCount;
             }
             Animation animation = EmoteAnimationLookup.find(npc, name);
-            if (animation != null && changed) {
-                // 纯英文（本项目日志规则）。只在**换名那一帧**打，不刷屏。
-                BeLoongCore.LOGGER.debug("[BeLoong] emote start: {} name='{}' loopType={} lengthTicks={}",
-                        npc.getType(), name, animation.loopType(), animation.length());
-            }
             if (animation == null) {
                 // 资产里没有这条动画（或名字拼错）：静默不播（设计 D4）。
                 // **不做负缓存** —— 下一帧还会再查，于是 F3+T 重载资源后能自愈。
@@ -1231,8 +1225,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 // 每帧清标记 ⇒ percentageReset = 1）⇒ 表现为"收工瞬间整具模型闪一下"。
                 // 照常 setAndContinue 就没有这个空档，下一帧 main 自然接管。
                 npc.emoteDone = true;
-                BeLoongCore.LOGGER.debug("[BeLoong] emote finished: {} name='{}' lengthTicks={}",
-                        npc.getType(), name, animation.length());
                 return state.setAndContinue(RawAnimation.begin().thenPlay(name));
             }
             return state.setAndContinue(RawAnimation.begin().thenPlay(name));
