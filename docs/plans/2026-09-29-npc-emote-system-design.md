@@ -100,9 +100,16 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 
 **用户裁定（A：时间为准）：**
 - `loopType() == LoopType.LOOP` ⇒ **持续型**（一直播到 `play … stop` / `reset` / 换名）；
-- 其它（`PLAY_ONCE` / `HOLD_ON_LAST_FRAME` / 自定义）⇒ **一次性**：用
-  `state.getAnimationTick() >= animation.length()` 判"播完"，客户端置 `emoteDone` ⇒ 自动回落。
-- `hasAnimationFinished()` 可作为 `PLAY_ONCE` 的**快路径**保留，但**通用判据是时间**。
+- 其它（`PLAY_ONCE` / `HOLD_ON_LAST_FRAME` / 自定义）⇒ **一次性**：由**客户端自记的计时器**判定 ——
+  换名那一帧记下 `npc.tickCount` 作起点，之后每帧比较 `npc.tickCount - 起点 >= animation.length()`；
+  `Animation.length()` 的单位是 **tick**（`BakedAnimationsAdapter.java:59`：`animation_length * 20d`）
+  ⇒ 超过即置 `emoteDone = true` ⇒ 自动回落。
+- ⚠️ **不要用 `state.getAnimationTick()` 当"当前动画进度"** —— `GeoModel.java:217` 是
+  `animationState.animationTick = this.animTime`，那是**全局动画时钟**，不是本支动画的播放位置；
+  拿它比长度会**立刻**判成"播完"。`hasAnimationFinished()` 只对 `PLAY_ONCE` 有效（见 §2.4 两条事实）。
+- 📌 **2026-09-29 更正**：本节初稿写的是"用 `state.getAnimationTick() >= animation.length()`"，
+  这是**错的**（理由即上一行），已改为"客户端 `tickCount` 计时"。计时挂在 **tick** 而非渲染帧上，
+  因此**帧率无关** —— 这一点比 Dragon Survival 挂在渲染帧的 `AnimationTickTimer.java:21-24` 更稳。
 
 > **副作用（须记住）**：用时间判定 ⇒ **做不出"定格在末帧"的表情**。
 > 将来若确实需要，得用一条 `loop: true` 且尾部静止的动画来表达。
@@ -190,7 +197,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 **主流 2 —— `play attack`（一次性 ⇒ 时间判定后自动回落）**
 
 前 ③ 步同流程，但 `loopType() != LOOP` ⇒ `setAndContinue(thenPlay("attack"))`；
-之后每帧在 emote 谓词里比较 `state.getAnimationTick()` 与 `animation.length()`，
+之后每帧在 emote 谓词里比较 `npc.tickCount - emoteStartTick` 与 `animation.length()`（单位 tick），
 超过即置 `emoteDone = true`（**只改客户端本地，不回写同步字段**）⇒ 之后谓词直接 STOP、`main` 恢复。
 
 **特殊情形：**
@@ -212,6 +219,9 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | `true` | `LOOP` | 持续到 `play stop`/`reset`/换名 | — |
 | `false` | `PLAY_ONCE` | 播完自动回落 | `hasAnimationFinished()`（快路径）或时间判定 |
 | `"hold_on_last_frame"` | `HOLD_ON_LAST_FRAME` | 播完自动回落 | **时间判定**（`hasAnimationFinished()` 对它恒 false） |
+
+> **一次性动画的完成判据只有一条**：`npc.tickCount - emoteStartTick >= Animation.length()`（单位 tick，客户端自记）。
+> `hasAnimationFinished()`（`AnimationController.java:330-332`）只对 `PLAY_ONCE` 成立，可作快路径，**不能当通用判据**。
 
 ### 3.6 错误处理与**两条防线**
 
@@ -300,7 +310,7 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 | 6 | **死代码探针** | `isMovementMode`/`exitPoseIfNeeded`/`sitAnimationName`/`danceAnimationName`/`SITTING`/`DANCING` 全仓零命中 |
 | 7 | **同步字段探针** | `DATA_EMOTE` 用 `EntityDataSerializers.STRING`、默认 `""`；且**不出现**在 `addAdditionalSaveData`/`readAdditionalSaveData`（证明不落盘） |
 | 8 | **控制器顺序探针** | `javap -c -p` 反编译 `registerControllers`：两次 `ControllerRegistrar.add` 的调用顺序为 `"main"` 在前、`"emote"` 在后 |
-| 9 | 生命周期分支探针（尽力而为） | 反编译 emote 谓词，确认引用了 `getAnimationTick` 与 `Animation.length` |
+| 9 | 生命周期分支探针（尽力而为） | 反编译 emote 谓词，确认引用了 `tickCount` 计时与 `Animation.length`（**防止后人退回用 `getAnimationTick`**） |
 
 ### B. 只能实机确认的
 
@@ -329,8 +339,8 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 3. `play` 无补全、拼错无任何反馈（服务端不知道资产）。
 4. 名字带空格无法播放（`word()`）。
 5. 未知名字每帧重查（**刻意的**自愈设计）。
-6. **版本敏感点**：时间判定依赖 `state.getAnimationTick()` 与 `Animation.length()` 的语义；
-   将来升 GeckoLib 时若语义变化，`attack`/`descend` 的自动回落会失效（表现为"定格"）⇒ 升级清单须列此条。
+6. **版本敏感点**：一次性判定依赖 `Animation.length()` 的**单位是 tick**（`BakedAnimationsAdapter.java:59`）；
+   将来升 GeckoLib 时若该单位或计时方式变化，`attack`/`descend` 的自动回落会失准（过早回落或定格）⇒ 升级清单须列此条。
 
 ---
 
