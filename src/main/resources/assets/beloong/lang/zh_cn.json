@@ -156,6 +156,8 @@
   "beloong.dialogue.mo.name": "§d末",
   "beloong.dialogue.mo.p1": "我是「末」，末影龙族的长公主。",
   "beloong.dialogue.mo.p2": "我先带你去觐见龙王。",
+  "beloong.chatbox.mo.name": "§d末",
+  "beloong.chatbox.mo.text": "我先带你去觐见龙王。",
   "beloong.dialogue.option.leave": "离开",
   "beloong.npc.state.flying": "飞行",
   "beloong.npc.state.idle": "待机",

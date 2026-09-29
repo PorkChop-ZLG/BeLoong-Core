@@ -1,0 +1,29 @@
+{
+  "dialogBox": {
+    "texture": "chatbox:textures/chatbox/default_dialog_box.png",
+    "alignX": "left",
+    "alignY": "bottom",
+    "lineWidth": 70,
+    "width": 100,
+    "height": 40,
+    "nameX": 20,
+    "nameY": 10,
+    "textX": 20,
+    "textY": 15
+  },
+  "option": {
+    "texture": "chatbox:textures/options/default_no_checked_option.png",
+    "selectTexture": "chatbox:textures/options/default_checked_option.png",
+    "lockTexture": "chatbox:textures/options/default_lock_checked_option.png",
+    "x": 0,
+    "y": 30,
+    "width": 35,
+    "height": 8,
+    "alignX": "right",
+    "alignY": "top",
+    "optionChatX": 6,
+    "optionChatY": 2.7,
+    "textAlign": "left",
+    "hidden": true
+  }
+}

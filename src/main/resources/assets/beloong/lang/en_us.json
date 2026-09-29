@@ -156,6 +156,8 @@
   "beloong.dialogue.mo.name": "§dMo",
   "beloong.dialogue.mo.p1": "I am Mo, eldest princess of the Ender Dragon clan.",
   "beloong.dialogue.mo.p2": "Let me take you to see the Dragon King first.",
+  "beloong.chatbox.mo.name": "§dMo",
+  "beloong.chatbox.mo.text": "Let me take you to see the Dragon King first.",
   "beloong.dialogue.option.leave": "Leave",
   "beloong.npc.state.flying": "Flying",
   "beloong.npc.state.idle": "Idle",

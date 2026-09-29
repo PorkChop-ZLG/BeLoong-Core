@@ -1,0 +1,15 @@
+{
+  "theme": "beloong:minimal",
+  "isPause": false,
+  "isScreen": true,
+  "dialogues": {
+    "start": [
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.text"
+        }
+      }
+    ]
+  }
+}
