@@ -12513,8 +12513,7 @@
 			}
 		},
 		"descend": {
-			"loop": "hold_on_last_frame",
-			"animation_length": 11.2533,
+			"animation_length": 6,
 			"bones": {
 				"LeftClaw_Left_1": {
 					"rotation": {
