@@ -10,7 +10,7 @@ import software.bernie.geckolib.model.GeoModel;
  * <p>
  * 资产由**本地模型暂存目录** {@code docs/models/} 迁移而来（该目录专门存放模型源文件、不入库）：
  * <ul>
- *   <li>{@code geo/mo.geo.json} —— 452 KB，<b>270 骨骼 / 854 立方体 / 1 根根骨骼
+ *   <li>{@code geo/mo.geo.json} —— 454 KB，<b>271 骨骼 / 858 立方体 / 1 根根骨骼
  *       （{@code Root_Molang}，{@code Root} 是它的子骨）</b>，无重名骨骼、无悬空 parent，
  *       {@code texture_width/height} 声明 512×512（与贴图实测一致）。
  *       来源是 {@code docs/models/末2/}（2026-09-27 换用，逐字节拷贝），
@@ -20,9 +20,22 @@ import software.bernie.geckolib.model.GeoModel;
  *       {@code ysmGlow_Ender_Sword_5}。其中 31 根带立方体 ⇒ 那是**可见部件**（模型上不再挂剑与椅子）。
  *       已复核这次删除不影响渲染缩放：{@code Head} 骨自身立方体顶端仍是 {@code 39.8218}、
  *       整体包围盒仍是 53.48 × 85.08 × 126.18 ⇒ {@code MoRenderer.MODEL_SCALE = 0.80} 继续成立。
+ *       <p>
+ *       📌 <b>2026-09-27 又补上了嘴</b>（270 → 271 骨）：新增一根名为 {@code mouth} 的骨
+ *       （{@code parent = Head}）与它的 4 个立方体 —— 几何**照搬旧模型 {@code Head_Mouth_8}
+ *       的定义，整条 z + 0.425**（新模型五官几何相对旧模型整体前移 0.425，已用 6 处独立数据验证：
+ *       5 根同名五官骨的立方体 origin 差都是 {@code dx=0 dy=0 dz=+0.425}，且新旧 {@code Head}
+ *       自身立方体的前面也正好差 0.425）。贴图里只写 **1 个像素** {@code RGBA(239,149,149,255)}
+ *       —— 旧模型的嘴本来就只是 {@code north} 面那 4 个粉色像素，其余 20 个面采样的是全透明像素。
+ *       <b>骨名刻意取 {@code mouth} 而不是旧名 {@code Head_Mouth_8}</b>：{@code dance}（星辉闪耀）
+ *       里有一条 {@code "mouth": {"scale": 0}}，正是靠这个名字生效（跳舞时把嘴缩为 0 = 隐藏）；
+ *       若沿用旧名，那条通道会**静默失效**。
+ *       <p>
  *       其 {@code identifier} 是 {@code geometry.unknown}，**无需修正**：
  *       GeckoLib 按本类返回的<b>文件路径</b>取模型，{@code identifier} 只是可空元数据。</li>
- *   <li>{@code textures/entity/mo.png} —— 512×512 贴图（55 KB），同样来自 {@code 末2/} 并经用户精简。</li>
+ *   <li>{@code textures/entity/mo.png} —— 512×512 贴图，来自 {@code 末2/} 并经用户精简；
+ *       2026-09-27 补嘴时只改了 1 个像素（{@code (511,511)}：透明 → 粉色），
+ *       已逐像素校验"除该像素外与前一版完全相同"，PNG 头属性也未变。</li>
  *   <li>{@code animations/mo.animation.json} —— <b>5.44 MB / 9 个动画</b>，取自 {@code 末/}
  *       并经多轮修整（29 → 11 → 9 条）。代码目前播其中 6 条：{@code idle} / {@code walk} /
  *       {@code run}（主状态机）、{@code fly}（飞行态）、{@code sit}（坐下态）、
@@ -43,7 +56,7 @@ import software.bernie.geckolib.model.GeoModel;
  * 而动画是按完整 rig 写的 ⇒ 旧模型下我们自己的动画有 <b>92 个被引用的骨骼名在 geo 里不存在</b>，
  * 那些通道被 GeckoLib 静默跳过（见下），走 / 跑 / 飞都只有约 62% 的骨骼真正生效。
  * <p>
- * 换用与动画匹配的几何后<b>只剩 6 个</b>（分布在 3 条动画上），而
+ * 换用与动画匹配的几何后<b>只剩 5 个</b>（分布在 3 条动画上），而
  * {@code idle} / {@code walk} / {@code run} / {@code fly} / {@code descend} / {@code idle_old}
  * 全部 <b>100% 命中</b>。
  * <p>
@@ -56,12 +69,11 @@ import software.bernie.geckolib.model.GeoModel;
  *       新的与 YSM 原版一致）、{@code Right_Wing_Root} 与 {@code Right_Wing_1} 各差 2.0。</li>
  * </ul>
  *
- * <h2>仍然对不上的 6 个骨骼名（分布在 3 条动画上）</h2>
+ * <h2>仍然对不上的 5 个骨骼名（分布在 3 条动画上）</h2>
  * 都是**新几何里根本没有这些名字**，改不了名、只能接受对应通道不生效：
  * <ul>
- *   <li>{@code dance}（星辉闪耀）—— 缺 {@code Skirt}（裙摆，25 关键帧）与 {@code mouth}
- *       （1 关键帧，且值为 {@code scale = 0}，属隐藏开关，可忽略）
- *       ⇒ 实际影响只有"裙摆不动"；</li>
+ *   <li>{@code dance}（星辉闪耀）—— 只缺 {@code Skirt}（裙摆，25 关键帧）⇒ 影响只有"裙摆不动"。
+ *       （它引用的 {@code mouth} 已于 2026-09-27 补上，见上文"又补上了嘴"。）</li>
  *   <li>{@code attack}（由 {@code hold_sword_attack_1} + {@code _reset} 合并而来）——
  *       缺 {@code Wave_1} 与两个发光波 {@code ysmGlowWave_1_1} / {@code _1_2}
  *       ⇒ 缺的是挥砍特效件，主体动作与武器（{@code Weapen}）都在；</li>
@@ -100,7 +112,7 @@ import software.bernie.geckolib.model.GeoModel;
  * 符号要实机标定）。
  *
  * <h2>刻意不覆写 {@code crashIfBoneMissing()}</h2>
- * 本模型仍有 <b>6 个被动画引用、但 geo 里不存在的骨骼</b>（旧模型是 92 个，
+ * 本模型仍有 <b>5 个被动画引用、但 geo 里不存在的骨骼</b>（旧模型是 92 个，
  * 具体清单见上一节），分布在 3 条动画上。GeckoLib 默认
  * {@code crashIfBoneMissing() == false}（{@code GeoModel.java:91-93}），
  * 配合 {@code AnimationController.java:529-534} 的
