@@ -15,13 +15,12 @@ import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
  * 而 look goal 占 LOOK；{@code GoalSelector} 用 {@code lockedFlags} 仲裁 ⇒ 若本 goal 优先级更低，
  * "玩家在跟随距离内"时它会被 look goal **永久挡死**，永远打不到人。
  * <p>
- * <b>状态门（2026-09-27 加入）</b>：只有当前状态是<b>移动模式</b>（{@code NpcState#isMovementMode()}）
- * 时才允许运行。
- * <p>
- * 正常路径下这道门是**冗余**的 —— 契约规定"进入姿态会取消攻击指令"（{@code NpcEntity#switchState}），
- * 所以"姿态 + 攻击指令"不该存在。但 {@code /data merge} 可以直接把状态改成 {@code sitting}，
- * 届时本 goal 会去移动一个坐着的 NPC（表现为"坐着滑行"）。加一行门即可封死，
- * 并把这条不变式写在代码里，而不是只写在文档里。
+ * <b>状态门已于 2026-09-29 删除</b>：它原本要求在 {@code NpcState#isMovementMode()} 为真时才运行，
+ * 用来封死"姿态 + 攻击指令"（{@code /data merge} 能把状态直接改成 {@code sitting}，
+ * 届时本 goal 会去移动一个坐着的 NPC）。
+ * 姿态机制整体迁入表情系统后，{@code NpcState} 只剩两个<b>都是移动模式</b>的状态
+ * （见其类注释）⇒ 门的判据恒为真，故连同它一起删掉。
+ * 表情与攻击互不影响：表情只是一层动画覆盖，不改变攻击行为（设计 D2）。
  * <p>
  * 注意这**只改"何时运行"，不改"怎么攻击"** —— 伤害、可达性、限流一概沿用
  * {@code MeleeAttackGoal}。
@@ -42,12 +41,12 @@ public class NpcAttackGoal extends MeleeAttackGoal {
 
     @Override
     public boolean canUse() {
-        return this.npc.state().isMovementMode() && this.npc.isAttackCommandActive() && super.canUse();
+        return this.npc.isAttackCommandActive() && super.canUse();
     }
 
     @Override
     public boolean canContinueToUse() {
-        return this.npc.state().isMovementMode() && this.npc.isAttackCommandActive() && super.canContinueToUse();
+        return this.npc.isAttackCommandActive() && super.canContinueToUse();
     }
 
     @Override

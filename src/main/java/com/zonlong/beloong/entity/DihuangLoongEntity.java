@@ -84,15 +84,7 @@ public class DihuangLoongEntity extends NpcEntity {
         return "fly";
     }
 
-    /** 坐下动画名。资产里有 {@code sit}（另有 {@code sit2} 等变体）。 */
-    @Override
-    protected String sitAnimationName() {
-        return "sit";
-    }
-
-    /** 跳舞动画名。资产里有 {@code dance}（另有 {@code dance2}）。 */
-    @Override
-    protected String danceAnimationName() {
-        return "dance";
-    }
+    // 2026-09-29：这里原本覆写了 sitAnimationName() / danceAnimationName()。
+    // 姿态迁入表情系统后基类不再有这两个方法 —— 本类的 sit / dance 就在自带的
+    // dihuang_loong.animation.json 里，用 /beloong npc <targets> play sit | play dance 播即可。
 }

@@ -19,7 +19,7 @@ import java.util.function.IntFunction;
  *
  * <h2>加一个状态要改什么</h2>
  * <ol>
- *   <li>这里加一个常量（名字、id、是否移动模式）；</li>
+ *   <li>这里加一个常量（名字、id）；</li>
  *   <li>{@link NpcEntity} 里按需覆写它的 {@code xxxAnimationName()}（子类的资产叫什么就写什么）；</li>
  *   <li>两个语言文件各补一条 {@code beloong.npc.state.<名字>}。</li>
  * </ol>
@@ -29,13 +29,18 @@ import java.util.function.IntFunction;
  * 用户裁定互斥（vanilla 的 {@code Armadillo}/{@code Sniffer} 也都是互斥枚举），代价是
  * "一边飞一边跳"做不到 —— 已明确列为非目标。判据见 {@link #isMovementMode()}。
  *
- * <h2>两种状态、两族行为（本枚举最容易被改错的地方）</h2>
- * <ul>
- *   <li><b>移动模式</b>（{@link #IDLE}、{@link #FLYING}）—— 在它们之间切换时，
- *       <b>移动指令保留</b>，并按新模式重新执行（同一条 {@code move} 在地面是"走"、在飞行是"飞"）；</li>
- *   <li><b>姿态</b>（{@link #SITTING}、{@link #DANCING}）—— 进入它们时<b>必须取消移动与攻击指令</b>，
- *       因为"姿态"这个类别的定义就是"不走、不动手"，留着指令只会让 NPC 一边坐着一边滑行。</li>
- * </ul>
+ * <h2>⚠️ 两种状态**都是移动模式** —— 姿态已迁出本枚举</h2>
+ * 这里曾经还有 {@code SITTING} / {@code DANCING} 两个「姿态」常量，并靠 {@code isMovementMode()}
+ * 区分两族（进入姿态要取消移动与攻击指令）。2026-09-29 起它们已迁入**表情系统**
+ * （{@code docs/plans/2026-09-29-npc-emote-system-design.md}）：{@code sit} / {@code dance}
+ * 的本质只是"播哪条动画"，与"能不能走"本就无关；把它们混进状态枚举，会让
+ * 「怎么动」与「长什么样」互相牵制。
+ * <p>
+ * 于是现在两态**都是移动模式**：在它们之间切换时<b>移动指令保留</b>，并按新模式重新执行
+ * （同一条 {@code move} 在地面是"走"、在飞行是"飞"），切换也<b>不会</b>取消移动或攻击。
+ * <p>
+ * 将来若要再加状态，先问一句：它改变的是「怎么动」还是「长什么样」？
+ * <b>后者属于表情轴，不该进这个枚举</b>。
  *
  * <h2>⚠️ 四种还原入口，行为<b>各不相同</b> —— 不要合并</h2>
  * 同一个"从外部还原状态"的需求，在四个场合的正确行为是<b>相反</b>的：
@@ -61,16 +66,10 @@ import java.util.function.IntFunction;
 public enum NpcState implements StringRepresentable {
 
     /** 默认状态：地面站桩。**唯一**会走 idle / walk / run 三选一的状态。 */
-    IDLE("idle", 0, true),
+    IDLE("idle", 0),
 
     /** 飞行模式：换飞行导航与移动控制、关重力、原地悬停（**不起飞**）。 */
-    FLYING("flying", 1, true),
-
-    /** 姿态：坐下。资产里有对应动画的 NPC 才覆写 {@code sitAnimationName()}。 */
-    SITTING("sitting", 2, false),
-
-    /** 姿态：跳舞。同上。 */
-    DANCING("dancing", 3, false);
+    FLYING("flying", 1);
 
     private static final StringRepresentable.EnumCodec<NpcState> CODEC =
             StringRepresentable.fromEnum(NpcState::values);
@@ -89,12 +88,10 @@ public enum NpcState implements StringRepresentable {
 
     private final String name;
     private final int id;
-    private final boolean movementMode;
 
-    NpcState(String name, int id, boolean movementMode) {
+    NpcState(String name, int id) {
         this.name = name;
         this.id = id;
-        this.movementMode = movementMode;
     }
 
     @Override
@@ -107,18 +104,6 @@ public enum NpcState implements StringRepresentable {
         return this.id;
     }
 
-    /**
-     * 是否属于「移动模式」这一族。
-     * <p>
-     * <b>它决定两件事，别只看名字：</b>
-     * <ol>
-     *   <li>移动指令到来时，是"保留并按新模式执行"（移动模式）还是"先隐式退出到 {@link #IDLE}"（姿态）；</li>
-     *   <li>进入本状态时，要不要取消移动与攻击指令（姿态要，移动模式不要）。</li>
-     * </ol>
-     */
-    public boolean isMovementMode() {
-        return this.movementMode;
-    }
 
     // ===================== 四种还原入口（行为各不相同 —— 见类注释的表格）=====================
 

@@ -126,20 +126,19 @@ public class MoEntity extends NpcEntity {
     /**
      * 飞行动画名 —— 资产里有 {@code fly}（2026-09-27 修好、能加载的那条）。
      * <p>
-     * ⚠️ <b>末的资产里有 {@code sit}（261 骨骼）、**没有** {@code dance}。</b>
-     * <ul>
-     *   <li>{@code sitting} 开箱可用 —— 基类 {@code sitAnimationName()} 默认正是 {@code "sit"}，
-     *       本类**无需覆写**它；</li>
-     *   <li>{@code dancing} 会用基类默认的 {@code "dance"}，而资产里没有 ⇒
-     *       <b>执行 {@code state … dancing} 会塌成 T-pose</b>。按实施计划 §七 选 **B**
-     *       （用户 2026-09-27 裁定），这属**预期行为、不是缺陷**（依据：
-     *       {@code AnimationProcessor.java:44-64}，动画名查不到时既得到空动画列表、也不报错）。
-     *       要让末也能跳舞，得先在资产里补一条 {@code dance}。</li>
-     * </ul>
+     * 📌 <b>2026-09-29 更新</b>：{@code sit} / {@code dance} / {@code descend} 已从主动画文件
+     * {@code mo.animation.json} 拆到 {@code mo.extra.animation.json}，由
+     * {@code MoModel#getAnimationResourceFallbacks} 合并进来（GeckoLib 原生机制：
+     * 主文件优先，名字 miss 才查备用文件）。
      * <p>
-     * 📌 <b>2026-09-27 更正</b>：本类注释此前写着"没有 {@code sit}"，那是**只看了资产里
-     * "飞 / 翅膀"相关子集就下的断言**——核对全部 29 条动画后确认 {@code sit} 存在（实测也能正常播）。
-     * <b>教训：说"某资产里没有某条动画"之前，必须把动画名**全列一遍**。</b>
+     * 于是"坐下 / 跳舞"<b>不再是状态</b>，而是用
+     * {@code /beloong npc <targets> play sit} / {@code play dance} 播的<b>表情</b>
+     * （与状态完全正交，见 {@code NpcState} 的类注释）。本类因此<b>不再覆写</b>任何
+     * "某状态的动画名"方法 —— 基类只留 {@link #flyAnimationName()} 与 idle/walk/run 这几个。
+     * <p>
+     * ⚠️ <b>保留下面的教训</b>：本类注释曾写着"没有 {@code sit}"，那是**只看了资产里
+     * "飞 / 翅膀"相关子集就下的断言**；把全部动画列全后确认它存在（实测也能正常播）。
+     * ⇒ <b>说"某资产里没有 X"之前，必须把清单列全。</b>
      */
     @Override
     protected String flyAnimationName() {

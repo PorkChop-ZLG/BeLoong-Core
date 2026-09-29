@@ -164,24 +164,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * 坐下动画名。默认 {@code "sit"}。
-     * <p>
-     * ⚠️ 与 {@link #flyAnimationName()} 是同一个坑：<b>资产里没有这条动画就会静默塌成 T-pose</b>。
-     * 而"缺动画时塌掉"是用户 2026-09-27 **明确选定**的口径
-     * （实施计划 §七 选 B：各状态默认名就是 {@code fly}/{@code sit}/{@code dance}，
-     * 资产缺动画属**预期行为**、不当缺陷处理）。
-     * ⇒ <b>没有这条动画的 NPC（例如末）不要对它执行 {@code state … sitting}</b>。
-     */
-    protected String sitAnimationName() {
-        return "sit";
-    }
-
-    /** 跳舞动画名。默认 {@code "dance"}。坑与口径同 {@link #sitAnimationName()}。 */
-    protected String danceAnimationName() {
-        return "dance";
-    }
-
-    /**
      * 状态 → 动画名。{@link NpcState#IDLE} 不参与（它走 idle/walk/run 三选一，见 {@link #registerControllers}）。
      * <p>
      * <b>为什么动画名放在这个方法里、而不是塞进 {@link NpcState} 的枚举常量</b>：
@@ -193,8 +175,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     protected String stateAnimationName(NpcState state) {
         return switch (state) {
             case FLYING -> this.flyAnimationName();
-            case SITTING -> this.sitAnimationName();
-            case DANCING -> this.danceAnimationName();
             case IDLE -> this.idleAnimationName();
         };
     }
@@ -580,14 +560,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * （{@code MeleeAttackGoal} 给 1.0、{@code FollowParentGoal}/{@code TemptGoal} 给 1.25、
      * {@code PanicGoal} 给 2.0），而位移对档位是**平方**关系 —— 这就是原版的速度语义。
      * <p>
-     * ⚠️ <b>处于姿态（{@link NpcState#isMovementMode()} 为 false）时会先隐式退出到
-     * {@link NpcState#IDLE}。</b>"坐下时收到移动指令 ⇒ 先站起来再走"是用户裁定的口径，
-     * 与"飞行中 {@code move} 保持飞行"一致：<b>姿态被移动指令挤出，移动模式不会</b>。
-     * <p>
-     * ⚠️ <b>顺序不能反：必须先退出姿态，再登记目标。</b>
-     * 因为"退出姿态"本身是一次状态切换，而**进入姿态的切换会取消移动指令**
-     * （姿态的定义就是"不走"，见 {@link #switchState}）—— 先登记的话会被它立刻取消掉，
-     * 症状是"命令看起来成功了但 NPC 不动"，而且**不报错**。
+     * 2026-09-29：这里原本还有一条"处于姿态时先隐式退出到 IDLE"的约束（姿态会被移动指令挤出）。
+     * 姿态已迁入表情系统、不再是状态（见 {@link NpcState} 的类注释），而<b>表情不影响移动</b>
+     * ⇒ 本方法现在只登记目标，<b>不做任何状态切换</b>。
      * <p>
      * ⚠️ 它会**直接覆盖当前移动目标**，不排队、不报错。要取消就用 {@link #stopMoving()}。
      */
@@ -595,7 +570,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.level().isClientSide()) {
             return;
         }
-        this.exitPoseIfNeeded();
         this.setMoveTarget(pos);
     }
 
@@ -617,15 +591,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 命令它去攻击某个目标。传 {@code null} 取消攻击（等价于 {@link #stopAttacking()}）。
      * <p>
-     * ⚠️ <b>它会先取消当前移动指令</b>（"追着打"与"去某点"是两件事），
-     * 并且与 {@link #moveTo} 一样**处于姿态时会先隐式退出到 {@link NpcState#IDLE}**
-     * （攻击必然要移动，与姿态矛盾），顺序同样是"**先退出、再下令**"。
+     * ⚠️ <b>它会先取消当前移动指令</b>（"追着打"与"去某点"是两件事）。
+     * <p>
+     * 2026-09-29：原本这里还有"处于姿态时先隐式退出到 IDLE"这一条，已随姿态机制删除
+     * （姿态迁入表情系统，且<b>表情不影响移动与攻击</b>）。
      */
     public void attack(@Nullable LivingEntity target) {
         if (this.level().isClientSide()) {
             return;
         }
-        this.exitPoseIfNeeded();
         this.clearMotionCommands();
         this.attackCommandActive = target != null;
         this.setTarget(target);
@@ -646,20 +620,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         }
         this.attackCommandActive = false;
         this.setTarget(null);
-    }
-
-    /**
-     * 处于姿态时隐式退出到 {@link NpcState#IDLE} —— 由 {@link #moveTo} 与 {@link #attack}
-     * 在**登记任何指令之前**调用。
-     * <p>
-     * 单独抽一个方法，是为了让"先退出、再登记"这条顺序约束**只有一个落实点**：
-     * 两处各写一遍 {@code if (!state().isMovementMode()) setState(IDLE);}，
-     * 迟早会有人只改其中一处。
-     */
-    private void exitPoseIfNeeded() {
-        if (!this.state().isMovementMode()) {
-            this.setState(NpcState.IDLE);
-        }
     }
 
     // ===================== 表情（纯表现层，与状态正交）=====================
@@ -753,10 +713,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 当前只有 {@link NpcState#FLYING} 有副作用（换导航/移动控制 + 关重力）；
      * 其余状态只要求"不处于飞行"。**将来某个状态若需要更多副作用，加在这里。**
      * <p>
-     * <b>进入姿态时取消移动与攻击指令</b>：姿态这个类别的定义就是"不走、不动手"，
-     * 留着指令只会让 NPC 一边坐着一边滑行。
-     * <b>移动模式之间切换则不取消</b> —— 移动指令保留并按新模式重新执行
-     * （同一条 {@code move} 在地面是"走"、在飞行是"飞"）。
+     * 2026-09-29：这里原本还有"进入姿态就取消移动与攻击指令"一条。姿态迁入表情系统后，
+     * 剩下的两个状态都是移动模式 ⇒ <b>切换状态不再取消任何指令</b>
+     * （移动指令保留并按新模式重新执行：同一条 {@code move} 在地面是"走"、在飞行是"飞"），
+     * <b>表情也不受状态切换影响</b>（两轴正交）。
      */
     private void switchState(NpcState next) {
         // ① 无条件收掉"飞行"的副作用。判据是"暂存里还留着原导航"，
@@ -768,12 +728,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         // ② 装上新状态的副作用
         if (next == NpcState.FLYING) {
             this.enableFlight();
-        } else if (!next.isMovementMode()) {
-            // 进入姿态：移动与攻击指令都必须作废（理由见方法 javadoc）
-            this.clearMotionCommands();
-            this.attackCommandActive = false;
-            this.setTarget(null);
         }
+        // 2026-09-29：这里原本还有一个"进入姿态就作废移动与攻击指令"的分支。
+        // 姿态已迁入表情系统、不再是状态；而剩下的两态都是移动模式
+        // ⇒ 切换状态**不再取消任何指令**（表情也不受状态切换影响）。
     }
 
     /**
@@ -997,7 +955,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 另外 {@code stopInPlace()} 的名字与语义本就与"停止移动"完全一致。
      * <p>
      * 放在这里而不是只放在 {@link #disableFlight()} 里：本方法是**所有**"取消移动"路径的
-     * 唯一出口（{@code stop} / {@code attack} / 进入姿态 / 离开飞行），修一处即全覆盖。
+     * 唯一出口（{@code stop} / {@code attack} / 离开飞行），修一处即全覆盖。
      */
     private void clearMotionCommands() {
         this.moveTarget = null;
