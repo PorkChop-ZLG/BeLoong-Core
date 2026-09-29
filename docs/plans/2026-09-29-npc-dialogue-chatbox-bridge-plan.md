@@ -1,5 +1,11 @@
 # NPC 对话系统 ↔ ChatBox 联动 实施计划
 
+> **实施状态（2026-09-29）：T1–T8 全部完成，实机验收待用户执行。**
+> 提交：批次 ① + ② = `580c909`（数据模型 / 线载荷 / ChatBox 桥 / C2S 包 / 客户端界面）；批次 ③ 紧随其后。
+> 途中唯一的插曲：我自己一处笔误（`ByteCodecs` 应为 `ByteBufCodecs`）导致一次构建失败 ——
+> 而那次失败恰好**证明了** `ChatBoxBridge` 里对 ChatBox 的类名/签名引用全部解析成功（javac 只报了那 1 个错误）
+> ⇒ 参考源码与 jar 一致，本次最大的技术不确定性已排除。
+
 **Goal:** 让 NPC 对话播放完毕后，在「离开」上方出现**数据驱动**的回复选项；点击后关闭我方界面并立刻进入指定的 ChatBox 对话。
 **Architecture:** 设计文档见 `docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md`（§1 架构 / §2 组件 / §3 数据流 / §4 错误处理 / §5 验证）。
 **Approach:** **方案 A** —— 新增一个 C2S「回复」包（只带"实体网络 id + 回复下标"），服务端查自己的对话表后用 ChatBox 公开 API `ChatBoxCommandUtil.serverSkipDialogues` 触发。零 mixin、零反射、服务端权威。

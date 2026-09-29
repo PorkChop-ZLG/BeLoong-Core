@@ -494,6 +494,11 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 | `name` | ❌ | 用实体自身显示名 | 说话人名字的**翻译键** |
 | `pages[].text` | ✅ | — | 页文本的**翻译键**；值内可用 `\n` 分行、`§` 颜色代码 |
 | `pages[].sound` | ❌ | 无 | 预留的声音事件 ID。**当前只解析不播放**，schema 先定型 |
+| `replies[]` | ❌ | 空 | 播放完毕后出现在「离开」**上方**的回复选项；见 §5.8 |
+| `replies[].text` | ✅ | — | 标签的**翻译键** |
+| `replies[].chatbox` | ✅ | — | 目标 ChatBox 对话文件的 ResourceLocation，如 `beloong:mo` |
+| `replies[].group` | ✅ | — | 该文件里的组名，如 `start` |
+| `replies[].index` | ❌ | `0` | 页序号（0 基）。**不可为 null** —— ChatBox 那侧会把它编码成字符串 `"null"` 让客户端抛异常 |
 
 **文本存翻译键而不是字面文本**：多语言由原版 `lang` 机制负责，数据文件里不该出现中文。
 
@@ -691,6 +696,35 @@ PlayerInteractEvent.EntityInteract
 `ModList.isLoaded` 守卫——本模组不依赖任何对话模组。
 
 ---
+
+### 5.8 回复选项 → ChatBox（2026-09-29 增补）
+
+NPC 对话播放完毕后，界面除了「离开」还会在它**上方**列出数据里的 `replies`。
+玩家点某一条时：客户端关闭自己的界面（**与点「离开」完全等价**），并回发一个 C2S 包
+（`NpcDialogueReplyPayload`，只带 **实体网络 id + 回复下标**）；服务端按这两个数查回自己那张对话表，
+**用 ChatBox 自己的表预检**，再调 ChatBox 的公开入口 `ChatBoxCommandUtil.serverSkipDialogues` 开始那段对话。
+
+三个要点：
+
+- **目标留在服务端** —— 客户端不知道这条回复会跳到哪段对话，因此改过的客户端无法让服务端播放任意内容；
+  线载荷也因此只有一个字符串列表（标签键），满足 `NpcDialogueOpenPayload` 那条"全函数、永不抛"的不变量。
+- **ChatBox 的调用绕过命令层** —— 权限（`ChatBoxCommand.java:37`）与 `maxTriggerCount`（`:201-203`）
+  只在命令路径上，`serverSkipDialogues` 里没有 ⇒ **不需要 op**、无需队伍、单人可用；它自己发包。
+- **预检是必须的** —— ChatBox 对未知 RL/组/页号是**零校验零日志**的；不预检就是"点了没反应且查不出原因"。
+  预检还顺带堵住它回执路径上无判空的取组取页（`SimplePayload.java:164`）。
+
+冲突面收敛在**一个类**里：`compat/chatbox/ChatBoxBridge` 是全项目唯一 import ChatBox 的类
+（与 `compat/` 既有惯例一致）。完整设计与决策见
+`docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md`。
+
+与本话题相关的四份数据文件：
+
+| 文件 | 大小 | 内容 |
+|---|---|---|
+| `data/beloong/beloong/npc_dialogue/iron_golem.json` | 297 B | 铁傀儡的示例对话（**无** `replies` ⇒ 界面只有「离开」） |
+| `data/beloong/beloong/npc_dialogue/mo.json` | 388 B | 末的对话 + 一条回复（指向 ChatBox 的 `beloong:mo` / `start`） |
+| `data/beloong/chatbox/dialogues/mo.json` | 458 B | ChatBox 侧：`start` 组两页（龙宫 → 觐见龙王） |
+| `data/beloong/chatbox/theme/minimal.json` | 701 B | 自写的最小主题（无立绘） |
 
 ## 六、调试命令
 
