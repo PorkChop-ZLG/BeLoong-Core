@@ -1,6 +1,7 @@
 package com.zonlong.beloong.entity;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.client.model.EmoteAnimationLookup;
 import com.zonlong.beloong.entity.ai.NpcAttackGoal;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -28,7 +29,9 @@ import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.Animation;
 import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
@@ -320,6 +323,25 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             SynchedEntityData.defineId(NpcEntity.class, EntityDataSerializers.INT);
 
     /**
+     * <b>表情</b> —— 一个动画名，<b>空串表示"没有表情"</b>。
+     * <p>
+     * 与 {@link #DATA_STATE} 一样走同步数据（<b>双端可读</b>）：{@link #registerControllers}
+     * 的动画谓词在<b>客户端</b>读它。
+     * <p>
+     * 用原版现成的 {@link EntityDataSerializers#STRING}（{@code ByteBufCodecs.STRING_UTF8}），
+     * 先例是原版 {@code MinecartCommandBlock} 的 {@code DATA_ID_COMMAND_NAME} ——
+     * 本项目已确认<b>模组不能注册自定义序列化器</b>（理由见 {@link #DATA_STATE} 的注释）。
+     * 用空串而不是 {@code Optional}：{@code STRING} 不接受 {@code null}，
+     * 而"没有表情"只需要一个哨兵值。
+     * <p>
+     * ⚠️ <b>刻意不落盘</b>（设计 D5）：表情是纯表现层，重登后直接回到状态动画。
+     * 因此它<b>不出现在</b> {@link #addAdditionalSaveData} / {@link #readAdditionalSaveData} 里
+     * —— 这一条由探针 {@code tools/YSMParser/probe_emote_java.py} 守着。
+     */
+    private static final EntityDataAccessor<String> DATA_EMOTE =
+            SynchedEntityData.defineId(NpcEntity.class, EntityDataSerializers.STRING);
+
+    /**
      * 移动指令的目标点；{@code null} = 没有移动指令。<b>地面与飞行共用同一套。</b>
      * <p>
      * <b>为什么要把目标点存下来而不是只调一次 {@code getNavigation().moveTo(...)}</b>：
@@ -410,6 +432,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(DATA_STATE, NpcState.IDLE.id());
+
+        // 表情的默认值是空串 = 没有表情。它不落盘，但**必须**在这里定义：
+        // 同步数据表是客户端读表情的唯一来源（见 DATA_EMOTE 的注释）。
+        builder.define(DATA_EMOTE, "");
     }
 
     // ===================== 定义性语义 =====================
@@ -634,6 +660,40 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (!this.state().isMovementMode()) {
             this.setState(NpcState.IDLE);
         }
+    }
+
+    // ===================== 表情（纯表现层，与状态正交）=====================
+
+    /**
+     * 当前表情动画名，<b>空串表示没有表情</b>。双端可读。
+     * <p>
+     * 有值时，{@link #registerControllers} 里的 {@code emote} 控制器会接管全身动画，
+     * {@code main} 控制器主动让位 —— 这就是"表情覆盖状态动画"的实现方式。
+     * <p>
+     * ⚠️ 表情<b>只覆盖动画</b>，不干预移动与攻击（设计 D2）：所以"边走边播 sit"会呈现
+     * "坐着滑行"，这是明确接受的代价。
+     */
+    public String emote() {
+        return this.entityData.get(DATA_EMOTE);
+    }
+
+    /**
+     * 设置表情。<b>只在服务端生效</b>（与 {@link #setState} 同构）。
+     * <p>
+     * ⚠️ <b>名字不做任何校验</b>：动画名是<b>客户端</b>的资产数据，服务端无从知道。
+     * 客户端会在播放前预检、查不到就静默不播，因此拼错既不会报错也不会静默变成别的动画，
+     * 但也不会有任何反馈 —— 这是设计 D4 明确接受的代价。
+     */
+    public void setEmote(String animationName) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.entityData.set(DATA_EMOTE, animationName == null ? "" : animationName);
+    }
+
+    /** 清除表情（等价于 {@code setEmote("")}）。{@code play … stop} 与 {@code reset} 都走它。 */
+    public void clearEmote() {
+        this.setEmote("");
     }
 
     // ===================== 状态机 =====================
@@ -1044,6 +1104,20 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
+    // ===================== 表情的客户端瞬态状态（不同步、不落盘）=====================
+    // 这三个字段只被 emote 控制器在**客户端**读写，因此不进同步数据、也不进存档。
+    // 服务端只知道 DATA_EMOTE（那个名字），"播完了没有"只有客户端能判断
+    // —— 因为"这支动画有多长、是不是循环动画"都是**资产数据**（见 EmoteAnimationLookup）。
+
+    /** 上一次看到的 {@link #emote()} 值，用来检测"换了一条表情"。 */
+    private String emoteSeen = "";
+
+    /** 一次性表情是否已播完。置真后 {@code main} 控制器重新接管，表现即"回落到状态动画"。 */
+    private boolean emoteDone;
+
+    /** 一次性表情的**计时起点**（单位 tick，取自 {@link #tickCount}）。 */
+    private int emoteStartTick;
+
     /**
      * 主控制器：**按状态**选动画 —— 非待机状态播该状态那一条；待机时才走 idle/walk/run 三选一。
      * <p>
@@ -1080,8 +1154,22 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 posedAnimations.put(candidate, RawAnimation.begin().thenLoop(this.stateAnimationName(candidate)));
             }
         }
+
+        // ⚠️⚠️ 下面两个 add 的**顺序是承重结构，不要调换** ⚠️⚠️
+        // GeckoLib 按**注册顺序**遍历控制器（AnimationProcessor.java:80；保序表见
+        // AnimatableManager.java:202-208），而每个控制器对骨骼是**直接赋值**、不是累加
+        // （AnimationProcessor.java:107-131）⇒ 同一骨骼上**最后写入者覆盖前者**。
+        // "表情覆盖状态动画"因此由两件事**共同**实现：emote 注册在**后** + main 主动让位。
+        // 若把 emote 挪到前面，表现是「play 没反应」——表情会被状态动画盖掉。
         controllers.add(new AnimationController<>(this, "main", this.animationTransitionTicks(), state -> {
             NpcEntity npc = state.getAnimatable();
+            if (npc.hasActiveEmote()) {
+                // 让位：本控制器这一帧不写任何骨骼，全身交给 emote 控制器。
+                // 表情清空/播完后这里不再命中 ⇒ 下一帧自动重选 idle/fly
+                // —— **没有任何"恢复原动画"的代码**，这是刻意的（见设计文档 §2.3）。
+                state.getController().stop();
+                return PlayState.STOP;
+            }
             RawAnimation posed = posedAnimations.get(npc.state());
             if (posed != null) {
                 return state.setAndContinue(posed);      // 非待机：整体替换，不进下面那套
@@ -1093,6 +1181,53 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                     > npc.getAttributeBaseValue(Attributes.MOVEMENT_SPEED);
             return state.setAndContinue(speedBoosted ? run : walk);
         }));
+
+        // 表情控制器（顺序警告见上）。全部判断都在客户端做，因为动画名/长度/loop 类型都是资产数据。
+        controllers.add(new AnimationController<>(this, "emote", this.animationTransitionTicks(), state -> {
+            NpcEntity npc = state.getAnimatable();
+            String name = npc.emote();
+            if (name.isEmpty() || npc.emoteDone) {
+                state.getController().forceAnimationReset();
+                return PlayState.STOP;
+            }
+            if (!name.equals(npc.emoteSeen)) {
+                // 换了一条表情：重置本地状态，并把计时起点钉在**当前 tick**上。
+                npc.emoteSeen = name;
+                npc.emoteDone = false;
+                npc.emoteStartTick = npc.tickCount;
+            }
+            Animation animation = EmoteAnimationLookup.find(npc, name);
+            if (animation == null) {
+                // 资产里没有这条动画（或名字拼错）：静默不播（设计 D4）。
+                // **不做负缓存** —— 下一帧还会再查，于是 F3+T 重载资源后能自愈。
+                return PlayState.STOP;
+            }
+            if (animation.loopType() == Animation.LoopType.LOOP) {
+                return state.setAndContinue(RawAnimation.begin().thenLoop(name));
+            }
+            // 非循环（play_once / hold_on_last_frame / 自定义）⇒ 一次性：
+            // 播满"动画自身长度"就本地收工，回落到状态动画。
+            // ⚠️ 判据必须用**自记的 tick 计时**，绝不能用 state.getAnimationTick()：
+            //    后者是**全局动画时钟**（GeoModel.java:217 赋的是 this.animTime），
+            //    拿它去比长度会立刻判成"播完"。
+            // 长度单位是 tick（BakedAnimationsAdapter.java:59：animation_length * 20d）。
+            if (npc.tickCount - npc.emoteStartTick >= animation.length()) {
+                npc.emoteDone = true;
+                state.getController().forceAnimationReset();
+                return PlayState.STOP;
+            }
+            return state.setAndContinue(RawAnimation.begin().thenPlay(name));
+        }));
+    }
+
+    /**
+     * 是否有"正在生效"的表情 —— {@code main} 控制器据此让位（顺序理由见 {@link #registerControllers}）。
+     * <p>
+     * 判据里带 {@link #emoteDone}：一次性表情播完后就不该再压着状态动画，否则
+     * {@code main} 会一直让位、而 {@code emote} 又返回 STOP，两边都不写骨骼。
+     */
+    private boolean hasActiveEmote() {
+        return !this.emote().isEmpty() && !this.emoteDone;
     }
 
     @Override

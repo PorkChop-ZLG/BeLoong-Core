@@ -6,6 +6,8 @@
   "beloong.command.npc.move": "已让 %s 个 NPC 移动到 %s",
   "beloong.command.npc.no_targets": "没有找到 NPC（本命令只作用于本模组注册的 NPC）",
   "beloong.command.npc.not_living": "攻击目标必须是生物",
+  "beloong.command.npc.play": "已让 %s 个 NPC 播放表情「%s」",
+  "beloong.command.npc.play_stop": "已让 %s 个 NPC 停止表情",
   "beloong.command.npc.reset": "已让 %s 个 NPC 恢复到默认状态",
   "beloong.command.npc.state": "已让 %s 个 NPC 切换到「%s」状态",
   "beloong.command.npc.state.unknown": "未知状态「%s」（可用：%s）",

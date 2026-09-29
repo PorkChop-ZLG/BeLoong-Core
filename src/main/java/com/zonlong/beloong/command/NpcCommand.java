@@ -29,20 +29,27 @@ import java.util.Optional;
  * 只调实体 API，**不碰实体字段**；目标过滤 {@link NpcEntity}，因此对本模组**所有** NPC 生效。
  * op 级（{@code hasPermission(2)}）：它改的是世界里的实体。
  *
- * <h2>指令面：三条正交的轴 + 一条全清（2026-09-27 重构）</h2>
+ * <h2>指令面：四条正交的轴 + 一条全清（2026-09-29 增补「表情」轴）</h2>
  * <b>目标一律在 {@code npc} 之后、动作之前</b>（2026-09-27 统一格式，见 {@link #register}）：
  * <pre>
- *   /beloong npc &lt;targets&gt; state &lt;state&gt;     ← idle | flying | sitting | dancing | …（可扩展）
+ *   /beloong npc &lt;targets&gt; state &lt;state&gt;     ← idle | flying（可扩展）
  *   /beloong npc &lt;targets&gt; move &lt;pos&gt;        ← 移动。走法（地面/空中）由当前状态决定
  *   /beloong npc &lt;targets&gt; stop              ← 停止寻路（move 的反面）
  *   /beloong npc &lt;targets&gt; attack &lt;victim&gt;   ← 攻击
  *   /beloong npc &lt;targets&gt; attack stop        ← 停止攻击
- *   /beloong npc &lt;targets&gt; reset              ← 回到"刚被召唤出来的样子"
+ *   /beloong npc &lt;targets&gt; play &lt;animation&gt;  ← 播放表情（任意动画名，覆盖状态动画）
+ *   /beloong npc &lt;targets&gt; play stop          ← 停止表情
+ *   /beloong npc &lt;targets&gt; reset              ← 回到"刚被召唤出来的样子"（含清表情）
  * </pre>
- * <b>对称是刻意的</b>：{@code move ↔ stop}、{@code attack <victim> ↔ attack stop}。
- * 两条 {@code stop} 语义完全一致 —— <b>只取消各自轴上的指令，绝不碰状态</b>。
+ * <b>对称是刻意的</b>：{@code move ↔ stop}、{@code attack [victim] ↔ attack stop}、
+ * {@code play [animation] ↔ play stop}。
+ * 三条 {@code stop} 语义完全一致 —— <b>只取消各自轴上的指令，绝不碰别的轴</b>。
  * 于是"地面停下就是站桩待机、空中停下就是原地悬停"是"状态没变 + 动作没了"的**自然结果**，
  * <b>不需要为它们写任何特判</b>。
+ * <p>
+ * ⚠️ <b>{@code play} 的参数刻意没有补全</b>：动画名是<b>客户端</b>的资产数据，服务端不知道有哪些名字，
+ * 无法像 {@code state} 那样从枚举列候选（对照 {@link #STATE_SUGGESTIONS}）。
+ * 拼错时客户端预检会静默不播（设计 D4），而指令本身仍报成功 —— 这是明确接受的代价。
  * <p>
  * <b>被删除的旧指令</b>：{@code walk}（→ {@code move}）、{@code fly on|off}
  * （→ {@code state … flying} / {@code state … idle}）、{@code fly to}（→ {@code move}）。
@@ -114,6 +121,18 @@ public final class NpcCommand {
                                                         ctx.getSource())))
                                         .then(Commands.literal("stop")
                                                 .executes(ctx -> stopAttacking(
+                                                        EntityArgument.getEntities(ctx, "targets"),
+                                                        ctx.getSource()))))
+                                .then(Commands.literal("play")
+                                        // 与 attack 同形：先接参数（动画名），再接 stop 字面量。
+                                        // 两者落在同一 token 位置 ⇒ 歧义说明见类注释。
+                                        .then(Commands.argument("animation", StringArgumentType.word())
+                                                .executes(ctx -> play(
+                                                        EntityArgument.getEntities(ctx, "targets"),
+                                                        StringArgumentType.getString(ctx, "animation"),
+                                                        ctx.getSource())))
+                                        .then(Commands.literal("stop")
+                                                .executes(ctx -> stopEmote(
                                                         EntityArgument.getEntities(ctx, "targets"),
                                                         ctx.getSource()))))
                                 .then(Commands.literal("reset")
@@ -219,7 +238,48 @@ public final class NpcCommand {
         return npcs.size();
     }
 
-    /** 恢复到默认状态：状态→待机、无移动、无攻击（等于刚被召唤出来的样子）。 */
+    /**
+     * 播放一个表情。
+     * <p>
+     * <b>不校验名字，也不声称该动画存在</b>：动画名是客户端的资产数据，服务端无从知道
+     * （见类注释里 {@code play} 那条警告）。客户端会在真正播放前预检。
+     * <p>
+     * 表情与状态 / 移动 / 攻击<b>完全正交</b>：它只是一层动画覆盖，既不取消任何指令，
+     * 也不会被它们取消 —— 只有 {@code play} 换名、{@code play stop}、{@code reset} 能改变它。
+     */
+    private static int play(Collection<? extends Entity> targets, String animation, CommandSourceStack source) {
+        List<NpcEntity> npcs = npcsIn(targets);
+        if (npcs.isEmpty()) {
+            return fail(source);
+        }
+        for (NpcEntity npc : npcs) {
+            npc.setEmote(animation);
+        }
+        source.sendSuccess(() -> Component.translatable(
+                "beloong.command.npc.play", npcs.size(), animation), true);
+        return npcs.size();
+    }
+
+    /**
+     * 停止表情（{@code play} 的反面）。
+     * <p>
+     * <b>幂等</b>：本来就没有表情时也报成功 —— 与 {@link #stopAttacking} / {@link #stopMoving}
+     * 的口径一致，三条 {@code stop} 都不做"有没有东西可停"的判断。
+     */
+    private static int stopEmote(Collection<? extends Entity> targets, CommandSourceStack source) {
+        List<NpcEntity> npcs = npcsIn(targets);
+        if (npcs.isEmpty()) {
+            return fail(source);
+        }
+        for (NpcEntity npc : npcs) {
+            npc.clearEmote();
+        }
+        source.sendSuccess(() -> Component.translatable(
+                "beloong.command.npc.play_stop", npcs.size()), true);
+        return npcs.size();
+    }
+
+    /** 恢复到默认状态：状态→待机、无移动、无攻击、**无表情**（等于刚被召唤出来的样子）。 */
     private static int reset(Collection<? extends Entity> targets, CommandSourceStack source) {
         List<NpcEntity> npcs = npcsIn(targets);
         if (npcs.isEmpty()) {

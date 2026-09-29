@@ -6,6 +6,8 @@
   "beloong.command.npc.move": "%s NPC(s) moving to %s",
   "beloong.command.npc.no_targets": "No NPC found (this command only affects NPCs registered by this mod)",
   "beloong.command.npc.not_living": "The attack victim must be a living entity",
+  "beloong.command.npc.play": "%s NPC(s) ordered to play emote \"%s\"",
+  "beloong.command.npc.play_stop": "Stopped %s NPC(s) from playing their emote",
   "beloong.command.npc.reset": "Reset %s NPC(s) to the default state",
   "beloong.command.npc.state": "%s NPC(s) switched to state \"%s\"",
   "beloong.command.npc.state.unknown": "Unknown state \"%s\" (available: %s)",

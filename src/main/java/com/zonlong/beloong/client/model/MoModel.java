@@ -131,6 +131,25 @@ public class MoModel extends GeoModel<MoEntity> {
     private static final ResourceLocation ANIMATION =
             ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "animations/mo.animation.json");
 
+    /**
+     * <b>扩展动画文件</b> —— 末的表情动画（{@code sit} / {@code dance} / {@code descend}）放在这里，
+     * 而不是主文件里。
+     * <p>
+     * 这是 GeckoLib <b>原生</b>的"一个模型多个动画文件"机制：{@code GeoModel.java:76-84} 的
+     * {@code getAnimationResourceFallbacks}，查找顺序见 {@code GeoModel.java:144-158}
+     * —— <b>主文件优先，名字 miss 才依次查 fallback</b>。因此不需要自定义加载器、也不需要合并脚本。
+     * <p>
+     * ⚠️ <b>同名时主文件赢，extra 里那条会静默失效</b>（没有任何日志）。所以两文件的动画名
+     * <b>必须互不相交</b> —— 原先 {@code sit} 两边都有，已从主文件删掉。该不变量由探针
+     * {@code tools/YSMParser/probe_emote_assets.py} 的 A1 守着。
+     * <p>
+     * ⚠️ <b>它既不省内存也不省启动</b>：{@code GeckoLibCache.java:113-133} 在资源重载时把
+     * {@code assets/<ns>/animations/} 下<b>所有</b> json 全量烘焙。拆文件的收益只是
+     * "文件组织 + 主文件体积"，这正是本设计要的（不做按需加载、不做二进制编译缓存）。
+     */
+    private static final ResourceLocation EXTRA_ANIMATION =
+            ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "animations/mo.extra.animation.json");
+
     // 注：GeckoLib 4.9 里这三个单参版本标了 @Deprecated，但**仍是抽象方法**，必须实现；
     // 双参重载（带 renderer）默认转调它们 —— 与地黄龙模型、BWG 的 PumpkinWardenModel 写法一致。
 
@@ -147,5 +166,20 @@ public class MoModel extends GeoModel<MoEntity> {
     @Override
     public ResourceLocation getAnimationResource(MoEntity animatable) {
         return ANIMATION;
+    }
+
+    /**
+     * 把 {@link #EXTRA_ANIMATION} 挂成主动画文件的<b>备用查找位置</b>。
+     * <p>
+     * 对调用方而言动画名就是"逻辑上合并"的一池：{@code idle}/{@code fly}/{@code walk}/
+     * {@code run}/{@code attack} 在主文件命中，{@code sit}/{@code dance}/{@code descend}
+     * 落到 extra 命中；代价是每次查找最多多一次哈希查询。
+     * <p>
+     * 父类默认实现返回<b>空数组</b>，此处刻意覆写。将来若 extra 再拆出第三份文件，
+     * <b>数组顺序就是查找优先级</b> —— 把最常用的放前面。
+     */
+    @Override
+    public ResourceLocation[] getAnimationResourceFallbacks(MoEntity animatable) {
+        return new ResourceLocation[]{EXTRA_ANIMATION};
     }
 }
