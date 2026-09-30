@@ -359,7 +359,7 @@ public String emote()
 
 - **数据**：`data/beloong/beloong/npc_route/<名>.json`（`dimension` + `waypoints [[x,y,z]…]` + 可选 `arrival_radius`）。
   ⚠️ **相邻路点距离必须 ≤ 寻路探索半径**（`Attributes.FOLLOW_RANGE`，默认 16）—— 超了不会报错，
-  只在复杂地形上反复寻路失败（`docss/plans/2026-09-30-npc-route-system-design.md` §2.1）。
+  只在复杂地形上反复寻路失败（`docs/plans/2026-09-30-npc-route-system-design.md` §2.1）。
 - **状态**：NBT 两键 `BeloongRoute` + `BeloongRouteIndex` ⇒ **"只有一个路线"由"只有一个键"结构性保证**。
 - **驱动**：`NpcRouteGoal`（**只占 `Goal.Flag.MOVE`**、优先级 4）只把"当前路点"交给 `moveTarget`；
   寻路仍由既有 `tickMoveCommand()` 每 20 tick 续 —— **寻路一行未新写**。
