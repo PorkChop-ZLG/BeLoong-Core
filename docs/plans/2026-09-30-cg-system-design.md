@@ -40,7 +40,8 @@
 ### 2.1 fdlib 侧（**1.0.9**，与本项目依赖的 jar 同版本）
 
 > **版本已核实**：`fdlib-1271749-7844741.jar`（Gradle 缓存）= `【前置】fdlib-1.0.9-1.21.1.jar`（整合包 mods 目录），
-> 两者同为 973,335 字节；开箱列内容确认 `com/finderfeed/fdlib/systems/cutscenes/` 下 **22 个 class 齐全**，
+> 两者同为 973,335 字节；开箱列内容确认 `com/finderfeed/fdlib/systems/cutscenes/` 下 **19 个 `.class` 齐全**
+> （22 个 zip 条目 = 19 个 class + 3 个目录条目），
 > 且 `fdlib.mixins.json` 含 `KeyboardInputMixin` / `LocalPlayerMixin` / `MouseHandlerMixin`。
 > 参考源码 `D:\Minecraft\开源模组参考文件\FDLib` 的 `mod_version=1.0.9`，与实际运行版本一致。
 
@@ -99,10 +100,15 @@
 | t = 0 | +169.86 单位 | 9.43 格 | **+44.3°** |
 | t ≈ 34（1.7067 s） | **+288.50**（极值） | 15.36 格 | **+59.8°** |
 | t ≈ 68（3.4267 s） | −12.79 | 0.30 格 | −9.4° |
-| t = 120（5.6267 s） | −0.63 | 0.90 格 | −5.1° |
+| t = 112.5（5.6267 s，最后一个关键帧） | −0.63 | 0.90 格 | −5.1° |
 
 ⇒ **峰值在 34 tick、落地在 68 tick**。这两个 tick 与 Y 轴正负号约定无关（取的是绝对值极值），
 且"descend"这个命名 + 用户描述共同锁定"正 Y = 上"。
+<p>
+
+> ⚠️ 口径澄清（2026-09-30 审查 I/M-4 修正）：动画总长是 **120 tick = 6.0 s**；
+> `5.6267 s` 是 `descend` 的**最后一个关键帧**时刻（= 112.53 tick），资产把 −0.631 从那里保持到 6.0 s。
+> 本行的 −0.63 / 0.90 格 / −5.1° 三个数本身没问题，只是时刻标注此前写错成了 120 tick。
 
 ### 2.4 可引用的项目既有教训
 
@@ -223,8 +229,11 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
 `yRotFromVector`/`xRotFromVector` 做转换 ⇒ **我们不经手 MC 的 yaw/pitch 正负号约定**，
 也就没有踩错符号的空间。`elevationDeg > 0 = 上看` 是我们自己的定义，与 MC 无关。
 
-`CgContext` / `CgRegistry` 的写法照 `NpcDialogueStage` 的最新先例：`public final` + 私有构造 +
+`CgRegistry` 的写法照 `NpcDialogueStage` 的最新先例：`public final` + 私有构造 +
 静态方法 + 失败留**每名一次**英文 WARN（服务端主线程单线程访问，普通 `HashSet` 够用）。
+`CgContext` 则是一个 **record**（字段不可变、规范构造器 public），只有"静态数学方法"这一半照同一风格
+—— 它没有自己的集合与 WARN，因为它是纯函数式的几何工具。
+（口径修正：2026-09-30 审查 M-5 —— 原文把两者都描述成"`public final` + 私有构造"，对 `CgContext` 不成立。）
 
 ### 3.3 `mo_entrance` 的编排（§3）
 

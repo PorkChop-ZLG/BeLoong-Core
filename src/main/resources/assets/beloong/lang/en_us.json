@@ -1,6 +1,10 @@
 {
   "attribute.beloong.growth_speed": "Growth Speed",
   "attribute.dragonsurvival.flight_level": "Flight Level",
+  "beloong.command.cg.failed": "Cutscene \"%s\" failed to play (see the log for the reason)",
+  "beloong.command.cg.not_npc": "%s is not a BeLoong NPC; cannot play a cutscene",
+  "beloong.command.cg.play": "Playing cutscene \"%s\" (target: %s)",
+  "beloong.command.cg.unknown": "Unknown cutscene \"%s\" (available: %s)",
   "beloong.command.npc.attack": "%s NPC(s) ordered to attack %s",
   "beloong.command.npc.attack_stop": "%s NPC(s) stopped attacking",
   "beloong.command.npc.move": "%s NPC(s) moving to %s",

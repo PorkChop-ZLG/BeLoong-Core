@@ -101,6 +101,17 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# FDLib — 必选前置（2026-09-30 新增，理由见 docs/plans/2026-09-30-cg-system-design.md 的 D1）。
+# 它的 systems/cutscenes/（过场系统）是 CG 系统的相机底座。
+# 版本号取自实际下载并开箱核对过的 jar（CF 文件 7844741）：modId=fdlib、mod_version=1.0.9。
+# 注：fdbosses 自身 required fdlib，故此处是把既有传递依赖显式化，不是新增约束。
+[[dependencies.${mod_id}]]
+    modId="fdlib"
+    type="required"
+    versionRange="[1.0.9,)"
+    ordering="AFTER"
+    side="BOTH"
+
 [[dependencies.${mod_id}]]
     modId="dragonsurvival"
     type="required"

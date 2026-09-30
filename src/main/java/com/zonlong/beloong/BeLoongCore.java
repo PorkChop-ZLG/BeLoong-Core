@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
+import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
@@ -208,11 +209,18 @@ public class BeLoongCore {
      * {@code RegisterCommandsEvent} 在每次服务端启动（含单人世界的内置服务端）时触发，
      * 命令注册在**该次**的 dispatcher 上，因此每次都要重新注册。
      * <p>
-     * 目前只有 {@link NpcCommand} —— 它是通用 NPC 能力的验收与摆位工具（不是玩法内容）。
+     * 两条命令：{@link NpcCommand}（通用 NPC 的验收与摆位工具）与 {@link CgCommand}（过场动画播放）。
+     * 它们共享 {@code /beloong} 这个根字面量 —— 各自 {@code register} 一个同名 literal 是**可以**的：
+     * Brigadier 会按下标名把子树合并（依据见 {@link CgCommand} 类注释里引的
+     * {@code CommandNode.addChild} 源码）。
+     * <p>
+     * ⚠️ 合并**不带走**后注册者的 {@code requires} 谓词 ⇒ 两处必须写同样的权限等级，
+     * 否则改第二处是无效的。
      */
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         NpcCommand.register(event.getDispatcher());
+        CgCommand.register(event.getDispatcher());
     }
 
     /** 服务端启动时触发。 */

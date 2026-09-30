@@ -1,6 +1,10 @@
 {
   "attribute.beloong.growth_speed": "成长速度",
   "attribute.dragonsurvival.flight_level": "飞行等级",
+  "beloong.command.cg.failed": "过场动画「%s」播放失败（具体原因见日志）",
+  "beloong.command.cg.not_npc": "%s 不是本模组的 NPC，无法播放过场动画",
+  "beloong.command.cg.play": "正在播放过场动画「%s」（目标：%s）",
+  "beloong.command.cg.unknown": "未知的过场动画「%s」（可用：%s）",
   "beloong.command.npc.attack": "已让 %s 个 NPC 攻击 %s",
   "beloong.command.npc.attack_stop": "已让 %s 个 NPC 停止攻击",
   "beloong.command.npc.move": "已让 %s 个 NPC 移动到 %s",
