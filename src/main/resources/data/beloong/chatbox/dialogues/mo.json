@@ -21,7 +21,7 @@
             "next": "-1",
             "click": {
               "type": "command",
-              "value": "advancement grant @s only beloong:npc/1_1"
+              "value": "advancement grant @s only beloong:npc/1_1; beloong route beloong:mo_route_1"
             }
           }
         ]

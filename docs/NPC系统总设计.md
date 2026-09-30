@@ -352,6 +352,24 @@ public String emote()
 > `NpcAttackGoal` 的 `stop()` 里也会调 `clearAttackCommand()`。
 > 两处并存不是冗余：`stop()` 只在"启动过"时被调用，`customServerAiStep` 兜的是"从未启动"。
 
+
+#### 3.7.1 路线层（NPC 自动寻路，2026-09-30 新增）
+
+在"移动指令层"（`moveTo` / `stopMoving`）之上再加一层**任务状态**，让 NPC 能沿一条数据驱动的路线一直走：
+
+- **数据**：`data/beloong/beloong/npc_route/<名>.json`（`dimension` + `waypoints [[x,y,z]…]` + 可选 `arrival_radius`）。
+  ⚠️ **相邻路点距离必须 ≤ 寻路探索半径**（`Attributes.FOLLOW_RANGE`，默认 16）—— 超了不会报错，
+  只在复杂地形上反复寻路失败（`docss/plans/2026-09-30-npc-route-system-design.md` §2.1）。
+- **状态**：NBT 两键 `BeloongRoute` + `BeloongRouteIndex` ⇒ **"只有一个路线"由"只有一个键"结构性保证**。
+- **驱动**：`NpcRouteGoal`（**只占 `Goal.Flag.MOVE`**、优先级 4）只把"当前路点"交给 `moveTarget`；
+  寻路仍由既有 `tickMoveCommand()` 每 20 tick 续 —— **寻路一行未新写**。
+  攻击让位（与占 `MOVE` 的攻击 goal 天然互斥）、维度挂起、抵达停止**全部由原版 `lockedFlags` 仲裁免费给出**。
+- **指派**：ChatBox 最后一颗选项的 `click` 调 `/beloong route <名>`（以玩家身份）⇒ 目标由
+  "该玩家最近对话过的 NPC"映射决定；手工/验收用 `/beloong npc <targets> route <名>`。
+- **契约**：`stop` 与 `reset` **取消**路线（不是暂停）；`attack` **不清**路线；路线上 `move` 指令无效（刻意）。
+- ⚠️ **两条做不到的事**（详见设计文档 C12）：服务端**无法感知 CG** ⇒ 无法"让位给 CG"，只能靠内容顺序；
+  CG 相机轨迹触发即烘死 ⇒ **"边走边演"不成立**。
+
 ### 3.8 可覆写的默认值
 
 | 方法 | 默认 | 说明 |
