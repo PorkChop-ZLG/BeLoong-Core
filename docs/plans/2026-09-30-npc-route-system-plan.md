@@ -1,6 +1,27 @@
 # NPC 自动寻路系统 实施计划
 
 **Goal:** 数据驱动的路线图（维度 + 路点）指派到 NPC 身上并落盘；NPC 沿路线自动寻路，除 `stop` 外不停，直到抵达终点。
+
+**状态**：**已实施、并通过实机验收**（2026-10-01，用户确认"全流程都跑通了"）。
+提交链：`6f0c581`（设计+计划）→ `68f1795`（批次① 数据层+实体状态）→ `bc8dd10`（批次② Goal+两条命令+stop/reset）
+→ `390765b`（批次③ 首个路线+接线+文档）→ 之后是实施期修复（见下表）。
+
+### 实施期修订（计划之外**真实发生**的事，一律记下来）
+
+| 事 | 说明 |
+|---|---|
+| 批次① 的脚本两次因**猜 import 锚点**失败而自我中止 | 改为**程序化定位** import 组（找第一个 `com.zonlong.beloong.*` 的 import）；退出码闸门拦在提交之前 |
+| **指令参数类型写错** | `StringArgumentType.word()` 的字符集**不含冒号** ⇒ 实机症状"补全能补出 `beloong:mo_route_1`、回车变红、对话结束后毫无反应"。改用 `ResourceLocationArgument.id()`（`aad78e2`）|
+| ChatBox 选项命令有被 `pluginHelper` 劫持的风险 | 计划里按既有 I-5 结论"只留痕"；实机症状与劫持吻合 ⇒ 两条命令都加 `execute` 前缀（`3824472`）|
+| **路线目标"一旦下发就永久属于我"**（设计漏洞） | 移动层有一条"连续 5 次续路无进展 ⇒ 放弃并清 `moveTarget`"的有界失败 ⇒ goal 仍在运行却再无目标 ⇒ 被 tp 后**永久停住**，且**重新指派也无效**（goal 没停止过 ⇒ 不会重新 `start()`）⇒ 增加"目标不属于我们时补发"（`fa1686d`），顺带真正实现了 D3 的"一直试" |
+| `root` 的触发方式（用户要求 1） | 改用原版 `minecraft:location` + 坐标盒（进龙宫、末周围 8 格内）并关提示（`7d0d03e` / `801a941`）|
+| **`2_0` 的触发器写错** | 空手右键方块走的是 `CriteriaTriggers.DEFAULT_BLOCK_USE`（`default_block_use`）**不是** `item_used_on_block`；按方法反汇编才看清（`9ba3ddc`）|
+| 第二段与终点表情 | `de555f5`（第二段：进度+对话+第二条路线，纯数据）、`906e8c1`（`end_emote` 可选；末第二段走完播 `sit`）|
+| 文案与版式 | `58e58ad`（英文同步中文格式、`&e`→`§e`）；版式最终值由用户 `72165e1` 亲自调定（`alignY=top` + `y=50`）|
+
+**验证**：`gradlew build` 多次 BUILD SUCCESSFUL；`route_invariants.py`（①–⑪）与 `stage_invariants.py` 全绿；
+三个既有探针（S1/S2/S3）全绿；**全流程由用户实机验收通过**。
+
 **Architecture:** 见 `docs/plans/2026-09-30-npc-route-system-design.md`（§1 架构 / §2 组件 / §3 数据流 / §4 错误处理 / §5 验证）。
 **Approach:** **薄 Goal + 现有命令层** —— 一个只占 `Goal.Flag.MOVE`（优先级 4）的薄 goal 只负责把"当前路点"交给
 `moveTarget`；寻路仍由既有 `tickMoveCommand()` 每 20 tick 续路（**寻路一行不新写**）；攻击让位／维度挂起／抵达停止
