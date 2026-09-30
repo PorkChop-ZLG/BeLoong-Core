@@ -89,6 +89,7 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 | D9 | 驱动器 = **只占 `MOVE` 的薄 Goal**（优先级 **4**，排在攻击 goal 的 3 之后）+ 既有 `tickMoveCommand` 续路 |
 | D10 | （推论）**路线上 `move` 指令无效** —— 路线 goal 每 tick 会把 `moveTarget` 改回当前路点；这是刻意的（"除 `stop` 不然一直走"），会写进注释免得当 bug |
 | D11 | （推论）路线**不改变状态**：地面态就走、飞行态就飞 —— "怎么走由状态决定"这条既有哲学不变 |
+| D12 | 路线 JSON 可带**可选的 `end_emote`**：走到终点后播该表情（省略则不播，老数据不变）；播放时机**推迟到移动层真的停下之后** —— 本 goal 的抵达半径（路线声明值 2.0）比移动层的到位半径（1.0）宽，若一到 2 格内就播，`sit` 会"坐着滑行"最后两格 |
 
 ### 3.2 组件（§2）
 
@@ -96,7 +97,7 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 |---|---|---|
 | C1 | `data/beloong/beloong/npc_route/mo_route_1.json` | 见 §3.3 的 JSON（维度 + 6 路点 + `arrival_radius`） |
 | C2 | `NpcRouteLoader`（新，服务端 reload listener） | 照 `NpcDialogueLoader`（`SimpleJsonResourceReloadListener`，目录串 `beloong/npc_route`）；单文件坏只丢该文件 |
-| C3 | `NpcRoute` 数据记录（新） | `dimension` + `waypoints`（`List<Vec3>`）+ `arrivalRadius`（缺省 2.0） |
+| C3 | `NpcRoute` 数据记录（新） | `dimension` + `waypoints`（`List<Vec3>`）+ `arrivalRadius`（缺省 2.0） ＋ **可选的 `end_emote`**（走完终点后播放的表情名，省略即不播）|
 | C4 | `NpcEntity` 的两个 NBT 键 | 名字 + 下标；键名照既有 **`Beloong*` 前缀风格**；读盘**下标 clamp 到 [0, size]**（对应 `byNameLenient` 的宽容口径） |
 | C5 | `NpcEntity` 的路线 API | `route()` / `setRoute(rl)`（下标归零）/ `clearRoute()` / `routeFinished()`；只在服务端生效 |
 | C6 | `entity/ai/NpcRouteGoal`（新，**只占 `MOVE`**，优先级 **4**） | `canUse()`＝有路线 ∧ 已加载 ∧ 维度匹配 ∧ 未抵达；`start()`/`tick()`＝按下标推进并把当前路点交给移动命令层；`stop()`＝**只停寻路、绝不清路线** |

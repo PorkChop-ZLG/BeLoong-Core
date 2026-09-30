@@ -12,9 +12,10 @@ import java.util.EnumSet;
  * <p>
  * 设计：{@code docs/plans/2026-09-30-npc-route-system-design.md}。
  *
- * <h2>它<b>只做一件事</b>：设目标</h2>
+ * <h2>它<b>只做两件事</b>：设目标、以及在终点播可选表情</h2>
  * 真正的寻路一行都不在这里 —— {@code NpcEntity#tickMoveCommand()} 每 20 tick 用
- * {@code moveTarget} 续一次路（既有机制）。本类只负责"当前该去哪个路点"。
+ * {@code moveTarget} 续一次路（既有机制）。本类只负责"当前该去哪个路点"，
+ * 以及走完后按 {@code NpcRoute#endEmote()}（可选）播一个表情。
  *
  * <h2>⚠️ 只占 {@code MOVE}、<b>不占</b> {@code LOOK}（两件事都很关键）</h2>
  * <ul>
@@ -124,8 +125,24 @@ public class NpcRouteGoal extends Goal {
         // 若路线的值更小，移动层会先判到位并清掉目标，而这里又判没到、立刻补发 ⇒ 每 tick 打架
         // （并每 tick 清一次表情）。ground arrive distance 是 1.0 ⇒ 下限 1.5 格。
         double effective = Math.max(route.arrivalRadius(), NpcEntity.groundArriveDistance() + 0.5D);
-        if (horizontal <= effective && Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE) {
+        boolean arrived = horizontal <= effective
+                && Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE;
+        // ⚠️ **最后一个路点**要再等"移动层真的停下"（它判到位时会把 moveTarget 清成 null）。
+        // 因为本 goal 的抵达半径（路线声明值，本次数据是 2.0）比移动层的到位半径（1.0）宽：
+        // 若一到 2 格内就算抵达并播表情，{@code sit} 这类坐姿会在**还差最后一两格**时开始播
+        // ⇒ 看起来像"坐着滑行"。中间路点**不**这样等（否则每个路点都会顿一下）。
+        // 不会因此卡死：万一移动层到不了，它的有界失败会在约 5 秒后清掉 moveTarget，
+        // 那时 arrived 成立、路线正常收尾。
+        if (arrived && this.isLastWaypoint(route) && this.npc.moveTarget() != null) {
+            arrived = false;
+        }
+        if (arrived) {
             this.npc.advanceRouteIndex();
+            if (this.npc.routeFinished()) {
+                // 终点：按数据播可选表情（没有就什么都不做 ⇒ 老数据行为不变）。
+                route.endEmote().ifPresent(this.npc::setEmote);
+                return;
+            }
             this.moveToCurrentWaypoint();
             return;
         }
@@ -142,6 +159,11 @@ public class NpcRouteGoal extends Goal {
     @Override
     public void stop() {
         this.npc.stopMoving();
+    }
+
+    /** 当前路点是不是这条路的最后一个。 */
+    private boolean isLastWaypoint(NpcRoute route) {
+        return this.npc.routeIndex() == route.size() - 1;
     }
 
     private void moveToCurrentWaypoint() {

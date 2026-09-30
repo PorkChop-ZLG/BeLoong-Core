@@ -7,6 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 一条 NPC 路线（**数据驱动**，从 {@code data/beloong/beloong/npc_route/<名>.json} 加载）。
@@ -25,8 +26,15 @@ import java.util.List;
  * @param arrivalRadius 抵达判定半径（格，缺省 {@value #DEFAULT_ARRIVAL_RADIUS}）；判定是
  *                      **水平距离** + 一个 Y 容差（见 {@code NpcRouteGoal}），
  *                      因为路点写的是方块坐标，而实体的 y 是脚底高度
+ * @param endEmote      <b>可选</b>：走到**终点之后**播放的表情名（如 {@code "sit"}）。
+ *                      省略即"什么都不播"（老数据行为一字不变）。播放时机刻意推迟到
+ *                      **移动层真的停下**之后 —— 见 {@code NpcRouteGoal.tick()} 的说明。
+ *                      名字不做校验：表情是**资产**（哪条动画存在由实体模型决定），
+ *                      与 {@code /beloong npc … play} 同口径；名字对不上时由
+ *                      {@code EmoteAnimationLookup} 在客户端打一条英文 WARN，不会崩。
  */
-public record NpcRoute(ResourceLocation dimension, List<Vec3> waypoints, double arrivalRadius) {
+public record NpcRoute(ResourceLocation dimension, List<Vec3> waypoints, double arrivalRadius,
+                       Optional<String> endEmote) {
 
     /** 抵达判定半径的缺省值（格）。 */
     public static final double DEFAULT_ARRIVAL_RADIUS = 2.0D;
@@ -51,7 +59,8 @@ public record NpcRoute(ResourceLocation dimension, List<Vec3> waypoints, double 
             ResourceLocation.CODEC.fieldOf("dimension").forGetter(NpcRoute::dimension),
             WAYPOINT_CODEC.listOf().fieldOf("waypoints").forGetter(NpcRoute::waypoints),
             Codec.DOUBLE.optionalFieldOf("arrival_radius", DEFAULT_ARRIVAL_RADIUS)
-                    .forGetter(NpcRoute::arrivalRadius)
+                    .forGetter(NpcRoute::arrivalRadius),
+            Codec.STRING.optionalFieldOf("end_emote").forGetter(NpcRoute::endEmote)
     ).apply(instance, NpcRoute::new));
 
     /** 路点总数。 */
