@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.DoubleFunction;
 import java.util.function.DoubleUnaryOperator;
 
 /**
@@ -15,8 +16,9 @@ import java.util.function.DoubleUnaryOperator;
  *
  * <h2>为什么需要一个上下文对象</h2>
  * 每条 CG 都要做同样三件事：把"离目标 N 格"变成一个世界坐标、把"仰角"变成一条视线方向、
- * 把一条仰角曲线打成 fdlib 的 {@code CameraPos} 列表。这三件事写进基类，N 个 CG 类才不会各抄一份
- * —— 尤其是第三条，它的正确性依赖 fdlib 一个不显眼的时间约定（见 {@link #pitchCurve}）。
+ * 把一条"机位 + 仰角随时间变化"的曲线打成 fdlib 的 {@code CameraPos} 列表。这三件事写进基类，
+ * N 个 CG 类才不会各抄一份
+ * —— 尤其是第三条，它的正确性依赖 fdlib 一个不显眼的时间约定（见 {@link #track}）。
  *
  * <h2>三个字段的语义</h2>
  * <ul>
@@ -104,7 +106,7 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
      *
      * <p>水平分量取 {@code aimPoint - camPos} 的 XZ 部分。理论上它可能为零（机位与注视点同一条竖直线），
      * 此时水平朝向无定义；本方法退化为 {@code +Z}。**这是纯防御** —— 本系统的几何下机位与注视点
-     * 恒相距一个正的距离（{@code VIEW_DISTANCE} 格），不可达。
+     * 恒相距一个正的距离（{@code VIEW_DISTANCE_FAR} / {@code VIEW_DISTANCE_NEAR} 格），不可达。
      * <p>退化判据与 {@link #of} 共用 {@link #FORWARD_EPSILON}（同一个**长度平方**阈值），
      * 并同样写成 {@code !(x > eps)} 以便把 NaN 一并判为退化。
      */
@@ -119,7 +121,7 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
     }
 
     /**
-     * 「机位不动、仰角按给定函数走」—— 产出 fdlib 的 {@code CameraPos} 列表。
+     * 采样一条**机位与仰角都随时间变化**的相机轨迹，产出 fdlib 的 {@code CameraPos} 列表。
      *
      * <h2>⚠️ 这里有一个必须照着做的约定</h2>
      * fdlib 的 {@code NormalLookProcessor} 把第 i 个关键点钉在
@@ -134,27 +136,47 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
      * 这样"我们采样的时刻"与"fdlib 播放该关键点的时刻"**逐一对齐**，与 {@code totalTicks}
      * 能否被 {@code sampleStep} 整除无关（能整除时 {@code tick(i) = i × sampleStep}，最直观）。
      *
-     * <p><b>调用方必须同时做两件事</b>，否则曲线会失准：
+     * <p><b>调用方必须同时做三件事</b>，否则曲线会失准：
      * <ol>
      *   <li>{@code timeEasing = LINEAR} —— 它作用在**全局百分比**上，非线性会把等距映射整体扭曲；</li>
-     *   <li>{@code lookEasing = LINEAR} —— 它作用在**段内**，非线性会让每个小段各自起涟漪。</li>
+     *   <li>{@code lookEasing = LINEAR} —— 它作用在**段内**，非线性会让每个小段各自起涟漪；</li>
+     *   <li>{@code moveCurveType = LINEAR} —— 理由见下。</li>
      * </ol>
-     * ⇒ <b>缓动必须烘进 {@code elevationDegAtTick} 的采样值里</b>，不能交给 fdlib 的 {@code EasingType}。
-     * 这是"把一条手写缓动曲线塞进一个只支持等距关键点的引擎"的通用解法。
      *
-     * @param camPos            机位（整条曲线的位置都取它，所以相机只转不移）
-     * @param aimPoint          水平朝向的参考点（通常取目标的位置）
-     * @param totalTicks        过场总时长；必须与 {@code CutsceneData.time(...)} 一致
-     * @param sampleStep        期望的采样间隔（tick）。越小越平滑，包越大
-     * @param elevationDegAtTick 仰角函数，参数是 tick（double）。正 = 上看
+     * <p><b>为什么用 LINEAR 而不是 CATMULLROM</b>：{@code LinearCameraMotion} 用
+     * {@code FDLibCalls.getListValueOrBoundaries}（越界取首/末，**永不返回 null**）+
+     * {@code CameraPos.interpolate}（纯 lerp），语义最直白、不引入额外控制点。
+     * <br>注：**CATMULLROM 本身也是安全的** —— {@code FDMathUtil.catmullrom(prev,cur,next,next2,p)}
+     * 自带 null 守卫（端点会补点）。选 LINEAR 纯粹是因为本 CG 的曲线已经逐 tick 采样过，
+     * 不需要再被样条平滑一次。
+     *
+     * <p>⚠️ <b>一条 fdlib 的既知相位差（不是 bug，但要知道）</b>：位置与朝向的取样时刻差约 1 tick ——
+     * {@code CutsceneExecutor.tick} 先用**自增前**的 {@code currentTime} 算位置、再自增
+     * （{@code CutsceneExecutor.java:49-53}），而渲染取朝向用的是
+     * **自增后**的 {@code currentTime + partialTick}（{@code CutsceneCameraHandler.java:144}）。
+     * 本 CG 第⑤段是 3 tick 内转 46° ⇒ 那一段里"位置"会晚于"朝向"约 15~30°。
+     * 若实机觉得推近或甩镜偏早，这就是原因；可在 {@code MoEntrance} 里把对应断点前移 1 tick 补偿。
+     * ⇒ <b>所有缓动都必须烘进 {@code cameraAt} / {@code elevationAt} 的采样值里</b>，
+     * 不能交给 fdlib 的 {@code EasingType}。
+     * 这是"把一条手写曲线塞进一个只支持等距关键点的引擎"的通用解法。
+     *
+     * <p>水平朝向**始终指向 {@link #anchor}**：由于机位始终在"锚点沿 forward 的前方"这条直线上，
+     * 无论距离怎么变，水平朝向恒为 {@code -forward} —— 所以"推近"不会带来任何偏航。
+     *
+     * @param totalTicks   过场总时长；必须与 {@code CutsceneData.time(...)} 一致
+     * @param sampleStep   期望的采样间隔（tick）。越小越平滑，包越大
+     * @param cameraAt     给定 tick 的**机位**（世界坐标）
+     * @param elevationAt  给定 tick 的**仰角**（度，正 = 上看）
      */
-    public static List<CameraPos> pitchCurve(Vec3 camPos, Vec3 aimPoint, int totalTicks, int sampleStep,
-                                             DoubleUnaryOperator elevationDegAtTick) {
+    public List<CameraPos> track(int totalTicks, int sampleStep,
+                                DoubleFunction<Vec3> cameraAt,
+                                DoubleUnaryOperator elevationAt) {
         int intervals = Math.max(1, totalTicks / Math.max(1, sampleStep));
         List<CameraPos> positions = new ArrayList<>(intervals + 1);
         for (int i = 0; i <= intervals; i++) {
             double tick = (double) i * totalTicks / intervals;
-            positions.add(new CameraPos(camPos, sightLine(camPos, aimPoint, elevationDegAtTick.applyAsDouble(tick))));
+            Vec3 camPos = cameraAt.apply(tick);
+            positions.add(new CameraPos(camPos, sightLine(camPos, this.anchor, elevationAt.applyAsDouble(tick))));
         }
         return positions;
     }

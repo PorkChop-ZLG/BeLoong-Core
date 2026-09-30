@@ -57,6 +57,26 @@ CgContext ─► CgAnimation ─► MoEntrance ─► CgRegistry ─► CgComman
 
 ---
 
+## ⚠️ v2 规格修订（2026-09-30，用户实机后给出）
+
+用户实测后把 `mo_entrance` 的编排**整体换掉**，并新增"观察者隐身"。**权威规格见设计文档 §3.3**，
+本节只列出"本计划的哪些部分因此失效"：
+
+| 任务 | 原规格 | v2 后 |
+|---|---|---|
+| **T2** 的 `CgContext` | 第三个原语是 `static pitchCurve(camPos, aimPoint, ticks, step, elevationFn)`（机位固定、只转视角） | 改成**实例方法** `track(ticks, step, cameraAtFn, elevationFn)` —— 机位与仰角**都**随时间变化 |
+| **T4** 的 `MoEntrance` 常量 | `PITCH_START_DEG=44.3` / `PITCH_APEX_DEG=59.8` / `APEX_TICK=34` / `LANDING_TICK=68` / `VIEW_DISTANCE=8.0` / `SAMPLE_STEP=2` | 全部替换为七段时间轴（`T_DROP_END=5` … `T_PUSH_END=44`、`T_FALL_END=35`）、四个仰角（62.25/24.75/46.0/0）、`VIEW_DISTANCE_FAR=8.0` + `VIEW_DISTANCE_NEAR=3.0`、`SAMPLE_STEP=1` |
+| **T3** 的 `CgAnimation` | `play` = 预检 → 触发动画 → 发包 | 增加一步：**给观察者上隐身**（可选钩子 `viewerInvisibilityTicks/Amplifier`，默认 0） |
+| **T8** 的断言 | 三条：时长 / 动画存在 / **从资产重算 `PITCH_APEX_DEG`** | 七组 15 条：**改为"需求 ↔ 实现"对账**；"从资产重算仰角"与"峰值 ≈ +288.5"**已删除** |
+| **T9** 的实机清单 | 3 段式（对准峰值 → 降平视 → 停） | 七段式 + **末刻意出画** + 推近 + 隐身，共 15 项 |
+| **T10** 的对照表 | 按"峰值/落地"调 | 按"七段 + 缓动 + 推近距离 + 隐身时长"调 |
+
+**没有变的**：方案 A 的整体架构、D1–D7、`CgRegistry`、`CgCommand`、语言键、`DURATION_TICKS = 120`
+（仍与 `descend` 同步）、`StopMode.AUTOMATIC`、零持久状态 / 零新网络包。
+**新增的**：**D8 观察者隐身**（设计文档 §1）。
+
+---
+
 ## T1：依赖升级 —— fdlib 转必选
 
 **Files:**
@@ -90,6 +110,9 @@ $t -split "`n" | Select-String -Pattern 'fdlib' -Context 2,4
 
 ## T2：`CgContext` —— 只读上下文 + 三个数学原语
 
+> ⚠️ **已被 v2 修订**（见文首「v2 规格修订」）：第三个原语由 `pitchCurve` 改为 **`track`**。
+> 本节正文保留为当时的设计记录。
+
 **Files:**
 - Create: `src/main/java/com/zonlong/beloong/cg/CgContext.java`
 
@@ -116,6 +139,9 @@ $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat compileJava --console=plain 
 
 ## T3：`CgAnimation` —— 抽象配方 + 唯一的副作用出口
 
+> ⚠️ **已被 v2 修订**（见文首「v2 规格修订」）：`play` 增加一步"给观察者上隐身"。
+> 本节正文保留为当时的设计记录。
+
 **Files:**
 - Create: `src/main/java/com/zonlong/beloong/cg/CgAnimation.java`
 
@@ -141,6 +167,9 @@ $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat compileJava --console=plain
 ---
 
 ## T4：`MoEntrance` —— 第一条 CG
+
+> ⚠️ **已被 v2 修订**（见文首「v2 规格修订」）：本节的常量表已全部作废，权威规格见设计文档 §3.3。
+> 本节正文保留为当时的设计记录。
 
 **Files:**
 - Create: `src/main/java/com/zonlong/beloong/cg/instances/MoEntrance.java`
@@ -249,19 +278,30 @@ $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat build --console=plain
 
 ---
 
-## T8：`cg_invariants.py` —— 硬编码常量与外部资产的机器对账
+## T8：`cg_invariants.py` —— **需求**与**实现**的机器对账（v2 已重写）
+
+> **⚠️ v2 规格变更（2026-09-30）**：仰角不再从资产推导（用户直接给角度）。
+> 因此本任务初版的三条断言里，
+> "从 `mo.geo.json` + `MOdel_SCALE` 重算 `PITCH_APEX_DEG`" 与 "`AllBody` 峰值 ≈ +288.5"
+> **已删除** —— 新规格下没有任何东西依赖它们，留着只会变成必然失败的噪声。
+> 现在守的是 **"用户口述的需求表 ↔ 代码常量"**（需求写在脚本里，实现写在 `MoEntrance.java` 里）。
+> 权威规格见设计文档 §3.3。
 
 **Files:**
 - Create: `D:\Minecraft\tools\YSMParser\cg_invariants.py`
 
-**Steps:**
-三条断言（**全 PASS 才继续**）：
-1. `MoEntrance.DURATION_TICKS == descend.animation_length × 20`（从 Java 源码正则取常量，从 JSON 取长度）
-2. `descend` 确实存在于 `src/main/resources/assets/beloong/animations/mo.extra.animation.json`
-3. `descend` 里 `AllBody` 的**峰值 Y 偏移 ≈ +288.5 单位**（容差 1.0）⇒ 钉住 `PITCH_APEX_DEG`
+**Steps:** 七组断言（共 15 条，**全 PASS 才继续**）：
+1. **A1** `MoEntrance.DURATION_TICKS == descend.animation_length × 20`
+2. **A2** `descend` 确实存在于 `mo.extra.animation.json`
+3. **A3** 五个"整秒"断点 == `round(秒 × 20)`（0.25/0.8/1.2/1.6/2.2 → 5/16/24/32/44）
+4. **A4** 四个仰角常量 == **游戏内 `xRot` 取负**（−62.25 / −24.75 / −46.00 / 0）
+5. **A5** 断点链单调递增且不越界；`T_FALL_END` 落在用户裁定的 35（候选区间 34~36）
+6. **A6** 观察者隐身 == 100 tick / amplifier 1
+7. **A7** `SAMPLE_STEP` 整除 `DURATION_TICKS`（保证采样点落在整数 tick 上）
 
 **理由**：与阶段闸门那条"ChatBox 的进度 id 必须与 `mo.json` 的 `end_advancement` 字符串一致"同构 ——
-**硬编码常量与外部资产之间必须有机器可查的一致性**，否则重导出资产后镜头会**静默失准**。
+**"需求"与"实现"之间必须有机器可查的一致性**。
+v1 防的是"资产重导出后镜头静默失准"，v2 防的是"改了常量却与需求脱钩"。
 
 **Verification:**
 ```powershell
@@ -270,50 +310,56 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 
 ---
 
-## T9：实机验收（用户执行）
+## T9：实机验收（用户执行）—— **v2 清单**
 
 **Steps:** 启动游戏，按下列清单逐项确认。**任一项不符 ⇒ 记录现象与 # 号，进 T10。**
 
 | # | 操作 | 期望 |
 |---|---|---|
-| 1 | 站到末面前 8 格（末面朝你）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管、HUD/手/准星/方块高亮全部消失 |
-| 2 | 观察开头 | 相机**起始就是仰视**，末在高处 |
-| 3 | 约 1.7 秒处 | 仰角到达最高，末大致在画面中央 |
-| 4 | 之后约 1.7 秒 | 相机**缓慢降到平视**，与末落地大致同时 |
-| 5 | 最后约 2.6 秒 | 相机**停住不动** |
-| 6 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复 |
-| 7 | 反例 A：CG 名敲错（如 `mo_entrace`） | 命令**报错**并列出可用名；画面无变化 |
-| 8 | 反例 B：目标选非 NPC（如僵尸） | 命令报错；画面无变化 |
-| 9 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
-| 10 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还 |
-| 11 | 观察**玩家自己的身体**是否出现在画面里 | 记录结果（fdlib 强制 `isControlledCamera()` 为 true 的设计意图是"不画自己"，但未实机确认过） |
-| 12 | 查 `run/logs/latest.log` | 无 `NoSuchElementException`、无 `List of camera positions cannot be empty` |
+| 1 | **脱甲、清空双手**，站到末面前 8 格（末面朝你）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管；HUD／手／准星／方块高亮全消失；**身体模型看不见了**；**无隐身粒子**（开头 1~3 帧可能仍可见身体） |
+| 2 | 第 0 秒 | 相机在 8 格外**大幅仰视**（`xRot ≈ −62.25`） |
+| 3 | 0.25 秒 | 仰角甩到约 −24.75°，并**保持到 0.8 秒** |
+| 4 | 0.8 → 1.2 秒 | 仰角**平滑爬升**到约 −46° |
+| 5 | 1.2 → 1.6 秒 | **保持** −46° |
+| 6 | 1.6 → 1.75 秒 | 仰角**快速下拉**到平视（≈3 tick，接近瞬时） |
+| 7 | 1.6 → 约 2.5 秒 | **末完全出画**（画面上方 60~73°）—— 用户确认这是刻意要的效果 |
+| 8 | 1.75 → 2.2 秒 | 相机**平滑推近**到距末 3 格，视角保持平视 |
+| 9 | 2.2 → 6.0 秒 | 相机与视角**全程静止**；约 2.5 秒末俯冲进画面并落地 |
+| 10 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复；**隐身此时已自行结束**（5 秒 < 6 秒） |
+| 11 | 反例 A：CG 名敲错（如 `mo_entrace`） | 命令**报错**并列出可用名；画面无变化 |
+| 12 | 反例 B：目标选非 NPC（如僵尸） | 命令报错；画面无变化 |
+| 13 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
+| 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**隐身会继续走完剩余秒数** —— 效果独立于 CG 生命周期） |
+| 15 | 查 `run/logs/latest.log` | 无 `NoSuchElementException`、无 `List of camera positions cannot be empty`；另有 INFO 行记录 anchor / forward / 首个机位 / key 数 |
 
 ---
 
-## T10：按实机标定结果调常量（条件任务）
+## T10：按实机标定结果调常量（条件任务）—— **v2 对照表**
 
 **Files:**
 - Modify: `src/main/java/com/zonlong/beloong/cg/instances/MoEntrance.java`（**只改常量**）
 
-**Steps:** 照下表定位，一次改一个常量、重跑 T9 的第 2–5 项。
+**Steps:** 照下表定位，一次改一个常量、重跑 T9。
 
 | 症状 | 调哪个常量 | 方向 |
 |---|---|---|
-| 开头镜头**太高**（末偏在画面下方） | `PITCH_START_DEG` | 调**小** |
-| 开头镜头**太低**（末偏在画面上方/出画） | `PITCH_START_DEG` | 调**大** |
-| 峰值处末不在画面中央 | `PITCH_APEX_DEG` | 末偏上 ⇒ 调小；偏下 ⇒ 调大 |
-| 镜头降到平视**太早**（末还在空中） | `LANDING_TICK` | 调**大** |
-| 镜头降到平视**太晚**（末已落地） | `LANDING_TICK` | 调**小** |
-| 抬升段太急 / 太缓 | `elevationAtTick` 的缓动函数 | `easeInOut` → `easeOut`（更急）/ `easeIn`（更缓） |
-| 机位离末太远 / 太近 | `VIEW_DISTANCE` | 直接改格数 |
-| 整体节奏太快 / 太慢 | ⚠️ **不要改 `DURATION_TICKS`** | 它必须与 `descend` 的 `animation_length` 同步（T8 断言 1 守着）；要改节奏只能改动画资产 |
+| 某一段整体偏高 | 该段的 `PITCH_*_DEG` | 调**小** |
+| 某一段整体偏低 | 该段的 `PITCH_*_DEG` | 调**大** |
+| 某段过渡太急 | 该段缓动 | `easeInOut` → `easeIn`；或 `easeOut` → `linear` |
+| 某段过渡太缓 | 该段缓动 | `easeInOut` → `easeOut`（前段更急）/ 或缩短该段 tick |
+| 第⑤段甩镜太快（或想更慢） | `T_FALL_END`（35） | 调**大** = 该段更长（但注意它同时是推近的起点） |
+| 推近太快 / 太慢 | 第⑥段的缓动，或 `T_PUSH_END` | 缓动改 `easeIn`/`easeOut`；或改 `T_PUSH_END` 的 tick |
+| 近距太远 / 太近 | `VIEW_DISTANCE_NEAR`（3.0） | 直接改格数（同时改 `T_PUSH_END` 那段的终点） |
+| 前段太远 / 太近 | `VIEW_DISTANCE_FAR`（8.0） | 直接改格数 |
+| 某段时长不对 | 对应的 `T_*` 断点 | 秒 × 20（T8 断言 A3 守着它们与需求一致） |
+| 隐身太长 / 太短 | `INVISIBILITY_TICKS` | 秒 × 20 |
+| 整体节奏太快 / 太慢 | ⚠️ **不要改 `DURATION_TICKS`** | 它必须与 `descend` 的 `animation_length` 同步（T8 断言 A1 守着）；要改节奏只能改动画资产 |
 
 **Verification:**
 ```powershell
 $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat build --console=plain
 python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) { throw 'T10 failed' }
-# 然后重跑 T9 的第 2–5 项
+# 然后重跑 T9
 ```
 
 ---
@@ -345,12 +391,12 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | **fdlib 过场在本整合包不可用** | 功能完全不成立 | T9 第 1–6 项就是冒烟测试，**批次 ① 一结束立刻验**；失败则整个方案需重议（回退见下） |
-| 我推导的仰角与实际观感不符 | 镜头偏高/偏低 | T10 是**显式的标定任务**，并给了"常量→观感"对照表；这是把"你的眼睛"当成验收仪器 |
+| 我推导的仰角与实际观感不符 | 镜头偏高/偏低 | ~~v1 的"从资产推导"~~ —— **v2 仰角是用户直接给的**，风险变为"缓动是否合意"（见 T10 对照表） |
 | 依赖升级导致加载失败 | 游戏起不来 | fdlib 由 `fdbosses`（已 required）传递而来 ⇒ 缺席时 fdbosses **先**失败；T1 改完立刻单独构建，T9 启动即验证 |
 | 语言键两语言写岔 | 界面显示原始键名 | T7 脚本对账 + 断言两集合一致 |
-| 61 个关键点的包过大 | 网络抖动 | 实测约 5 KB，每条 CG 只发一次；异常时把 `SAMPLE_STEP` 改 4（点数减半，峰值差 2 tick） |
+| ~~61 个关键点的包过大~~ → **v2：121 个** | 网络抖动 | 实测约 **10 KB**，每条 CG 只发一次（客户端自定义载荷上限 1 MiB）。异常时把 `SAMPLE_STEP` 改 2（点数减半，两条快速运动会有可见折线） |
 | 重复触发 / 中途打断 | 镜头状态混乱 | 设计 §5 已定：重复 = 干净重播；打断用 `/fdlib fix cutscene` |
-| 玩家自己的身体出现在画面里 | 观感失败 | T9 #11 专门观察；若确实出现，需另一轮设计（覆写渲染或给玩家隐身），**本轮不做** |
+| 玩家自己的身体出现在画面里 | 观感失败 | **v2 已处理**：给了观察者 5 秒隐身（D8）。残留风险两条：① 开头 1~3 帧仍可见（渲染开关走另一个包，见 `CgAnimation.play` 第 ⑤ 步）；② **隐身不含盔甲/手持物层** ⇒ 验收要脱甲 |
 
 **回退**：CG 全部是**新增**文件（`cg/` 包 4 个 + `CgCommand` 1 个 + 脚本 1 个），删掉即回到现状；
 唯一非新增改动是 4 处极小改动（`build.gradle` 一行、`mods.toml` 一块、`BeLoongCore` 一行、两份语言 JSON 各 4 键）。

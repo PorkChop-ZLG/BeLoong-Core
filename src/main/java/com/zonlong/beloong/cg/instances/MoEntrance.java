@@ -14,62 +14,50 @@ import java.util.List;
 /**
  * 第一条 CG：**末的登场**（{@code mo_entrance}）。
  *
- * <h2>演出</h2>
- * 播放末的 {@code descend}（下降）动画，同时把玩家相机放到末正前方 8 格、眼高处，回看末。
- * 相机**位置整段不动，只有仰角在动**：
+ * <h2>演出（七段，总长 120 tick = 6.0 秒）</h2>
  * <pre>
- *   ① 抬升   t =  0 → 34   +44.3° → +59.8°   easeInOut
- *   ② 下降   t = 34 → 68   +59.8° →   0.0°   easeInOut
- *   ③ 保持   t = 68 → 120    0.0°（恒定）
+ *   段  秒区间        tick       相机距离   仰角（游戏内 xRot）      缓动
+ *   ①   0 → 0.25      0 →  5     8 格       −62.25 → −24.75        ease-out
+ *   ②   0.25 → 0.8    5 → 16     8 格       保持 −24.75             —
+ *   ③   0.8 → 1.2    16 → 24     8 格       −24.75 → −46.00        ease-in-out
+ *   ④   1.2 → 1.6    24 → 32     8 格       保持 −46.00             —
+ *   ⑤   1.6 → 1.75   32 → 35     8 格       −46.00 → 0（平视）      linear
+ *   ⑥   1.75 → 2.2   35 → 44     8 → 3 格   保持 0                 ease-in-out
+ *   ⑦   2.2 → 6.0    44 → 120    3 格       保持 0                  —
  * </pre>
- * 两个断点**不是拍的，是从资产里量出来的**：
+ * <b>⚠️ 缓动是设计者选定的，不在用户口述规格里</b>：用户只指定了**断点与角度**
+ * （仅第⑥段说了"平滑移动"）。三条过渡的具体缓动 —— ① {@code easeOut}、③ {@code easeInOut}、
+ * ⑤ {@code linear} —— 是设计者按观感选的，**也不被 {@code cg_invariants.py} 守着**；
+ * 想改直接改 {@link #elevationAt} / {@link #distanceAt} 里对应的 {@code FDEasings} 调用即可。
+ * （第⑤段只有 3 tick，用 linear 是因为任何缓动在那段都看不出来。）
+ *
+ * 第⑥段的"相机前移"是**纯粹的径向推近**：高度恒为"末的脚底 + 1.62 格"，只沿末的朝向前进。
+ * 由于机位始终落在"锚点沿 forward 的前方"这条直线上，水平朝向恒为 {@code −forward}，
+ * <b>推近不会带来任何偏航</b>。
+ *
+ * <h2>⚠️ 这套仰角是**用户直接给的**，不再是"对准末的身体"</h2>
+ * 上一版的做法是"从资产算出末的体高，再让相机对准它"。本版由用户手工给角度（2026-09-30），因此：
  * <ul>
- *   <li>{@code APEX_TICK = 34} —— {@code AllBody} 骨骼 Y 偏移的极值所在的关键帧是 <b>1.7067 秒</b>
- *       （= 34.134 tick，故取 34）；</li>
- *   <li>{@code LANDING_TICK = 68} —— 该偏移回到接近 0 的关键帧是 <b>3.4267 秒</b>（= 68.534 tick，故取 68）。</li>
+ *   <li>仰角与资产的几何<b>完全解耦</b> ⇒ {@code cg_invariants.py} 里"从资产重算仰角"的那条断言已删除；</li>
+ *   <li><b>刻意接受了一个后果</b>：第⑤段转到平视的那一刻，末的身体还在约 15 格高空
+ *       （从 8 格外平视看，它在视线<b>上方约 60°</b>；第⑥段推到 3 格后约 73°），
+ *       而默认 FOV 的半角约 35° ⇒ <b>末会完全出画约 0.8 秒</b>，
+ *       直到约 2.5 秒它俯冲下来才重新入画。
+ *       用户 2026-09-30 明确裁定"是我要的效果"（镜头先定格在空场，再看它砸进画面）。</li>
  * </ul>
- * 两者都是"秒 → tick"的四舍五入（差 ≤ 0.14°，见 {@link #APEX_TICK} 的注释）。
- * 于是"镜头降到平视"与"末落地"**同 tick 发生** —— 这正是需求里的"缓慢下降直到平视，之后停止住"。
  *
- * <h2>那三个仰角是怎么算出来的（改了资产就要重算）</h2>
- * 换算链：{@code 模型单位 → 格} 的系数 = {@code (1/16) × MODEL_SCALE} = {@code 0.0625 × 0.80 = 0.05}
- * （{@code MoRenderer.java:63} 的 {@code MODEL_SCALE = 0.80F}）；
- * {@code AllBody} 骨骼的 pivot 在 <b>18.7 模型单位</b>（{@code mo.geo.json}）。于是：
- * <pre>
- *   体高 h(t)   = (18.7 + AllBody.position.y(t)) × 0.05        // 相对末的脚底，单位：格
- *   仰角        = atan2( h(t) − VIEW_EYE_HEIGHT , VIEW_DISTANCE )
+ * <h2>时间基</h2>
+ * 秒 → tick 一律 {@code × 20}：{@code 0.25 / 0.8 / 1.2 / 1.6 / 2.2} 秒恰好是
+ * {@code 5 / 16 / 24 / 32 / 44} tick。
+ * ⚠️ 只有 <b>1.72 秒</b>（= 34.4 tick）不是整数：用户在"34（2 tick）"与"35（3 tick）"里
+ * 选了 <b>35</b>（= 1.75 秒），于是第⑤段是 3 tick。
  *
- *   时刻      AllBody Y 偏移            体高 h       仰角
- *   t = 0     +169.86 单位              9.43 格      +44.3°
- *   t = 34    +288.50 单位（极值）      15.36 格     +59.8°
- *   t = 68    −12.79 单位               0.30 格      −9.4°   ← 不用，见下
- * </pre>
- * <b>交叉验证</b>：本模组那两个动画文件里，其余 7 条动画的骨骼位移幅度只有 5–37 单位
- * （主文件 {@code mo.animation.json} 的 {@code idle} 7.4 / {@code fly} 15.5 / {@code walk} 5.7 /
- * {@code run} 7.0 / {@code attack} 36.6，加同文件的 {@code sit} 18.6 / {@code dance} 9.7），
- * <b>只有 {@code descend} 是 288</b> —— 确认它是刻意做的"从高空飞入"。
- * 其中"峰值 ≈ +288.5"这一条由 {@code cg_invariants.py} 守着（另外两条守的是动画长度与动画存在性）。
- *
- * <h2>⚠️ 一个刻意的取舍：曲线在 0° 截断</h2>
- * 物理上，降到平视的那一刻体高恰好穿过眼高，再往下镜头本该变成 <b>−9.4° 的微俯视</b>（跟到脚边）。
- * 但用户 2026-09-30 裁定"用**写死的缓动曲线**、直到**平视就停住**" ⇒ 曲线在 {@code 0.0°} 截断并保持。
- * <b>代价</b>：末落地后的最后 52 tick 里，镜头水平视线落在 1.62 格高（约末的胸口/头部），
- * 而不是跟着落到脚边 —— 观感正常，只是不再是"精确对准身体"。
- *
- * <h2>⚠️ 还有一件用户已裁定接受的事：开场是"弹射升空"</h2>
- * {@code descend} 在 <b>t = 0 时身体就已偏离原位约 218 模型单位</b>（按本类声明的 ×0.05 系数
- * ≈ <b>10.9 格</b>；其中竖直 8.5 格、水平 6.8 格），
- * 因为动效全在 {@code AllBody} 骨骼上而 {@code Root} 位移恒定 ⇒ 指令一执行，末会**从地面迅速升到高空**。
- * GeckoLib 的 5 tick 过渡（{@code NpcEntity.animationTransitionTicks()}）把它混成约 0.25 秒的位移，
- * 不是瞬间闪现。用户选择**不特殊处理**（不加黑场），因此本 CG 的仰角**一开始就对准高处**
- * 而不是从平视抬上来。
- *
- * <h2>为什么机位整段不动、只转视角</h2>
- * {@code descend} 的 {@code Root} 骨骼位移全程恒定为 {@code (0, 0.332, 0)} ⇒ **实体本身一动不动**
- * ⇒ 机位可以在触发那一刻**烘死**成世界坐标，零精度损失。这同时绕开了 fdlib 一个结构性缺口：
- * 它的朝向逻辑被写死成"关键点之间插值"（{@code CutsceneExecutor} 构造器硬编码
- * {@code new NormalLookProcessor()}，private 且无 setter），**无法自动看向移动目标** ——
- * 而本 CG 根本不需要。
+ * <h2>为什么整条轨迹可以在触发那一刻烘死成世界坐标</h2>
+ * {@code descend} 的 {@code Root} 骨骼位移全程恒定为 {@code (0, 0.332, 0)} ⇒ <b>实体本身一动不动</b>
+ * ⇒ 相机轨迹只依赖末的位置与朝向，而这两者在整段 CG 里都不变。
+ * 这同时绕开了 fdlib 一个结构性缺口：它的朝向逻辑被写死成"关键点之间插值"
+ * （{@code CutsceneExecutor} 构造器硬编码 {@code new NormalLookProcessor()}，private 且无 setter），
+ * <b>无法自动看向移动目标</b> —— 而本 CG 不需要。
  *
  * <h2>调参入口（实机标定用）</h2>
  * 全部数值都是本类的具名常量。{@code docs/plans/2026-09-30-cg-system-plan.md} 的 T10
@@ -103,43 +91,75 @@ public final class MoEntrance extends CgAnimation {
      */
     private static final int DURATION_TICKS = 120;
 
-    /** 机位到末的水平距离（格）。用户给定：玩家站在末面前 8 格。 */
-    private static final double VIEW_DISTANCE = 8.0D;
+    // ===================== 时间轴断点（tick）=====================
 
-    /** 相机高度（相对末的脚底，格）。1.62 = 原版玩家站立眼高。 */
+    /** ① 结束 / ② 开始：0.25 秒 —— 从起始仰角甩到低位，此后保持。 */
+    private static final int T_DROP_END = 5;
+
+    /** ② 结束 / ③ 开始：0.8 秒 —— 低位保持结束，开始爬升。 */
+    private static final int T_RISE_START = 16;
+
+    /** ③ 结束 / ④ 开始：1.2 秒 —— 爬升到位，此后保持。 */
+    private static final int T_RISE_END = 24;
+
+    /** ④ 结束 / ⑤ 开始：1.6 秒 —— 高位保持结束，开始快速下拉。 */
+    private static final int T_FALL_START = 32;
+
+    /**
+     * ⑤ 结束 / ⑥ 开始：<b>1.75 秒</b>（用户裁定）。
+     * <p>
+     * 用户原话是"1.6 秒到 1.72 秒"，而 {@code 1.72 × 20 = 34.4} 不是整数。
+     * 用户在两个候选里选了 <b>35</b>（1.75 秒 ⇒ 本段 3 tick），而不是 34（⇒ 2 tick）。
+     */
+    private static final int T_FALL_END = 35;
+
+    /** ⑥ 结束 / ⑦ 开始：2.2 秒 —— 相机推近到 3 格，此后**全程静止**。 */
+    private static final int T_PUSH_END = 44;
+
+    // ===================== 仰角（度；正 = 上看 = 游戏内 xRot 取负）=====================
+
+    /** 起始仰角：游戏内 {@code xRot = −62.25}。 */
+    private static final double PITCH_START_DEG = 62.25D;
+
+    /** 低位仰角：游戏内 {@code xRot = −24.75}。 */
+    private static final double PITCH_LOW_DEG = 24.75D;
+
+    /** 高位仰角：游戏内 {@code xRot = −46.00}。 */
+    private static final double PITCH_HIGH_DEG = 46.0D;
+
+    /** 平视。 */
+    private static final double PITCH_LEVEL_DEG = 0.0D;
+
+    // ===================== 机位 =====================
+
+    /** 前段机位到末的**水平**距离（格）：用户给定"距离末 8 格"。 */
+    private static final double VIEW_DISTANCE_FAR = 8.0D;
+
+    /** 推近后的机位距离（格）：用户给定"来到距离末 3 格"。 */
+    private static final double VIEW_DISTANCE_NEAR = 3.0D;
+
+    /**
+     * 相机高度（相对末的脚底，格）。{@code 1.62} = 原版玩家站立眼高
+     * （{@code Player.DEFAULT_EYE_HEIGHT}）；整段不变（用户要求推近后"依旧平视"）。
+     */
     private static final double VIEW_EYE_HEIGHT = 1.62D;
 
     /**
-     * 抬升段结束 tick —— {@code AllBody} Y 偏移极值所在的关键帧，{@code 1.7067 秒}。
+     * 关键点采样间隔（tick）。本版取 <b>1</b>（121 个关键点）。
      * <p>
-     * ⚠️ 它是 {@code round(1.7067 × 20) = 34}（真值 34.134）。按 GeckoLib 线性插值，
-     * tick 34 处的偏移是 287.017 单位而不是极值 288.506 ⇒ 实际体高 15.286 格 ⇒ 仰角 <b>59.66°</b>
-     * 而非 {@link #PITCH_APEX_DEG} 的 59.8°。<b>差 0.14°，刻意不修</b>：
-     * 取整让断点恰好落在采样点上（见 {@link #SAMPLE_STEP}），比抠这 0.14° 重要。
+     * 上一版取 2 就够了（机位不动、只有仰角在缓动）。本版有两条快速运动：
+     * 第⑤段 3 tick 内转 46°、第⑥段 9 tick 内推 5 格 ⇒ 2 tick 的采样会把它们切成可见的折线。
+     * 1 tick 采样的代价只是包大一点（约 10 KB，每条 CG 只发一次）。
      */
-    private static final int APEX_TICK = 34;
+    private static final int SAMPLE_STEP = 1;
 
-    /** 起始仰角：对准 t=0 的体高 9.43 格。 */
-    private static final double PITCH_START_DEG = 44.3D;
+    // ===================== 观察者隐身 =====================
 
-    /** 峰值仰角：对准 t=34 的体高 15.36 格。 */
-    private static final double PITCH_APEX_DEG = 59.8D;
+    /** 隐身时长（tick）：5 秒。到点自动结束，我们不做任何移除。 */
+    private static final int INVISIBILITY_TICKS = 100;
 
-    /** 下降段结束 tick = {@code descend} 的落地时刻（3.4267 秒）。之后保持平视。 */
-    private static final int LANDING_TICK = 68;
-
-    /** 平视。用户指定"直到平视就停住"。 */
-    private static final double PITCH_LEVEL_DEG = 0.0D;
-
-    /**
-     * 关键点采样间隔（tick）。
-     * <p>
-     * 取 2 的理由：fdlib 的 {@link CgContext#pitchCurve} 按
-     * {@code tick(i) = i × totalTicks / intervals} 反算采样时刻，而 {@code 120 / 2 = 60} 段
-     * ⇒ 采样点恰好落在 0, 2, 4, …, 120，两个断点 34 / 68 分别命中索引 17 / 34，**分毫不差**。
-     * 取 4 会让峰值差 2 tick（无伤，但没必要）；取 2 的代价只是包大一点（约 5 KB，每条 CG 只发一次）。
-     */
-    private static final int SAMPLE_STEP = 2;
+    /** 隐身等级：{@code amplifier = 1} 即游戏内显示的"隐身 II"。 */
+    private static final int INVISIBILITY_AMPLIFIER = 1;
 
     @Override
     public String name() {
@@ -151,15 +171,28 @@ public final class MoEntrance extends CgAnimation {
         return ANIMATION_NAME;
     }
 
+    /**
+     * 观察者隐身 5 秒（无粒子、不显示图标）。
+     * <p>
+     * 理由与代价见 {@link CgAnimation#viewerInvisibilityTicks()} 的注释：fdlib 不隐藏玩家自己的身体，
+     * 而 NeoForge 的 {@code LevelRenderer} 补丁会在"相机不是玩家"时把本地玩家渲染出来。
+     */
+    @Override
+    protected int viewerInvisibilityTicks() {
+        return INVISIBILITY_TICKS;
+    }
+
+    @Override
+    protected int viewerInvisibilityAmplifier() {
+        return INVISIBILITY_AMPLIFIER;
+    }
+
     @Override
     protected CutsceneData build(CgContext ctx) {
 
-        // 机位：末正前方 VIEW_DISTANCE 格、抬高到眼高。整段 CG 不变。
-        Vec3 camPos = ctx.ahead(VIEW_DISTANCE).add(0.0D, VIEW_EYE_HEIGHT, 0.0D);
-
-        // ⚠️ 三个 easing/curve 都必须是 LINEAR，见 CgContext.pitchCurve 的 javadoc：
+        // ⚠️ 三个 easing/curve 都必须是 LINEAR，见 CgContext.track 的 javadoc：
         //    fdlib 的关键点只能等距（t = i/(n-1) × 总时长），任何非线性映射都会让
-        //    采样点与播放点错位；缓动已经烘进 elevationAtTick 的采样值里了。
+        //    采样点与播放点错位；本 CG 的缓动已经全部烘进 distanceAt / elevationAt 的采样值里。
         CutsceneData data = CutsceneData.create()
                 .time(DURATION_TICKS)
                 .stopMode(CutsceneData.StopMode.AUTOMATIC)
@@ -167,9 +200,11 @@ public final class MoEntrance extends CgAnimation {
                 .timeEasing(EasingType.LINEAR)
                 .lookEasing(EasingType.LINEAR);
 
-        // 机位不动、只转视角 ⇒ 一串位置完全相同、只有视线方向不同的 CameraPos。
-        List<CameraPos> track = CgContext.pitchCurve(
-                camPos, ctx.anchor(), DURATION_TICKS, SAMPLE_STEP, MoEntrance::elevationAtTick);
+        List<CameraPos> track = ctx.track(
+                DURATION_TICKS,
+                SAMPLE_STEP,
+                tick -> ctx.ahead(distanceAt(tick)).add(0.0D, VIEW_EYE_HEIGHT, 0.0D),
+                MoEntrance::elevationAt);
         for (CameraPos pos : track) {
             data.addCameraPos(pos);
         }
@@ -177,21 +212,56 @@ public final class MoEntrance extends CgAnimation {
     }
 
     /**
-     * 写死的仰角曲线（单位：度，正 = 上看）。参数是过场内的 tick。
+     * 写死的**机位距离**曲线（格，水平）。
      * <p>
-     * 三段式：抬升（{@code easeInOut}）→ 下降（{@code easeInOut}）→ 保持。
-     * 缓动取 {@link FDEasings#easeInOut} 是为了与 FDBosses 自己的过场观感一致
-     * （它的 {@code GeburahBossInitializer} / {@code MalkuthBossInitializer} 用的就是这条 easing）。
+     * 第①～⑤段恒为 {@link #VIEW_DISTANCE_FAR}；第⑥段（{@link #T_FALL_END} → {@link #T_PUSH_END}）
+     * 用 {@link FDEasings#easeInOut} 平滑推到 {@link #VIEW_DISTANCE_NEAR}（用户要求"平滑移动"）；
+     * 之后恒为近距。
      */
-    private static double elevationAtTick(double tick) {
-        if (tick <= APEX_TICK) {
-            double p = tick / (double) APEX_TICK;
-            return PITCH_START_DEG + (PITCH_APEX_DEG - PITCH_START_DEG) * FDEasings.easeInOut((float) p);
+    private static double distanceAt(double tick) {
+        if (tick <= T_FALL_END) {
+            return VIEW_DISTANCE_FAR;
         }
-        if (tick <= LANDING_TICK) {
-            double p = (tick - APEX_TICK) / (double) (LANDING_TICK - APEX_TICK);
-            return PITCH_APEX_DEG + (PITCH_LEVEL_DEG - PITCH_APEX_DEG) * FDEasings.easeInOut((float) p);
+        if (tick >= T_PUSH_END) {
+            return VIEW_DISTANCE_NEAR;
+        }
+        double p = (tick - T_FALL_END) / (double) (T_PUSH_END - T_FALL_END);
+        return lerp(VIEW_DISTANCE_FAR, VIEW_DISTANCE_NEAR, FDEasings.easeInOut((float) p));
+    }
+
+    /**
+     * 写死的**仰角**曲线（度，正 = 上看）。参数是过场内的 tick，**可能带小数**
+     * —— 采样时刻由 {@link CgContext#track} 按 fdlib 的公式反算，见那里的说明。
+     * <p>
+     * 七段：甩低（ease-out）→ 保持 → 爬升（ease-in-out）→ 保持 → 快速下拉（linear）→ 平视保持。
+     * <p>
+     * 缓动源用 fdlib 的 {@link FDEasings}（{@code easeOut} / {@code easeInOut}），
+     * 与 FDBosses 自己的过场同一族函数，整包观感一致。
+     * 第⑤段只有 3 tick，任何缓动都看不出来，故直接用线性（最省、最少意外）。
+     */
+    private static double elevationAt(double tick) {
+        if (tick <= T_DROP_END) {
+            double p = tick / (double) T_DROP_END;
+            return lerp(PITCH_START_DEG, PITCH_LOW_DEG, FDEasings.easeOut((float) p));
+        }
+        if (tick <= T_RISE_START) {
+            return PITCH_LOW_DEG;
+        }
+        if (tick <= T_RISE_END) {
+            double p = (tick - T_RISE_START) / (double) (T_RISE_END - T_RISE_START);
+            return lerp(PITCH_LOW_DEG, PITCH_HIGH_DEG, FDEasings.easeInOut((float) p));
+        }
+        if (tick <= T_FALL_START) {
+            return PITCH_HIGH_DEG;
+        }
+        if (tick <= T_FALL_END) {
+            double p = (tick - T_FALL_START) / (double) (T_FALL_END - T_FALL_START);
+            return lerp(PITCH_HIGH_DEG, PITCH_LEVEL_DEG, p);
         }
         return PITCH_LEVEL_DEG;
+    }
+
+    private static double lerp(double from, double to, double p) {
+        return from + (to - from) * p;
     }
 }

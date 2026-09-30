@@ -5,6 +5,8 @@ import com.finderfeed.fdlib.systems.cutscenes.CutsceneData;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.entity.NpcEntity;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 
 /**
@@ -41,6 +43,10 @@ import net.minecraft.world.entity.Entity;
  *       {@code NpcEntity.resetToDefault} 里那句无条件 {@code setNoGravity(false)} 的取舍。）</li>
  * </ol>
  *
+ * <p>除预检之外，{@link #play} 还会在发包前做一件**表现层**的事：
+ * 若本 CG 声明了 {@link #viewerInvisibilityTicks()}，就给观察者上一个原版隐身效果
+ * （理由与代价见该方法的注释 —— 简言之：fdlib 不隐藏玩家自己的身体）。
+ *
  * <p>设计文档：{@code docs/plans/2026-09-30-cg-system-design.md}（§1 架构 / §2 组件 / §5 错误处理）。
  */
 public abstract class CgAnimation {
@@ -63,6 +69,59 @@ public abstract class CgAnimation {
      *         （fdlib 里只有 {@code AUTOMATIC} 会在播完后自行归还相机）
      */
     protected abstract CutsceneData build(CgContext ctx);
+
+    /**
+     * 过场期间给**观察者自己**上的隐身效果时长（tick）。{@code 0} = 不上（默认）。
+     *
+     * <h2>为什么需要它</h2>
+     * fdlib 的过场只隐藏 HUD 与第一人称的"手"（`RenderHandEvent`），
+     * <b>不隐藏玩家自己的身体</b>。原因我们核实到了源码级 —— NeoForge 给 `LevelRenderer`
+     * 打了补丁（原文注释 {@code // Neo: render local player entity when it is not the camera entity}）：
+     * <pre>
+     *   &amp;&amp; (!(entity instanceof LocalPlayer) || camera.getEntity() == entity
+     *       || (entity == minecraft.player &amp;&amp; !minecraft.player.isSpectator()))
+     * </pre>
+     * 相机换成 fdlib 的 {@code ClientCameraEntity} 之后，最后那个子条件为真
+     * ⇒ <b>本地玩家会被渲染</b>。vanilla 第一人称之所以看不到自己，只是因为那时相机就是玩家本人。
+     * <p>
+     * 顺带纠正一个易犯的误判：fdlib 强制 {@code LocalPlayer#isControlledCamera()} 为 true
+     * <b>并不影响渲染</b> —— 它只决定"还发不发玩家的移动/旋转包""input 是否灌进 xxa/zza"
+     * "shift 是否控制垂直飞行"（{@code LocalPlayer:277/689/842}）。
+     *
+     * <h2>⚠️ 这条路的已知代价（用户 2026-09-30 实测后明确接受）</h2>
+     * 走的是**原版隐身效果**，因此：
+     * <ol>
+     *   <li>效果会同步给其他玩家 ⇒ 这几秒里<b>别人也看不见你</b>；</li>
+     *   <li>{@code isInvisible} 会改变<b>生物索敌</b>与 {@code isInvisibleTo} 的语义；</li>
+     *   <li><b>它只隐藏"身体模型"这一层</b> —— {@code LivingEntityRenderer.render} 只对主模型做
+     *       {@code isBodyVisible} 门控，而 {@code HumanoidArmorLayer} 与 {@code ItemInHandLayer}
+     *       都<b>不检查隐身</b> ⇒ <b>盔甲 / 手持物 / 鞘翅照旧渲染</b>。
+     *       机位在 t=0 恰在玩家眼位上，而 {@code armorCutoutNoCull} 不做背面剔除
+     *       ⇒ 穿甲时可能看到"贴脸的盔甲几何"。<b>实机验收请脱甲、清空双手。</b></li>
+     *   <li>若玩家已有一个<b>等级更高</b>的隐身，我们的实例会被挂进 {@code hiddenEffect}
+     *       （{@code MobEffectInstance.update}）⇒ 那 100 tick 要等原效果结束后才生效，
+     *       "5 秒后自动结束"不再是字面事实。极端边界，知道即可。</li>
+     *   <li>若玩家所在队伍开了 {@code seeFriendlyInvisibles}，自己与自己必然同队 ⇒
+     *       {@code isInvisibleTo} 为 false ⇒ 身体会以约 15% 不透明度渲染出来。原版默认不开启。</li>
+     * </ol>
+     * <p>
+     * 换来的是"**零新增状态、零恢复逻辑**" —— 效果到点自动结束，我们不需要（也无法）知道 CG 何时结束。
+     * 这与"用原版系统当状态存储、自己只做只读闸门"是同一路取舍。
+     *
+     * @see #viewerInvisibilityAmplifier()
+     */
+    protected int viewerInvisibilityTicks() {
+        return 0;
+    }
+
+    /**
+     * 隐身效果的等级（{@code amplifier}）。{@code 1} 即游戏内显示的"隐身 II"。
+     *
+     * @see #viewerInvisibilityTicks()
+     */
+    protected int viewerInvisibilityAmplifier() {
+        return 0;
+    }
 
     /**
      * **唯一的副作用出口**。顺序：预检 → 触发动画 → 发过场包。
@@ -112,6 +171,41 @@ public abstract class CgAnimation {
                 return 0;
             }
             npc.setEmote(animation);
+        }
+
+        // ⑤ 给观察者上隐身（可选，见 viewerInvisibilityTicks 的注释）。
+        //
+        //    ⚠️ 顺序保证只覆盖"**效果包**"本身：它与下面的 CG 包都走 player.connection.send(...)，
+        //    同一条 Netty 连接 FIFO ⇒ 客户端先拿到效果、再拿到过场。
+        //    但**渲染开关不是效果**：LivingEntityRenderer.isBodyVisible 读的是
+        //    Entity.isInvisible()（同步实体数据的第 5 位），而服务端写这一位的地方
+        //    （LivingEntity.updateInvisibilityStatus）在 tickEffects 里、只跑服务端；
+        //    这一位由 ServerEntity.sendChanges() 发出，其调用点 ChunkMap.tick() 在
+        //    ServerLevel.tick 里**早于**实体 tick ⇒ 最早要到**下一个服务端 tick** 才上链路。
+        //    ⇒ 开头存在 ≥1 tick（约 2~3 帧）"效果已给、但身体仍会被画"的窗口。
+        //    实机若真看到这一下，最省的缓解是在这里补一句 viewer.setInvisible(true)：
+        //    它写同一个位、能挤进本 tick 的 sendChanges，而下一 tick 的
+        //    updateInvisibilityStatus 会按效果重算 ⇒ 自愈、不引入持久状态。
+        //    本轮**刻意不加**：t=0 的仰角是 +62.25°（大幅仰视）、机位又在玩家眼位上，
+        //    那几帧几乎看不到自己的身体；且用户实测后已认可当前形态。
+        int invisibilityTicks = this.viewerInvisibilityTicks();
+        if (invisibilityTicks > 0) {
+            boolean applied = viewer.addEffect(new MobEffectInstance(
+                    MobEffects.INVISIBILITY,
+                    invisibilityTicks,
+                    this.viewerInvisibilityAmplifier(),
+                    false,    // ambient
+                    false,    // visible   —— 无粒子（用户明确要求）
+                    false));  // showIcon  —— 图标本来也不会显示：HUD 在过场期间被整层隐藏，
+                              //              而效果 5 秒就结束、CG 还有 1 秒 ⇒ 全程落在隐藏窗口内
+            if (!applied) {
+                // NeoForge 的 MobEffectEvent.Added 可被取消、canMobEffectBeApplied 可返回 false
+                // ⇒ 效果没上、人也隐不了。这种"什么都没发生"必须有痕迹。
+                BeLoongCore.LOGGER.warn(
+                        "[BeLoong] cg '{}': the viewer invisibility effect was rejected for {} "
+                                + "(the viewer may see their own body during the cutscene)",
+                        this.name(), viewer.getGameProfile().getName());
+            }
         }
 
         FDLibCalls.startCutsceneForPlayer(viewer, data);
