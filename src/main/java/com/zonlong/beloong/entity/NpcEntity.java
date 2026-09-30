@@ -1,11 +1,14 @@
 package com.zonlong.beloong.entity;
 
+import com.zonlong.beloong.route.NpcRoute;
+import com.zonlong.beloong.route.NpcRouteLoader;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.client.model.EmoteAnimationLookup;
 import com.zonlong.beloong.entity.ai.NpcAttackGoal;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.InteractionHand;
@@ -345,6 +348,16 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 距下次重新寻路的 tick 数（节流用）。 */
     private int moveRepathCooldown;
+
+    /**
+     * 路线名（可为空 = 没有路线）。与 {@link #state} 一样**只在服务端有意义**：
+     * 客户端不需要知道它在走什么路线（移动本身由原版同步）。
+     */
+    @Nullable
+    private ResourceLocation routeName;
+
+    /** 当前路点下标；等于路点数即"已抵达终点"（不另设"已完成"标记）。 */
+    private int routeIndex;
 
     /** 迄今离目标最近的水平距离平方；用于"卡住就放弃"的有界失败判断。 */
     private double moveBestDistSqr = Double.MAX_VALUE;
@@ -976,6 +989,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 加前缀后零撞名风险，代价只是键名长一点。
      */
     private static final String STATE_NBT_KEY = "BeloongState";
+
+    /**
+     * 路线名（{@code beloong:xxx}）。**这是"NPC 身上只有一个路线"的结构性保证** ——
+     * 只有一个键，所以不可能同时存在两条（用户裁定）。
+     */
+    private static final String ROUTE_NBT_KEY = "BeloongRoute";
+
+    /** 当前走到第几个路点。**必须落盘**：否则重启后会倒着走回第 0 个点。 */
+    private static final String ROUTE_INDEX_NBT_KEY = "BeloongRouteIndex";
 
     /**
      * 状态落盘。
