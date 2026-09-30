@@ -9,6 +9,7 @@ import com.zonlong.beloong.route.NpcRouteLoader;
 import net.minecraft.resources.ResourceLocation;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.entity.NpcState;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -155,11 +156,17 @@ public final class NpcCommand {
                                                         ctx.getSource()))))
                                 .then(Commands.literal("route")
                                         // 带参数 = 指派；不带 = 回报每只 NPC 当前的路线（验收与排查靠它）。
-                                        .then(Commands.argument("route", StringArgumentType.word())
+                                        //
+                                        // ⚠️ 参数类型**必须**是 ResourceLocationArgument，不能用
+                                        // StringArgumentType.word()：路线名形如 beloong:mo_route_1，
+                                        // 而 word() 的允许字符集**不含冒号**（vanilla 的
+                                        // StringReader.isAllowedInUnquotedString）⇒ 补全能补出来、
+                                        // 一敲回车就变红、ChatBox 里执行则直接语法错 —— 2026-09-30 实机踩到。
+                                        .then(Commands.argument("route", ResourceLocationArgument.id())
                                                 .suggests(ROUTE_SUGGESTIONS)
                                                 .executes(ctx -> setRoute(
                                                         EntityArgument.getEntities(ctx, "targets"),
-                                                        StringArgumentType.getString(ctx, "route"),
+                                                        ResourceLocationArgument.getId(ctx, "route"),
                                                         ctx.getSource())))
                                         .executes(ctx -> queryRoute(
                                                 EntityArgument.getEntities(ctx, "targets"),
@@ -245,16 +252,16 @@ public final class NpcCommand {
      * 校验顺序刻意是"<b>先查路线是否存在</b>，再写"：路线名拼错时**拒绝**并列出可用名单，
      * 而不是静默写一个永远不会生效的名字（照 {@code CgCommand} 的口径：逐条报错、不静默）。
      */
-    private static int setRoute(Collection<? extends Entity> targets, String rawRoute,
+    private static int setRoute(Collection<? extends Entity> targets, ResourceLocation id,
                                 CommandSourceStack source) {
         List<NpcEntity> npcs = npcsIn(targets);
         if (npcs.isEmpty()) {
             return fail(source);
         }
-        ResourceLocation id = ResourceLocation.tryParse(rawRoute);
-        if (id == null || NpcRouteLoader.INSTANCE.get(id) == null) {
+        // 参数已经是 ResourceLocation（由指令层解析）⇒ 这里只需查它是否真的存在。
+        if (NpcRouteLoader.INSTANCE.get(id) == null) {
             source.sendFailure(Component.translatable("beloong.command.route.unknown",
-                    rawRoute, String.join(", ", NpcRouteLoader.INSTANCE.nameStrings())));
+                    id.toString(), String.join(", ", NpcRouteLoader.INSTANCE.nameStrings())));
             return 0;
         }
         for (NpcEntity npc : npcs) {
@@ -262,7 +269,7 @@ public final class NpcCommand {
             warnDimensionMismatch(npc, id, source);
         }
         source.sendSuccess(() -> Component.translatable(
-                "beloong.command.route.set", npcs.size(), rawRoute), true);
+                "beloong.command.route.set", npcs.size(), id.toString()), true);
         return npcs.size();
     }
 

@@ -9,6 +9,7 @@ import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.route.NpcRoute;
 import com.zonlong.beloong.route.NpcRouteLoader;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -45,13 +46,15 @@ public final class RouteCommand {
         dispatcher.register(Commands.literal("beloong")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("route")
-                        .then(Commands.argument("route", StringArgumentType.word())
+                        // ⚠️ 必须用 ResourceLocationArgument：路线名形如 beloong:mo_route_1，
+                        // 而 StringArgumentType.word() 的字符集不含冒号 ⇒ 补全可用、解析必失败。
+                        .then(Commands.argument("route", ResourceLocationArgument.id())
                                 .suggests(ROUTE_SUGGESTIONS)
                                 .executes(ctx -> assignToLastDialogueNpc(
-                                        ctx, StringArgumentType.getString(ctx, "route"))))));
+                                        ctx, ResourceLocationArgument.getId(ctx, "route"))))));
     }
 
-    private static int assignToLastDialogueNpc(CommandContext<CommandSourceStack> ctx, String rawRoute) {
+    private static int assignToLastDialogueNpc(CommandContext<CommandSourceStack> ctx, ResourceLocation id) {
         CommandSourceStack source = ctx.getSource();
         ServerPlayer player = source.getPlayer();
         if (player == null) {
@@ -59,11 +62,10 @@ public final class RouteCommand {
             source.sendFailure(Component.translatable("beloong.command.route.not_a_player"));
             return 0;
         }
-        ResourceLocation id = ResourceLocation.tryParse(rawRoute);
-        NpcRoute route = id == null ? null : NpcRouteLoader.INSTANCE.get(id);
+        NpcRoute route = NpcRouteLoader.INSTANCE.get(id);
         if (route == null) {
             source.sendFailure(Component.translatable("beloong.command.route.unknown",
-                    rawRoute, String.join(", ", NpcRouteLoader.INSTANCE.nameStrings())));
+                    id.toString(), String.join(", ", NpcRouteLoader.INSTANCE.nameStrings())));
             return 0;
         }
         Entity target = LastDialogueNpc.resolve(player);
@@ -79,7 +81,7 @@ public final class RouteCommand {
                     npc.getUUID(), id, npc.level().dimension().location(), route.dimension());
         }
         source.sendSuccess(() -> Component.translatable(
-                "beloong.command.route.set", 1, rawRoute), true);
+                "beloong.command.route.set", 1, id.toString()), true);
         return 1;
     }
 }
