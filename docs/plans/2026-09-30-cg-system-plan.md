@@ -36,6 +36,27 @@ CgContext ─► CgAnimation ─► MoEntrance ─► CgRegistry ─► CgComman
 
 ---
 
+## 执行状态
+
+| 批次 | 任务 | 状态 | 提交 |
+|---|---|---|---|
+| ① | T1–T7 | ✅ **已完成** | `8292a77` |
+| ② | T8–T10 | ⏳ 待执行 | — |
+| ③ | T11 | ⏳ 待执行 | — |
+
+**批次 ① 的验证证据**
+- `.\gradlew.bat build` exit 0（全程零新增编译警告；既有的 3 条是 Mixin 注解处理器的 obfuscation mapping 警告）。
+- jar 内 `META-INF/neoforge.mods.toml` 含 `modId="fdlib"` + `type="required"`。
+- `cg_lang_keys.py` PASS：两语言各 250 键、集合完全一致、4 条新键非空；语言文件 diff **仅 +4 行**（未重排）。
+
+**独立代码审查**（独立上下文，只审 `src/`）：**0 Critical / 3 Important / 5 Minor，全部已修**。
+三条 Important 全在项目头号缺陷面"注释与事实脱节"上，其中 I-1 有**真实功能后果**
+（`Entity#getForward()` 含俯仰 ⇒ 末飞行过后可能被误判"朝向退化"而拒播 CG）。详见 `8292a77` 的提交信息。
+
+**尚未做**：实机验收（T9）—— 需用户执行；T10 依赖其实机反馈。
+
+---
+
 ## T1：依赖升级 —— fdlib 转必选
 
 **Files:**
