@@ -1,0 +1,45 @@
+{
+  "parent": "beloong:npc/1_1",
+  "criteria": {
+    "activate_waystone": {
+      "trigger": "minecraft:item_used_on_block",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:location_check",
+            "predicate": {
+              "block": {
+                "blocks": "waystones:prismarine_waystone"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "show_toast": false,
+    "hidden": false,
+    "frame": "task",
+    "icon": {
+      "count": 1,
+      "id": "waystones:prismarine_waystone"
+    },
+    "title": {
+      "translate": "beloong.advancement.npc/2_0"
+    },
+    "description": {
+      "translate": "beloong.advancement.npc/2_0.desc"
+    }
+  },
+  "requirements": [
+    [
+      "activate_waystone"
+    ]
+  ],
+  "rewards": {
+    "experience": 0
+  },
+  "sends_telemetry_event": false
+}

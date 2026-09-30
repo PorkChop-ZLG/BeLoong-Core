@@ -14,6 +14,13 @@
       "group": "start",
       "start_advancement": "beloong:npc/root",
       "end_advancement": "beloong:npc/1_1"
+    },
+    {
+      "text": "beloong.dialogue.mo.reply2",
+      "chatbox": "beloong:mo",
+      "group": "waystone",
+      "start_advancement": "beloong:npc/2_0",
+      "end_advancement": "beloong:npc/2_1"
     }
   ]
 }

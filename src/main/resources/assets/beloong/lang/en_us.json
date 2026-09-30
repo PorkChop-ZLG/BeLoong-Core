@@ -254,5 +254,19 @@
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.beloong.treasure_limit": "Treasure Limit: %d",
-  "tooltip.beloong.treasure_value": "Treasure Value: %s"
+  "tooltip.beloong.treasure_value": "Treasure Value: %s",
+  "beloong.advancement.npc/2_0": "Waystone",
+  "beloong.advancement.npc/2_0.desc": "Activate the waystone before the Dragon Palace",
+  "beloong.advancement.npc/2_1": "The Stone and the Past",
+  "beloong.advancement.npc/2_1.desc": "Hear Mo speak of the Dragon King and her mother",
+  "beloong.dialogue.mo.reply2": "What is this waystone for?",
+  "beloong.chatbox.mo.w1": "This is a waystone. Once activated, it can teleport you.",
+  "beloong.chatbox.mo.w2": "The Dragon Palace lies ahead — the Dragon King is inside.",
+  "beloong.chatbox.mo.w_opt1": "Is the Dragon King the ruler of all dragons?",
+  "beloong.chatbox.mo.w_opt2": "Who is the Dragon King?",
+  "beloong.chatbox.mo.w3": "The Dragon King rules the palace. The current one is §5Dihuang Loong§r.",
+  "beloong.chatbox.mo.w4": "The previous Dragon King was my mother — §5the Ender Dragon§r\n(A proud yet pained expression crosses Mo's face)",
+  "beloong.chatbox.mo.w5": "Sadly, she fell in that war which lasted a thousand years...\n(Mo's voice wavers)",
+  "beloong.chatbox.mo.w_opt3": "Are you alright?",
+  "beloong.chatbox.mo.w6": "I'm fine. Let us go and meet the Dragon King together — he has been eager to meet you."
 }

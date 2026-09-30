@@ -271,6 +271,22 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 | 3 | 玩家上前右键末 ⇒ 我们的对话 ⇒ 点「这里是什么地方？」⇒ ChatBox 那段对话 | 既有对话系统 + ChatBox 桥 |
 | 4 | ChatBox 最后一页点「好的」⇒ `1_1` + `beloong route beloong:mo_route_1` | ChatBox 选项的 `click`（两条命令，都带 `execute` 前缀） |
 | 5 | 末沿 `mo_route_1` 走到终点 `-2,78,-55` ⇒ 停下 | 本系统的 Goal + 移动层 |
+| 6 | 玩家在世界里右键激活传送石碑 `waystones:prismarine_waystone` ⇒ 自动获得 `2_0`（「传送石碑」） | **原版** `minecraft:item_used_on_block` + `location_check` 方块谓词（`advancement/npc/2_0.json`）|
+| 7 | 再次右键末 ⇒ 我们的对话出现第二条回复「这块石碑是做什么的？」⇒ ChatBox 第二段（组 `waystone`，6 页） | 既有对话系统 + ChatBox 桥 |
+| 8 | 对话中两个分支（「龙王是龙族的统治者吗？」/「龙王是谁？」）**收敛到同一页**；末讲述龙王与她母亲的往事 | 纯数据（ChatBox 的 `next` 用**同组页码**）|
+| 9 | 最后点「好的」⇒ `2_1` + `beloong route beloong:mo_route_2` ⇒ 末沿第二条路线走到 `0,78,-108` | ChatBox 选项 click + 本系统 |
+
+**`2_0` 的触发为什么能用原版触发器**（读字节码坐实）：`ServerPlayerGameMode.useItemOn` 里
+`CriteriaTriggers.ITEM_USED_ON_BLOCK` 被触发了**两次** —— 一次在 `BlockState.useItemOn` 之后、
+一次在 **`BlockState.useWithoutItem`** 之后，两处都以 `consumesAction()` 为条件。
+而 Waystones 的激活正好在 `useWithoutItem` 路径（`WaystoneBlockBase.java:265-277`）且返回
+`InteractionResult.SUCCESS`（`WaystoneBlock.java:122`）⇒ 触发器会命中，且**恰好是"激活成功"那一刻**。
+JSON 形状逐字照抄同工作区的参考样本（DragonSurvival 的 `dark/open_vault.json`）：
+`"conditions": {"location": [{"condition": "minecraft:location_check",
+"predicate": {"block": {"blocks": "waystones:prismarine_waystone"}}}]}`。
+
+⚠️ 一处**刻意的近似**：`item_used_on_block` 在"石碑**已经激活**后再右键"时同样会触发（那条分支也返回 SUCCESS）
+⇒ 它不区分"首次激活"与"重复右键"。对进度无影响（一次性 ✓ 首次右键即发放 ✓）。
 
 **`root` 的触发条件**（实证依据）：`CriteriaTriggers.LOCATION` 是 `PlayerTrigger`，
 在 `ServerPlayer.doTick()` 里 **每 20 tick 轮询一次**（反编译：`tickCount % 20 == 0` ⇒ `CriteriaTriggers.LOCATION.trigger(this)`），

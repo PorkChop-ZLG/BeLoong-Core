@@ -254,5 +254,19 @@
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.beloong.treasure_limit": "数量限制：%d",
-  "tooltip.beloong.treasure_value": "财宝价值：%s"
+  "tooltip.beloong.treasure_value": "财宝价值：%s",
+  "beloong.advancement.npc/2_0": "传送石碑",
+  "beloong.advancement.npc/2_0.desc": "激活龙宫门前的传送石碑",
+  "beloong.advancement.npc/2_1": "石碑与往事",
+  "beloong.advancement.npc/2_1.desc": "听末讲起龙王与她母亲的往事",
+  "beloong.dialogue.mo.reply2": "这块石碑是做什么的？",
+  "beloong.chatbox.mo.w1": "这是传送石碑，激活后可以进行传送",
+  "beloong.chatbox.mo.w2": "前面就是龙宫了，龙王就在里面",
+  "beloong.chatbox.mo.w_opt1": "龙王是龙族的统治者吗？",
+  "beloong.chatbox.mo.w_opt2": "龙王是谁？",
+  "beloong.chatbox.mo.w3": "龙王是龙宫的主宰。当代龙王是§5地黄龙§r",
+  "beloong.chatbox.mo.w4": "上一任龙王是我的母亲——§5末影龙§r\n（末的脸上露出骄傲又痛苦的复杂神色）",
+  "beloong.chatbox.mo.w5": "可惜，她死在那场持续千年的大战中...\n（末的声音有些哽咽）",
+  "beloong.chatbox.mo.w_opt3": "你没事吧",
+  "beloong.chatbox.mo.w6": "没事，我们一起去见龙王吧。他挺想见见你的"
 }
