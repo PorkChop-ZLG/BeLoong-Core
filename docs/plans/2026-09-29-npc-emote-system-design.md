@@ -413,8 +413,18 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 
 ## 增补（2026-10-01）：对话回复也可以停表情（`stop_emote`）
 
-表情此前只有两条"被清除"的路径：**移动**（`NpcEntity#moveTo` 先 `clearEmote()`）与
-**命令**（`/beloong npc … play stop`）。这一条补上第三种：**对话的回复选项**。
+表情此前已有若干条"被清除"的路径 —— 下面这些是**逐个核对过调用点**的实证清单（行号以 2026-10-01 的 `NpcEntity` 为准）：
+
+| 触发 | 调用点 |
+|---|---|
+| **移动** | `moveTo(Vec3)`，:608 |
+| **攻击** | `attack(LivingEntity)`，:644 |
+| **挥手** | `swing(InteractionHand)`，:702 |
+| **切状态** | `setState(NpcState)`，:804 |
+| **重置** | `resetToDefault()`，:979 |
+| **命令** | `/beloong npc <targets> play stop` |
+
+这一条再补上一条：**对话的回复选项**。
 
 - 数据：`data/<ns>/beloong/npc_dialogue/*.json` 的 `replies[]` 新增可选布尔字段 `stop_emote`，
   **缺省 `false` = 不清**（与 `arrival_radius` 同款的"带默认值的 optionalFieldOf"）。

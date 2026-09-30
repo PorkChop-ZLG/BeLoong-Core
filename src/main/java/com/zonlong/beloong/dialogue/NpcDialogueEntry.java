@@ -3,6 +3,8 @@ package com.zonlong.beloong.dialogue;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+// 只为 javadoc 的 {@link NpcEntity} 而导入（"stop_emote 只在被对话的实体是 NpcEntity 时生效"）
+import com.zonlong.beloong.entity.NpcEntity;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.codec.ByteBufCodecs;
