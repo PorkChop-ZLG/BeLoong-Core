@@ -32,11 +32,15 @@
 | pitch 曲线来源 | **写死一条缓动曲线**，不参考动画的实际高度 |
 | 开场处理 | **一开始就对准高处**（v1：+44.3° → +59.8°；**v2 改为用户直接给的一整条七段曲线**，见 §3.3） |
 | 8 格边界的朝向风险 | **接受**，靠"执行者站在末面前"这个操作前提 |
-| 观察者自己的身体 | **v2 新增**：给观察者上一个 5 秒的原版隐身效果（见 D8） |
+| 观察者自己的身体 | **v2 新增**：给观察者上一个原版隐身效果（见 D8）；**v3 起时长 = CG 时长 + 10 tick** |
 
-> **v2 规格裁定**（2026-09-30，用户实机后给出）：仰角由用户**直接指定**（−62.25 / −24.75 / −46.00 / 0），
-> 七段时间轴见 §3.3；末在 1.6→2.5 秒**刻意出画**（用户裁定"是我要的效果"）；
-> 相机第⑥段推近到 3 格；观察者隐身 5 秒。
+> **v2 规格裁定**（2026-09-30，用户实机后给出）：仰角由用户**直接指定**（−62.25 / −24.75 / −46.00 / 0）；
+> 相机按段推近；观察者隐身。
+>
+> **v3 修订**（2026-09-30，同日第二轮）：① 隐身改成 **6.5 秒**（= CG 时长 + 10 tick 余量）；
+> ② 编排改为六段 —— `−46°` 一直保持到 **2.2 秒**，**2.2 → 2.5 秒**同时做"下拉到平视 + 推近到 3 格"，
+> 2.5 秒之后全程静止。**v3 基本消除了 v2 的"末出画 0.8 秒"**（见 §3.3 的表）。
+> 详表见 §3.3；秒 → tick 在 v3 里**全部是整数**（v2 那个需要取整的 1.72 秒已整段删除）。
 
 ---
 
@@ -184,7 +188,7 @@
   `entrance` 比 `appear` 更贴合中文"登场"，且与动画名 `descend` 解耦（换动画不必改 CG 名）。
 
 - **D8 过场期间给观察者上一个原版隐身效果**（2026-09-30 新增，用户实测后裁定）：
-  `viewer.addEffect(new MobEffectInstance(INVISIBILITY, 100, 1, false, false, false))` —— 5 秒、隐身 II、
+  `viewer.addEffect(new MobEffectInstance(INVISIBILITY, 130, 1, false, false, false))` —— **6.5 秒**、隐身 II、
   无粒子、不显示图标。**理由**：fdlib 的过场只隐藏 HUD 与第一人称的"手"（`RenderHandEvent`），
   **不隐藏玩家自己的身体**（更精确地说：**只隐藏身体模型那一层**，盔甲 / 手持物 / 鞘翅照旧渲染
 —— `HumanoidArmorLayer` 与 `ItemInHandLayer` 都不检查隐身）；而 NeoForge 给 `LevelRenderer` 打了补丁
@@ -279,33 +283,36 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
 > （它在新规格下必然失败，而且没有任何东西再依赖它）；③ 相机从"整段不动、只转视角"
 > 变成"**位置与仰角都随时间变化**"。初版的数值不再出现在代码里。
 
-**时间轴（七段，总长 120 tick = 6.0 秒）**
+**时间轴（六段，总长 120 tick = 6.0 秒）—— v3**
 
 | 段 | 秒 | tick | 相机距离 | 仰角（游戏内 `xRot`） | 本文档的 `elevation`（正=上看） | 缓动 |
 |---|---|---|---|---|---|---|
 | ① | 0 → 0.25 | 0 → **5** | 8 格 | −62.25 → −24.75 | +62.25 → +24.75 | `easeOut` |
 | ② | 0.25 → 0.8 | 5 → **16** | 8 格 | 保持 −24.75 | +24.75 | — |
 | ③ | 0.8 → 1.2 | 16 → **24** | 8 格 | −24.75 → −46.00 | +24.75 → +46.00 | `easeInOut` |
-| ④ | 1.2 → 1.6 | 24 → **32** | 8 格 | 保持 −46.00 | +46.00 | — |
-| ⑤ | 1.6 → 1.75 | 32 → **35** | 8 格 | −46.00 → 0 | +46.00 → 0 | `linear` |
-| ⑥ | 1.75 → 2.2 | 35 → **44** | **8 → 3 格** | 保持 0 | 0 | `easeInOut` |
-| ⑦ | 2.2 → 6.0 | 44 → **120** | 3 格 | 保持 0 | 0 | — |
+| ④ | **1.2 → 2.2** | 24 → **44** | 8 格 | **保持 −46.00** | +46.00 | — |
+| ⑤ | **2.2 → 2.5** | 44 → **50** | **8 → 3 格** | **−46.00 → 0** | +46.00 → 0 | 仰角 `linear` / 距离 `easeInOut` |
+| ⑥ | 2.5 → 6.0 | 50 → **120** | 3 格 | 保持 0 | 0 | — |
 
-> **⚠️ "缓动"那一列是设计者选定的，不在用户口述规格里**：用户只指定了**断点与角度**
-> （仅第⑥段说了"平滑"）。三条过渡的 `easeOut` / `easeInOut` / `linear` 是设计者按观感选的，
-> **也不被 `cg_invariants.py` 守着** —— 想改直接改 `elevationAt` / `distanceAt` 里的 `FDEasings` 调用。
+**第⑤段同时做两件事**（用户原话"与此同时"）：仰角下拉与相机推进挤在同一个 **6 tick** 窗口里。
+两条曲线刻意用**不同的**缓动 —— 仰角 `linear`（字面"快速下拉"，约 7.7°/tick 匀速下沉）、
+距离 `easeInOut`（字面"平滑推进"）。
 
-**秒 → tick 一律 ×20**：`0.25 / 0.8 / 1.2 / 1.6 / 2.2` 秒恰好是 `5 / 16 / 24 / 32 / 44` tick。
-⚠️ 只有 **1.72 秒**（= **34.4** tick）不是整数 —— 用户在"34（该段 2 tick）"与
-"**35**（该段 3 tick，= 1.75 秒）"之间选了 **35**。
+> **⚠️ "缓动"那一列是设计者选定的，不在用户口述规格里**（用户只指定了**断点与角度**，
+> 仅第⑤段说了"快速下拉"与"平滑推进"）。它**不被 `cg_invariants.py` 守着** ——
+> 想改直接改 `elevationAt` / `distanceAt` 里的 `FDEasings` 调用。
 
-**相机几何（v2：距离也在变）**
+**秒 → tick 一律 ×20**：`0.25 / 0.8 / 1.2 / 2.2 / 2.5` 秒恰好是 `5 / 16 / 24 / 44 / 50` tick
+—— **v3 全部是整数，没有取整问题**。
+（历史：v2 的 `1.72` 秒 = **34.4** tick 不是整数，用户当时在 34/35 里选了 35；**v3 把它整段删掉了**。）
+
+**相机几何（v2 起距离也在变）**
 
 ```
 机位 P(t) = 末.pos + 末.forward × d(t) + (0, 1.62, 0)
-             d(t) = 8   (t ≤ 35)
-                  = 8 → 3，easeInOut   (35 < t < 44)
-                  = 3   (t ≥ 44)
+             d(t) = 8            (t ≤ 44)
+                  = 8 → 3，easeInOut   (44 < t < 50)
+                  = 3            (t ≥ 50)
 水平朝向 = P(t) → 末.pos   —— 恒为 −forward，整段不变
 ```
 
@@ -314,22 +321,23 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
 - `末.forward` 由 `Vec3.directionFromRotation(0, 末.getYRot())` 求得（**不是** `Entity#getForward()`
   —— 那个含俯仰，见 `CgContext.FORWARD_EPSILON` 的注释）。
 
-**⚠️ v2 刻意接受的一个后果：末会出画约 0.8 秒**
+**✅ v3 基本消除了 v2 的"末出画 0.8 秒"**
 
-第⑤段转到平视的那一刻，末的身体还在约 15 格高空（按 `h = (18.7 + AllBody.position.y) × 0.05` 估算）：
+v2 让镜头在 **1.6 秒**就转到平视，而末那时还在约 15 格高空 ⇒ 末完全出画约 0.8 秒。
+v3 把 −46° 一直保持到 **2.2 秒**（这段时间末正好从峰值往下走），再让"下拉 + 推进"与末自己的下坠
+**同向收敛**。按 `h = (18.7 + AllBody.position.y) × 0.05` 估算"末在镜头中心上方多少度"：
 
-| 秒 | 距离 | 仰角 | 视线落点高度 | 末的身体高度 | 差 |
+| 秒 | 距离 | 仰角 | 末的体高 | 与镜头中心的夹角 | 在画面内？ |
 |---|---|---|---|---|---|
-| 1.2 | 8 | −46.0° | 9.9 | ~10.7 | +0.8 ✓ |
-| 1.6 | 8 | −46.0° | 9.9 | ~13.1 | +3.2 ✓ |
-| **1.75** | 8 | **0°** | **1.6** | **~15.4** | **+13.7** |
-| **2.2** | 3 | **0°** | **1.6** | **~11.5** | **+9.8** |
-| ~2.5 | 3 | 0° | 1.6 | ~3.7 | 回到画面内 |
-| 3.4 | 3 | 0° | 1.6 | ~0.3 | 落地 ✓ |
+| 1.2 | 8 | −46° | ~10.7 | +2.5° | ✅ |
+| 1.75 | 8 | −46° | ~15.4（峰值） | +13.8° | ✅ |
+| 2.0 | 8 | −46° | ~14.3 | +11.8° | ✅ |
+| 2.2 | 8 | −46° | ~11.5 | +4.9° | ✅ |
+| **2.5** | 3 | 0° | ~3.7 | **+35.1°** | ⚠️ **刚好擦到边缘**（默认 FOV 半角≈35°） |
+| 2.7 | 3 | 0° | ~0.4 | −21.8°（下方） | ✅ |
 
-即：1.75 秒时末在视线**上方约 60°**（2.2 秒推到 3 格后约 **73°**），而默认 FOV 的半角约 35°
-⇒ **末完全出画**，直到约 **2.5 秒**它俯冲下来才重新入画。
-**用户 2026-09-30 明确裁定"是我要的效果"**（镜头先定格在空场，再看它砸进画面）。
+⇒ 只在 **2.5 秒前后一瞬间**擦到画面边缘，之后末完全在画面内落地。
+（上表用的是 v1 遗留的换算模型；v3 的仰角不依赖它，模型有偏差也只影响这段描述。）
 
 > 注：上表的"末的身体高度"用的是 v1 遗留的换算模型（`(18.7 + AllBody.position.y) × 0.05`）。
 > v2 的仰角不再依赖它，所以**即使该模型有偏差也不影响实现** —— 它在这里只用来描述观感。
@@ -341,9 +349,8 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
 private static final int T_DROP_END   = 5;   // 0.25 s
 private static final int T_RISE_START = 16;  // 0.80 s
 private static final int T_RISE_END   = 24;  // 1.20 s
-private static final int T_FALL_START = 32;  // 1.60 s
-private static final int T_FALL_END   = 35;  // 1.75 s（用户裁定：1.72 s × 20 = 34.4，取 35）
-private static final int T_PUSH_END   = 44;  // 2.20 s
+private static final int T_SNAP_START = 44;  // 2.20 s
+private static final int T_SNAP_END   = 50;  // 2.50 s
 
 // 仰角（度；正 = 上看 = 游戏内 xRot 取负）
 private static final double PITCH_START_DEG = 62.25;  // xRot −62.25
@@ -355,19 +362,20 @@ private static double elevationAt(double tick) {
     if (tick <= T_DROP_END)   return lerp(PITCH_START_DEG, PITCH_LOW_DEG,  FDEasings.easeOut((float) (tick / (double) T_DROP_END)));
     if (tick <= T_RISE_START) return PITCH_LOW_DEG;
     if (tick <= T_RISE_END)   return lerp(PITCH_LOW_DEG,   PITCH_HIGH_DEG, FDEasings.easeInOut((float) ((tick - T_RISE_START) / (double) (T_RISE_END - T_RISE_START))));
-    if (tick <= T_FALL_START) return PITCH_HIGH_DEG;
-    if (tick <= T_FALL_END)   return lerp(PITCH_HIGH_DEG,  PITCH_LEVEL_DEG, (tick - T_FALL_START) / (double) (T_FALL_END - T_FALL_START));
+    if (tick <= T_SNAP_START) return PITCH_HIGH_DEG;                       // ④ 长保持（1.2 → 2.2 s）
+    if (tick <= T_SNAP_END)   return lerp(PITCH_HIGH_DEG,  PITCH_LEVEL_DEG, (tick - T_SNAP_START) / (double) (T_SNAP_END - T_SNAP_START));  // ⑤ linear
     return PITCH_LEVEL_DEG;
 }
 ```
 
 缓动源用 fdlib 的 `FDEasings`（`easeOut` / `easeInOut`）—— 与 FDBosses 自己的过场同一族函数，
-整包观感一致。第⑤段只有 3 tick，任何缓动都看不出来，故直接用线性。
+整包观感一致。**第⑤段的仰角刻意用线性**（用户原话"快速下拉"，6 tick 转 46°、约 7.7°/tick 匀速下沉），
+而**同一窗口里的距离用 `easeInOut`**（"平滑推进"）。
 
-**关键点采样：v2 改成每 1 tick 一个（121 点）**
+**关键点采样：每 1 tick 一个（121 点）**
 
-v1 取 2 tick 就够（机位不动、只有仰角缓动）。v2 有两条快速运动：第⑤段 **3 tick 内转 46°**、
-第⑥段 **9 tick 内推 5 格** ⇒ 2 tick 采样会把它们切成可见的折线。
+v1 取 2 tick 就够（机位不动、只有仰角缓动）。现在有两条快速运动：第①段 **5 tick 内转 37.5°**、
+第⑤段 **6 tick 内同时转 46° + 推 5 格** ⇒ 2 tick 采样会把它们切成可见的折线。
 1 tick 采样的代价只是包大一点（约 10 KB，每条 CG 只发一次）。
 
 fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgContext.track` 因此按
@@ -377,8 +385,10 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 
 - `timeEasing = LINEAR` —— 它作用在**全局百分比**上
 - `lookEasing = LINEAR` —— 它作用在**段内**
-- `moveCurveType = LINEAR` —— `LinearCameraMotion` 走 `getListValueOrBoundaries`（永不返回 null），
-  比 CATMULLROM 少一个 null 边界风险
+- `moveCurveType = LINEAR` —— `LinearCameraMotion` 用 `getListValueOrBoundaries`（越界取首/末，
+  **永不返回 null**）+ `CameraPos.interpolate`（纯 lerp），语义最直白。
+  注：**CATMULLROM 本身也是安全的**（`FDMathUtil.catmullrom` 自带 null 守卫）；选 LINEAR 只是因为
+  本 CG 的曲线已经逐 tick 采样过，不需要再被样条平滑一次。
 
 ⇒ **所有缓动必须烘进 `cameraAt` / `elevationAt` 的采样值里**，不能交给 fdlib 的 `EasingType`。
 
@@ -393,29 +403,30 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 | `cameraPositions` | **121 个**，位置与朝向都在变 | `CgContext.track(...)` 生成 |
 | 屏幕特效 | **不加** | YAGNI；将来想加黑场只是两行 `addScreenEffect` |
 
-**观察者隐身（v2 新增，见 D8）**：`INVISIBILITY_TICKS = 100`（5 秒）、`INVISIBILITY_AMPLIFIER = 1`
-（游戏内"隐身 II"）、无粒子、不显示图标。
+**观察者隐身（v2 新增、v3 改时长，见 D8）**：`INVISIBILITY_TICKS = DURATION_TICKS + 10` = **130**
+（6.5 秒）、`INVISIBILITY_AMPLIFIER = 1`（游戏内"隐身 II"）、无粒子、不显示图标。
+<br>余量那 10 tick 的理由：效果是**服务端先上**的，而相机要等客户端下一个 tick 才接管
+（且渲染开关走的是另一个包）⇒ 严格等长会让结尾闪一帧自己的身体（用户 2026-09-30 选定留余量）。
 
 **常量一览（全部可手调，集中在 `MoEntrance`）**
 
 | 常量 | 值 | 来源 |
 |---|---|---|
 | `DURATION_TICKS` | 120 | `descend` 的 `animation_length 6 × 20`（**不可单独改**） |
-| `T_DROP_END` / `T_RISE_START` / `T_RISE_END` / `T_FALL_START` / `T_PUSH_END` | 5 / 16 / 24 / 32 / 44 | 用户给的秒 × 20 |
-| `T_FALL_END` | **35** | 用户裁定（1.72 s × 20 = 34.4 ⇒ 取 35 = 1.75 s） |
+| `T_DROP_END` / `T_RISE_START` / `T_RISE_END` / `T_SNAP_START` / `T_SNAP_END` | 5 / 16 / 24 / 44 / 50 | 用户给的秒 × 20（**v3 起全部是整数**） |
 | `PITCH_START_DEG` / `PITCH_LOW_DEG` / `PITCH_HIGH_DEG` / `PITCH_LEVEL_DEG` | 62.25 / 24.75 / 46.00 / 0.0 | 用户给的 `xRot` 取负 |
 | `VIEW_DISTANCE_FAR` / `VIEW_DISTANCE_NEAR` | 8.0 / 3.0 | 用户给定 |
 | `VIEW_EYE_HEIGHT` | 1.62 | 原版玩家站立眼高 |
-| `SAMPLE_STEP` | 1 | 两条快速运动需要逐 tick 采样 |
-| `INVISIBILITY_TICKS` / `INVISIBILITY_AMPLIFIER` | 100 / 1 | 用户给定（5 秒、隐身 II） |
+| `SAMPLE_STEP` | 1 | 第①、⑤两段快速运动需要逐 tick 采样 |
+| `INVISIBILITY_TICKS` / `INVISIBILITY_AMPLIFIER` | `DURATION_TICKS + 10` = 130 / 1 | 用户给定（CG 时长 + 10 tick 余量、隐身 II） |
 | `ANIMATION_NAME` | `"descend"` | `mo.extra.animation.json` |
 | `NAME` | `"mo_entrance"` | D7 |
 
 ### 3.4 数据流（§4）
 
-> **v2 更新**：本节的图已同步 v2 —— 采样点是 **121 个且位置与朝向都在变**，
+> **v3 更新**：本节的图已同步 —— 采样点 **121 个且位置与朝向都在变**，
 > `forward` 用 `directionFromRotation(0, getYRot())`（**不是** `getForward()`，那个含俯仰），
-> 并新增一步"给观察者上隐身"。若与代码不符，**以代码为准并回改本节**。
+> 并含一步"给观察者上隐身（130 tick）"。若与代码不符，**以代码为准并回改本节**。
 
 ```
 [服务端 · 单 tick 内全部完成]
@@ -442,7 +453,7 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
         │            ▼ GeckoLib emote 控制器（客户端每帧谓词）
         │        播 descend；满 120 tick ⇒ emoteDone ⇒ main 接管 ⇒ 回 idle
         │
-        ├──────► viewer.addEffect(隐身 100 tick / amplifier 1 / 无粒子)      ← v2 新增
+        ├──────► viewer.addEffect(隐身 130 tick / amplifier 1 / 无粒子)      ← v2 新增，v3 改时长
         │            │ 原版效果包（与下面的 CG 包同一条连接、顺序有保证）
         │            ▼
         │        ⚠️ 但**渲染开关是另一个包**（同步实体数据位 5）⇒ 会晚 ≥1 tick
@@ -527,11 +538,13 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
    **"用户口述的需求表 ↔ 代码常量"** 的一致性（需求写在脚本里，实现写在 `MoEntrance.java` 里）：
    - A1 `MoEntrance.DURATION_TICKS == descend.animation_length × 20`
    - A2 `descend` 确实存在于 `mo.extra.animation.json`
-   - A3 五个"整秒"断点 == `round(秒 × 20)`（0.25/0.8/1.2/1.6/2.2 → 5/16/24/32/44）
+   - A3 五个"整秒"断点 == `round(秒 × 20)`（0.25/0.8/1.2/2.2/2.5 → 5/16/24/44/50）
    - A4 四个仰角常量 == **游戏内 `xRot` 取负**（符号约定最容易搞反的地方）
-   - A5 断点链单调递增且不越界；`T_FALL_END` 落在用户裁定的 35
-   - A6 观察者隐身 == 100 tick / amplifier 1
-   - A7 `SAMPLE_STEP` 整除 `DURATION_TICKS`（保证采样点落在整数 tick 上）
+   - A5 断点链单调递增且不越界
+   - A6 观察者隐身 == `DURATION_TICKS` + 10（脚本**递归解析** `DURATION_TICKS + 10` 这种表达式，
+     所以代码可以保持"用另一个常量定义"的写法，而不必为脚本可解析退化成裸字面量）
+   - A7 采样密度 —— **刻意不是** `duration % step == 0`（那对 1/2/3/4/40 全通过，是个空断言），
+     而是"第⑤段那个 6 tick 的窗口至少采到 3 个点"
 3. 语言键两语言集合一致（**250 / 250**）
 4. `mods.toml` 里 fdlib 条目存在且 `type="required"`
 
@@ -547,16 +560,16 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 | 2 | 第 0 秒 | 相机在 8 格外**大幅仰视**（`xRot ≈ −62.25`） |
 | 3 | 0.25 秒 | 仰角甩到约 −24.75°，并**保持到 0.8 秒** |
 | 4 | 0.8 → 1.2 秒 | 仰角**平滑爬升**到约 −46° |
-| 5 | 1.2 → 1.6 秒 | **保持** −46° |
-| 6 | 1.6 → 1.75 秒 | 仰角**快速下拉**到平视（≈3 tick，接近瞬时） |
-| 7 | 1.6 → 约 2.5 秒 | **末完全出画**（在画面上方 60~73°）—— 用户确认这是刻意要的效果 |
-| 8 | 1.75 → 2.2 秒 | 相机**平滑推近**到距末 3 格，视角保持平视 |
-| 9 | 2.2 → 6.0 秒 | 相机与视角**全程静止**；约 2.5 秒末俯冲进画面并落地 |
-| 10 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复；**隐身此时已自行结束**（5 秒 < 6 秒） |
+| 5 | **1.2 → 2.2 秒** | **保持** −46°（这段最长，末在这段时间从峰值往下走） |
+| 6 | **2.2 → 2.5 秒** | 仰角**快速下拉**到平视（≈6 tick，约 7.7°/tick 匀速） |
+| 7 | **2.2 → 2.5 秒** | **同一窗口里**相机**平滑推近**到距末 3 格 |
+| 8 | 2.5 → 6.0 秒 | 相机与视角**全程静止**；约 2.5 秒末擦到画面边缘，随即俯冲进画面并落地（**v3 基本不再出画**） |
+| 9 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复 |
+| 10 | 第 **6.5** 秒 | 隐身自行结束（= CG 时长 + 10 tick 余量） |
 | 11 | 反例 A：CG 名敲错 | 命令**报错**并列出可用名；画面无变化 |
 | 12 | 反例 B：目标选非 NPC 实体 | 命令报错；画面无变化 |
 | 13 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
-| 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**但隐身会继续走完它的 5 秒** —— 效果是独立的，我们不清理） |
+| 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**但隐身会继续走完它的 6.5 秒** —— 效果是独立的，我们不清理） |
 | 15 | 查日志 | 无 `NoSuchElementException`、无 "List of camera positions cannot be empty"；另有一行 INFO 记录 anchor / forward / 首个机位 / key 数 |
 
 **不做**：不新增 test 源集；不为 CG 写单元测试（项目无此基础设施）。

@@ -57,22 +57,34 @@ CgContext ─► CgAnimation ─► MoEntrance ─► CgRegistry ─► CgComman
 
 ---
 
-## ⚠️ v2 规格修订（2026-09-30，用户实机后给出）
+## ⚠️ v2 / v3 规格修订（2026-09-30，用户实机后给出）
 
-用户实测后把 `mo_entrance` 的编排**整体换掉**，并新增"观察者隐身"。**权威规格见设计文档 §3.3**，
-本节只列出"本计划的哪些部分因此失效"：
+用户实测后把 `mo_entrance` 的编排**整体换掉**，并新增"观察者隐身"；同日第二轮（v3）又调整了时间安排与隐身时长。
+**权威规格见设计文档 §3.3**，本节只列出"本计划的哪些部分因此失效"：
 
 | 任务 | 原规格 | v2 后 |
 |---|---|---|
 | **T2** 的 `CgContext` | 第三个原语是 `static pitchCurve(camPos, aimPoint, ticks, step, elevationFn)`（机位固定、只转视角） | 改成**实例方法** `track(ticks, step, cameraAtFn, elevationFn)` —— 机位与仰角**都**随时间变化 |
-| **T4** 的 `MoEntrance` 常量 | `PITCH_START_DEG=44.3` / `PITCH_APEX_DEG=59.8` / `APEX_TICK=34` / `LANDING_TICK=68` / `VIEW_DISTANCE=8.0` / `SAMPLE_STEP=2` | 全部替换为七段时间轴（`T_DROP_END=5` … `T_PUSH_END=44`、`T_FALL_END=35`）、四个仰角（62.25/24.75/46.0/0）、`VIEW_DISTANCE_FAR=8.0` + `VIEW_DISTANCE_NEAR=3.0`、`SAMPLE_STEP=1` |
+| **T4** 的 `MoEntrance` 常量 | `PITCH_START_DEG=44.3` / `PITCH_APEX_DEG=59.8` / `APEX_TICK=34` / `LANDING_TICK=68` / `VIEW_DISTANCE=8.0` / `SAMPLE_STEP=2` | 全部替换为分段时间轴、四个用户给定的仰角（62.25/24.75/46.0/0）、`VIEW_DISTANCE_FAR=8.0` + `VIEW_DISTANCE_NEAR=3.0`、`SAMPLE_STEP=1` |
 | **T3** 的 `CgAnimation` | `play` = 预检 → 触发动画 → 发包 | 增加一步：**给观察者上隐身**（可选钩子 `viewerInvisibilityTicks/Amplifier`，默认 0） |
-| **T8** 的断言 | 三条：时长 / 动画存在 / **从资产重算 `PITCH_APEX_DEG`** | 七组 15 条：**改为"需求 ↔ 实现"对账**；"从资产重算仰角"与"峰值 ≈ +288.5"**已删除** |
-| **T9** 的实机清单 | 3 段式（对准峰值 → 降平视 → 停） | 七段式 + **末刻意出画** + 推近 + 隐身，共 15 项 |
-| **T10** 的对照表 | 按"峰值/落地"调 | 按"七段 + 缓动 + 推近距离 + 隐身时长"调 |
+| **T8** 的断言 | 三条：时长 / 动画存在 / **从资产重算 `PITCH_APEX_DEG`** | **改为"需求 ↔ 实现"对账**；"从资产重算仰角"与"峰值 ≈ +288.5"**已删除**（见下方 v3 的条数） |
+| **T9** 的实机清单 | 3 段式（对准峰值 → 降平视 → 停） | 分段式 + 推近 + 隐身，共 15 项 |
+| **T10** 的对照表 | 按"峰值/落地"调 | 按"各段 + 缓动 + 推近距离 + 隐身时长"调 |
+
+**v3 第二轮修订**（同日，用户看了 v2 数字后）：
+
+| 项 | v2 | **v3** |
+|---|---|---|
+| 编排 | 七段；`−46°` 只保持到 1.6s，1.6→1.75s 甩到平视，1.75→2.2s 才推近 | **六段**；`−46°` **保持到 2.2s**；**2.2→2.5s 同时**做"下拉到平视 + 推近到 3 格"；2.5s 后静止 |
+| 断点常量 | `T_FALL_START=32` / `T_FALL_END=35` / `T_PUSH_END=44` | **`T_SNAP_START=44` / `T_SNAP_END=50`**（`T_FALL_*` 全部删除） |
+| 秒 → tick | `1.72s = 34.4` **不是整数**，需用户在 34/35 里裁定 | **全部是整数**（0.25/0.8/1.2/2.2/2.5 → 5/16/24/44/50），取整问题消失 |
+| 第⑤段缓动 | 仰角 `linear` + 距离 `easeInOut`（**不同窗口**） | 仍是仰角 `linear` + 距离 `easeInOut`，但改成**同一个 6 tick 窗口** |
+| 末的出画 | **刻意出画约 0.8 秒**（用户裁定接受） | **基本消除** —— 只在 ~2.5s 前后擦到画面边缘（见设计文档 §3.3 的表） |
+| 隐身时长 | 100 tick（5 秒） | **130 tick** = `DURATION_TICKS + 10`（用户原本要"与动画同长"，实测考量后选择留 10 tick 余量） |
+| T8 断言 | 7 组 15 条 | **7 组 14 条**（少一条：`T_FALL_END == 35` 那条随断点一起删除） |
 
 **没有变的**：方案 A 的整体架构、D1–D7、`CgRegistry`、`CgCommand`、语言键、`DURATION_TICKS = 120`
-（仍与 `descend` 同步）、`StopMode.AUTOMATIC`、零持久状态 / 零新网络包。
+（仍与 `descend` 同步）、`StopMode.AUTOMATIC`、零持久状态 / 零新网络包、`SAMPLE_STEP = 1`（121 点）。
 **新增的**：**D8 观察者隐身**（设计文档 §1）。
 
 ---
@@ -290,14 +302,15 @@ $env:JAVA_HOME='D:\Java\jdk-21.0.11'; .\gradlew.bat build --console=plain
 **Files:**
 - Create: `D:\Minecraft\tools\YSMParser\cg_invariants.py`
 
-**Steps:** 七组断言（共 15 条，**全 PASS 才继续**）：
+**Steps:** 七组断言（共 14 条，**全 PASS 才继续**）：
 1. **A1** `MoEntrance.DURATION_TICKS == descend.animation_length × 20`
 2. **A2** `descend` 确实存在于 `mo.extra.animation.json`
-3. **A3** 五个"整秒"断点 == `round(秒 × 20)`（0.25/0.8/1.2/1.6/2.2 → 5/16/24/32/44）
+3. **A3** 五个"整秒"断点 == `round(秒 × 20)`（0.25/0.8/1.2/2.2/2.5 → 5/16/24/44/50）
 4. **A4** 四个仰角常量 == **游戏内 `xRot` 取负**（−62.25 / −24.75 / −46.00 / 0）
-5. **A5** 断点链单调递增且不越界；`T_FALL_END` 落在用户裁定的 35（候选区间 34~36）
-6. **A6** 观察者隐身 == 100 tick / amplifier 1
-7. **A7** `SAMPLE_STEP` 整除 `DURATION_TICKS`（保证采样点落在整数 tick 上）
+5. **A5** 断点链单调递增且不越界
+6. **A6** 观察者隐身 == `DURATION_TICKS` + 10（脚本会**递归解析** `DURATION_TICKS + 10` 这种表达式）
+7. **A7** 采样密度 —— **刻意不是** `duration % step == 0`（那对 1/2/3/4/40 全通过，是空断言），
+   而是"第⑤段那个 6 tick 的窗口至少采到 3 个点"
 
 **理由**：与阶段闸门那条"ChatBox 的进度 id 必须与 `mo.json` 的 `end_advancement` 字符串一致"同构 ——
 **"需求"与"实现"之间必须有机器可查的一致性**。
@@ -320,21 +333,21 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 2 | 第 0 秒 | 相机在 8 格外**大幅仰视**（`xRot ≈ −62.25`） |
 | 3 | 0.25 秒 | 仰角甩到约 −24.75°，并**保持到 0.8 秒** |
 | 4 | 0.8 → 1.2 秒 | 仰角**平滑爬升**到约 −46° |
-| 5 | 1.2 → 1.6 秒 | **保持** −46° |
-| 6 | 1.6 → 1.75 秒 | 仰角**快速下拉**到平视（≈3 tick，接近瞬时） |
-| 7 | 1.6 → 约 2.5 秒 | **末完全出画**（画面上方 60~73°）—— 用户确认这是刻意要的效果 |
-| 8 | 1.75 → 2.2 秒 | 相机**平滑推近**到距末 3 格，视角保持平视 |
-| 9 | 2.2 → 6.0 秒 | 相机与视角**全程静止**；约 2.5 秒末俯冲进画面并落地 |
-| 10 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复；**隐身此时已自行结束**（5 秒 < 6 秒） |
+| 5 | **1.2 → 2.2 秒** | **保持** −46°（这段最长，末在这段时间从峰值往下走） |
+| 6 | **2.2 → 2.5 秒** | 仰角**快速下拉**到平视（≈6 tick，约 7.7°/tick 匀速） |
+| 7 | **2.2 → 2.5 秒** | **同一窗口里**相机**平滑推近**到距末 3 格 |
+| 8 | 2.5 → 6.0 秒 | 相机与视角**全程静止**；约 2.5 秒末擦到画面边缘，随即俯冲进画面并落地（**v3 基本不再出画**） |
+| 9 | 第 6 秒 | 末动画播完回 idle；相机**归还**、HUD 恢复 |
+| 10 | 第 **6.5** 秒 | 隐身自行结束（= CG 时长 + 10 tick 余量） |
 | 11 | 反例 A：CG 名敲错（如 `mo_entrace`） | 命令**报错**并列出可用名；画面无变化 |
 | 12 | 反例 B：目标选非 NPC（如僵尸） | 命令报错；画面无变化 |
 | 13 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
-| 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**隐身会继续走完剩余秒数** —— 效果独立于 CG 生命周期） |
+| 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**隐身会继续走完它的 6.5 秒** —— 效果独立于 CG 生命周期） |
 | 15 | 查 `run/logs/latest.log` | 无 `NoSuchElementException`、无 `List of camera positions cannot be empty`；另有 INFO 行记录 anchor / forward / 首个机位 / key 数 |
 
 ---
 
-## T10：按实机标定结果调常量（条件任务）—— **v2 对照表**
+## T10：按实机标定结果调常量（条件任务）—— **v3 对照表**
 
 **Files:**
 - Modify: `src/main/java/com/zonlong/beloong/cg/instances/MoEntrance.java`（**只改常量**）
@@ -347,12 +360,13 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 某一段整体偏低 | 该段的 `PITCH_*_DEG` | 调**大** |
 | 某段过渡太急 | 该段缓动 | `easeInOut` → `easeIn`；或 `easeOut` → `linear` |
 | 某段过渡太缓 | 该段缓动 | `easeInOut` → `easeOut`（前段更急）/ 或缩短该段 tick |
-| 第⑤段甩镜太快（或想更慢） | `T_FALL_END`（35） | 调**大** = 该段更长（但注意它同时是推近的起点） |
-| 推近太快 / 太慢 | 第⑥段的缓动，或 `T_PUSH_END` | 缓动改 `easeIn`/`easeOut`；或改 `T_PUSH_END` 的 tick |
-| 近距太远 / 太近 | `VIEW_DISTANCE_NEAR`（3.0） | 直接改格数（同时改 `T_PUSH_END` 那段的终点） |
+| **第⑤段（下拉+推近）太快 / 太慢** | `T_SNAP_START`（44）/ `T_SNAP_END`（50） | 拉开两者 = 更慢；缩短 = 更快。<br>⚠️ 下拉与推近**共用**这个窗口，改它会同时改两者的速度 |
+| 下拉想与推近**用同一条曲线** | 第⑤段的仰角缓动 | 把 `elevationAt` 里的纯 `lerp` 换成 `FDEasings.easeInOut`，与距离一致 |
+| 推近太快 / 太慢（单独） | `distanceAt` 的缓动 | `easeInOut` → `easeIn`/`easeOut`（不影响下拉速度） |
+| 近距太远 / 太近 | `VIEW_DISTANCE_NEAR`（3.0） | 直接改格数 |
 | 前段太远 / 太近 | `VIEW_DISTANCE_FAR`（8.0） | 直接改格数 |
 | 某段时长不对 | 对应的 `T_*` 断点 | 秒 × 20（T8 断言 A3 守着它们与需求一致） |
-| 隐身太长 / 太短 | `INVISIBILITY_TICKS` | 秒 × 20 |
+| 隐身太长 / 太短 | `INVISIBILITY_TICKS`（现在是 `DURATION_TICKS + 10`） | 改那个 `+ 10` 的余量；T8 断言 A6 守着这个关系 |
 | 整体节奏太快 / 太慢 | ⚠️ **不要改 `DURATION_TICKS`** | 它必须与 `descend` 的 `animation_length` 同步（T8 断言 A1 守着）；要改节奏只能改动画资产 |
 
 **Verification:**

@@ -14,43 +14,40 @@ import java.util.List;
 /**
  * 第一条 CG：**末的登场**（{@code mo_entrance}）。
  *
- * <h2>演出（七段，总长 120 tick = 6.0 秒）</h2>
+ * <h2>演出（六段，总长 120 tick = 6.0 秒）</h2>
  * <pre>
  *   段  秒区间        tick       相机距离   仰角（游戏内 xRot）      缓动
  *   ①   0 → 0.25      0 →  5     8 格       −62.25 → −24.75        ease-out
  *   ②   0.25 → 0.8    5 → 16     8 格       保持 −24.75             —
  *   ③   0.8 → 1.2    16 → 24     8 格       −24.75 → −46.00        ease-in-out
- *   ④   1.2 → 1.6    24 → 32     8 格       保持 −46.00             —
- *   ⑤   1.6 → 1.75   32 → 35     8 格       −46.00 → 0（平视）      linear
- *   ⑥   1.75 → 2.2   35 → 44     8 → 3 格   保持 0                 ease-in-out
- *   ⑦   2.2 → 6.0    44 → 120    3 格       保持 0                  —
+ *   ④   1.2 → 2.2    24 → 44     8 格       保持 −46.00             —
+ *   ⑤   2.2 → 2.5    44 → 50     8 → 3 格   −46.00 → 0（平视）      仰角 linear / 距离 ease-in-out
+ *   ⑥   2.5 → 6.0    50 → 120    3 格       保持 0                  —
  * </pre>
- * <b>⚠️ 缓动是设计者选定的，不在用户口述规格里</b>：用户只指定了**断点与角度**
- * （仅第⑥段说了"平滑移动"）。三条过渡的具体缓动 —— ① {@code easeOut}、③ {@code easeInOut}、
- * ⑤ {@code linear} —— 是设计者按观感选的，**也不被 {@code cg_invariants.py} 守着**；
- * 想改直接改 {@link #elevationAt} / {@link #distanceAt} 里对应的 {@code FDEasings} 调用即可。
- * （第⑤段只有 3 tick，用 linear 是因为任何缓动在那段都看不出来。）
+ * <b>第⑤段同时做两件事</b>：仰角下拉与相机推进挤在同一个 6 tick 窗口里（用户 2026-09-30 要求
+ * "与此同时"）。两条曲线刻意用**不同的**缓动 —— 仰角 {@code linear}（字面"快速下拉"）、
+ * 距离 {@code easeInOut}（字面"平滑推进"）。
  *
- * 第⑥段的"相机前移"是**纯粹的径向推近**：高度恒为"末的脚底 + 1.62 格"，只沿末的朝向前进。
- * 由于机位始终落在"锚点沿 forward 的前方"这条直线上，水平朝向恒为 {@code −forward}，
- * <b>推近不会带来任何偏航</b>。
- *
- * <h2>⚠️ 这套仰角是**用户直接给的**，不再是"对准末的身体"</h2>
- * 上一版的做法是"从资产算出末的体高，再让相机对准它"。本版由用户手工给角度（2026-09-30），因此：
- * <ul>
- *   <li>仰角与资产的几何<b>完全解耦</b> ⇒ {@code cg_invariants.py} 里"从资产重算仰角"的那条断言已删除；</li>
- *   <li><b>刻意接受了一个后果</b>：第⑤段转到平视的那一刻，末的身体还在约 15 格高空
- *       （从 8 格外平视看，它在视线<b>上方约 60°</b>；第⑥段推到 3 格后约 73°），
- *       而默认 FOV 的半角约 35° ⇒ <b>末会完全出画约 0.8 秒</b>，
- *       直到约 2.5 秒它俯冲下来才重新入画。
- *       用户 2026-09-30 明确裁定"是我要的效果"（镜头先定格在空场，再看它砸进画面）。</li>
- * </ul>
+ * <h2>这个时间安排几乎消除了"末出画"</h2>
+ * v2 曾经让镜头在 1.6 秒就转到平视，而末那时还在约 15 格高空 ⇒ **末完全出画约 0.8 秒**。
+ * v3 把 −46° 一直保持到 **2.2 秒**（这段时间末正好从峰值往下走），再让"下拉 + 推进"与末自己的下坠
+ * **同向收敛**。用 `h = (18.7 + AllBody.position.y) × 0.05` 估算"末在镜头中心上方多少度"：
+ * <pre>
+ *   秒     距离   仰角     末的体高   与镜头中心的夹角   在画面内？
+ *   1.2    8      −46°     ~10.7      +2.5°            ✅
+ *   1.75   8      −46°     ~15.4(峰值) +13.8°           ✅
+ *   2.0    8      −46°     ~14.3      +11.8°           ✅
+ *   2.2    8      −46°     ~11.5      +4.9°            ✅
+ *   2.5    3       0°      ~3.7       +35.1°           ⚠️ 刚好擦到边缘（默认 FOV 半角≈35°）
+ *   2.7    3       0°      ~0.4       −21.8°           ✅
+ * </pre>
+ * ⇒ 只在 **2.5 秒前后一瞬间**会擦到画面边缘，之后末完全在画面内落地。
+ * （上表用的是 v1 遗留的换算模型；v3 的仰角不依赖它，模型有偏差也只影响这段描述。）
  *
  * <h2>时间基</h2>
- * 秒 → tick 一律 {@code × 20}：{@code 0.25 / 0.8 / 1.2 / 1.6 / 2.2} 秒恰好是
- * {@code 5 / 16 / 24 / 32 / 44} tick。
- * ⚠️ 只有 <b>1.72 秒</b>（= 34.4 tick）不是整数：用户在"34（2 tick）"与"35（3 tick）"里
- * 选了 <b>35</b>（= 1.75 秒），于是第⑤段是 3 tick。
+ * 秒 → tick 一律 {@code × 20}：{@code 0.25 / 0.8 / 1.2 / 2.2 / 2.5} 秒恰好是
+ * {@code 5 / 16 / 24 / 44 / 50} tick —— **本版全部是整数**，没有取整问题。
+ * <br>（历史：v2 的 {@code 1.72} 秒 × 20 = 34.4 曾需要取整，用户当时选了 35；v3 把它整段删掉了。）
  *
  * <h2>为什么整条轨迹可以在触发那一刻烘死成世界坐标</h2>
  * {@code descend} 的 {@code Root} 骨骼位移全程恒定为 {@code (0, 0.332, 0)} ⇒ <b>实体本身一动不动</b>
@@ -99,22 +96,14 @@ public final class MoEntrance extends CgAnimation {
     /** ② 结束 / ③ 开始：0.8 秒 —— 低位保持结束，开始爬升。 */
     private static final int T_RISE_START = 16;
 
-    /** ③ 结束 / ④ 开始：1.2 秒 —— 爬升到位，此后保持。 */
+    /** ③ 结束 / ④ 开始：1.2 秒 —— 爬升到位，此后一直保持到 2.2 秒。 */
     private static final int T_RISE_END = 24;
 
-    /** ④ 结束 / ⑤ 开始：1.6 秒 —— 高位保持结束，开始快速下拉。 */
-    private static final int T_FALL_START = 32;
+    /** ④ 结束 / ⑤ 开始：2.2 秒 —— 高位保持结束，开始"仰角下拉 + 相机推进"。 */
+    private static final int T_SNAP_START = 44;
 
-    /**
-     * ⑤ 结束 / ⑥ 开始：<b>1.75 秒</b>（用户裁定）。
-     * <p>
-     * 用户原话是"1.6 秒到 1.72 秒"，而 {@code 1.72 × 20 = 34.4} 不是整数。
-     * 用户在两个候选里选了 <b>35</b>（1.75 秒 ⇒ 本段 3 tick），而不是 34（⇒ 2 tick）。
-     */
-    private static final int T_FALL_END = 35;
-
-    /** ⑥ 结束 / ⑦ 开始：2.2 秒 —— 相机推近到 3 格，此后**全程静止**。 */
-    private static final int T_PUSH_END = 44;
+    /** ⑤ 结束 / ⑥ 开始：2.5 秒 —— 已到平视 + 3 格，此后**全程静止**。 */
+    private static final int T_SNAP_END = 50;
 
     // ===================== 仰角（度；正 = 上看 = 游戏内 xRot 取负）=====================
 
@@ -132,10 +121,10 @@ public final class MoEntrance extends CgAnimation {
 
     // ===================== 机位 =====================
 
-    /** 前段机位到末的**水平**距离（格）：用户给定"距离末 8 格"。 */
+    /** 第①～④段的机位距离（格）：用户给定"距离末 8 格"。 */
     private static final double VIEW_DISTANCE_FAR = 8.0D;
 
-    /** 推近后的机位距离（格）：用户给定"来到距离末 3 格"。 */
+    /** 第⑤段推近后的机位距离（格）：用户给定"来到距离末 3 格"。 */
     private static final double VIEW_DISTANCE_NEAR = 3.0D;
 
     /**
@@ -147,16 +136,26 @@ public final class MoEntrance extends CgAnimation {
     /**
      * 关键点采样间隔（tick）。本版取 <b>1</b>（121 个关键点）。
      * <p>
-     * 上一版取 2 就够了（机位不动、只有仰角在缓动）。本版有两条快速运动：
-     * 第⑤段 3 tick 内转 46°、第⑥段 9 tick 内推 5 格 ⇒ 2 tick 的采样会把它们切成可见的折线。
+     * 取 1 而不是 2 的理由：第⑤段要在 **6 tick 内同时**转 46° 与推 5 格（约 7.7°/tick、0.83 格/tick），
+     * 第①段是 5 tick 内转 37.5°。2 tick 的采样会把这两段切成可见的折线。
      * 1 tick 采样的代价只是包大一点（约 10 KB，每条 CG 只发一次）。
      */
     private static final int SAMPLE_STEP = 1;
 
     // ===================== 观察者隐身 =====================
 
-    /** 隐身时长（tick）：5 秒。到点自动结束，我们不做任何移除。 */
-    private static final int INVISIBILITY_TICKS = 100;
+    /**
+     * 隐身时长（tick）。
+     * <p>
+     * = {@link #DURATION_TICKS} <b>+ 10</b>（6.5 秒）。用户 2026-09-30 要求"刚好和动画长度一样"，
+     * 但那会留一个尾巴：效果是**服务端先上**的，而相机要等客户端下一个 tick 才接管
+     * （且渲染开关走的是另一个包，见 {@link CgAnimation#viewerInvisibilityTicks()} 与
+     * {@code CgAnimation.play} 第 ⑤ 步）⇒ 效果会比 CG 早约 1 tick 结束、结尾可能闪一帧自己的身体。
+     * 用户因此选了留 10 tick 余量。
+     * <p>
+     * 到点自动结束，我们不做任何移除（见 {@link CgAnimation#viewerInvisibilityTicks()}）。
+     */
+    private static final int INVISIBILITY_TICKS = DURATION_TICKS + 10;
 
     /** 隐身等级：{@code amplifier = 1} 即游戏内显示的"隐身 II"。 */
     private static final int INVISIBILITY_AMPLIFIER = 1;
@@ -172,7 +171,7 @@ public final class MoEntrance extends CgAnimation {
     }
 
     /**
-     * 观察者隐身 5 秒（无粒子、不显示图标）。
+     * 观察者隐身 6.5 秒（无粒子、不显示图标）。
      * <p>
      * 理由与代价见 {@link CgAnimation#viewerInvisibilityTicks()} 的注释：fdlib 不隐藏玩家自己的身体，
      * 而 NeoForge 的 {@code LevelRenderer} 补丁会在"相机不是玩家"时把本地玩家渲染出来。
@@ -214,18 +213,18 @@ public final class MoEntrance extends CgAnimation {
     /**
      * 写死的**机位距离**曲线（格，水平）。
      * <p>
-     * 第①～⑤段恒为 {@link #VIEW_DISTANCE_FAR}；第⑥段（{@link #T_FALL_END} → {@link #T_PUSH_END}）
-     * 用 {@link FDEasings#easeInOut} 平滑推到 {@link #VIEW_DISTANCE_NEAR}（用户要求"平滑移动"）；
-     * 之后恒为近距。
+     * 第①～④段恒为 {@link #VIEW_DISTANCE_FAR}；第⑤段（{@link #T_SNAP_START} → {@link #T_SNAP_END}，
+     * 与仰角下拉**同一窗口**）用 {@link FDEasings#easeInOut} 平滑推到 {@link #VIEW_DISTANCE_NEAR}
+     * （用户原话"平滑推进"）；之后恒为近距。
      */
     private static double distanceAt(double tick) {
-        if (tick <= T_FALL_END) {
+        if (tick <= T_SNAP_START) {
             return VIEW_DISTANCE_FAR;
         }
-        if (tick >= T_PUSH_END) {
+        if (tick >= T_SNAP_END) {
             return VIEW_DISTANCE_NEAR;
         }
-        double p = (tick - T_FALL_END) / (double) (T_PUSH_END - T_FALL_END);
+        double p = (tick - T_SNAP_START) / (double) (T_SNAP_END - T_SNAP_START);
         return lerp(VIEW_DISTANCE_FAR, VIEW_DISTANCE_NEAR, FDEasings.easeInOut((float) p));
     }
 
@@ -233,11 +232,13 @@ public final class MoEntrance extends CgAnimation {
      * 写死的**仰角**曲线（度，正 = 上看）。参数是过场内的 tick，**可能带小数**
      * —— 采样时刻由 {@link CgContext#track} 按 fdlib 的公式反算，见那里的说明。
      * <p>
-     * 七段：甩低（ease-out）→ 保持 → 爬升（ease-in-out）→ 保持 → 快速下拉（linear）→ 平视保持。
+     * 六段：甩低（{@code easeOut}）→ 保持 → 爬升（{@code easeInOut}）→ 长保持 → 下拉 → 平视保持。
      * <p>
-     * 缓动源用 fdlib 的 {@link FDEasings}（{@code easeOut} / {@code easeInOut}），
+     * 第⑤段用**线性**：用户原话是"快速下拉"，6 tick 转 46°（约 7.7°/tick），
+     * 匀速下沉正好对应"快速"；而同一窗口里的距离刻意用 {@code easeInOut}（"平滑推进"）。
+     * <p>
+     * 其余缓动源用 fdlib 的 {@link FDEasings}（{@code easeOut} / {@code easeInOut}），
      * 与 FDBosses 自己的过场同一族函数，整包观感一致。
-     * 第⑤段只有 3 tick，任何缓动都看不出来，故直接用线性（最省、最少意外）。
      */
     private static double elevationAt(double tick) {
         if (tick <= T_DROP_END) {
@@ -251,11 +252,11 @@ public final class MoEntrance extends CgAnimation {
             double p = (tick - T_RISE_START) / (double) (T_RISE_END - T_RISE_START);
             return lerp(PITCH_LOW_DEG, PITCH_HIGH_DEG, FDEasings.easeInOut((float) p));
         }
-        if (tick <= T_FALL_START) {
+        if (tick <= T_SNAP_START) {
             return PITCH_HIGH_DEG;
         }
-        if (tick <= T_FALL_END) {
-            double p = (tick - T_FALL_START) / (double) (T_FALL_END - T_FALL_START);
+        if (tick <= T_SNAP_END) {
+            double p = (tick - T_SNAP_START) / (double) (T_SNAP_END - T_SNAP_START);
             return lerp(PITCH_HIGH_DEG, PITCH_LEVEL_DEG, p);
         }
         return PITCH_LEVEL_DEG;
