@@ -33,7 +33,10 @@ import java.util.Optional;
  *   <li>{@code pages} —— 逐页文本，每页一个翻译键；页数即数组长度（不设计数字段，避免两处不同步）；</li>
  *   <li>{@code replies} —— 播放完毕后出现在「离开」**上方**的回复选项（可选，缺省空表）；
  *       每项指向一段 ChatBox 对话，是本系统与 ChatBox 的**唯一数据耦合点**，
- *       见 {@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}。</li>
+ *       见 {@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}；
+ *       每项还可声明**开始进度 / 结束进度**（原版 advancement）来当阶段闸门 —— 判定见
+ *       {@link NpcDialogueStage}，设计见
+ *       {@code docs/plans/2026-09-29-npc-advancement-stage-system-design.md}。</li>
  * </ul>
  *
  * @param entity  绑定的实体类型
@@ -127,17 +130,32 @@ public record NpcDialogueEntry(
      * 客户端点击后只回传"实体网络 id + 回复下标"，目标由服务端用自己的表解析
      * （客户端因此无法让服务端播放任意对话；见设计的 D1）。
      *
-     * @param text    标签的翻译键
-     * @param chatbox ChatBox 对话文件的 ResourceLocation（如 {@code beloong:mo}）
-     * @param group   该文件里的组名（如 {@code start}）
-     * @param index   页序号（0 基；缺省 0）
+     * <p>
+     * <b>两个进度字段是这个回复的"阶段闸门"</b>（都可省略；省略 = 无该约束）：
+     * <ul>
+     *   <li>{@code start_advancement} —— 玩家**已完成**它时，这条回复才有资格显示；</li>
+     *   <li>{@code end_advancement} —— 玩家一旦完成它，这条回复**永久不再显示**（结束优先于开始）。</li>
+     * </ul>
+     * 完整规则、以及"未知进度 id 一律视为不可见"（fail-closed）的取舍见 {@link NpcDialogueStage}。
+     * <b>本模组只读不写进度</b>：结束进度由 ChatBox 在对话最后一页文字播完时发放。
+     *
+     * @param text             标签的翻译键
+     * @param chatbox          ChatBox 对话文件的 ResourceLocation（如 {@code beloong:mo}）
+     * @param group            该文件里的组名（如 {@code start}）
+     * @param index            页序号（0 基；缺省 0）
+     * @param startAdvancement 开始进度（缺省无约束）
+     * @param endAdvancement   结束进度（缺省无约束）
      */
-    public record Reply(String text, ResourceLocation chatbox, String group, Optional<Integer> index) {
+    public record Reply(String text, ResourceLocation chatbox, String group, Optional<Integer> index,
+                        Optional<ResourceLocation> startAdvancement,
+                        Optional<ResourceLocation> endAdvancement) {
         public static final Codec<Reply> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("text").forGetter(Reply::text),
                 ResourceLocation.CODEC.fieldOf("chatbox").forGetter(Reply::chatbox),
                 Codec.STRING.fieldOf("group").forGetter(Reply::group),
-                Codec.INT.optionalFieldOf("index").forGetter(Reply::index)
+                Codec.INT.optionalFieldOf("index").forGetter(Reply::index),
+                ResourceLocation.CODEC.optionalFieldOf("start_advancement").forGetter(Reply::startAdvancement),
+                ResourceLocation.CODEC.optionalFieldOf("end_advancement").forGetter(Reply::endAdvancement)
         ).apply(instance, Reply::new));
     }
 

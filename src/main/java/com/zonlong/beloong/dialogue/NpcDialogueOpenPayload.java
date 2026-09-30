@@ -30,9 +30,11 @@ import java.util.Optional;
  *   <li>需要实体本体的场合（取名要用命名牌自定义名）由 {@link #entityId()} 在客户端按网络 id 找，
  *       找不到就退到兜底名；</li>
  *   <li>{@code trigger} 不上线 —— 触发判定只在服务端做，客户端渲染用不到它；</li>
- *   <li><b>回复选项只发标签键、不发目标</b>（缺省空表）—— 客户端点击后只回传"实体 id + 下标"，
- *       目标由服务端用自己的表解析。这样改过的客户端无法让服务端播放任意 ChatBox 对话，
- *       且载荷里因此只有 {@code List<String>}，天然满足下面那条"全函数永不抛"的不变量。</li>
+ *   <li><b>回复选项只发"服务端已判定可见的项"</b>：每项 = 标签翻译键 + 它在数据 {@code replies[]}
+ *       里的**原始下标**（缺省空表）。客户端点击后回传"实体 id + 该数据下标"，目标由服务端用自己的表解析。
+ *       于是：改过的客户端无法让服务端播放任意 ChatBox 对话，也无法让服务端显示被阶段闸门隐藏的选项
+ *       （阶段判定见 {@code NpcDialogueStage}）；且载荷里只有字符串与整数，
+ *       天然满足下面那条"全函数永不抛"的不变量。</li>
  * </ul>
  * 结果：线格式**全函数、永不抛**。
  *
@@ -40,15 +42,30 @@ import java.util.Optional;
  * @param fallbackNameKey 兜底名的翻译键（服务端取实体类型名，如 {@code entity.minecraft.iron_golem}）
  * @param pages           逐页文本
  * @param entityId        目标实体的网络 id（客户端用于取命名牌自定义名；实体未加载时允许找不到）
- * @param replyTextKeys   回复选项的**标签翻译键**（缺省空表 ⇒ 界面与从前一致，只有「离开」）
+ * @param replies         **当前可见**的回复选项（标签键 + 数据下标；缺省空表 ⇒ 界面只有「离开」）
  */
 public record NpcDialogueOpenPayload(
         Optional<String> nameKey,
         String fallbackNameKey,
         List<NpcDialogueEntry.Page> pages,
         int entityId,
-        List<String> replyTextKeys
+        List<VisibleReply> replies
 ) implements CustomPacketPayload {
+
+    /**
+     * 一个可见的回复选项。
+     *
+     * @param text  标签的翻译键
+     * @param index 它在数据 {@code NpcDialogueEntry#replies()} 里的**原始下标** ——
+     *              服务端受理点击时按这个下标回到原表复检（用"可见列表下标"会在状态变化后点错回复）
+     */
+    public record VisibleReply(String text, int index) {
+        /** 字符串 + 整数，无查表无分支 ⇒ 全函数。 */
+        public static final StreamCodec<ByteBuf, VisibleReply> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, VisibleReply::text,
+                ByteBufCodecs.VAR_INT, VisibleReply::index,
+                VisibleReply::new);
+    }
 
     public static final Type<NpcDialogueOpenPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "npc_dialogue_open"));
@@ -68,7 +85,7 @@ public record NpcDialogueOpenPayload(
                     ByteBufCodecs.STRING_UTF8, NpcDialogueOpenPayload::fallbackNameKey,
                     NpcDialogueEntry.Page.STREAM_CODEC.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::pages,
                     ByteBufCodecs.VAR_INT, NpcDialogueOpenPayload::entityId,
-                    ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::replyTextKeys,
+                    VisibleReply.STREAM_CODEC.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::replies,
                     NpcDialogueOpenPayload::new
             ).mapStream(buf -> (ByteBuf) buf);
 

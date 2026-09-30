@@ -35,7 +35,8 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * 设计文档：{@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}。
  *
  * @param entityId   被右键的那个实体的**网络 id**（服务端据此拿回实体与实体类型）
- * @param replyIndex 第几个回复选项（0 基，对应 {@link NpcDialogueEntry#replies()} 的下标）
+ * @param replyIndex 第几个回复选项 —— 是它在 {@link NpcDialogueEntry#replies()} 里的**原始下标**
+ *                   （不是界面上"可见列表"的下标；界面上可能因阶段闸门而缺项）
  */
 public record NpcDialogueReplyPayload(int entityId, int replyIndex) implements CustomPacketPayload {
 
@@ -83,6 +84,12 @@ public record NpcDialogueReplyPayload(int entityId, int replyIndex) implements C
         }
 
         NpcDialogueEntry.Reply reply = entry.replies().get(index);
+
+        // 复检阶段闸门：界面打开期间玩家可能已从别处拿到了结束进度 ⇒ 这条回复此刻可能已不该显示。
+        // 静默丢弃 —— 界面早已关闭，没有可提示的对象（与下标越界同一种处理）。
+        if (!NpcDialogueStage.visible(player, reply)) {
+            return;
+        }
         // index 缺省在我们这一侧折成 0：ChatBox 那边页序号绝不可为 null（会被编码成 "null"
         // 让客户端 Integer.parseInt 抛异常）。
         int page = reply.index().orElse(0);

@@ -73,7 +73,11 @@ public class NpcDialogueHandler {
                 target.getType().getDescriptionId(),
                 entry.pages(),
                 target.getId(),
-                // 只把标签键发给客户端；目标（chatbox RL / 组 / 页号）留在服务端（设计 D1）
-                entry.replies().stream().map(NpcDialogueEntry.Reply::text).toList()));
+                // 只把**当前可见**的回复发下去，且带"它在 replies[] 里的原始下标"；
+                // 目标（chatbox RL / 组 / 页号）留在服务端（设计 D1），阶段判定见 NpcDialogueStage。
+                NpcDialogueStage.visibleIndices(serverPlayer, entry).stream()
+                        .map(i -> new NpcDialogueOpenPayload.VisibleReply(
+                                entry.replies().get(i).text(), i))
+                        .toList()));
     }
 }
