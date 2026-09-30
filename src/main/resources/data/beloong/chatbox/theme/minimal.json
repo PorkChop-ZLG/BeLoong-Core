@@ -1,5 +1,5 @@
 {
-  "_comment": "dialogBox.renderEvents 里的 @Options 是必需的：主题的 option 默认 hidden，而 ChatOption.click() 对 hidden 直接 return false —— 不 show 就既看不见也点不动。trigger end 是组件级事件，由 DialogBox.setAllOver 触发。functionalButton 三个都要写：ChatBoxScreen 的 Ctrl 快进要求 fastForwardButton() 非 null（ChatBoxScreen.java:509）。版式（2026-10-01）：dialogBox.height 40→34（纹理 default_dialog_box.png 原始 1890x315≈6:1，100x40=2.5:1 本就在纵向拉伸，34 既减少变形又容得下两行文本）；它是 alignY=bottom，故高度减 6 会让上沿下移 6，nameY/textY 同步减 6 以保持文字在屏幕上的位置不变。option 由 alignY=top 改为 bottom：原来 y=30 是\"距屏幕顶 30\"，常驻屏幕上方（这是\"选项太高\"的根因）；改成 bottom 后 y=34 表示\"选项底边距屏幕底 34\"＝正好贴住对话框上沿，多个选项由该处向上叠。",
+  "_comment": "注释（本模组自用）：dialogBox.renderEvents 里那条 @Options 显示事件是必需的 —— 主题的 option 默认 hidden，而 ChatOption.click() 对 hidden 直接 return false，不 show 就既看不见也点不动；trigger end 是组件级事件，由 DialogBox.setAllOver 触发（每页文字播完各一次，没有选项的页解析为空、无副作用）。functionalButton 三个都要写：ChatBoxScreen 的 Ctrl 快进要求 fastForwardButton() 非 null。版式说明（只讲语义，具体数值以本文件的数据为准）：本主题所有坐标/尺寸都是**屏幕高度的百分比**，不是像素；dialogBox 是 alignY=bottom（贴屏幕底），其 height 同时决定上沿位置；option 的 alignY 决定锚点方向 —— top 是从屏幕上方往下数 y，bottom 是从屏幕下方往上数（多选项由该处向上叠，见 ChatOption.java:110-113）。现有数值由用户看着画面亲自调定（2026-10-01），不要从任何注释反推它们。",
   "dialogBox": {
     "texture": "chatbox:textures/chatbox/default_dialog_box.png",
     "alignX": "left",

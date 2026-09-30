@@ -10,6 +10,21 @@
             "predicate": {
               "block": {
                 "blocks": "waystones:prismarine_waystone"
+              },
+              "dimension": "beloong:loong_palace",
+              "position": {
+                "x": {
+                  "min": -32,
+                  "max": 32
+                },
+                "y": {
+                  "min": 40,
+                  "max": 128
+                },
+                "z": {
+                  "min": -128,
+                  "max": 8
+                }
               }
             }
           }
@@ -25,6 +40,21 @@
             "predicate": {
               "block": {
                 "blocks": "waystones:prismarine_waystone"
+              },
+              "dimension": "beloong:loong_palace",
+              "position": {
+                "x": {
+                  "min": -32,
+                  "max": 32
+                },
+                "y": {
+                  "min": 40,
+                  "max": 128
+                },
+                "z": {
+                  "min": -128,
+                  "max": 8
+                }
               }
             }
           }

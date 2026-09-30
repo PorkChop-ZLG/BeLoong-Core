@@ -101,3 +101,32 @@
 **结论**：本轮 1 Critical + 4 Important + 10 Minor **全部处理完毕**；两套不变量脚本（①–⑬）与三个既有探针全绿，
 `gradlew build` BUILD SUCCESSFUL，全流程实机验收通过。工具侧另修了我自己的两处"守卫写错对象"
 （版式守卫锁了实现选择、金色守卫写成了"必须开头"）—— 教训已入 memory。
+
+---
+
+## 九、数据侧审查（第二路子代理）与处理
+
+**范围**：`45c3f5f..HEAD -- src/main/resources` 的 10 份 JSON。**Critical 无**。
+
+| 编号 | 发现 | 处理 |
+|---|---|---|
+| **DI1** | 主题的 `_comment` 与本报告 §3.7.2 仍写"`alignY=bottom` 且 `y = dialogBox.height`" —— 那是**我的做法**；用户 `72165e1` 改成 `alignY=top` + `y=50` 后我没同步注释 ⇒ 注释/文档/数据**三方不一致**。它同时纠正了一个我理解错的语义：**主题的坐标与尺寸都是"屏幕高度的百分比"**，不是 GUI 单位 | ✅ 注释与 §3.7.2 改为**只写语义、不写死数值**（百分比语义 / 锚点方向 / 缺了会怎样）；并明确"现有数值由用户看着画面调定，不要从注释反推" |
+| **DI2** | `2_0` 的 `location` 只判方块 ⇒ 在别处**合成**一块同名石碑也能解锁；而末的 `reply2` 闸门正是它 ⇒ 玩家在远处解锁并选 reply2 时，会把路线 2 指派给还在路线 1 起点的末（相距 ≈59 格 > 16）⇒ 指派成功但**寻路必然失败** | ✅ 两条判据都补 `dimension: beloong:loong_palace` + 坐标盒（并让不变量脚本 ⑨ 守住这两条）|
+| DM3 | `1_1.json` 不在该区间的改动清单里（自基线起未改动）| 记录：本报告 §五/§二里的"4 进度"指 jar 的内容，不是"本次新增" |
+| DM4 | `mo_route_2` 首段 15.00 格，距寻路探索半径 16 只剩 1 格余量 | 记录（不变量脚本会持续守着"相邻路点 ≤16"）|
+| DM5 | `_comment` 里带转义引号，与"JSON 注释不要带引号"的既有纪律相悖 | ✅ 随 DI1 一起重写（新注释不含任何引号）|
+
+**它核对通过、无发现的部分**（据此可从"待验"转为"已验"）：10 份 JSON 全部合法；
+`default_block_use` / `any_block_use` / `minecraft:location` 在 1.21.1 都存在
+（`CriteriaTriggers` 里注册串为 `default_block_use` / `any_block_use`），且两份进度的判定形态合 schema
+（`location` 用 `ContextAwarePredicate` 的条件数组形态是**对的**；`2_0` 的 `location_check`+`block.blocks`
+与 `root` 的 `player:[entity_properties]`+`position.dimension` 都合）；四份进度的 `criteria`↔`requirements`
+全对齐（`2_0` 是 OR）；命令里的 `beloong:npc/1_1`、`beloong:npc/2_1`、`beloong:mo_route_1`、
+`beloong:mo_route_2` 逐字存在（1.21.1 的目录名是单数 `advancement`）；ChatBox 两组页数（start=2 / waystone=6）
+与 `next`（`-1`=关闭、`2`、`5`）全部落在合法范围；主题的 `@Options` 显示事件仍在；
+**两语言 270/270、无重复键、被引用的键齐全**（收尾中我又补了 2 条语言键 ⇒ 现 **272/272**，
+由不变量 ⑬ 持续守着）；`waystones:prismarine_waystone`（block+item）、`minecraft:dragon_head`、
+`minecraft:ender_pearl`、`beloong:beloong_logo`（含贴图）、root 的背景贴图都存在；
+`end_emote: "sit"` 在 mo 的资产里有；路点间距全部 ≤16（r1 各段 ≤12.08、r2 各段 ≤15.00、r1 末→r2 首 10.20）。
+
+**修复提交**：`DI1`/`DI2`/`DM5` 见紧随本报告之后的那个提交。

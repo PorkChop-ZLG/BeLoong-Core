@@ -380,14 +380,15 @@ public String emote()
   `§1彩§2色…`），而我们 NPC 对话的回复是原版 `Component` 渲染 —— 两处都不认 `&`
   ⇒ 写成 `&e` 只会**字面显示 "&e"**。回归守卫见 `route_invariants.py` 的 ⑪。
 - **ChatBox 主题版式**（`data/beloong/chatbox/theme/minimal.json`）：
-  - `dialogBox` 是 `alignY: bottom`（贴屏幕底），其 `height` 就是"背景有多高"。底层纹理
-    `default_dialog_box.png` 原始 **1890×315（≈6:1）**，而我们用 100×40（2.5:1）⇒ **纵向被拉伸**；
-    调小 height 既让它变矮、也**减少变形**。注意高度减多少，`nameY`/`textY` 就要同步减多少
-    （它们是**相对背景上沿**的），否则文字会在屏幕上跟着移动。
-  - `option` 的 `alignY` 决定锚点：`top` ⇒ 常驻**屏幕上方**（"选项太高"的根因）；
-    改成 `bottom` 后 `y` 表示"选项底边距屏幕底的距离"，多个选项由该处**向上叠**。
-    取 `y = dialogBox.height` 即让选项底边正好贴住对话框上沿。
 
+- ⚠️ **坐标/尺寸都是"屏幕高度的百分比"，不是像素或 GUI 单位**：`dialogBox.height: 34` 表示屏幕高的 34%，
+  `option.y` / `option.height` 同理。（我第一版按 GUI 单位推算过，是错的。）
+- `dialogBox` 是 `alignY: "bottom"`（贴屏幕底）⇒ `height` 同时决定**上沿位置**（上沿 = 距底 height%）。
+  底层纹理 `default_dialog_box.png` 原始 **1890×315（≈6:1）**，用 100×40 这种比例本就在纵向拉伸。
+- `option` 的 `alignY` 决定锚点方向：`"top"` ⇒ 从**屏幕上方**往下数 `y`%；`"bottom"` ⇒ 从**屏幕下方**往上数
+  （多选项由该处**向上叠**，`ChatOption.java:110-113`）。**`y` 与 `dialogBox.height` 之间没有必然关系** ——
+  这组数值是用户 `72165e1` 看着画面亲自调定的（2026-10-01），**不要再从注释或文档反推它们**；
+  哪一天觉得不好看了，改数据即可（`/reload` 后重开对话生效）。
 ### 3.8 可覆写的默认值
 
 | 方法 | 默认 | 说明 |
