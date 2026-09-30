@@ -257,3 +257,36 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 ## 七、下一步
 
 调用 `planning` 技能，把本设计拆成可执行任务清单（含静态验证命令与实机验收清单）。
+
+---
+
+## 六、三系统串联（2026-09-30 新增）
+
+把 **NPC 对话**、**寻路**、**CG 过场** 三个系统接成一条完整体验链：
+
+| 步 | 发生什么 | 由谁实现 |
+|---|---|---|
+| 1 | 玩家在龙宫走进末所在区域 ⇒ 自动获得 `beloong:npc/root` | **原版** `minecraft:location` 触发器 + 坐标盒（`advancement/npc/root.json`） |
+| 2 | 获得 `root` ⇒ 播放 `mo_entrance`（末的登场） | `cg/MoEntranceTrigger`（Java 事件；见下"为什么不用 reward function"） |
+| 3 | 玩家上前右键末 ⇒ 我们的对话 ⇒ 点「这里是什么地方？」⇒ ChatBox 那段对话 | 既有对话系统 + ChatBox 桥 |
+| 4 | ChatBox 最后一页点「好的」⇒ `1_1` + `beloong route beloong:mo_route_1` | ChatBox 选项的 `click`（两条命令，都带 `execute` 前缀） |
+| 5 | 末沿 `mo_route_1` 走到终点 `-2,78,-55` ⇒ 停下 | 本系统的 Goal + 移动层 |
+
+**`root` 的触发条件**（实证依据）：`CriteriaTriggers.LOCATION` 是 `PlayerTrigger`，
+在 `ServerPlayer.doTick()` 里 **每 20 tick 轮询一次**（反编译：`tickCount % 20 == 0` ⇒ `CriteriaTriggers.LOCATION.trigger(this)`），
+`minecraft:tick` 则在 `ServerPlayer.tick()` 里**每 tick**触发。
+⇒ 用 `minecraft:location` + `player` 条件（维度 + 坐标盒）即可"玩家一进区域就发"，最快 1 秒内命中。
+
+⚠️ **原版没有"附近存在某实体"这种条件** —— `player` 条件只能描述玩家自身（维度/坐标/光照/群系/方块）
+⇒ 所以"看到末"是用"**走进末所在的区域**"近似的。对一段**镜头演出**而言这个近似更合适：
+CG 会把玩家锁进电影模式，玩家不必正好盯着末。触发盒中心与路线起点 `0,64,-8` 重合（同一处场景），
+由 `route_invariants.py` 的 ⑧ 守着"改了一边忘了另一边"。
+
+**为什么"进度 ⇒ CG"用 Java 事件而不是 `rewards.function`**：
+1. **权限**：进度 reward 以玩家命令源执行，而 `Entity#getPermissionLevel()` 的字节码是 `iconst_0`（返回 0）
+   ⇒ 非 op 玩家跑不动 `/beloong cg`（它要求权限 2）；Java 处理器不经命令层，没有这个问题。
+2. **失败可见**：mcfunction 里只能写 `@e[type=beloong:mo,…]`，找不到末就**静默失败**；
+   Java 处理器能打一条英文 WARN，把"该放没放"留在日志里。
+
+⚠️ **已知取舍（用户裁定）**：若获得 `root` 的那一刻附近确实没有末，**只打 WARN、不重试** ⇒
+那种情况下玩家会拿到 `root` 却看不到登场演出。触发盒本就围绕末的站位，正常流程里两者同时存在。

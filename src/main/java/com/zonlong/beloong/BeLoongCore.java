@@ -8,6 +8,7 @@ import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
+import com.zonlong.beloong.cg.MoEntranceTrigger;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
@@ -119,6 +120,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
 
         if (ModList.get().isLoaded("lockdown")) {
