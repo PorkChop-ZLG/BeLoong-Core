@@ -14,16 +14,16 @@
               "dimension": "beloong:loong_palace",
               "position": {
                 "x": {
-                  "min": -32,
-                  "max": 32
+                  "min": -7,
+                  "max": 7
                 },
                 "y": {
-                  "min": 40,
-                  "max": 128
+                  "min": 71,
+                  "max": 85
                 },
                 "z": {
-                  "min": -128,
-                  "max": 8
+                  "min": -64,
+                  "max": -50
                 }
               }
             }
@@ -44,16 +44,16 @@
               "dimension": "beloong:loong_palace",
               "position": {
                 "x": {
-                  "min": -32,
-                  "max": 32
+                  "min": -7,
+                  "max": 7
                 },
                 "y": {
-                  "min": 40,
-                  "max": 128
+                  "min": 71,
+                  "max": 85
                 },
                 "z": {
-                  "min": -128,
-                  "max": 8
+                  "min": -64,
+                  "max": -50
                 }
               }
             }
