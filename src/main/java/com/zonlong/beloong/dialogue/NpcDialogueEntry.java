@@ -142,23 +142,33 @@ public record NpcDialogueEntry(
      * 「好的」选项在点击时**发放 —— 见 {@code data/beloong/chatbox/dialogues/mo.json} 的
      * {@code options[0].click}（**不是**"文字播完时"：页级 {@code renderEvents} 收不到 {@code ON_END}）。
      *
+     * <p>
+     * <b>{@code stop_emote}（可选，缺省 {@code false} = 不清）</b>：点这条回复时**停掉该 NPC 当前的表情动画**。
+     * 用在"NPC 正坐着/站着摆姿势，玩家一开口就该收起来"这类场合。缺省不清是刻意的 ——
+     * 大多数回复不该打断 NPC 的姿态，尤其是路线终点用 {@code end_emote} 播出来的那个姿势。
+     * 只在被对话的实体确实是 {@link NpcEntity} 时生效（对话表按实体类型挂，可以是任意实体类型）。
+     *
      * @param text             标签的翻译键
      * @param chatbox          ChatBox 对话文件的 ResourceLocation（如 {@code beloong:mo}）
      * @param group            该文件里的组名（如 {@code start}）
      * @param index            页序号（0 基；缺省 0）
      * @param startAdvancement 开始进度（缺省无约束）
      * @param endAdvancement   结束进度（缺省无约束）
+     * @param stopEmote        点击时是否停掉该 NPC 的表情动画（缺省 false = 不清）
      */
     public record Reply(String text, ResourceLocation chatbox, String group, Optional<Integer> index,
                         Optional<ResourceLocation> startAdvancement,
-                        Optional<ResourceLocation> endAdvancement) {
+                        Optional<ResourceLocation> endAdvancement,
+                        boolean stopEmote) {
         public static final Codec<Reply> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("text").forGetter(Reply::text),
                 ResourceLocation.CODEC.fieldOf("chatbox").forGetter(Reply::chatbox),
                 Codec.STRING.fieldOf("group").forGetter(Reply::group),
                 Codec.INT.optionalFieldOf("index").forGetter(Reply::index),
                 ResourceLocation.CODEC.optionalFieldOf("start_advancement").forGetter(Reply::startAdvancement),
-                ResourceLocation.CODEC.optionalFieldOf("end_advancement").forGetter(Reply::endAdvancement)
+                ResourceLocation.CODEC.optionalFieldOf("end_advancement").forGetter(Reply::endAdvancement),
+                // 可选：缺省 false = 不清表情（与 arrival_radius 同款的"带默认值的 optionalFieldOf"）
+                Codec.BOOL.optionalFieldOf("stop_emote", false).forGetter(Reply::stopEmote)
         ).apply(instance, Reply::new));
     }
 

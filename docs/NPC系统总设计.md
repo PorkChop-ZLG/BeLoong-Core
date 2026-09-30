@@ -542,6 +542,7 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 | `replies[].index` | ❌ | `0` | 页序号（0 基）。**不可为 null** —— ChatBox 那侧会把它编码成字符串 `"null"` 让客户端抛异常 |
 | `replies[].start_advancement` | ❌ | 无 | **开始进度**的 id（如 `beloong:npc/root`）：玩家已完成它，这条回复才有资格显示 |
 | `replies[].end_advancement` | ❌ | 无 | **结束进度**的 id（如 `beloong:npc/1_1`）：玩家一旦完成它，这条回复**永久不再显示**（结束优先于开始） |
+| `replies[].stop_emote` | ❌ | `false` | 点这条回复时**停掉该 NPC 当前的表情动画**（`NpcEntity#clearEmote`）。缺省 `false` = **不清** —— 大多数回复不该打断 NPC 的姿态，例如路线终点用 `end_emote` 播出来的坐姿 |
 
 **文本存翻译键而不是字面文本**：多语言由原版 `lang` 机制负责，数据文件里不该出现中文。
 
@@ -767,6 +768,13 @@ NPC 对话播放完毕后，界面除了「离开」还会在它**上方**列出
 | `data/beloong/beloong/npc_dialogue/mo.json` | 388 B | 末的对话 + 一条回复（指向 ChatBox 的 `beloong:mo` / `start`） |
 | `data/beloong/chatbox/dialogues/mo.json` | 458 B | ChatBox 侧：`start` 组两页（龙宫 → 觐见龙王） |
 | `data/beloong/chatbox/theme/minimal.json` | 701 B | 自写的最小主题（无立绘） |
+
+**表情（2026-10-01 增补）**：每条回复可声明可选的 `stop_emote`（布尔，缺省 `false`）。
+点为 `true` 时，玩家**点击**这条回复会停掉被对话 NPC 当前的表情动画 —— 用在"NPC 正坐着/摆着姿势，
+玩家一开口就该收起来"这类场合。**缺省不清是刻意的**：大多数回复不该打断 NPC 的姿态（路线终点的
+`end_emote` 播出来的坐姿就是典型）。两处实现细节：① 只在受理点击时、且 ChatBox **预检通过之后**执行
+（预检失败等于这条回复没生效，只停表情会留下"半生效"的状态）；② 只在被对话的实体确实是
+`NpcEntity` 时才有东西可停（对话表按实体类型挂，可以是任意实体类型）。
 
 **阶段闸门（2026-09-30 增补）**：每条回复还可声明 `start_advancement` / `end_advancement`
 （都是**原版进度**的 id），据此决定这条回复是否显示：

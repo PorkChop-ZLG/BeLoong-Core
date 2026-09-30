@@ -408,3 +408,20 @@ LoopType HOLD_ON_LAST_FRAME = register("hold_on_last_frame", (animatable, contro
 ## 八、下一步
 
 调用 `planning` 技能，把本设计拆成可执行的任务清单（含静态探针的**具体命令**与实机验收清单）。
+
+---
+
+## 增补（2026-10-01）：对话回复也可以停表情（`stop_emote`）
+
+表情此前只有两条"被清除"的路径：**移动**（`NpcEntity#moveTo` 先 `clearEmote()`）与
+**命令**（`/beloong npc … play stop`）。这一条补上第三种：**对话的回复选项**。
+
+- 数据：`data/<ns>/beloong/npc_dialogue/*.json` 的 `replies[]` 新增可选布尔字段 `stop_emote`，
+  **缺省 `false` = 不清**（与 `arrival_radius` 同款的"带默认值的 optionalFieldOf"）。
+- 语义：玩家**点击**该回复时停掉被对话 NPC 当前的表情。用在"NPC 正坐着/摆着姿势，玩家一开口就该收起来"。
+- 实现：`NpcDialogueReplyPayload#handleServer` 在 **ChatBox 预检通过之后**、`ChatBoxBridge.open` 之前执行
+  `if (reply.stopEmote() && entity instanceof NpcEntity npc) npc.clearEmote();`
+  —— 放在预检之后是因为预检失败时这条回复等于没生效，此时只停表情会留下"半生效"状态；
+  加 `instanceof` 是因为对话表按实体类型挂，被对话的实体不一定是本模组的 NPC。
+- **不填就不清**：路线终点用 `end_emote` 播出来的坐姿（如末第二段走完播 `sit`）默认不会被玩家的
+  对话打断 —— 需要打断时就在那条回复上写 `"stop_emote": true`。

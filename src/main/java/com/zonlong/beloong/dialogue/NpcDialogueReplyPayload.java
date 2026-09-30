@@ -2,6 +2,7 @@ package com.zonlong.beloong.dialogue;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.compat.chatbox.ChatBoxBridge;
+import com.zonlong.beloong.entity.NpcEntity;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -59,9 +60,9 @@ public record NpcDialogueReplyPayload(int entityId, int replyIndex) implements C
     /**
      * 服务端处理器（默认在**服务端主线程**执行，与 {@link NpcDialogueOpenPayload#handleClient} 同款）。
      * <p>
-     * 顺序：找实体 → 查回本模组那张对话表 → 取回复（越界即丢）→ 预检 ChatBox → 交给
-     * {@link ChatBoxBridge}。全程不抛异常：载荷是客户端可控输入，能在服务端线程抛的东西
-     * 一个都不能留。
+     * 顺序：找实体 → 查回本模组那张对话表 → 取回复（越界即丢）→ 复检阶段闸门 → 预检 ChatBox →
+     * <b>按 {@code stop_emote} 决定是否停掉 NPC 的表情</b> → 交给 {@link ChatBoxBridge}。
+     * 全程不抛异常：载荷是客户端可控输入，能在服务端线程抛的东西一个都不能留。
      */
     public static void handleServer(NpcDialogueReplyPayload payload, IPayloadContext context) {
         if (!(context.player() instanceof ServerPlayer player)) {
@@ -96,6 +97,12 @@ public record NpcDialogueReplyPayload(int entityId, int replyIndex) implements C
 
         if (!ChatBoxBridge.canOpen(reply.chatbox(), reply.group(), page)) {
             return;
+        }
+        // stop_emote（可选，缺省 false）：点这条回复时停掉该 NPC 当前的表情动画。
+        // 放在 canOpen 之后：ChatBox 打不开时这条回复等于没生效，此时只把表情停掉会留下"半生效"的状态。
+        // 被对话的实体不一定是 NpcEntity（对话表按实体类型挂，可以是任意类型）—— 不是就没有表情可停。
+        if (reply.stopEmote() && entity instanceof NpcEntity npc) {
+            npc.clearEmote();
         }
         ChatBoxBridge.open(player, reply.chatbox(), reply.group(), page);
     }
