@@ -1,0 +1,33 @@
+{
+  "parent": "beloong:npc/root",
+  "criteria": {
+    "1_1": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "description": {
+      "translate": "beloong.advancement.npc/1_1.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "count": 1,
+      "id": "minecraft:ender_pearl"
+    },
+    "show_toast": false,
+    "title": {
+      "translate": "beloong.advancement.npc/1_1"
+    }
+  },
+  "requirements": [
+    [
+      "1_1"
+    ]
+  ],
+  "rewards": {
+    "experience": 0
+  },
+  "sends_telemetry_event": false
+}

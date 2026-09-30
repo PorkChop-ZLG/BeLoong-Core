@@ -1,0 +1,33 @@
+{
+  "criteria": {
+    "root": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "background": "dragonsurvival:textures/block/stone_dragon_door_top.png",
+    "description": {
+      "translate": "beloong.advancement.npc/root.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "count": 1,
+      "id": "beloong:beloong_logo"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "beloong.advancement.npc/root"
+    }
+  },
+  "requirements": [
+    [
+      "root"
+    ]
+  ],
+  "rewards": {
+    "experience": 0
+  },
+  "sends_telemetry_event": false
+}
