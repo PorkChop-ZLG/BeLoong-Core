@@ -41,19 +41,22 @@ CgContext ─► CgAnimation ─► MoEntrance ─► CgRegistry ─► CgComman
 | 批次 | 任务 | 状态 | 提交 |
 |---|---|---|---|
 | ① | T1–T7 | ✅ **已完成** | `8292a77` |
-| ② | T8–T10 | ⏳ 待执行 | — |
-| ③ | T11 | ⏳ 待执行 | — |
+| ② | T8–T10 | ✅ **已完成**（含 v2 / v3 两轮规格修订） | `e50adb0`、`6b133d4` |
+| ③ | T11 | 🔄 收尾中（文档 §八 + memory 回填 + 收尾审查） | 本次提交 |
 
 **批次 ① 的验证证据**
 - `.\gradlew.bat build` exit 0（全程零新增编译警告；既有的 3 条是 Mixin 注解处理器的 obfuscation mapping 警告）。
 - jar 内 `META-INF/neoforge.mods.toml` 含 `modId="fdlib"` + `type="required"`。
 - `cg_lang_keys.py` PASS：两语言各 250 键、集合完全一致、4 条新键非空；语言文件 diff **仅 +4 行**（未重排）。
 
-**独立代码审查**（独立上下文，只审 `src/`）：**0 Critical / 3 Important / 5 Minor，全部已修**。
+**批次 ① 的独立代码审查**（独立上下文，只审 `src/`）：**0 Critical / 3 Important / 5 Minor，全部已修**。
 三条 Important 全在项目头号缺陷面"注释与事实脱节"上，其中 I-1 有**真实功能后果**
 （`Entity#getForward()` 含俯仰 ⇒ 末飞行过后可能被误判"朝向退化"而拒播 CG）。详见 `8292a77` 的提交信息。
 
-**尚未做**：实机验收（T9）—— 需用户执行；T10 依赖其实机反馈。
+**批次 ② 的实机验收（T9）**：✅ **用户已确认"效果符合要求"**（2026-09-30，v3 数值）。
+T10 的"按反馈调常量"因此**未触发**（无需调参即通过）。
+
+**收尾审查**（批次 ③，覆盖三个提交）：见 `docs/reviews/2026-09-30-cg-system-code-review.md`。
 
 ---
 
@@ -323,7 +326,7 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 
 ---
 
-## T9：实机验收（用户执行）—— **v2 清单**
+## T9：实机验收（用户执行）—— **v3 清单**
 
 **Steps:** 启动游戏，按下列清单逐项确认。**任一项不符 ⇒ 记录现象与 # 号，进 T10。**
 
@@ -357,6 +360,7 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 症状 | 调哪个常量 | 方向 |
 |---|---|---|
 | 某一段整体偏高 | 该段的 `PITCH_*_DEG` | 调**小** |
+| ⚠️ **只有"开场头几帧"偏高** | **先别调 `PITCH_START_DEG`** | 那是 fdlib 相机实体的眼高（`0.2×0.85`）+ 原版 `Camera` 平滑眼高的**过渡**，不是轨迹错。见 `VIEW_EYE_HEIGHT` 的注释 |
 | 某一段整体偏低 | 该段的 `PITCH_*_DEG` | 调**大** |
 | 某段过渡太急 | 该段缓动 | `easeInOut` → `easeIn`；或 `easeOut` → `linear` |
 | 某段过渡太缓 | 该段缓动 | `easeInOut` → `easeOut`（前段更急）/ 或缩短该段 tick |
@@ -410,7 +414,7 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 语言键两语言写岔 | 界面显示原始键名 | T7 脚本对账 + 断言两集合一致 |
 | ~~61 个关键点的包过大~~ → **v2：121 个** | 网络抖动 | 实测约 **10 KB**，每条 CG 只发一次（客户端自定义载荷上限 1 MiB）。异常时把 `SAMPLE_STEP` 改 2（点数减半，两条快速运动会有可见折线） |
 | 重复触发 / 中途打断 | 镜头状态混乱 | 设计 §5 已定：重复 = 干净重播；打断用 `/fdlib fix cutscene` |
-| 玩家自己的身体出现在画面里 | 观感失败 | **v2 已处理**：给了观察者 5 秒隐身（D8）。残留风险两条：① 开头 1~3 帧仍可见（渲染开关走另一个包，见 `CgAnimation.play` 第 ⑤ 步）；② **隐身不含盔甲/手持物层** ⇒ 验收要脱甲 |
+| 玩家自己的身体出现在画面里 | 观感失败 | **v2/v3 已处理**：给了观察者 **130 tick（6.5 秒）** 隐身（D8）。残留风险两条：① 开头 1~3 帧仍可见（渲染开关走另一个包，见 `CgAnimation.play` 第 ⑤ 步）；② **隐身不含盔甲/手持物层** ⇒ 验收要脱甲 |
 
 **回退**：CG 全部是**新增**文件（`cg/` 包 4 个 + `CgCommand` 1 个 + 脚本 1 个），删掉即回到现状；
 唯一非新增改动是 4 处极小改动（`build.gradle` 一行、`mods.toml` 一块、`BeLoongCore` 一行、两份语言 JSON 各 4 键）。

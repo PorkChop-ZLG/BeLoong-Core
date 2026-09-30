@@ -36,12 +36,19 @@ import software.bernie.geckolib.model.GeoModel;
  *   <li>{@code textures/entity/mo.png} —— 512×512 贴图，来自 {@code 末2/} 并经用户精简；
  *       2026-09-27 补嘴时只改了 1 个像素（{@code (511,511)}：透明 → 粉色），
  *       已逐像素校验"除该像素外与前一版完全相同"，PNG 头属性也未变。</li>
- *   <li>{@code animations/mo.animation.json}（5 条）+ {@code animations/mo.extra.animation.json}（3 条） —— <b>2026-09-29 由一份拆成两份，并按"分档容差"抽稀（4.38 MiB → 2.86 MiB）</b>，取自 {@code 末/}
- *       并经多轮修整（29 → 11 → 9 条）。代码目前播其中 6 条：{@code idle} / {@code walk} /
- *       {@code run}（主状态机）、{@code fly}（飞行态）、{@code sit}（坐下态）、
- *       {@code dance}（跳舞态，即 20.5 秒循环的星辉闪耀）；
- *       其余 3 条（{@code descend}、{@code attack}、{@code idle_old}）已备好、暂无代码引用。
- *       这些键名都可被 {@code NpcEntity} 的可覆写方法改写。</li>
+ *   <li>{@code animations/mo.animation.json}（<b>5</b> 条：{@code idle} / {@code walk} / {@code run} /
+ *       {@code fly} / {@code attack}）+ {@code animations/mo.extra.animation.json}（<b>3</b> 条：
+ *       {@code sit} / {@code dance} / {@code descend}）—— <b>2026-09-29 由一份拆成两份，并按"分档容差"抽稀
+ *       （4.38 MiB → 2.86 MiB）</b>，取自 {@code 末/} 并经多轮修整。
+ *       <br><b>Java 侧的名字字面量引用（截至 2026-09-30）</b>：{@code idle} / {@code walk} / {@code run} /
+ *       {@code fly} / {@code attack} 走 {@code NpcEntity} 那组<b>可覆写</b>的 {@code *AnimationName()} 方法；
+ *       {@code descend} 由 <b>CG 系统</b>播（{@code cg/instances/MoEntrance}，2026-09-30 接入）。
+ *       剩下的 {@code sit} / {@code dance} <b>在 Java 侧已无引用</b> —— 它们原本的覆写随"姿态迁入表情系统"
+ *       于 2026-09-29 被删（见 {@code DihuangLoongEntity} 里的留痕），现在只能由用户经
+ *       {@code /beloong npc <target> play <name>} 手动点名播放（该子命令刻意不校验名字）。
+ *       <br>⚠️ <b>{@code idle_old} 在两份资产里都不存在</b>（曾经存在，已随修整删除）——
+ *       旧注释把它列为"已备好"是错的，不要再引用它。
+ *       <br>这些键名都可被 {@code NpcEntity} 的可覆写方法改写。</li>
  * </ul>
  * <p>
  * ⚠️ <b>本模型曾经还有一个独立的"翅膀常驻层"</b>（动画 {@code wings_idle} + {@code MoEntity}

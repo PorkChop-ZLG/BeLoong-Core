@@ -154,8 +154,10 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
      * {@code CutsceneExecutor.tick} 先用**自增前**的 {@code currentTime} 算位置、再自增
      * （{@code CutsceneExecutor.java:49-53}），而渲染取朝向用的是
      * **自增后**的 {@code currentTime + partialTick}（{@code CutsceneCameraHandler.java:144}）。
-     * 本 CG 第⑤段是 3 tick 内转 46° ⇒ 那一段里"位置"会晚于"朝向"约 15~30°。
-     * 若实机觉得推近或甩镜偏早，这就是原因；可在 {@code MoEntrance} 里把对应断点前移 1 tick 补偿。
+     * 即同一帧里"**位置是 t−1 的值、朝向是 t 的值**"。
+     * <br>本 CG 第⑤段是 6 tick 内转 46° + 推 5 格 ⇒ 该段误差上限约 <b>8°</b>（46/6）与 <b>0.83 格</b>（5/6）。
+     * 要补偿就对症下药，**二选一、不要同时做**：把<b>距离</b>的断点<b>前移</b> 1 tick（位置提前一步），
+     * 或把<b>仰角</b>的断点<b>后移</b> 1 tick（朝向滞后一步）。
      * ⇒ <b>所有缓动都必须烘进 {@code cameraAt} / {@code elevationAt} 的采样值里</b>，
      * 不能交给 fdlib 的 {@code EasingType}。
      * 这是"把一条手写曲线塞进一个只支持等距关键点的引擎"的通用解法。

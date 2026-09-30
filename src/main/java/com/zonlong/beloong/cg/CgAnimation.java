@@ -30,12 +30,15 @@ import net.minecraft.world.entity.Entity;
  *       归一化一个零向量会得到 NaN，再喂进 {@code CameraPos} 就是一个看不出原因的坏镜头。</li>
  *   <li><b>{@link #build} 抛异常</b> ⇒ 捕获后返回 0。照 {@code EmoteAnimationLookup} 捕 {@code Throwable}
  *       的先例：宁可退化成"这一条没播放"，也不让某条 CG 的 bug 崩掉命令分发。</li>
- *   <li><b>轨迹列表为空</b> ⇒ 返回 0，<b>并且不触发动画</b>。★ 这条不是防御性编程，是一个**已核实的崩溃面**：
- *       fdlib 客户端 {@code CutsceneCameraHandler.startCutscene} 里
+ *   <li><b>轨迹列表为空、或 {@code time <= 0}</b> ⇒ 返回 0，<b>并且不触发动画</b>。★ 这条不是防御性编程，
+ *       是一个**已核实的崩溃面**：fdlib 客户端 {@code CutsceneCameraHandler.startCutscene} 里
  *       {@code data.getCameraPositions().getFirst()} <b>没有任何判空</b>
  *       ⇒ 空列表会让**客户端在收包那一刻抛 {@code NoSuchElementException}**；
  *       而 {@code LinearCameraMotion}/{@code CatmullRomCameraMotion} 还会在**每 tick** 的
- *       {@code calculateCameraPosition} 里再抛一次。这条预检对应项目既有教训
+ *       {@code calculateCameraPosition} 里再抛一次。
+ *       后半句（{@code time <= 0}）守的是 fdlib 的进度计算 {@code currentTime / cutsceneTime}
+ *       —— 为 0 会算出 NaN 机位。本 CG 恒为 120，这道闸防的是**将来的 CG 类**。
+ *       这条预检对应项目既有教训
  *       "**对方零校验时，预检必须由我们做**"（{@code memory/learned-patterns.md}）。</li>
  *   <li><b>声明了动画但目标不是 {@link NpcEntity}</b> ⇒ 返回 0。表情系统只存在于 NPC 基类上；
  *       静默跳过会让作者以为"动画播了只是没看见"。
@@ -99,8 +102,8 @@ public abstract class CgAnimation {
      *       机位在 t=0 恰在玩家眼位上，而 {@code armorCutoutNoCull} 不做背面剔除
      *       ⇒ 穿甲时可能看到"贴脸的盔甲几何"。<b>实机验收请脱甲、清空双手。</b></li>
      *   <li>若玩家已有一个<b>等级更高</b>的隐身，我们的实例会被挂进 {@code hiddenEffect}
-     *       （{@code MobEffectInstance.update}）⇒ 那 100 tick 要等原效果结束后才生效，
-     *       "5 秒后自动结束"不再是字面事实。极端边界，知道即可。</li>
+     *       （{@code MobEffectInstance.update}）⇒ 那 130 tick 要等原效果结束后才生效，
+     *       "6.5 秒后自动结束"不再是字面事实。极端边界，知道即可。</li>
      *   <li>若玩家所在队伍开了 {@code seeFriendlyInvisibles}，自己与自己必然同队 ⇒
      *       {@code isInvisibleTo} 为 false ⇒ 身体会以约 15% 不透明度渲染出来。原版默认不开启。</li>
      * </ol>
@@ -124,11 +127,15 @@ public abstract class CgAnimation {
     }
 
     /**
-     * **唯一的副作用出口**。顺序：预检 → 触发动画 → 发过场包。
+     * **唯一的副作用出口**。顺序：预检 → 触发动画 → 上隐身 → 发过场包。
+     * <p>
+     * ⚠️ 这三步**不是原子的**：发包若抛异常，前两步已经生效（动画在播、人隐着），
+     * 只是相机没被接管。所以这里的 catch 只保证"不把异常抛给命令层"，不做回滚。
      *
      * @param viewer 唯一会看到这条 CG 的玩家（用户 2026-09-30 裁定：只发给执行者）
      * @param target 演出主体；正常路径上已由命令层保证是 {@link NpcEntity}
-     * @return 1 = 已下发；0 = 预检未过，**什么都没发生**（具体原因在日志里，英文）
+     * @return 1 = 已下发；0 = **没有下发成功** —— 要么预检未过（真的什么都没发生），
+     *         要么发包抛了异常（此时动画/隐身可能已经生效；两条都有英文 WARN）
      */
     public final int play(ServerPlayer viewer, Entity target) {
 
@@ -152,11 +159,14 @@ public abstract class CgAnimation {
             return 0;
         }
 
-        // ③ ★ 轨迹为空 ⇒ 客户端会 NoSuchElementException（见类注释第 3 条）
-        if (data == null || data.getCameraPositions().isEmpty()) {
+        // ③ ★ 轨迹不可用 ⇒ fdlib 客户端会炸（见类注释第 3 条）。
+        //    顺带守住 time <= 0：fdlib 的进度是 currentTime / cutsceneTime，
+        //    为 0 会算出 NaN 机位。本 CG 恒为 120，这道闸防的是**将来的 CG 类**。
+        if (data == null || data.getCameraPositions().isEmpty() || data.getCutsceneTime() <= 0) {
             BeLoongCore.LOGGER.warn(
-                    "[BeLoong] cg '{}' aborted: built an empty camera track, which fdlib's client cannot consume "
-                            + "(CutsceneCameraHandler does getCameraPositions().getFirst() without a check)",
+                    "[BeLoong] cg '{}' aborted: built an unusable CutsceneData (empty camera track, or time<=0 which "
+                            + "makes fdlib's progress NaN; CutsceneCameraHandler also does "
+                            + "getCameraPositions().getFirst() without a check)",
                     this.name());
             return 0;
         }
@@ -196,8 +206,9 @@ public abstract class CgAnimation {
                     this.viewerInvisibilityAmplifier(),
                     false,    // ambient
                     false,    // visible   —— 无粒子（用户明确要求）
-                    false));  // showIcon  —— 图标本来也不会显示：HUD 在过场期间被整层隐藏，
-                              //              而效果 5 秒就结束、CG 还有 1 秒 ⇒ 全程落在隐藏窗口内
+                    false));  // showIcon  —— 这一位是**有作用的**：效果比 CG 长 10 tick
+                              //              （6.5s > 6.0s）⇒ HUD 在 6.0 秒恢复后图标还会显约 0.5 秒，
+                              //              设 false 才不会看到那个"隐身"图标
             if (!applied) {
                 // NeoForge 的 MobEffectEvent.Added 可被取消、canMobEffectBeApplied 可返回 false
                 // ⇒ 效果没上、人也隐不了。这种"什么都没发生"必须有痕迹。
@@ -208,7 +219,17 @@ public abstract class CgAnimation {
             }
         }
 
-        FDLibCalls.startCutsceneForPlayer(viewer, data);
+        // ⑥ 下发。**纳入 try** —— 它是最后一个副作用，若抛异常而我们不接，
+        //    命令层会收到一个异常、而世界状态已经半变（见 play 的 javadoc）。
+        try {
+            FDLibCalls.startCutsceneForPlayer(viewer, data);
+        } catch (Throwable t) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] cg '{}' failed to send the cutscene to {} (the animation/effect, if any, is already "
+                            + "running and is NOT rolled back): {}",
+                    this.name(), viewer.getGameProfile().getName(), t.toString());
+            return 0;
+        }
 
         // 一条 INFO 记录本次编排的关键几何量：实机标定时若镜头方向不对，
         // 从这一行就能判断是 forward 取错了、还是仰角常量需要调（见计划 T10 的对照表）。
