@@ -1,4 +1,5 @@
 {
+  "_comment": "dialogBox.renderEvents 里的 @Options 是必需的：主题的 option 默认 hidden，而 ChatOption.click() 对 hidden 直接 return false —— 不 show 就既看不见也点不动。trigger end 是组件级事件，由 DialogBox.setAllOver 触发（每页文字播完各一次；没有选项的页 @Options 解析为空，无副作用）。",
   "dialogBox": {
     "texture": "chatbox:textures/chatbox/default_dialog_box.png",
     "alignX": "left",
@@ -9,7 +10,14 @@
     "nameX": 20,
     "nameY": 10,
     "textX": 20,
-    "textY": 15
+    "textY": 15,
+    "renderEvents": [
+      {
+        "trigger": "end",
+        "type": "show",
+        "value": "@Options"
+      }
+    ]
   },
   "option": {
     "texture": "chatbox:textures/options/default_no_checked_option.png",

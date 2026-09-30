@@ -1,7 +1,7 @@
 # 原版进度 NPC 阶段系统 设计文档
 
 **日期**：2026-09-29
-**状态**：**已实施**（代码 + 数据均已落地；**实机验收待用户执行**）
+**状态**：**已实施**（代码 + 数据均已落地；2026-09-30 按实机反馈把"发放"改挂到 ChatBox 的选项 `click` 上，见 §3.3 修复记录；**实机复验待用户执行**）
 **选定方案**：**方案 A** —— 服务端过滤可见回复（带数据下标）下发，点击时复检
 
 ---
@@ -89,7 +89,7 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 | C4 | `dialogue/NpcDialogueHandler` | 生产端改用 `NpcDialogueStage.visibleReplies(...)` |
 | C5 | `dialogue/NpcDialogueReplyPayload` | `handleServer` 复检：下标在范围内 + 该回复**当前仍可见** + ChatBox 目标可开 |
 | C6 | `client/NpcDialogueScreen` | 按可见列表渲染；点击**回传数据下标** |
-| C7 | 数据 ×4 | `advancement/npc/root.json`（触发器 → `impossible`，**其余 display 一字不动**）、`advancement/npc/1_1.json`（新）、`npc_dialogue/mo.json`（+2 字段）、`chatbox/dialogues/mo.json`（最后一页 + `renderEvents`） |
+| C7 | 数据 ×5 | `advancement/npc/root.json`（触发器 → `impossible`，**其余 display 一字不动**）、`advancement/npc/1_1.json`（新）、`npc_dialogue/mo.json`（+2 字段）、`chatbox/dialogues/mo.json`（最后一页 + **一个「好的」选项**）、`chatbox/theme/minimal.json`（**补 `@Options` 显示事件**） | 见 §3；发放改挂选项 `click` 的原因见 §3.3 的 📌 |
 | C8 | 语言键 ×2 语言 | `beloong.advancement.npc/root`、`.desc`（**本来就缺** ⇒ 顺带补）、`beloong.advancement.npc/1_1`、`.desc` ⇒ 241 → **245** |
 | C9 | 注释与文档 | `Reply` 记录注释、主设计文档 §5.2/§5.8、本设计文档、memory |
 
@@ -124,21 +124,29 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 
 （`show_toast:false` + `announce_to_chat:false` = 用户要求 8 的"没有进度通知"；`hidden:false` = "进度界面里能看到"）
 
-**ChatBox 最后一页的 `renderEvents`**（放在 `dialogues.start` 数组的**最后一个元素**内，与 `dialogBox` 同级）
+**ChatBox 最后一页的「好的」选项**（放在 `dialogues.start` 数组的**最后一个元素**内，与 `dialogBox` 同级）
 
 ```json
-"renderEvents": [
+"options": [
   {
-    "trigger": "end",
-    "type": "command",
-    "value": "advancement grant @s only beloong:npc/1_1"
+    "text": "beloong.chatbox.mo.option_ok",
+    "next": "-1",
+    "click": { "type": "command", "value": "advancement grant @s only beloong:npc/1_1" }
   }
 ]
 ```
 
-### 3.3 数据流（§3）
+并且**主题**里必须补上让选项显示的事件（否则按钮既看不见也点不动，原因见 §3.3 的 📌）：
 
+```json
+"dialogBox": {
+  "renderEvents": [ { "trigger": "end", "type": "show", "value": "@Options" } ]
+}
 ```
+
+⚠️ **两套系统的命名空间不混用**：这颗按钮属于 **ChatBox 侧**，它的键叫
+`beloong.chatbox.mo.option_ok`（`好的` / `OK`）—— **不**复用我们 NPC 对话系统的
+`beloong.dialogue.*`（那是「离开」「回复」那套的命名空间），也**不**出现在我们的界面上。
 [0] 玩家执行 /advancement grant @s only beloong:npc/root
 
 [1] 右键末 → 服务端 NpcDialogueHandler
@@ -153,18 +161,40 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 [4] 服务端复检：实体 → 对话表 → replies[0] → 仍然可见 ✓ → ChatBoxBridge.canOpen(beloong:mo, start, 0) ✓
       → serverSkipDialogues(...)  ⇒ ChatBox 界面打开
 
-[5] ChatBox：「这里是龙宫。」→ 点击 →「走，我带你去觐见龙王。」
-      → 第二页打字机播完 ⇒ ON_END ⇒ 服务端以玩家本人身份执行
-         advancement grant @s only beloong:npc/1_1
+      → 第二页打字机播完 ⇒ 主题的**组件级** ON_END ⇒ 弹出「好的」按钮
+      → 玩家点「好的」⇒ ① 选项的 next:"-1" 关闭对话
+                        ② 选项 click 的 command 在服务端以玩家本人身份执行
+                           advancement grant @s only beloong:npc/1_1
 
 [6] 玩家关掉，再右键末 ⇒ 服务端过滤：end=1_1 已完成 ⇒ 该回复不可见
       ⇒ 载荷 replies=[] ⇒ 界面只剩「离开」
 ```
 
-**两处取舍（用户已确认）**
-1. **`renderEvents` 不加 MVEL `condition`** —— `trigger:"end"` 每页只 fire 一次，而原版 `advancement grant`
-   对已完成进度本就是 no-op ⇒ 加它只增加一处 MVEL 出错面（MVEL 写坏会静默不执行）⇒ 最简优先。
-2. **`1_1` 的图标用 `minecraft:ender_pearl`**（末/龙宫主题）；`root` 保持它原有的 `beloong:beloong_logo`。
+**📌 修复记录（2026-09-30 实机发现，用户选定方案）**
+
+本节最初写的是"把命令放进**最后一页的页级 `renderEvents`**，`trigger:"end"`"。**实机没有发放** ✗
+读源码后确认是**挂错了层**：
+
+- 页级 `renderEvents` 被绑给 **`ChatBoxScreen`**（`ChatBoxUtil.java:184` → `ChatBoxScreen.java:190`），
+  而该屏幕只 fire `ON_START`（`:279`）、`ON_CLICK`（`:387`）、`TICK`（`:481`）、`CHECK`（`:484`）
+  —— **从不 fire `ON_END`**；
+- `ON_END` 只由**组件**触发：`DialogBox.setAllOver` → `fireEvent("ON_END")`（`DialogBox.java:82-83`），
+  而组件的 `fireEvent` 只查**该组件自己**的事件表（`AbstractComponent.java:98-102`）。
+
+⇒ 页级那条命令**一次都没执行过**，且 Gson 不报错、ChatBox 也不打日志 —— 症状正是"悄悄什么都没发生"。
+（同一个 `trigger:"end"` 挂在**主题的 `dialogBox` 组件**上就有效；ChatBox 自带主题的
+`end → show @Options` 正是这么用的。）
+
+**改为**：命令挂到**最后一页的一个选项**的 `click` 上（文本「好的」/ OK），
+并给主题的 `dialogBox` 补 `@Options` 显示事件 —— 选项默认 `hidden`，而 `ChatOption.click()`
+对 hidden 直接 `return false`（`ChatOption.java:101`）⇒ 不 `show` 就既看不见也点不动。
+选项的 `next:"-1"` 负责关闭（`ComponentEvent.java:93-95` → `ChatBoxUtil.java:202` 的 `else closeDialogBox()`）；
+`fireAll` 遍历全部匹配事件、不提前退出（`CompEvtWrapper.java:60-65`）⇒ 关闭与发放**都会执行**。
+⇒ 发放时刻从"文字播完"变成"**文字播完且玩家点了「好的」**"，这其实更贴近要求 3 的"结束对话后"。
+
+**另一处取舍**：`1_1` 的图标用 `minecraft:ender_pearl`（末/龙宫主题）；
+`root` 保持它原有的 `beloong:beloong_logo`。
+
 
 ---
 
@@ -178,7 +208,8 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 | 点击时实体/对话表/下标失效 | 静默丢弃 | 既有行为不变 |
 | ChatBox 目标不存在 | 既有 `ChatBoxBridge.canOpen`：WARN 每目标一次 + 什么都不发生 | 上一轮既有 |
 | 回复可见但 ChatBox 那段对话缺失 | 选项照常显示，点击后无事 + 一条 ChatBox WARN | 闸门只管阶段，不管资产是否存在（单一职责） |
-| 玩家看到一半就 ESC | **不发** `1_1` ⇒ 回复选项仍在 ⇒ **可重试** | 用户确认的语义；可重试是好事 |
+| 玩家在 ChatBox 里看到一半就 ESC | **不发** `1_1`（没点「好的」） | 语义正确，而且**可以重试**：`1_1` 未完成 ⇒ 回复选项仍可见 ✓ |
+| 最后一页**文字还没播完**就点「好的」 | 无反应 | 选项可点要求本页文字已播完（`ChatBoxScreen.java:379` 的 `dialogBox.isAllOver`）✓ |
 | 玩家用 `/chatbox skip` 直接播那段对话 | 照常发放 `1_1` | 不是漏洞：`impossible` 本就只有服务端能发；且它是数据作者的调试工具 |
 | 进度 `display.hidden = true` | 与普通进度同样判定 | 只看 `isDone()`，不看 `display` |
 | `advancement/` 下与本系统无关的文件 | 无影响 | 只按数据里写的 id 查 |
@@ -206,11 +237,12 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 | 1 | `/advancement grant @s only beloong:npc/root` | 进度界面出现 `root`（其 `show_toast` 仍为 true ⇒ 有提示；用户未要求改，故未动） |
 | 2 | 右键末 → 点击台词 | 两颗按钮：上「这里是什么地方？」下「离开」 |
 | 3 | 点「这里是什么地方？」 | 我方界面关闭 → ChatBox「这里是龙宫。」→ 点击 →「走，我带你去觐见龙王。」 |
-| 4 | 看完第二页（文字播完） | 进度界面出现 `1_1`，**无进度通知** |
+| 4 | 第二页文字播完 | 弹出**「好的」按钮**（文字没播完时点它无反应） |
+| 4b | 点「好的」 | ChatBox 关闭 ⇒ 进度界面出现 `1_1`，**无进度通知** |
 | 5 | 关掉后再右键末 | **只剩「离开」** |
 | 6 | 反例 A：先 revoke `root`（`1_1` 仍在）再右键 | 仍只剩「离开」⇒ 证明**结束优先于开始** |
 | 7 | 反例 B：新存档、不给 `root`，直接右键 | 只剩「离开」 |
-| 8 | 反例 C：第二页看到一半 ESC | 不发 `1_1`；再右键回复选项仍在（可重试） |
+| 8 | 反例 C：第二页看到一半 ESC（**没点「好的」**） | 不发 `1_1`；再右键回复选项仍在（可重试） |
 | 9 | 右键铁傀儡（无 `replies` 的旧数据） | 行为与从前完全一致 |
 | 10 | 故意把 `end_advancement` 改成不存在的 id 再右键 | 该回复不显示 + 日志**一条**英文 WARN（只报一次） |
 

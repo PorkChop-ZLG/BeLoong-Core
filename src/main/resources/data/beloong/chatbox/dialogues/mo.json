@@ -15,11 +15,14 @@
           "name": "beloong.chatbox.mo.name",
           "text": "beloong.chatbox.mo.p2"
         },
-        "renderEvents": [
+        "options": [
           {
-            "trigger": "end",
-            "type": "command",
-            "value": "advancement grant @s only beloong:npc/1_1"
+            "text": "beloong.chatbox.mo.option_ok",
+            "next": "-1",
+            "click": {
+              "type": "command",
+              "value": "advancement grant @s only beloong:npc/1_1"
+            }
           }
         ]
       }

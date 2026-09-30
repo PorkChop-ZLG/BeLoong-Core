@@ -161,6 +161,7 @@
   "beloong.advancement.npc/root": "First Meeting with Mo",
   "beloong.advancement.npc/root.desc": "Speak with Mo in the Dragon Palace",
   "beloong.chatbox.mo.name": "§dMo",
+  "beloong.chatbox.mo.option_ok": "OK",
   "beloong.chatbox.mo.p1": "This is the Dragon Palace.",
   "beloong.chatbox.mo.p2": "Come, I will take you to see the Dragon King.",
   "beloong.dialogue.option.leave": "Leave",
