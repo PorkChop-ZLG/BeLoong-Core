@@ -271,19 +271,36 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 | 3 | 玩家上前右键末 ⇒ 我们的对话 ⇒ 点「这里是什么地方？」⇒ ChatBox 那段对话 | 既有对话系统 + ChatBox 桥 |
 | 4 | ChatBox 最后一页点「好的」⇒ `1_1` + `beloong route beloong:mo_route_1` | ChatBox 选项的 `click`（两条命令，都带 `execute` 前缀） |
 | 5 | 末沿 `mo_route_1` 走到终点 `-2,78,-55` ⇒ 停下 | 本系统的 Goal + 移动层 |
-| 6 | 玩家在世界里右键激活传送石碑 `waystones:prismarine_waystone` ⇒ 自动获得 `2_0`（「传送石碑」） | **原版** `minecraft:item_used_on_block` + `location_check` 方块谓词（`advancement/npc/2_0.json`）|
+| 6 | 玩家在世界里右键激活传送石碑 `waystones:prismarine_waystone` ⇒ 自动获得 `2_0`（「传送石碑」） | **原版** `minecraft:default_block_use` + `location_check` 方块谓词（`advancement/npc/2_0.json`）|
 | 7 | 再次右键末 ⇒ 我们的对话出现第二条回复「这块石碑是做什么的？」⇒ ChatBox 第二段（组 `waystone`，6 页） | 既有对话系统 + ChatBox 桥 |
 | 8 | 对话中两个分支（「龙王是龙族的统治者吗？」/「龙王是谁？」）**收敛到同一页**；末讲述龙王与她母亲的往事 | 纯数据（ChatBox 的 `next` 用**同组页码**）|
 | 9 | 最后点「好的」⇒ `2_1` + `beloong route beloong:mo_route_2` ⇒ 末沿第二条路线走到 `0,78,-108` | ChatBox 选项 click + 本系统 |
 
-**`2_0` 的触发为什么能用原版触发器**（读字节码坐实）：`ServerPlayerGameMode.useItemOn` 里
-`CriteriaTriggers.ITEM_USED_ON_BLOCK` 被触发了**两次** —— 一次在 `BlockState.useItemOn` 之后、
-一次在 **`BlockState.useWithoutItem`** 之后，两处都以 `consumesAction()` 为条件。
-而 Waystones 的激活正好在 `useWithoutItem` 路径（`WaystoneBlockBase.java:265-277`）且返回
-`InteractionResult.SUCCESS`（`WaystoneBlock.java:122`）⇒ 触发器会命中，且**恰好是"激活成功"那一刻**。
-JSON 形状逐字照抄同工作区的参考样本（DragonSurvival 的 `dark/open_vault.json`）：
-`"conditions": {"location": [{"condition": "minecraft:location_check",
+**`2_0` 的触发为什么能用原版触发器**（读字节码坐实，2026-10-01 **修正过一版**）：
+
+`ServerPlayerGameMode.useItemOn` **按方法切分**后是这样（⚠️ 必须按方法看 —— 整类 grep 会把别的方法里的
+同类调用也算进来，我第一版就是这么错的）：
+
+```
+265  BlockState.useItemOn(...)        → 272 consumesAction() → 278 ITEM_USED_ON_BLOCK.trigger(...)   ← 有物品且被消费
+297  PASS_TO_DEFAULT_BLOCK_INTERACTION
+317  BlockState.useWithoutItem(...)   → 324 consumesAction() → 336 **DEFAULT_BLOCK_USE**.trigger(...)  ← 空手路径走这条
+405/422 ItemStack.useOn(...)          → 429 consumesAction() → 435 ITEM_USED_ON_BLOCK.trigger(...)   ← 物品的 useOn
+```
+
+⇒ 空手右键石碑（Waystones 的激活在 `useWithoutItem` 里，`WaystoneBlockBase.java:265-277`，
+返回 `InteractionResult.SUCCESS`）走的是 **`minecraft:default_block_use`**
+（`CriteriaTriggers.DEFAULT_BLOCK_USE` : `DefaultBlockInteractionTrigger`，注册串就是 `default_block_use`），
+**不是** `minecraft:item_used_on_block` ✗ —— 后者属于"**物品**作用于方块"那条（DragonSurvival 的
+`open_vault.json` 之所以能用它，是因为那边**手持钥匙**）。
+⇒ 第一版写错后实机"右键石碑毫无反应"，据此改正。
+
+**JSON 形状**两个触发器相同（都是 `player` + `location`，类型 `ContextAwarePredicate`），
+照抄参考样本：`"conditions": {"location": [{"condition": "minecraft:location_check",
 "predicate": {"block": {"blocks": "waystones:prismarine_waystone"}}}]}`。
+
+**并额外加一条 OR 兜底判据**：`requirements` 写成 `[["default_block_use"], ["any_block_use"]]`
+（每组一条 ⇒ **满足任一即发放**），防整合包里的 Waystones 版本与本地参考源码不同、走了另一条分支。
 
 ⚠️ 一处**刻意的近似**：`item_used_on_block` 在"石碑**已经激活**后再右键"时同样会触发（那条分支也返回 SUCCESS）
 ⇒ 它不区分"首次激活"与"重复右键"。对进度无影响（一次性 ✓ 首次右键即发放 ✓）。

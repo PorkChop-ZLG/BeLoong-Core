@@ -1,8 +1,23 @@
 {
   "parent": "beloong:npc/1_1",
   "criteria": {
-    "activate_waystone": {
-      "trigger": "minecraft:item_used_on_block",
+    "default_block_use": {
+      "trigger": "minecraft:default_block_use",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:location_check",
+            "predicate": {
+              "block": {
+                "blocks": "waystones:prismarine_waystone"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "any_block_use": {
+      "trigger": "minecraft:any_block_use",
       "conditions": {
         "location": [
           {
@@ -35,7 +50,10 @@
   },
   "requirements": [
     [
-      "activate_waystone"
+      "default_block_use"
+    ],
+    [
+      "any_block_use"
     ]
   ],
   "rewards": {
