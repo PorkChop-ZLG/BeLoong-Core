@@ -272,7 +272,7 @@ public class NpcDialogueScreen extends Screen {
             addRenderableWidget(new NpcDialogueOptionButton(
                     x, y, width, OPTION_HEIGHT,
                     Component.translatable(reply.text()),
-                    () -> this.onReply(reply.index())));
+                    () -> this.onReply(reply.dataIndex())));
         }
     }
 
@@ -325,7 +325,7 @@ public class NpcDialogueScreen extends Screen {
      * 绘制顺序：底部渐变 → 名字 → 装饰线 → 正文 → 箭头 → **子控件（选项）最后**。
      * <p>
      * 选项必须最后画：它与底部渐变在纵向上有重叠（最下一颗按钮底边 0.787 屏高，
-     * 渐变从 0.72 屏高开始），若先画按钮就会被渐变压暗。
+     * 渐变从 0.62 屏高开始 —— 即 {@link #GRADIENT_START}），若先画按钮就会被渐变压暗。
      */
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {

@@ -56,14 +56,16 @@ public record NpcDialogueOpenPayload(
      * 一个可见的回复选项。
      *
      * @param text  标签的翻译键
-     * @param index 它在数据 {@code NpcDialogueEntry#replies()} 里的**原始下标** ——
-     *              服务端受理点击时按这个下标回到原表复检（用"可见列表下标"会在状态变化后点错回复）
+     * @param dataIndex 它在数据 {@code NpcDialogueEntry#replies()} 里的**原始下标** ——
+     *                  服务端受理点击时按这个下标回到原表复检（用"可见列表下标"会在状态变化后点错回复）。
+     *                  <b>刻意叫 {@code dataIndex} 而不是 {@code index}</b>：{@code Reply.index} 是
+     *                  **ChatBox 的页序号**，两者同名会让人以为是同一个东西。
      */
-    public record VisibleReply(String text, int index) {
+    public record VisibleReply(String text, int dataIndex) {
         /** 字符串 + 整数，无查表无分支 ⇒ 全函数。 */
         public static final StreamCodec<ByteBuf, VisibleReply> STREAM_CODEC = StreamCodec.composite(
                 ByteBufCodecs.STRING_UTF8, VisibleReply::text,
-                ByteBufCodecs.VAR_INT, VisibleReply::index,
+                ByteBufCodecs.VAR_INT, VisibleReply::dataIndex,
                 VisibleReply::new);
     }
 

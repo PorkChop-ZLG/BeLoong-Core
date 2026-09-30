@@ -118,7 +118,8 @@ public record NpcDialogueEntry(
      * <p>
      * <b>这是本模组对话系统与 ChatBox 的唯一数据耦合点。</b>{@code chatbox} + {@code group} + {@code index}
      * 指向 {@code data/<ns>/chatbox/dialogues/} 里的一段对话；能否真的打开由服务端在点击时预检
-     * （ChatBox 自己对未知 RL/组/页号是**零校验零日志**的）。设计见
+     * （ChatBox 那侧几乎没有服务端失败信号：服务端 util 无校验无日志 {@code ChatBoxCommandUtil.java:65-69}，
+     * 客户端只在"组缺失或为空"时打一条 WARN {@code ChatBoxUtil.java:143-154}）。设计见
      * {@code docs/plans/2026-09-29-npc-dialogue-chatbox-bridge-design.md}。
      * <p>
      * <b>为什么 {@code index} 是 {@link Optional} 而不是 {@code int} 缺省 0</b>：ChatBox 那侧的页序号
@@ -137,7 +138,9 @@ public record NpcDialogueEntry(
      *   <li>{@code end_advancement} —— 玩家一旦完成它，这条回复**永久不再显示**（结束优先于开始）。</li>
      * </ul>
      * 完整规则、以及"未知进度 id 一律视为不可见"（fail-closed）的取舍见 {@link NpcDialogueStage}。
-     * <b>本模组只读不写进度</b>：结束进度由 ChatBox 在对话最后一页文字播完时发放。
+     * <b>本模组不发放、也不撤销进度</b>（只查询完成状态）：结束进度由 ChatBox 那段对话**最后一页的
+     * 「好的」选项在点击时**发放 —— 见 {@code data/beloong/chatbox/dialogues/mo.json} 的
+     * {@code options[0].click}（**不是**"文字播完时"：页级 {@code renderEvents} 收不到 {@code ON_END}）。
      *
      * @param text             标签的翻译键
      * @param chatbox          ChatBox 对话文件的 ResourceLocation（如 {@code beloong:mo}）

@@ -44,9 +44,12 @@ public final class ChatBoxBridge {
     /**
      * 已经报过"目标不存在"的 {@code rl#group#index} 集合。
      * <p>
-     * ChatBox 对未知 RL / 未知组 / 越界页号是**零校验、零日志**的（{@code ChatBoxCommandUtil.java:65-69}）
-     * —— 不预检就是"玩家点了回复毫无反应、日志里也查不出原因"。但玩家可能连点，
-     * 所以这里**每个目标只报一次**（与 {@code EmoteAnimationLookup} 的"每个动画名只报一次"同一先例）。
+     * ChatBox 那侧几乎没有**服务端**失败信号：服务端 util 完全无校验、无日志
+     * （{@code ChatBoxCommandUtil.java:65-69}）；只有**客户端**会打一条 —— 且只在"组缺失或为空"时
+     * （{@code ChatBoxUtil} 的 {@code group "{}" not found or is empty!}，{@code ChatBoxUtil.java:143-154}）。
+     * ⇒ 不预检就是"玩家点了回复毫无反应、日志里也查不出原因"。但玩家可能连点，
+     * 所以这里**每个目标只报一次**（"只报一次"的做法同 {@code EmoteAnimationLookup}；
+     * 那边用 {@code ConcurrentHashMap.newKeySet()}，这里用普通 {@code HashSet} —— 本类只在服务端主线程被调用）。
      */
     private static final Set<String> WARNED = new HashSet<>();
 
