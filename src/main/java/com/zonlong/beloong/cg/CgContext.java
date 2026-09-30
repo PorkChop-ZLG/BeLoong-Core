@@ -30,7 +30,7 @@ import java.util.function.DoubleUnaryOperator;
  * </ul>
  *
  * <h2>机位方向由"观察者在哪一侧"决定，距离由 N 决定（v4）</h2>
- * {@code 相机 = 目标.pos + (目标.pos − 观察者.pos).normalize() × N}。
+ * {@code 相机 = 目标.pos + (观察者.pos − 目标.pos).normalize() × N}。
  * 于是同一条 CG 在任何地方触发都得到**同一个构图**（距离恒为 N、回看目标），
  * 且**与目标朝哪无关** —— 目标的朝向不再是输入，"玩家站在目标的哪一侧"才是。
  * <p>
@@ -85,7 +85,21 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 an
     private static final double DIRECTION_EPSILON = 1.0E-6D;
 
     /**
-     * 构造上下文。{@code anchorToViewer} = "锚点 → 观察者"的**水平单位向量**。
+     * 构造上下文。{@code anchorToViewer} = "**锚点 → 观察者**"的水平单位向量，
+     * 即 {@code (观察者.pos − 锚点)} 取 XZ 后归一化。
+     *
+     * <h2>⚠️ 符号别写反（2026-09-30 真的写反过一次）</h2>
+     * 这里是 {@code viewer.position().subtract(anchor)}，<b>不是</b> {@code anchor.subtract(viewer.position())}。
+     * 写反的后果是相机落到**目标的远侧（背后）**，而且它<b>能通过编译、通过构建、通过所有静态门槛</b> ——
+     * 只有实机才看得出来。用一组具体数字自查：
+     * <pre>
+     *   末（锚点） = (0, 0, 0)
+     *   观察者     = (0, 0, 8)            // 站在末的 +Z 侧 8 格
+     *   ⇒ anchorToViewer = normalize((0,0,8) − (0,0,0)) = (0, 0, 1)   // 指向观察者 ✓
+     *   ⇒ towardViewer(8) = (0,0,0) + (0,0,1) × 8 = (0, 0, 8)         // 正是观察者所在处 ✓
+     *   ✗ 若写成 anchor − viewer：(0,0,-1) ⇒ towardViewer(8) = (0,0,-8) // 跑到末的背后 ✗
+     * </pre>
+     * 这条不变量由 {@code cg_invariants.py} 的 **A9** 用文本顺序守着（符号错误对其它门槛是隐形的）。
      *
      * @return 上下文；**观察者与锚点水平重合（含 NaN）时返回 {@code null}**
      *         —— 调用方必须 fail-closed，不要播放
@@ -93,7 +107,8 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 an
     @Nullable
     public static CgContext of(ServerPlayer viewer, Entity target) {
         Vec3 anchor = target.position();
-        Vec3 horizontal = anchor.subtract(viewer.position()).multiply(1.0D, 0.0D, 1.0D);
+        // ⚠️ 顺序即符号：必须是"观察者 − 锚点"（指向观察者）。改这一行前先读上面的 javadoc。
+        Vec3 horizontal = viewer.position().subtract(anchor).multiply(1.0D, 0.0D, 1.0D);
         if (!(horizontal.lengthSqr() > DIRECTION_EPSILON)) {
             return null;
         }
@@ -102,6 +117,10 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 an
 
     /**
      * 从锚点**朝观察者那一侧**水平 {@code blocks} 格（Y 不变）。
+     * <p>
+     * 也就是"目标与观察者连线上、目标往观察者方向走 {@code blocks} 格"那一点：
+     * 观察者正好站在 8 格处时它返回的就是观察者所在处；更远时落在两者之间，更近时越过观察者。
+     * <b>总之一定在观察者这一侧，绝不会跑到目标背后</b>（符号自查见 {@link #of}）。
      * <p>
      * 这是 FDBosses 里 {@code bossPos.add(forward.multiply(40,40,40))} 那类写法的具名化版本，
      * 只是方向基准换成了"锚点 → 观察者"（为什么换，见 {@link #DIRECTION_EPSILON} 的说明）。
