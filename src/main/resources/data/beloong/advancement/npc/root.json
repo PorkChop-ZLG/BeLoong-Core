@@ -12,16 +12,16 @@
                 "dimension": "beloong:loong_palace",
                 "position": {
                   "x": {
-                    "min": -7,
-                    "max": 7
+                    "min": -8,
+                    "max": 8
                   },
                   "y": {
-                    "min": 57,
-                    "max": 71
+                    "min": 56,
+                    "max": 72
                   },
                   "z": {
-                    "min": -15,
-                    "max": -1
+                    "min": -16,
+                    "max": 0
                   }
                 }
               }
