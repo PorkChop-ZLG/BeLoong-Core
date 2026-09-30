@@ -1,6 +1,7 @@
 package com.zonlong.beloong;
 
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
@@ -224,6 +225,7 @@ public class BeLoongCore {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         NpcCommand.register(event.getDispatcher());
         CgCommand.register(event.getDispatcher());
+        RouteCommand.register(event.getDispatcher());   // 按玩家定位的路线指派（ChatBox 选项调用）
     }
 
     /** 服务端启动时触发。 */

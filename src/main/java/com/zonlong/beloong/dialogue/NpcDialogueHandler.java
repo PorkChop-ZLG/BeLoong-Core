@@ -68,6 +68,9 @@ public class NpcDialogueHandler {
             return;
         }
 
+        // 记下"该玩家最近对话过的 NPC" —— ChatBox 的选项 click 只能以玩家身份执行命令，
+        // 命令里选不出"正在对话的那个 NPC"，所以由这里记、由 /beloong route <名> 用（设计 D2）。
+        LastDialogueNpc.remember(serverPlayer, target);
         PacketDistributor.sendToPlayer(serverPlayer, new NpcDialogueOpenPayload(
                 entry.name(),
                 target.getType().getDescriptionId(),

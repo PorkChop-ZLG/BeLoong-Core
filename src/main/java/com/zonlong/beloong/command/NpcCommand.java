@@ -3,6 +3,10 @@ package com.zonlong.beloong.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.route.NpcRoute;
+import com.zonlong.beloong.route.NpcRouteLoader;
+import net.minecraft.resources.ResourceLocation;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.entity.NpcState;
 import net.minecraft.commands.CommandSourceStack;
@@ -87,6 +91,16 @@ public final class NpcCommand {
     private static final SuggestionProvider<CommandSourceStack> STATE_SUGGESTIONS =
             (ctx, builder) -> SharedSuggestionProvider.suggest(NpcState.NAMES, builder);
 
+    /**
+     * {@code route} 参数的补全：列出已加载的全部路线名。
+     * <p>
+     * 与 {@code state} 同一取舍：用 {@code word()} + 补全，而不是一条路线一个 literal
+     * （路线是**数据**，随时可能增删 —— 照 {@code CgCommand} 的形态）。
+     */
+    private static final SuggestionProvider<CommandSourceStack> ROUTE_SUGGESTIONS =
+            (ctx, builder) -> SharedSuggestionProvider.suggest(
+                    NpcRouteLoader.INSTANCE.nameStrings(), builder);
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("beloong")
                 .requires(source -> source.hasPermission(2))
@@ -139,6 +153,17 @@ public final class NpcCommand {
                                                 .executes(ctx -> stopEmote(
                                                         EntityArgument.getEntities(ctx, "targets"),
                                                         ctx.getSource()))))
+                                .then(Commands.literal("route")
+                                        // 带参数 = 指派；不带 = 回报每只 NPC 当前的路线（验收与排查靠它）。
+                                        .then(Commands.argument("route", StringArgumentType.word())
+                                                .suggests(ROUTE_SUGGESTIONS)
+                                                .executes(ctx -> setRoute(
+                                                        EntityArgument.getEntities(ctx, "targets"),
+                                                        StringArgumentType.getString(ctx, "route"),
+                                                        ctx.getSource())))
+                                        .executes(ctx -> queryRoute(
+                                                EntityArgument.getEntities(ctx, "targets"),
+                                                ctx.getSource())))
                                 .then(Commands.literal("reset")
                                         .executes(ctx -> reset(
                                                 EntityArgument.getEntities(ctx, "targets"),
@@ -194,7 +219,13 @@ public final class NpcCommand {
         return npcs.size();
     }
 
-    /** 停止移动 —— 只停寻路，不改状态、不停攻击（{@code move} 的反面）。 */
+    /**
+     * 停止移动 —— <b>并且清掉路线</b>（用户裁定 D6：{@code stop} 是"终止"，不是"暂停"）。
+     * <p>
+     * 不改状态、不停攻击（{@code move} 的反面）。⚠️ 清路线在这里、而**不在**
+     * {@code NpcEntity#stopMoving()} 里 —— 因为 {@code attack()} 会调
+     * {@code clearMotionCommands()}，而"攻击不该毁掉路线"是刻意的（D7）。
+     */
     private static int stopMoving(Collection<? extends Entity> targets, CommandSourceStack source) {
         List<NpcEntity> npcs = npcsIn(targets);
         if (npcs.isEmpty()) {
@@ -202,9 +233,82 @@ public final class NpcCommand {
         }
         for (NpcEntity npc : npcs) {
             npc.stopMoving();
+            npc.clearRoute();
         }
         source.sendSuccess(() -> Component.translatable("beloong.command.npc.stop", npcs.size()), true);
         return npcs.size();
+    }
+
+    /**
+     * 指派路线（手工/验收用）—— 与 {@code /beloong route <名>} 的区别只是"目标由参数给定"。
+     * <p>
+     * 校验顺序刻意是"<b>先查路线是否存在</b>，再写"：路线名拼错时**拒绝**并列出可用名单，
+     * 而不是静默写一个永远不会生效的名字（照 {@code CgCommand} 的口径：逐条报错、不静默）。
+     */
+    private static int setRoute(Collection<? extends Entity> targets, String rawRoute,
+                                CommandSourceStack source) {
+        List<NpcEntity> npcs = npcsIn(targets);
+        if (npcs.isEmpty()) {
+            return fail(source);
+        }
+        ResourceLocation id = ResourceLocation.tryParse(rawRoute);
+        if (id == null || NpcRouteLoader.INSTANCE.get(id) == null) {
+            source.sendFailure(Component.translatable("beloong.command.route.unknown",
+                    rawRoute, String.join(", ", NpcRouteLoader.INSTANCE.nameStrings())));
+            return 0;
+        }
+        for (NpcEntity npc : npcs) {
+            npc.setRoute(id);
+            warnDimensionMismatch(npc, id, source);
+        }
+        source.sendSuccess(() -> Component.translatable(
+                "beloong.command.route.set", npcs.size(), rawRoute), true);
+        return npcs.size();
+    }
+
+    /**
+     * 回报每只 NPC 当前的路线（验收与排查都靠它）。
+     * <p>
+     * 用 {@code sendSuccess} 逐条发（而不是拼成一句）：一只 NPC 一行，读起来与
+     * {@code routeIndex} 一一对应；没有路线时用另一条键，明确说"无"而不是留空。
+     */
+    private static int queryRoute(Collection<? extends Entity> targets, CommandSourceStack source) {
+        List<NpcEntity> npcs = npcsIn(targets);
+        if (npcs.isEmpty()) {
+            return fail(source);
+        }
+        for (NpcEntity npc : npcs) {
+            ResourceLocation id = npc.routeName();
+            if (id == null) {
+                source.sendSuccess(() -> Component.translatable(
+                        "beloong.command.route.query_none", npc.getDisplayName()), false);
+                continue;
+            }
+            NpcRoute route = npc.route();
+            int total = route == null ? 0 : route.size();
+            source.sendSuccess(() -> Component.translatable(
+                    "beloong.command.route.query", npc.getDisplayName(), id.toString(),
+                    npc.routeIndex(), total), false);
+        }
+        return npcs.size();
+    }
+
+    /**
+     * 路线维度与 NPC 当前维度不一致时，照写但**必须留一条 WARN**。
+     * <p>
+     * 挂起本身是刻意的行为（用户裁定 D4）；但若不打日志，作者看到的症状是
+     * "对话演完了、NPC 一动不动、日志里什么都没有" —— 那是最难排查的一类失败。
+     */
+    private static void warnDimensionMismatch(NpcEntity npc, ResourceLocation id, CommandSourceStack source) {
+        NpcRoute route = NpcRouteLoader.INSTANCE.get(id);
+        if (route == null) {
+            return;
+        }
+        if (!npc.level().dimension().location().equals(route.dimension())) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc '{}' was assigned route '{}' but is in {} (route expects {}) — suspended until it returns",
+                    npc.getUUID(), id, npc.level().dimension().location(), route.dimension());
+        }
     }
 
     /** 下令攻击某个目标。 */

@@ -1,5 +1,6 @@
 package com.zonlong.beloong.entity;
 
+import com.zonlong.beloong.entity.ai.NpcRouteGoal;
 import com.zonlong.beloong.route.NpcRoute;
 import com.zonlong.beloong.route.NpcRouteLoader;
 import com.zonlong.beloong.BeLoongCore;
@@ -532,6 +533,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
         this.goalSelector.addGoal(3, new NpcAttackGoal(this, 1.0D, true));
+        // 路线 goal 排在攻击 goal（3）**之后**：它只占 MOVE、不占 LOOK ⇒
+        // 攻击中会被 lockedFlags 挡死（= "攻击期间暂停路线"，用户裁定 D7），
+        // 而与 LookAtPlayerGoal（占 LOOK）无交集 ⇒ 从不挡"边走边看玩家"。
+        this.goalSelector.addGoal(4, new NpcRouteGoal(this));
         // probability 给 1.0：默认的 0.02 会让它平均 2.5 秒才看你一眼。
         // lookTime 40~80 tick 一轮、到期立刻重启 ⇒ 实际是持续跟随。
         this.goalSelector.addGoal(5, new LookAtPlayerGoal(this, Player.class, facePlayerDistance(), 1.0F));
@@ -950,6 +955,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 恢复到"刚被召唤出来的状态"：{@link NpcState#IDLE}、无移动、无攻击、地面站桩。
      * <p>
+     * 它也是"路线"的终点：{@code reset} 会一并清掉路线（用户裁定 D6，与 {@code stop} 一致）。
+     * <p>
      * 它是 {@code state … idle} + {@code stop} + {@code attack … stop} 三条的合并 ——
      * 存在的意义就是"一条命令回到默认"，不必记三条。
      * <p>
@@ -963,6 +970,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             return;
         }
         this.stopMoving();
+        // 与 stop 指令一致：reset 也要清路线（D6）。⚠️ 清路线放在这里与命令层，
+        // **不放进 stopMoving()** —— 否则 attack() 的 clearMotionCommands() 会误伤路线（D7）。
+        this.clearRoute();
         this.stopAttacking();
         // 2026-09-29：补上遗漏的一步 —— reset 也要清表情。
         // （原先漏了；现由探针 S2 的 B12 守着，防止再漏。）
@@ -970,6 +980,86 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.setState(NpcState.IDLE);
         this.getNavigation().stop();
         this.setNoGravity(false);
+    }
+
+    // ===================== 路线（设计见 docs/plans/2026-09-30-npc-route-system-design.md）=====================
+
+    /** 当前路线名；没有路线时为空。 */
+    @Nullable
+    public ResourceLocation routeName() {
+        return this.routeName;
+    }
+
+    /**
+     * 当前路线的解析结果；**没有路线、或数据文件不存在时返回 {@code null}**。
+     * <p>
+     * 调用方（{@code NpcRouteGoal}）必须按 fail-closed 处理 {@code null} ⇒ **挂起**，
+     * 而不是当成"已完成"（用户裁定 D8）。这也是"路线文件被改名/删除"时的唯一表现。
+     */
+    @Nullable
+    public NpcRoute route() {
+        return NpcRouteLoader.INSTANCE.get(this.routeName);
+    }
+
+    /** 当前路点下标；等于路点数即"已抵达终点"。 */
+    public int routeIndex() {
+        return this.routeIndex;
+    }
+
+    /** 已抵达终点？（路线缺失时返回 false —— 缺失走"挂起"那条路，不是"已完成"。） */
+    public boolean routeFinished() {
+        NpcRoute route = this.route();
+        return route != null && this.routeIndex >= route.size();
+    }
+
+    /** 当前路点；没有路线 / 已抵达 / 数据缺失时为 {@code null}。 */
+    @Nullable
+    public Vec3 routeWaypoint() {
+        NpcRoute route = this.route();
+        return route == null ? null : route.waypoint(this.routeIndex);
+    }
+
+    /**
+     * 指派路线。**下标一律归零**，即使指派的是同一条 —— 用户裁定：
+     * 重新指派是一个明确的动作，就该重走一遍（设计 D5）。
+     * <p>
+     * ⚠️ 路线数据**当前不存在也照写**（设计 D8：挂起而非拒绝），但打一条 WARN 让作者能定位 ——
+     * 否则症状是"命令成功了、NPC 却一动不动、日志里什么都没有"。
+     */
+    public void setRoute(@Nullable ResourceLocation id) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.routeName = id;
+        this.routeIndex = 0;
+        if (id != null && NpcRouteLoader.INSTANCE.get(id) == null) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc route '{}' is not loaded — the NPC will stay suspended until a route with that name exists",
+                    id);
+        }
+    }
+
+    /**
+     * 清掉路线（{@code stop} 与 {@code reset} 走这里 —— 用户裁定 D6）。
+     * <p>
+     * ⚠️ <b>刻意不放进 {@link #stopMoving()}</b>：{@code attack()} 会调 {@code clearMotionCommands()}，
+     * 而"攻击不该毁掉路线"是刻意的（D7）。分工：{@code stopMoving} 只管移动，路线由命令层与
+     * {@link #resetToDefault()} 清。
+     */
+    public void clearRoute() {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.routeName = null;
+        this.routeIndex = 0;
+    }
+
+    /** 推进到下一个路点；到终点后下标停在 {@code size}（"已完成"由下标越界表达，不另设标记）。 */
+    public void advanceRouteIndex() {
+        NpcRoute route = this.route();
+        if (route != null && this.routeIndex < route.size()) {
+            ++this.routeIndex;
+        }
     }
 
     /** 登记移动目标，并让下一次 {@code customServerAiStep} 立刻寻路。 */
@@ -1012,6 +1102,11 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     public void addAdditionalSaveData(CompoundTag compound) {
         super.addAdditionalSaveData(compound);
         compound.putString(STATE_NBT_KEY, this.state().getSerializedName());
+        // 有路线才写这两个键：没路线的 NPC 存档里不该出现它们（旧存档读到的就是"空" ⇒ 无路线 ✓）。
+        if (this.routeName != null) {
+            compound.putString(ROUTE_NBT_KEY, this.routeName.toString());
+            compound.putInt(ROUTE_INDEX_NBT_KEY, this.routeIndex);
+        }
     }
 
     /**
@@ -1037,6 +1132,20 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     public void readAdditionalSaveData(CompoundTag compound) {
         super.readAdditionalSaveData(compound);
         this.setState(NpcState.byNameLenient(compound.getString(STATE_NBT_KEY)));
+        // 宽容解析（对应 NpcState.byNameLenient 的口径）：解析不出来的名字当"没有路线"，绝不因坏档崩掉。
+        String route = compound.getString(ROUTE_NBT_KEY);
+        this.routeName = route.isEmpty() ? null : ResourceLocation.tryParse(route);
+        this.routeIndex = Math.max(0, compound.getInt(ROUTE_INDEX_NBT_KEY));
+        // 下标 clamp：路线数据是**热的**（/reload 可改），两次加载之间它可能变短。
+        // 此刻若该路线已加载 ⇒ 直接 clamp 并提示；尚未加载 ⇒ 原样保留，等它可用时
+        // routeFinished() 会按"越界即已完成"处理（坏数据不崩）。
+        NpcRoute loaded = this.route();
+        if (loaded != null && this.routeIndex > loaded.size()) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc route index {} is out of range for '{}' ({} waypoint(s)) — clamped",
+                    this.routeIndex, this.routeName, loaded.size());
+            this.routeIndex = loaded.size();
+        }
     }
 
     /**
