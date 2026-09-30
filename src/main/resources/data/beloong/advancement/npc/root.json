@@ -1,5 +1,4 @@
 {
-  "_comment": "NPC 阶段链的起点。2026-09-30 起改用原版 minecraft:location 触发：玩家在龙宫维度进入以路线起点 (0,64,-8) 为中心、水平 ±16、y 55~95 的盒子 ⇒ 自动获得（= 玩家走进来看到末的那一刻）。据反编译实证，CriteriaTriggers.LOCATION 每 20 tick 在 ServerPlayer.doTick 里轮询一次，故最快 1 秒内命中。原版没有『附近存在某实体』这种条件，所以用『进入末所在的区域』近似 —— 对一段镜头演出来说这更合适（玩家不必正好盯着末）。show_toast / announce_to_chat 与 1_1 一致关掉：这是流程闸门，不是给玩家的成就提示。",
   "criteria": {
     "root": {
       "trigger": "minecraft:location",
@@ -12,9 +11,18 @@
               "location": {
                 "dimension": "beloong:loong_palace",
                 "position": {
-                  "x": { "min": -16, "max": 16 },
-                  "y": { "min": 55, "max": 95 },
-                  "z": { "min": -24, "max": 8 }
+                  "x": {
+                    "min": -7,
+                    "max": 7
+                  },
+                  "y": {
+                    "min": 57,
+                    "max": 71
+                  },
+                  "z": {
+                    "min": -15,
+                    "max": -1
+                  }
                 }
               }
             }

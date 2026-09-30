@@ -266,7 +266,7 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 
 | 步 | 发生什么 | 由谁实现 |
 |---|---|---|
-| 1 | 玩家在龙宫走进末所在区域 ⇒ 自动获得 `beloong:npc/root` | **原版** `minecraft:location` 触发器 + 坐标盒（`advancement/npc/root.json`） |
+| 1 | 玩家在龙宫走到末周围 **7 格**内 ⇒ 自动获得 `beloong:npc/root` | **原版** `minecraft:location` 触发器 + 以末的站位为心的 ±7 方盒（`advancement/npc/root.json`） |
 | 2 | 获得 `root` ⇒ 播放 `mo_entrance`（末的登场） | `cg/MoEntranceTrigger`（Java 事件；见下"为什么不用 reward function"） |
 | 3 | 玩家上前右键末 ⇒ 我们的对话 ⇒ 点「这里是什么地方？」⇒ ChatBox 那段对话 | 既有对话系统 + ChatBox 桥 |
 | 4 | ChatBox 最后一页点「好的」⇒ `1_1` + `beloong route beloong:mo_route_1` | ChatBox 选项的 `click`（两条命令，都带 `execute` 前缀） |
@@ -277,7 +277,13 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 `minecraft:tick` 则在 `ServerPlayer.tick()` 里**每 tick**触发。
 ⇒ 用 `minecraft:location` + `player` 条件（维度 + 坐标盒）即可"玩家一进区域就发"，最快 1 秒内命中。
 
-⚠️ **原版没有"附近存在某实体"这种条件** —— `player` 条件只能描述玩家自身（维度/坐标/光照/群系/方块）
+⚠️ **原版**没有**"附近存在某实体"这种条件**（已读源码坐实：`LocationPredicate` 的全部字段是
+`position`/`biomes`/`structures`/`dimension`/`smokey`/`light`/`block`/`fluid`/`canSeeSky`，**没有一项能引用实体**；
+`EntityPredicate` 虽有 `distanceToPlayer`，但它只能描述触发器**已经点名**的实体 —— 能点名末的只有
+`player_interacted_with_entity`（右键它，太晚）。故"距末 7 格"在**数据层只能写成"以末的固定站位为心的 ±7 方盒"**：
+在"末站着不动"的前提下与"距末 7 格"等价（本次场景正是如此），差异是方盒的**对角线**可达约 12 格（不是严格球面）。
+若要**严格球面**，只能由我们的代码每 tick 算距离后发放 `root` —— 那会违背本项目"**只读不写进度**"的既有原则，
+故未采用（用户可另行裁定）。
 ⇒ 所以"看到末"是用"**走进末所在的区域**"近似的。对一段**镜头演出**而言这个近似更合适：
 CG 会把玩家锁进电影模式，玩家不必正好盯着末。触发盒中心与路线起点 `0,64,-8` 重合（同一处场景），
 由 `route_invariants.py` 的 ⑧ 守着"改了一边忘了另一边"。
