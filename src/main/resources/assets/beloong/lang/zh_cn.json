@@ -268,5 +268,7 @@
   "beloong.chatbox.mo.w4": "上一任龙王是我的母亲——§5末影龙§r\n§7（末的脸上露出骄傲又痛苦的复杂神色）",
   "beloong.chatbox.mo.w5": "可惜，她死在那场持续千年的大战中...\n§7（末的声音有些哽咽）",
   "beloong.chatbox.mo.w_opt3": "§e你没事吧",
-  "beloong.chatbox.mo.w6": "没事，我们一起去见龙王吧。他挺想见见你的"
+  "beloong.chatbox.mo.w6": "没事，我们一起去见龙王吧。他挺想见见你的",
+  "beloong.command.route.query_done": "§e%s§r：路线「%s」已完成（等待重新指派）",
+  "beloong.command.route.query_unloaded": "§e%s§r：路线「%s」的数据没加载（文件被删或改名了？）"
 }

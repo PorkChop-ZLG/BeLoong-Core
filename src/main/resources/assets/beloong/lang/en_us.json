@@ -268,5 +268,7 @@
   "beloong.chatbox.mo.w4": "The previous Dragon King was my mother — §5the Ender Dragon§r\n§7(A proud yet pained expression crosses Mo's face)",
   "beloong.chatbox.mo.w5": "Sadly, she fell in that war which lasted a thousand years...\n§7(Mo's voice wavers)",
   "beloong.chatbox.mo.w_opt3": "§eAre you alright?",
-  "beloong.chatbox.mo.w6": "I'm fine. Let us go and meet the Dragon King together — he has been eager to meet you."
+  "beloong.chatbox.mo.w6": "I'm fine. Let us go and meet the Dragon King together — he has been eager to meet you.",
+  "beloong.command.route.query_done": "%s: route '%s' already finished (waiting to be reassigned)",
+  "beloong.command.route.query_unloaded": "%s: the data for route '%s' is not loaded (file removed or renamed?)"
 }
