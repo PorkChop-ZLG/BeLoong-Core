@@ -1,5 +1,6 @@
 package com.zonlong.beloong;
 
+import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
@@ -121,6 +122,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
         NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
+        NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
 
         if (ModList.get().isLoaded("lockdown")) {
@@ -205,7 +207,6 @@ public class BeLoongCore {
         event.addListener(BeloongWaterRegionLoader.INSTANCE);
         event.addListener(WaystonePlacementLoader.INSTANCE);
         event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
-        event.addListener(NpcRouteLoader.INSTANCE);      // NPC 路线（同上，目录 beloong/npc_route）
         event.addListener(NpcRouteLoader.INSTANCE);      // NPC 路线（同上，目录 beloong/npc_route）
     }
 

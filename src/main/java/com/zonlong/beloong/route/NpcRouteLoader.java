@@ -86,11 +86,6 @@ public class NpcRouteLoader extends SimpleJsonResourceReloadListener {
         return id == null ? null : this.routes.get(id);
     }
 
-    /** 已加载的全部路线名（保序），喂 Brigadier 补全用。 */
-    public Set<ResourceLocation> names() {
-        return this.routes.keySet();
-    }
-
     /** 已加载的全部名字符串（补全用）。 */
     public List<String> nameStrings() {
         return this.routes.keySet().stream().map(ResourceLocation::toString).sorted().toList();

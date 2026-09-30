@@ -1023,8 +1023,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 指派路线。**下标一律归零**，即使指派的是同一条 —— 用户裁定：
      * 重新指派是一个明确的动作，就该重走一遍（设计 D5）。
      * <p>
-     * ⚠️ 路线数据**当前不存在也照写**（设计 D8：挂起而非拒绝），但打一条 WARN 让作者能定位 ——
-     * 否则症状是"命令成功了、NPC 却一动不动、日志里什么都没有"。
+     * ⚠️ 这里**不做**"路线是否存在"的判断：那是**命令层**的职责（两条命令都先查、未知即拒绝，
+     * 与设计 D8 的"拒绝而不是静默写入"一致）。本方法只负责写状态 —— 所以它不校验、也不打日志。
+     * 真正的"路线数据缺失"由 {@code NpcRouteGoal#canUse} 在运行期按名字报一次 WARN（那条路径
+     * 还覆盖了**旧存档恢复**与 **{@code /reload} 之后文件消失**，它们都不经过命令层）。
      */
     public void setRoute(@Nullable ResourceLocation id) {
         if (this.level().isClientSide()) {
@@ -1032,11 +1034,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         }
         this.routeName = id;
         this.routeIndex = 0;
-        if (id != null && NpcRouteLoader.INSTANCE.get(id) == null) {
-            BeLoongCore.LOGGER.warn(
-                    "[BeLoong] npc route '{}' is not loaded — the NPC will stay suspended until a route with that name exists",
-                    id);
-        }
     }
 
     /**

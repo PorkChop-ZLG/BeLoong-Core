@@ -54,6 +54,21 @@ public final class RouteCommand {
                                         ctx, ResourceLocationArgument.getId(ctx, "route"))))));
     }
 
+    /**
+     * 路线维度与 NPC 当前维度不一致时，照写但**留一条 WARN**（挂起是设计 D4 的刻意行为，
+     * 但不打日志的话，作者看到的症状是"对话演完了、NPC 一动不动、日志里什么都没有"）。
+     * <p>
+     * 放在这里而不是各写一份：{@code NpcCommand} 的手工指派形式也调它（原先两处重复）。
+     */
+    public static void warnDimensionMismatch(NpcEntity npc, ResourceLocation id, NpcRoute route) {
+        if (!npc.level().dimension().location().equals(route.dimension())) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc '{}' was assigned route '{}' but is in {} (route expects {})"
+                            + " — suspended until it returns",
+                    npc.getUUID(), id, npc.level().dimension().location(), route.dimension());
+        }
+    }
+
     private static int assignToLastDialogueNpc(CommandContext<CommandSourceStack> ctx, ResourceLocation id) {
         CommandSourceStack source = ctx.getSource();
         ServerPlayer player = source.getPlayer();
@@ -75,11 +90,7 @@ public final class RouteCommand {
             return 0;
         }
         npc.setRoute(id);
-        if (!npc.level().dimension().location().equals(route.dimension())) {
-            BeLoongCore.LOGGER.warn(
-                    "[BeLoong] npc '{}' was assigned route '{}' but is in {} (route expects {}) — suspended until it returns",
-                    npc.getUUID(), id, npc.level().dimension().location(), route.dimension());
-        }
+        warnDimensionMismatch(npc, id, route);
         source.sendSuccess(() -> Component.translatable(
                 "beloong.command.route.set", 1, id.toString()), true);
         return 1;

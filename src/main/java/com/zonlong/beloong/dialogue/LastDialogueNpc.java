@@ -2,6 +2,8 @@ package com.zonlong.beloong.dialogue;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.minecraft.world.entity.Entity;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,7 +29,25 @@ public final class LastDialogueNpc {
 
     private static final Map<UUID, UUID> LAST = new HashMap<>();
 
-    private LastDialogueNpc() {}
+    /**
+     * 公开构造器：本类同时是**事件处理器**（{@code PlayerLoggedOutEvent} 清理映射），
+     * 需要被 {@code BeLoongCore} 实例化后注册到事件总线 —— 与项目里其它
+     * {@code new XxxHandler()} 的用法一致（例如 {@code NpcDialogueHandler}）。
+     * 映射与查询方法本身仍是静态的。
+     */
+    public LastDialogueNpc() {}
+
+    /**
+     * 玩家退出时把他的映射删掉。
+     * <p>
+     * ⚠️ 不删的话：玩家重登后若直接执行 {@code /beloong route}（没再右键任何 NPC），
+     * 会命中**上一次会话**记下的那只 NPC。映射本身以 UUID 为键 ⇒ 规模天然被玩家数限住，
+     * 但仍要随退出清理，否则"上次会话的 NPC"这种跨会话残留会让人很难理解。
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        LAST.remove(event.getEntity().getUUID());
+    }
 
     /** 记下"该玩家最近对话过的 NPC"。由 {@link NpcDialogueHandler} 在受理右键时调用。 */
     public static void remember(ServerPlayer player, Entity npc) {

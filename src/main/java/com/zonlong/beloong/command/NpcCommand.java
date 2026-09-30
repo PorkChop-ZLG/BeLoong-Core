@@ -292,10 +292,21 @@ public final class NpcCommand {
                 continue;
             }
             NpcRoute route = npc.route();
-            int total = route == null ? 0 : route.size();
+            if (route == null) {
+                // 有名字但数据没加载（文件被删/改名/RunTime 改短过）⇒ 明说，不要打成"第 3/0 个路点"。
+                source.sendSuccess(() -> Component.translatable(
+                        "beloong.command.route.query_unloaded", npc.getDisplayName(), id.toString()), false);
+                continue;
+            }
+            if (npc.routeFinished()) {
+                // 下标越界即"已完成" ⇒ 别回报 3/2 这种越界值（Minor 6：运行期 /reload 把路线改短时会出现）。
+                source.sendSuccess(() -> Component.translatable(
+                        "beloong.command.route.query_done", npc.getDisplayName(), id.toString()), false);
+                continue;
+            }
             source.sendSuccess(() -> Component.translatable(
                     "beloong.command.route.query", npc.getDisplayName(), id.toString(),
-                    npc.routeIndex(), total), false);
+                    npc.routeIndex(), route.size()), false);
         }
         return npcs.size();
     }
@@ -308,13 +319,8 @@ public final class NpcCommand {
      */
     private static void warnDimensionMismatch(NpcEntity npc, ResourceLocation id, CommandSourceStack source) {
         NpcRoute route = NpcRouteLoader.INSTANCE.get(id);
-        if (route == null) {
-            return;
-        }
-        if (!npc.level().dimension().location().equals(route.dimension())) {
-            BeLoongCore.LOGGER.warn(
-                    "[BeLoong] npc '{}' was assigned route '{}' but is in {} (route expects {}) — suspended until it returns",
-                    npc.getUUID(), id, npc.level().dimension().location(), route.dimension());
+        if (route != null) {
+            RouteCommand.warnDimensionMismatch(npc, id, route);   // 与 RouteCommand 共用一份（原先两处重复）
         }
     }
 

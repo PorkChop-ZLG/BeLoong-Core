@@ -1,5 +1,9 @@
 package com.zonlong.beloong.entity.ai;
 
+import com.zonlong.beloong.BeLoongCore;
+import net.minecraft.resources.ResourceLocation;
+import java.util.HashSet;
+import java.util.Set;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.route.NpcRoute;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -78,6 +82,12 @@ public class NpcRouteGoal extends Goal {
      */
     private static final double Y_TOLERANCE = 2.0D;
 
+    /** 已经报过"路线数据缺失"的路线名（每个名字只报一次，与项目既有 WARNED 口径一致）。 */
+    private static final Set<String> WARNED_MISSING = new HashSet<>();
+
+    /** 已经报过"靠移动层到位兜底、但 Y 差得多"的路点下标（每个路点只报一次）。 */
+    private final Set<Integer> warnedWaypoints = new HashSet<>();
+
     private final NpcEntity npc;
 
     public NpcRouteGoal(NpcEntity npc) {
@@ -95,6 +105,16 @@ public class NpcRouteGoal extends Goal {
     public boolean canUse() {
         NpcRoute route = this.npc.route();
         if (route == null) {
+            // 路线名还在、数据却不在（文件被改名/删除，或 /reload 之后消失）⇒ 挂起 + **每个名字一条 WARN**。
+            // ⚠️ 这条 WARN 只能在这里打：命令层会在指派前拒绝未知路线（所以 NpcEntity#setRoute 里那条
+            // 分支已不可达、已删），而**旧存档恢复**与 **{@code /reload} 之后文件消失**这两条路都不经过命令层 ——
+            // 不在这里报，这种挂起就永远是静默的。
+            ResourceLocation name = this.npc.routeName();
+            if (name != null && WARNED_MISSING.add(name.toString())) {
+                BeLoongCore.LOGGER.warn(
+                        "[BeLoong] npc route '{}' is not loaded — NPCs holding it stay suspended"
+                                + " until a route with that name exists again", name);
+            }
             return false;
         }
         if (!this.npc.level().dimension().location().equals(route.dimension())) {
@@ -125,16 +145,36 @@ public class NpcRouteGoal extends Goal {
         // 若路线的值更小，移动层会先判到位并清掉目标，而这里又判没到、立刻补发 ⇒ 每 tick 打架
         // （并每 tick 清一次表情）。ground arrive distance 是 1.0 ⇒ 下限 1.5 格。
         double effective = Math.max(route.arrivalRadius(), NpcEntity.groundArriveDistance() + 0.5D);
-        boolean arrived = horizontal <= effective
-                && Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE;
-        // ⚠️ **最后一个路点**要再等"移动层真的停下"（它判到位时会把 moveTarget 清成 null）。
-        // 因为本 goal 的抵达半径（路线声明值，本次数据是 2.0）比移动层的到位半径（1.0）宽：
-        // 若一到 2 格内就算抵达并播表情，{@code sit} 这类坐姿会在**还差最后一两格**时开始播
-        // ⇒ 看起来像"坐着滑行"。中间路点**不**这样等（否则每个路点都会顿一下）。
-        // 不会因此卡死：万一移动层到不了，它的有界失败会在约 5 秒后清掉 moveTarget，
-        // 那时 arrived 成立、路线正常收尾。
-        if (arrived && this.isLastWaypoint(route) && this.npc.moveTarget() != null) {
+        final boolean within = horizontal <= effective;
+        // ⚠️ 移动层"已经把目标放下"= 它自己判了到位（`moveTarget` 被清成 null）。
+        final boolean stopped = this.npc.moveTarget() == null;
+        // 抵达 = 水平在半径内，且（高度合适 **或** 移动层已判到位）。
+        //
+        // ⚠️ 后半句是 2026-10-01 收尾审查抓到的 **Critical**，别删：移动层对**地面** NPC 的到位判定
+        // **只看水平**（{@code NpcEntity#tickMoveCommand} 的注释与实现都写明这件事），它一进水平 1.0 格
+        // 就清 {@code moveTarget}；而路点的 y 未必是可站立面（数据层不校验 y）⇒ 若这里只按 |Δy| 判，
+        // 就会"那边每 tick 清、这边每 tick 补发"，**下标永不前进、终点表情永不播、且零日志** ——
+        // 而且那条"连续 5 次续路无进展就放弃"的有界失败也救不了：它在到位分支就 return 了。
+        boolean arrived = within
+                && (Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE || stopped);
+        // ⚠️ **最后一个路点**仍要等"移动层真的停下"再算抵达：本 goal 的抵达半径（路线声明值，本次 2.0）
+        // 比移动层的到位半径（1.0）宽，若一到 2 格内就算抵达并播表情，{@code sit} 这类坐姿会在
+        // **还差最后一两格**时开始播 ⇒ 看起来像"坐着滑行"。中间路点**不**这样等（否则每个路点顿一下）。
+        if (arrived && this.isLastWaypoint(route) && !stopped) {
             arrived = false;
+        }
+        if (arrived && stopped && Math.abs(this.npc.getY() - target.y) > Y_TOLERANCE) {
+            // 靠"移动层已到位"兜底时，高度可能差很多（例如路点写在空中）⇒ 留一条 WARN，
+            // 否则这种数据错误永远无声（每个路点只报一次，与项目既有的 WARNED 口径一致）。
+            if (this.warnedWaypoints.add(this.npc.routeIndex())) {
+                BeLoongCore.LOGGER.warn(
+                        "[BeLoong] npc '{}' reached route '{}' waypoint {} by the movement layer's own"
+                                + " arrival, but its Y is {} blocks off the waypoint ({} vs {})"
+                                + " — the waypoint's Y may not be a standable surface",
+                        this.npc.getUUID(), this.npc.routeName(), this.npc.routeIndex(),
+                        String.format("%.1f", Math.abs(this.npc.getY() - target.y)),
+                        String.format("%.1f", this.npc.getY()), String.format("%.1f", target.y));
+            }
         }
         if (arrived) {
             this.npc.advanceRouteIndex();
