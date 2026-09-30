@@ -150,6 +150,24 @@ public class ModItems {
             Items.register("loong_palace_portal",
                     () -> new BlockItem(ModBlocks.LOONG_PALACE_PORTAL.get(), new Item.Properties()));
 
+    /**
+     * 地狱之门的 BlockItem（灾变封印之门物品的移植件）。
+     * <p>
+     * 物品 ID 与方块同名：{@code beloong:hell_gate}（这样客户端会自动取
+     * {@code models/item/hell_gate.json} 作物品模型）。属性照搬灾变：
+     * {@code fireResistant()} + {@link Rarity#EPIC}。
+     * <p>
+     * 用 {@link HellGateBlockItem} 而不是裸 {@link BlockItem}：它会在 tooltip 里列出
+     * {@link com.zonlong.beloong.registry.ModItemTags#HELL_GATE_KEYS} 当前包含的钥匙**名字**
+     * （整合包改了 tag，tooltip 跟着变）。
+     * <p>
+     * 放下 1 格即由 {@link com.zonlong.beloong.block.HellGateBlock#setPlacedBy} 铺满 5×8 的整扇门。
+     */
+    public static final DeferredItem<BlockItem> HELL_GATE =
+            Items.register("hell_gate",
+                    () -> new HellGateBlockItem(ModBlocks.HELL_GATE.get(),
+                            new Item.Properties().fireResistant().rarity(Rarity.EPIC)));
+
     /** 将物品注册到 Mod 事件总线 */
     public static void register(IEventBus eventBus) {
         Items.register(eventBus);

@@ -17,9 +17,18 @@ public class Config {
 
     private static final ModConfigSpec.Builder CLIENT_BUILDER = new ModConfigSpec.Builder();
 
-    /** 修复稳定悬浮漂移（默认启用） */
+    /**
+     * 稳定悬停修复总开关（默认启用，客户端侧）。
+     *
+     * <p>实际生效还需同时满足：DS 配置 {@code stable_hover = true}（该值由 NeoForge 在连接时
+     * 自动同步给客户端，判定处直接读 {@code ServerFlightHandler.stableHover}），
+     * 且玩家的 {@code dragonsurvival:flight_level} ≥ 1。飞行等级不足时按 DS 原版非稳定悬停下坠。</p>
+     *
+     * <p>滑翔由独立路径处理（{@code ClientFlightHandlerMixin} 的滑翔分支）：去重力 + 跟随视线，
+     * <b>不受本开关与飞行等级门控</b>。</p>
+     */
     public static final ModConfigSpec.BooleanValue FIX_STABLE_HOVER = CLIENT_BUILDER
-            .comment("修复稳定悬浮漂移")
+            .comment("稳定悬停修复总开关；需同时满足 DS 的 stable_hover=true 且 flight_level>=1；滑翔另有独立处理（不受本开关影响）")
             .define("fixStableHoverDrift", true);
 
     /** 禁用王国场地的冰火天空特效（默认禁用） */
@@ -96,11 +105,6 @@ public class Config {
     public static final ModConfigSpec.BooleanValue FIX_CATACLYSM_STRUCTURE_HEIGHT = COMMON_BUILDER
             .comment("修复灾变结构无视数据包start_height配置，在固定Y轴生成的问题")
             .define("fixCataclysmStructureHeight", true);
-
-    /** 修复龙之生存弹射物崩溃（默认启用） */
-    public static final ModConfigSpec.BooleanValue FIX_DS_PROJECTILE_CRASH = COMMON_BUILDER
-            .comment("修复龙之生存弹射物崩溃")
-            .define("fixDragonsurvivalProjectileCrash", true);
 
     /** 修复Fsweep打开部分容器崩溃（默认启用） */
     public static final ModConfigSpec.BooleanValue FIX_FSWEEP_CONTAINER_CRASH = COMMON_BUILDER
@@ -251,6 +255,44 @@ public class Config {
         public static ModConfigSpec.IntValue offsetY;
         /** 自定义返回传送门偏移 Z */
         public static ModConfigSpec.IntValue offsetZ;
+    }
+
+    // ==================== dread_king_ritual ====================
+    // 黯影宝库「死王仪式」：在指定结构内开启黯影宝库时，于宝库顶生成一个标记实体，
+    // 播放 suspense 音效并在周围铺 blood_ground 血渍（共 140 tick），随后原地召唤不祥状态的死者之王。
+    //
+    // ⚠️ 新增/改名配置项时**必须同时补中英翻译键**，否则 NeoForge 配置界面会显示裸键名：
+    //   节标题      `beloong.configuration.dread_king_ritual`
+    //   节说明      `beloong.configuration.dread_king_ritual.tooltip`
+    //   值标签      `beloong.configuration.<显式 translation 或值名>`
+    //   值说明      `<值标签键>.tooltip`
+    // 键名推导见 NeoForge `ConfigurationScreen#getTranslationKey`：
+    // 显式 `.translation(x)` 优先，其次节级 translation，最后兜底 `modid.configuration.<末段名>`。
+    // 实现见 dreadking/DreadKingRitualStarter.java + entity/DreadKingRitualMarker.java
+    // + mixin/minecraft/DreadKingRitualTriggerMixin.java
+
+    public static final class DreadKingRitual {
+        private DreadKingRitual() {}
+
+        /** 死王仪式总开关（关闭时宝库照常开箱，只是没有仪式） */
+        public static ModConfigSpec.BooleanValue enabled;
+
+        /** 触发仪式的限定结构 ID（单个，不支持标签） */
+        public static ModConfigSpec.ConfigValue<String> structure;
+
+        /**
+         * 仪式音乐音量。
+         * <p>
+         * ⚠️ <b>这一个值同时决定「多响」与「多远」，无法只降其一。</b>
+         * 服务端按 {@code SoundEvent.getRange(volume)} 决定把音效包发给谁
+         * （{@code volume > 1 ? 16 × volume : 16} 格）；客户端也按同一 volume 计算线性衰减跨度
+         * （{@code max(volume, 1) × attenuation_distance}）。
+         * <p>
+         * 默认 0.5 的由来：原版唱片机硬编码 {@code 4.0F}（见 {@code SimpleSoundInstance#forJukeboxSong}），
+         * 而实测该音量听感偏大，故降到唱片机默认的 1/8；代价是可闻半径同时由 64 格收窄到 16 格
+         * （已确认接受）。想要更大覆盖范围就调大它，半径随之线性增长。
+         */
+        public static ModConfigSpec.DoubleValue musicVolume;
     }
 
 
@@ -490,6 +532,31 @@ public class Config {
                 .defineInRange("offsetZ", -6, -1000, 1000);
 
         SERVER_BUILDER.pop(); // dragon_summon
+
+        // ========== dread_king_ritual ==========
+        SERVER_BUILDER.push("dread_king_ritual");
+
+        DreadKingRitual.enabled = SERVER_BUILDER
+                .comment("Enable the Dark Vault dread-king ritual",
+                        "启用黯影宝库死王仪式")
+                .translation("beloong.configuration.dreadKingRitualEnabled")
+                .define("enabled", true);
+
+        DreadKingRitual.structure = SERVER_BUILDER
+                .comment("Structure id that gates the ritual (single id, no tags)",
+                        "触发仪式的限定结构 ID（单个，不支持标签）")
+                .translation("beloong.configuration.dreadKingRitualStructure")
+                .define("structure", "dragonsurvival:dragon_hunters_castle");
+
+        DreadKingRitual.musicVolume = SERVER_BUILDER
+                .comment("Ritual music volume; ALSO determines the audible radius (16 * max(volume, 1) blocks)",
+                        "仪式音乐音量；同时决定可闻半径（16 × max(volume, 1) 格）",
+                        "Vanilla jukebox uses 4.0F (64-block radius). 0.5 is 1/8 of that, i.e. a 16-block radius.",
+                        "原版唱片机是 4.0F（64 格）。0.5 等于其 1/8，半径随之降为 16 格。")
+                .translation("beloong.configuration.dreadKingRitualMusicVolume")
+                .defineInRange("musicVolume", 0.5, 0.0, 16.0);
+
+        SERVER_BUILDER.pop(); // dread_king_ritual
     }
 
     public static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();

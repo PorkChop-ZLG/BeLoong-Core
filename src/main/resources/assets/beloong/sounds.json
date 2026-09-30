@@ -18,5 +18,11 @@
     "sounds": [
       "beloong:portal/trigger"
     ]
+  },
+  "block.beloong.hell_gate.open": {
+    "subtitle": "subtitles.beloong.block.hell_gate.open",
+    "sounds": [
+      "beloong:block/hell_gate_open"
+    ]
   }
 }

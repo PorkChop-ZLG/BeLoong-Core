@@ -3,6 +3,7 @@ package com.zonlong.beloong;
 import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.command.RouteCommand;
+import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
@@ -124,6 +125,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
+        NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());

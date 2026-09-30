@@ -7,11 +7,14 @@ import com.zonlong.beloong.block.DisasterPortalBlock;
 import com.zonlong.beloong.block.DisasterPortalBlockEntity;
 import com.zonlong.beloong.block.DisasterPortalFrame;
 import com.zonlong.beloong.block.DisasterPortalFrameEntity;
+import com.zonlong.beloong.block.HellGateBlock;
+import com.zonlong.beloong.block.HellGateBlockEntity;
 import com.zonlong.beloong.block.LoongPalacePortalBlock;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
@@ -30,11 +33,13 @@ import java.util.List;
  * <ul>
  *   <li>{@link #DISASTER_PORTAL_FRAME} — 天灾传送门框架</li>
  *   <li>{@link #DISASTER_PORTAL_BLOCK} — 天灾传送门方块（接触传送）</li>
+ *   <li>{@link #HELL_GATE} — 地狱之门（5×8 多方块，灾变封印之门的移植件）</li>
  * </ul>
  * <b>注册的 BlockEntity：</b>
  * <ul>
  *   <li>{@link #DISASTER_PORTAL_FRAME_ENTITY} — 框架 BlockEntity（存储眼球 ID）</li>
  *   <li>{@link #DISASTER_PORTAL_BLOCK_ENTITY} — 传送门 BlockEntity（渲染器载体）</li>
+ *   <li>{@link #HELL_GATE_BLOCK_ENTITY} — 地狱之门 BlockEntity（开门动画计时 + 渲染器载体）</li>
  * </ul>
  * <b>眼球槽位：</b>
  * <ul>
@@ -114,6 +119,26 @@ public class ModBlocks {
     public static final DeferredBlock<LoongPalacePortalBlock> LOONG_PALACE_PORTAL =
             BLOCKS.register("loong_palace_portal", LoongPalacePortalBlock::new);
 
+    /**
+     * 地狱之门方块（灾变「封印之门」的移植件）。
+     * <p>
+     * 属性逐条照搬灾变：{@code MapColor.METAL} + {@code noOcclusion} + {@code dynamicShape}
+     * + {@code strength(-1.0F, 3600000.0F)}（不可破坏）+ {@code noLootTable}
+     * + {@code requiresCorrectToolForDrops} + {@code SoundType.METAL}。
+     * 方块 ID：{@code beloong:hell_gate}
+     *
+     * @see com.zonlong.beloong.block.HellGateBlock
+     */
+    public static final DeferredBlock<HellGateBlock> HELL_GATE =
+            BLOCKS.register("hell_gate", () -> new HellGateBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .noOcclusion()
+                    .dynamicShape()
+                    .strength(-1.0F, 3600000.0F)
+                    .noLootTable()
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.METAL)));
+
     // ==================== BlockEntity 注册 ====================
 
     /**
@@ -139,6 +164,23 @@ public class ModBlocks {
                     () -> BlockEntityType.Builder.of(
                             DisasterPortalBlockEntity::new,
                             DISASTER_PORTAL_BLOCK.get()
+                    ).build(null));
+
+    /**
+     * 地狱之门方块的 BlockEntity 类型。
+     * <p>
+     * 绑定到 {@link #HELL_GATE}，承载开门动画计时（{@link com.zonlong.beloong.block.HellGateBlockEntity}），
+     * 并作为 {@link com.zonlong.beloong.client.HellGateRenderer} 的渲染载体。
+     * <p>
+     * 注：<b>不能</b>复用灾变的 {@code ModTileentites.DOOR_OF_SEAL} ——
+     * {@code LevelChunk} 会用 {@code type.isValid(state)} 校验方块实体类型，类型不匹配只会静默丢弃。
+     */
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<HellGateBlockEntity>>
+            HELL_GATE_BLOCK_ENTITY =
+            BLOCK_ENTITIES.register("hell_gate_block_entity",
+                    () -> BlockEntityType.Builder.of(
+                            HellGateBlockEntity::new,
+                            HELL_GATE.get()
                     ).build(null));
 
     /**

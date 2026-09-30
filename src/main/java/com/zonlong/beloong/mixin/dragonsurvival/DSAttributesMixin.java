@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 通过 Mixin 向 Dragon Survival 的 DSAttributes 注册 {@code dragonturvival:flight_level} 属性。
+ * 通过 Mixin 向 Dragon Survival 的 DSAttributes 注册 {@code dragonsurvival:flight_level} 属性。
  *
  * <h3>设计目的</h3>
  * 飞行等级系统需要一个梯级属性来控制飞行能力（&lt; 0 禁止飞行 / = 0 可飞不能悬停 / &ge; 1 完整飞行）。
@@ -27,9 +27,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * ID: {@code dragonsurvival:flight_level}，描述键: {@code attribute.dragonsurvival.flight_level}，
  * 默认值 0，范围 [-1024, 1024]，同步到客户端。
  *
- * <h3>加载顺序</h3>
- * BeLoong-Core 依赖 Dragon Survival，故 DS 先构造 → DSAttributes 类加载 → {@code <clinit>} 中
- * 本 Mixin 注入注册 → REGISTRY 提交到模组事件总线 → 属性进入全局注册表 → BeLoong 构造时可查找。
+ * <h3>注册时机为何可靠（三件事共同承重，不是"加载顺序"顺带成立的）</h3>
+ * <ol>
+ *   <li><b>排队而非立即注册</b>：{@code DSAttributes.REGISTRY} 是 {@code DeferredRegister}，
+ *       在 {@code <clinit>} 里调用 {@code register} 只是入队，真正落地发生在 RegisterEvent 期间。</li>
+ *   <li><b>类加载早于任何 RegisterEvent</b>：{@code DSAttributes} 带 {@code @EventBusSubscriber}，
+ *       FML 扫描阶段就会触碰它，故 {@code <clinit>} 必然早于注册事件。</li>
+ *   <li><b>属性先于依赖它的注册表</b>：NeoForge 的 {@code GameData.postRegisterEvents} 显式把
+ *       {@code Registries.ATTRIBUTE} 排在最前（注释即"Item 与 MobEffect 依赖 Attribute"），
+ *       故 {@code ModMobEffects.FLIGHT_BAN} 在 MOB_EFFECT 事件里查
+ *       {@code dragonsurvival:flight_level} 必定命中。</li>
+ * </ol>
+ * <p>若这三条中任一条被 NeoForge 或 DS 改动，症状是 {@code getFlightLevel} 恒返回 0
+ * （见 {@link com.zonlong.beloong.registry.ModAttributes#getFlightLevel}），而非崩溃。</p>
  *
  * @see com.zonlong.beloong.registry.ModAttributes#getFlightLevel
  */

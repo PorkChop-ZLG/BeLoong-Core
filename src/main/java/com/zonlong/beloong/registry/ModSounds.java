@@ -42,6 +42,18 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> LOONG_PALACE_PORTAL_TRAVEL =
             register("block.beloong.loong_palace_portal.travel");
 
+    // ==================== 地狱之门 ====================
+
+    /**
+     * 地狱之门敞开时的音效（开门动画第 28 tick 播放）。
+     * <p>
+     * 音频文件 {@code assets/beloong/sounds/block/hell_gate_open.ogg} 与灾变封印之门那张
+     * 逐字节相同（灾变里叫 {@code door_of_seal_open}）；这里按本模组的键名规则重新注册，
+     * 字幕为「地狱之门：敞开」。
+     */
+    public static final DeferredHolder<SoundEvent, SoundEvent> HELL_GATE_OPEN =
+            register("block.beloong.hell_gate.open");
+
     private ModSounds() {}
 
     /**

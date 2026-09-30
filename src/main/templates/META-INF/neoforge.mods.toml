@@ -94,6 +94,19 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# LionfishAPI —— 地狱之门的模型/动画基类来自它。
+# 灾变的 mods.toml 里没写这个依赖（它只声明 curios），但灾变 3.26 的模型体系实际依赖它，
+# 而本模组的地狱之门直接链接了它的类，所以这里显式声明为 required：
+# 缺了它宁可给出清晰的加载错误，也不要运行时 NoClassDefFoundError。
+# 下界取 "3.0-beta"（而非 "3.0"）是因为 LionfishAPI 当前发布版正好叫 3.0-beta，
+# 而这个字符串在版本比较里小于 "3.0"，用 [3.0,) 会把编译时的那个版本自己挡在门外。
+[[dependencies.${mod_id}]]
+    modId="lionfishapi"
+    type="required"
+    versionRange="[3.0-beta,)"
+    ordering="AFTER"
+    side="BOTH"
+
 [[dependencies.${mod_id}]]
     modId="fdbosses"
     type="required"
@@ -122,7 +135,7 @@ config = "beloong.mixins.json"
 [[dependencies.${mod_id}]]
     modId="geckolib"
     type="required"
-    versionRange="[4.8,)"
+    versionRange="[4.6,)"
     ordering="AFTER"
     side="BOTH"
 
@@ -210,6 +223,13 @@ config = "beloong.mixins.json"
     modId="chatbox"
     type="required"
     versionRange="[1.1.5,)"
+# Raids:Enhanced（袭击增强）— 可选兼容：让它的袭击者把龙之生存猎人视为同伴。
+# 注入的是该模组的内部方法 RaidBlimp#checkTargetClass，上游改名会静默失效，
+# 因此这里写 versionRange 让「版本不匹配」在启动日志里可见（见 2026-09-18 审查第 2 条）。
+[[dependencies.${mod_id}]]
+    modId="raidsenhanced"
+    type="optional"
+    versionRange="[1.0.2,)"
     ordering="AFTER"
     side="BOTH"
 

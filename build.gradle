@@ -33,6 +33,7 @@ repositories {
             includeGroup "curse.maven"
         }
     }
+
     maven {
         url = "https://maven.architectury.dev/"
         content {
@@ -134,7 +135,7 @@ configurations {
 
 dependencies {
     // Dragon Survival - required dependency
-    implementation "curse.maven:dragons-survival-420799:8726322"
+    implementation "curse.maven:dragons-survival-420799:8973485"
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:8350073"
 
@@ -198,7 +199,10 @@ dependencies {
     implementation "curse.maven:fdlib-1271749:7844741"
     localRuntime "curse.maven:fdlib-1271749:7844741"
 
-    // LionfishAPI — 本地运行时
+    // LionfishAPI — 必选前置（地狱之门的模型/动画基类 AdvancedEntityModel 来自这里）
+    // 注：灾变并未在自家 mods.toml 里声明它，但灾变 3.26 实际依赖它，因此本模组显式声明为 required。
+    // compileOnly 与 localRuntime 锁同一版本号，避免「按 3.1 编译、按 3.0-beta 运行」的偏差。
+    compileOnly "curse.maven:lionfish-api-1001614:8094835"
     localRuntime "curse.maven:lionfish-api-1001614:8094835"
 
     // F-Sweep — 可选依赖
@@ -261,6 +265,13 @@ dependencies {
     localRuntime "io.redspace:irons_lib:1.21.1-2.1.0"
     // playeranimator — 铁魔法的 required 前置之一，仅供 dev 运行时加载
     localRuntime "curse.maven:playeranimator-658587:6024462"
+
+    // Raids:Enhanced（袭击增强）— 可选依赖
+    // 本模组注入 Entity#isAlliedTo（原版）与 RaidBlimp#checkTargetClass（该模组内部），
+    // 让它的袭击者把龙之生存猎人视为同伴；未安装时 @Pseudo 令该 Mixin 整体跳过。
+    // fdlib（其前置）已在上方以 1.0.9 声明，满足它要求的 [1.0.8,2.0.0)。
+    compileOnly "curse.maven:raids-enhanced-1467121:7676063"
+    localRuntime "curse.maven:raids-enhanced-1467121:7676063"
 
 }
 

@@ -3,10 +3,7 @@
   "package": "com.zonlong.beloong.mixin",
   "refmap": "beloong.refmap.json",
   "client": [
-    "dragonsurvival.ClientFlightHandlerAccessor",
     "dragonsurvival.ClientFlightHandlerMixin",
-    "dragonsurvival.DamageEffectMixin",
-    "dragonsurvival.ModifierMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "AsteorBarHealthFixMixin"
@@ -38,12 +35,14 @@
     "dragonsurvival.DSAttributesMixin",
     "dragonsurvival.ToggleFlightMixin",
     "dragonsurvival.DragonStateHandlerMixin",
-    "dragonsurvival.ProjectileDamageEffectMixin",
     "betterendisland.DragonSummonMixin",
     "betterendisland.ExitPortalUtilsMixin",
     "legendarymonsters.AnnihilationPursuerDamageCapMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
-    "mowziesmobs.EntitySculptorCanFlyMixin"
+    "mowziesmobs.EntitySculptorCanFlyMixin",
+    "minecraft.DreadKingRitualTriggerMixin",
+    "minecraft.RaiderHunterAllyMixin",
+    "raidsenhanced.RaidBlimpTargetMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
