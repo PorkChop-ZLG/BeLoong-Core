@@ -81,7 +81,7 @@
 | # | 文件 | 改动 | 要点 |
 |---|---|---|---|
 | C1 | `dialogue/NpcDialogueEntry` | 新增 `record Reply(text, chatbox, group, index?)`；条目加 `List<Reply> replies`，`optionalFieldOf("replies", List.of())` | 缺省空表 ⇒ 老数据文件零影响 |
-| C2 | `dialogue/NpcDialogueOpenPayload` | 加 `List<String> replyTextKeys` | 只发标签键，不发目标（D1） |
+| C2 | `dialogue/NpcDialogueOpenPayload` | 加 `List<String> replyTextKeys` | 只发标签键，不发目标（D1）。<br>📌 **2026-09-30 更新**：阶段系统把该字段换成了 `List<VisibleReply>`（标签键 + **数据下标**），只发服务端判定为可见的项 —— 见 `2026-09-29-npc-advancement-stage-system-design.md` |
 | C3 | `dialogue/NpcDialogueReplyPayload`（新） | `record(int entityId, int replyIndex)` + `handleServer` | 两个 `VAR_INT`，line codec 平凡全函数；**本项目第一个 C2S 包** |
 | C4 | `compat/chatbox/ChatBoxBridge`（新） | `canOpen(rl, group, index)` / `open(player, rl, group, index)` + 每目标只报一次的英文 WARN | **全项目唯一** import ChatBox 的类；与 `compat/` 既有惯例一致 |
 | C5 | `client/NpcDialogueScreen` | 构造参数 += `entityId`/`replyKeys`；`showOptions()` 自下而上排；回复点击 = `setScreen(null)` + 发 C2S | 复用 `NpcDialogueOptionButton`；布局常量本就支持向上堆 |
@@ -97,6 +97,8 @@
 
 ```
 [1] 右键末 → 服务端 NpcDialogueHandler（不改）
+> 📌 **2026-09-30 更新**：下面的 `replyTextKeys` 已被阶段系统换成 `List<VisibleReply>`（标签键 + **数据下标**，且只含服务端判定为可见的项）—— 见 `2026-09-29-npc-advancement-stage-system-design.md`。
+
             → S2C: NpcDialogueOpenPayload{nameKey, fallbackNameKey, pages[], entityId, replyTextKeys[]}
 
 [2] 客户端：打字机播完最后一页 → advanceOrFinish() → showOptions()

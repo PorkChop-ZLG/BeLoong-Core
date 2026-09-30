@@ -499,6 +499,8 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 | `replies[].chatbox` | ✅ | — | 目标 ChatBox 对话文件的 ResourceLocation，如 `beloong:mo` |
 | `replies[].group` | ✅ | — | 该文件里的组名，如 `start` |
 | `replies[].index` | ❌ | `0` | 页序号（0 基）。**不可为 null** —— ChatBox 那侧会把它编码成字符串 `"null"` 让客户端抛异常 |
+| `replies[].start_advancement` | ❌ | 无 | **开始进度**的 id（如 `beloong:npc/root`）：玩家已完成它，这条回复才有资格显示 |
+| `replies[].end_advancement` | ❌ | 无 | **结束进度**的 id（如 `beloong:npc/1_1`）：玩家一旦完成它，这条回复**永久不再显示**（结束优先于开始） |
 
 **文本存翻译键而不是字面文本**：多语言由原版 `lang` 机制负责，数据文件里不该出现中文。
 
@@ -725,6 +727,22 @@ NPC 对话播放完毕后，界面除了「离开」还会在它**上方**列出
 | `data/beloong/beloong/npc_dialogue/mo.json` | 388 B | 末的对话 + 一条回复（指向 ChatBox 的 `beloong:mo` / `start`） |
 | `data/beloong/chatbox/dialogues/mo.json` | 458 B | ChatBox 侧：`start` 组两页（龙宫 → 觐见龙王） |
 | `data/beloong/chatbox/theme/minimal.json` | 701 B | 自写的最小主题（无立绘） |
+
+**阶段闸门（2026-09-30 增补）**：每条回复还可声明 `start_advancement` / `end_advancement`
+（都是**原版进度**的 id），据此决定这条回复是否显示：
+
+> 可见 ⇔ (start 省略 或 已完成 start) 且 (end 省略 或 未完成 end)
+
+三种状态由此自然表达：**都省略** ⇒ 未开始（恒显示 —— 老数据不受影响）；**只有 start** ⇒ 进行中（可选可点）；
+**两者都有** ⇒ 已完成（选项消失）。"**结束优先于开始**"是这条式子的自然结果，不需要额外分支。
+
+- 判定**只在服务端**做（生成载荷时、受理点击时各一次）⇒ 客户端既不持有进度 id，也无法自行决定可见性；
+  载荷里只放"服务端判定为可见的项 + 它们在 `replies[]` 里的**原始下标**"（用可见下标会在状态变化后点错回复）。
+- 数据里写错的进度 id 一律判**不可见**（fail-closed，否则 `end` 写错会提前显示本该隐藏的选项），
+  并留一条英文 WARN（每个 id 只报一次）。
+- **本模组只读不写进度**：结束进度由 ChatBox 在那段对话**最后一页文字播完**时发放
+  （`renderEvents` 的 `trigger:"end"`）。阶段约定"首尾相接"（某段的 end 就是下一段的 start）。
+- 完整设计与决策见 `docs/plans/2026-09-29-npc-advancement-stage-system-design.md`。
 
 ## 六、调试命令
 
