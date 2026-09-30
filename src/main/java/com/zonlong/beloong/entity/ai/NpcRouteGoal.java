@@ -32,9 +32,39 @@ import java.util.EnumSet;
  * 被攻击 goal 抢占（或维度变化、抵达终点）时原版都会调 {@code stop()} ——
  * 那里必须<b>只</b>清移动目标，路线名与下标原样留着，否则一场遭遇战就把向导任务毁掉了（用户裁定 D6/D7）。
  *
- * <h2>⚠️ 绝不在每 tick 调 {@code moveTo}</h2>
+ * <h2>⚠️ 什么时候可以调 {@code moveTo}</h2>
  * {@code NpcEntity#moveTo} 第一句就 {@code clearEmote()}（表情会被移动指令清掉是既有的、刻意的语义）
- * ⇒ 每 tick 调就等于每 tick 清一次表情。故**只在下标变化时与 {@code start()} 时**下发。
+ * ⇒ 不能每 tick 无脑调（那会每 tick 清一次表情）。只在**三种时刻**下发：
+ * <ol>
+ *   <li>{@link #start()} —— goal 刚开始跑（含被攻击抢占后重新开跑）；</li>
+ *   <li><b>路点推进时</b>（见 {@link #tick()}）；</li>
+ *   <li><b>目标已经不属于我们时</b> —— 即 {@code NpcEntity#moveTarget()} 为 {@code null}、
+ *       或它已不等于当前路点。</li>
+ * </ol>
+ *
+ * <h2>⚠️ 第 3 条是 2026-09-30 一个实机 bug 的修复，别删</h2>
+ * 现象：在龙宫里寻路途中把 NPC {@code /tp} 到同维度的别处 ⇒ <b>永久停住</b>；
+ * 而且**重新指派路线也救不回来**，只有 {@code reset} 再指派才恢复。
+ * <p>
+ * 根因是"两个层都以为自己拥有 {@code moveTarget}"：
+ * <ul>
+ *   <li>{@code NpcEntity#tickMoveCommand()} 有一条<b>有界失败</b>：连续
+ *       {@code MOVE_MAX_NO_PROGRESS}（5）次续路都没有更靠近目标 ⇒ 判定不可达，
+ *       把 {@code moveTarget} 清成 {@code null} 并停导航（日志是 DEBUG 级的
+ *       {@code npc move target unreachable, giving up at … for …}）。对一次性的 {@code move}
+ *       指令这是**正确**设计，但电话线另一头的路线并不知道；</li>
+ *   <li>而本 goal 那时<b>仍在运行</b>（{@code canUse} 依旧为真：有路线、维度对、下标未越界），
+ *       原版 {@code GoalSelector} <b>不会</b>再调它的 {@code start()} ⇒ 若不在这里补发，
+ *       就再也没有任何一处会下发目标了。</li>
+ * </ul>
+ * 「重新指派路线也没用」同样是这条：{@code NpcEntity#setRoute} 只把下标归零，
+ * goal 从未停止过 ⇒ 原版不会重新 {@code start()}。而 {@code reset} 会走
+ * {@code clearRoute()} ⇒ {@code canUse} 变 false ⇒ goal <b>真的停掉</b> ⇒ 再指派时
+ * {@code start()} 被调用 ⇒ 恢复 —— 三个症状因此全部吻合。
+ * <p>
+ * 补发还有个**副作用是想要**的：{@code moveTo} 会重置那条有界失败的计数
+ * （{@code setMoveTarget} 里清 {@code moveBestDistSqr}/{@code moveNoProgressCount}）
+ * ⇒ 于是"走不回去就**一直试**"（设计 D3 的原话）真正成立，每约 5 秒重试一轮。
  */
 public class NpcRouteGoal extends Goal {
 
@@ -90,10 +120,20 @@ public class NpcRouteGoal extends Goal {
             return;
         }
         double horizontal = Math.hypot(this.npc.getX() - target.x, this.npc.getZ() - target.z);
-        if (horizontal <= route.arrivalRadius()
-                && Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE) {
+        // 抵达半径取"路线声明值"与"移动层到位半径 + 0.5"的较大者：
+        // 若路线的值更小，移动层会先判到位并清掉目标，而这里又判没到、立刻补发 ⇒ 每 tick 打架
+        // （并每 tick 清一次表情）。ground arrive distance 是 1.0 ⇒ 下限 1.5 格。
+        double effective = Math.max(route.arrivalRadius(), NpcEntity.groundArriveDistance() + 0.5D);
+        if (horizontal <= effective && Math.abs(this.npc.getY() - target.y) <= Y_TOLERANCE) {
             this.npc.advanceRouteIndex();
-            // 仅在此处（下标变化）重新下发 —— 见类注释"绝不在每 tick 调 moveTo"。
+            this.moveToCurrentWaypoint();
+            return;
+        }
+
+        // 目标不再属于我们 ⇒ 补发（见类注释"第 3 条是实机 bug 的修复，别删"）。
+        // 这一条让"被 tp 走 / 被有界失败放弃 / 被 move 指令顶掉"三种情况都能自愈。
+        Vec3 current = this.npc.moveTarget();
+        if (current == null || current.distanceToSqr(target) > 1.0E-6D) {
             this.moveToCurrentWaypoint();
         }
     }

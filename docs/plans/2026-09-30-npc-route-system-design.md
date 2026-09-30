@@ -80,7 +80,7 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 |---|---|
 | D1 | NPC 行为**全局共享**（一个实体一个位置）；只按玩家记录"谁触发的" |
 | D2 | 写入入口 = **ChatBox 最后一颗选项的 `click`** 调 `/beloong route <名>`；目标 NPC 由"**该玩家最近对话过的 NPC**"映射决定（右键时记录；ChatBox 界面开着时不可能右键别的 NPC ⇒ 映射必然新鲜） |
-| D3 | 偏离路线 ⇒ **只重新寻路**，不瞬移、不自愈；走不回去就一直试，直到 `stop` |
+| D3 | 偏离路线 ⇒ **只重新寻路**，不瞬移、不自愈；走不回去就一直试，直到 `stop` ；**走不回去就一直试**这一点原先与移动层冲突：`tickMoveCommand` 有"连续 5 次续路无进展即放弃"的有界失败（`NpcEntity.java:1261-1272`）会清空 `moveTarget` ⇒ 2026-09-30 由 goal 的**目标补发**化解（见 §3.2 的 C6 与文末修复记录）|
 | D4 | 维度不匹配 ⇒ **挂起**（不寻路、路线保留、状态/动画都不动）；回到该维度 ⇒ 从**当前下标**继续 |
 | D5 | 抵达终点 ⇒ 停下 + **保留**路线（"已完成"由**下标越界**表达）；重新指派同一条 ⇒ **重走一遍** |
 | D6 | `stop` ⇒ **取消路线**（清 NBT）；`reset` 同样；`attack` **不清**。只有"有路线/无路线"两态 |
@@ -165,6 +165,32 @@ ChatBox 那段「末」的对话结束后 ⇒ 指派 `beloong:mo_route_1` ⇒ �
 **路径 6：抵达终点** —— 下标 == 路点数 ⇒ `canUse` 永假 ⇒ 停下；NBT 保留（"已完成"＝下标越界）；重新指派 ⇒ 重走。
 
 ---
+
+
+### 修复记录（2026-09-30 实机：tp 后永久停住）
+
+**现象**：龙宫内寻路途中把 NPC `/tp` 到同维度别处 ⇒ **永久停住**；**重新指派路线也无效**；`reset` 后再指派才恢复。
+
+**根因（两层都以为自己拥有 `moveTarget`）**：
+1. `NpcEntity#tickMoveCommand()` 有一条**有界失败**：连续 `MOVE_MAX_NO_PROGRESS`（5）次续路都没有更靠近目标
+   ⇒ 判定不可达，把 `moveTarget` 清成 `null` 并停导航（DEBUG 日志 `npc move target unreachable, giving up at … for …`）。
+   对一次性的 `move` 指令这是**正确**设计 —— 但路线层并不知道。
+2. `NpcRouteGoal` 当时**仍在运行**（`canUse` 为真：有路线、维度对、下标未越界），而原版
+   `GoalSelector` **不会**再调它的 `start()` ⇒ 目标再也没有任何一处会下发。
+   `setRoute` 只把下标归零（goal 从未停止）⇒ "重新指派也没用"；`resetToDefault` 走 `clearRoute()`
+   ⇒ `canUse` 变 false ⇒ goal **真的停掉** ⇒ 再指派才会 `start()` ⇒ "reset 后恢复"。三个症状全部吻合。
+
+**修复**：`NpcRouteGoal.tick()` 增加第 3 种下发时机 —— **目标已不属于我们时补发**
+（`moveTarget() == null` 或它已不等于当前路点）。顺带带来两个想要的性质：
+- **自愈**：被 tp / 被有界失败放弃 / 被 `move` 指令顶掉，三种情况都会自动恢复；
+- **真正实现 D3**：`moveTo` 会重置那条有界失败的计数（`setMoveTarget` 清 `moveBestDistSqr`/`moveNoProgressCount`）
+  ⇒ 每约 5 秒重试一轮 = "走不回去就**一直试**"。
+  另外给抵达半径设了下限 `max(路线半径, groundArriveDistance() + 0.5)`：否则移动层先判"到位"并清目标、
+  而 goal 判"没到"又补发 ⇒ 每 tick 打架（且每 tick 清一次表情）。
+
+**证据**：`run/logs/debug.log` 19:34:58 —— `giving up at BlockPos{x=12, y=64, z=-5} for (0.0, 64.0, -8.0)`，
+目标 `(0,64,-8)` 正是 `mo_route_1` 的第 0 个路点。
+
 
 ## 四、错误处理（§4）
 

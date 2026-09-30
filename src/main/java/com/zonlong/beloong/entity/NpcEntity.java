@@ -1071,6 +1071,32 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
+     * 当前的移动目标；没有目标时为 {@code null}。
+     * <p>
+     * 存在的原因：{@link com.zonlong.beloong.entity.ai.NpcRouteGoal} 必须能判断
+     * "<b>目标还在不在</b>" —— 因为<b>好几个地方</b>都会清掉它：到位判定、
+     * {@link #clearMotionCommands()}（{@code stop}/{@code attack}）、以及
+     * {@link #tickMoveCommand()} 里那条"连续 {@code MOVE_MAX_NO_PROGRESS} 次续路都更不靠近 ⇒ 放弃"
+     * 的有界失败。<b>2026-09-30 实机 bug 就是最后那条造成的</b>（见 {@code NpcRouteGoal} 的类注释）。
+     */
+    @Nullable
+    public Vec3 moveTarget() {
+        return this.moveTarget;
+    }
+
+    /**
+     * 地面的**到位判定半径**（格）—— 供路线 goal 给自己的抵达半径设下限。
+     * <p>
+     * 若路线的 {@code arrival_radius} 比它更小，就会出现：移动层判"已到位"并清掉目标，
+     * 而 goal 判"还没到"又立刻补发 ⇒ **两者每 tick 打架**（并且每次都清一次表情）。
+     * 故 goal 取 {@code max(路线半径, 本值 + 0.5)}。暴露成方法而不是把常量改 public，
+     * 是为了让"这是移动层的语义"这件事留在移动层这边。
+     */
+    public static double groundArriveDistance() {
+        return MOVE_ARRIVE_DISTANCE;
+    }
+
+    /**
      * 状态落盘用的 NBT 键。
      * <p>
      * <b>带模组前缀是刻意的</b>：实体 NBT 是最容易跨模组撞名的地方
