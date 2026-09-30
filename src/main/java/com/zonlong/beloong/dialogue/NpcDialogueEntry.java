@@ -212,7 +212,7 @@ public record NpcDialogueEntry(
             TRIGGER_CODEC.optionalFieldOf("trigger", Trigger.EMPTY_HAND).forGetter(NpcDialogueEntry::trigger),
             Codec.STRING.optionalFieldOf("name").forGetter(NpcDialogueEntry::name),
             Codec.list(Page.CODEC).fieldOf("pages").forGetter(NpcDialogueEntry::pages),
-            // 缺省空表 ⇒ 已有的数据文件（如铁傀儡）行为完全不变
+            // 缺省空表 ⇒ 已有数据文件（都没有 replies 字段）的行为完全不变
             Codec.list(Reply.CODEC).optionalFieldOf("replies", List.of()).forGetter(NpcDialogueEntry::replies)
     ).apply(instance, NpcDialogueEntry::new));
 

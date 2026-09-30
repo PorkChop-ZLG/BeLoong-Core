@@ -512,6 +512,10 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 
 `data/beloong/beloong/npc_dialogue/<任意名>.json`：
 
+> ⚠️ 下面是一份**格式示意**：曾作为示例数据的 `iron_golem.json` 已于 2026-10-01 按用户要求删除
+> （连同它的 3 个语言键）。格式说明与 `trigger` 的语义仍然有效；当前实际的对话数据是
+> `data/beloong/beloong/npc_dialogue/mo.json`。
+
 ```json
 {
   "entity": "minecraft:iron_golem",
@@ -760,7 +764,6 @@ NPC 对话播放完毕后，界面除了「离开」还会在它**上方**列出
 
 | 文件 | 大小 | 内容 |
 |---|---|---|
-| `data/beloong/beloong/npc_dialogue/iron_golem.json` | 297 B | 铁傀儡的示例对话（**无** `replies` ⇒ 界面只有「离开」） |
 | `data/beloong/beloong/npc_dialogue/mo.json` | 388 B | 末的对话 + 一条回复（指向 ChatBox 的 `beloong:mo` / `start`） |
 | `data/beloong/chatbox/dialogues/mo.json` | 458 B | ChatBox 侧：`start` 组两页（龙宫 → 觐见龙王） |
 | `data/beloong/chatbox/theme/minimal.json` | 701 B | 自写的最小主题（无立绘） |
@@ -900,7 +903,6 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 
 | 文件 | 大小 | 内容 |
 |---|---|---|
-| `data/beloong/beloong/npc_dialogue/iron_golem.json` | 297 B | 2 页，`empty_hand` |
 
 > **这是本系统当前唯一的数据文件**——它是格式的活样例，也是唯一的端到端验收对象。
 > 地黄龙**尚未**接入对话（§10.2）。
@@ -915,7 +917,6 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | `beloong.command.npc.{walk,attack,stop,no_targets,not_living}` | 调试命令反馈 |
 | `beloong.configuration.npc_dialogue(.tooltip)` | 配置分组 |
 | `beloong.configuration.npcDialogue{Enabled,CharsPerTick,NameScale}(.tooltip)` | 三个配置项 |
-| `beloong.dialogue.iron_golem.{name,p1,p2}` | 样例对话文案 |
 | `beloong.dialogue.option.leave` | 界面固定选项 |
 
 **对话文案全部在 `assets/…/lang`，数据文件里只存翻译键**（§5.2）。

@@ -39,7 +39,7 @@ import java.util.Optional;
  * 结果：线格式**全函数、永不抛**。
  *
  * @param nameKey         说话人名字的翻译键（数据文件里的 {@code name}）；缺省用实体显示名
- * @param fallbackNameKey 兜底名的翻译键（服务端取实体类型名，如 {@code entity.minecraft.iron_golem}）
+ * @param fallbackNameKey 兜底名的翻译键（服务端取实体类型名，如 {@code entity.minecraft.villager}）
  * @param pages           逐页文本
  * @param entityId        目标实体的网络 id（客户端用于取命名牌自定义名；实体未加载时允许找不到）
  * @param replies         **当前可见**的回复选项（标签键 + 数据下标；缺省空表 ⇒ 界面只有「离开」）
