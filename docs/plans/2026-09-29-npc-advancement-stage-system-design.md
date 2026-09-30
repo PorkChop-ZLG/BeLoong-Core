@@ -1,7 +1,7 @@
 # 原版进度 NPC 阶段系统 设计文档
 
 **日期**：2026-09-29
-**状态**：**已实施**（代码 + 数据均已落地；2026-09-30 按实机反馈把"发放"改挂到 ChatBox 的选项 `click` 上，见 §3.3 修复记录；**实机复验待用户执行**）
+**状态**：**已实施**（代码 + 数据均已落地；2026-09-30 按实机反馈把"发放"改挂到 ChatBox 的选项 `click` 上（§3.3 修复记录），并按当日的代码审查补齐了注释措辞与主题的功能按钮（见本节末的两处补充））
 **选定方案**：**方案 A** —— 服务端过滤可见回复（带数据下标）下发，点击时复检
 
 ---
@@ -194,6 +194,27 @@ NPC 对话已经能与 ChatBox 联动（见 `2026-09-29-npc-dialogue-chatbox-bri
 
 **另一处取舍**：`1_1` 的图标用 `minecraft:ender_pearl`（末/龙宫主题）；
 `root` 保持它原有的 `beloong:beloong_logo`。
+
+**📌 审查后的两处补充（2026-09-30）**
+
+1. **主题已补 `functionalButton`**（`log` / `fastForward` / `autoPlay` 三个）：缺了它 ChatBox 会清空功能按钮，
+   而且 `ChatBoxScreen.java:509` 的 **Ctrl 快进要求 `fastForwardButton() != null`** ⇒ 连键盘快进也失效。
+   （点击仍可补全本页文字，所以那不是"卡死"，是少了一整排按钮。）
+2. **⚠️ 已知残余风险（用户决定先只留痕、不加固）**：发放用的那条命令**不以 `execute` 开头**，而 ChatBox 的
+   `ComponentEvent.executeCommand` 有这么一条分支：
+
+   ```java
+   if (ChatBox.pluginHelper != null && !command.startsWith("execute"))
+       return ChatBox.pluginHelper.executeCommand(player.getUUID(), command);   // ComponentEvent.java:145-146
+   ```
+
+   ⇒ 一旦某环境里 `pluginHelper` 非 null（本项目的运行日志里确实加载了 KubeJS 的 chatbox 插件），
+   命令会被**整个交给插件**、原版 dispatcher 不再执行 ⇒ **静默不发**（选项照常关闭、`1_1` 永不发放、回复永不消失）。
+   **症状**：ChatBox 日志里**没有** `Error executing command on server`（因为压根没走 dispatcher），
+   而验收清单第 4b 步永远不通过。**一行修法**：把命令改成
+   `execute as @s run advancement grant @s only beloong:npc/1_1`（以 `execute` 开头即绕开该分支）。
+   本模组侧无法感知这一失败（我们**只查询完成状态**，不发放也不撤销）。
+   不变量脚本 `stage_invariants.py` 已加一条**非致命提示**，命令没以 `execute` 开头时会打印出来。
 
 
 ---
