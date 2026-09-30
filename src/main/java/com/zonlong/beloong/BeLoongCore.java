@@ -1,14 +1,23 @@
 package com.zonlong.beloong;
 
+import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
+import com.zonlong.beloong.command.CgCommand;
+import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
+import com.zonlong.beloong.cg.MoEntranceTrigger;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
+import com.zonlong.beloong.dialogue.NpcDialogueHandler;
+import com.zonlong.beloong.dialogue.NpcDialogueLoader;
+import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
+import com.zonlong.beloong.dialogue.NpcDialogueReplyPayload;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -21,6 +30,7 @@ import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
+import com.zonlong.beloong.route.NpcRouteLoader;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
@@ -42,11 +52,13 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -110,6 +122,9 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
+        NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
+        NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
         NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
 
         if (ModList.get().isLoaded("lockdown")) {
@@ -128,11 +143,36 @@ public class BeLoongCore {
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
 
         // === 网络包注册 ===
-        modEventBus.addListener((RegisterPayloadHandlersEvent evt) ->
-                evt.registrar(MODID).playToClient(
-                        TreasureSyncPayload.TYPE,
-                        TreasureSyncPayload.STREAM_CODEC,
-                        TreasureSyncPayload::handleClient));
+        modEventBus.addListener(this::registerPayloads);
+    }
+
+    /**
+     * 网络包注册（Play 阶段、服务端 → 客户端）。
+     * <p>
+     * 两条包的**下发时机刻意不同**：
+     * <ul>
+     *   <li>{@link TreasureSyncPayload} —— 玩家登录时**全量**同步一次（客户端要拿整张表做本地预测）；</li>
+     *   <li>{@link NpcDialogueOpenPayload} —— **不**做登录同步，只在玩家右键命中时把**那一条**发给他
+     *       （对话是请求/响应式的，客户端只需要"这一次要显示的这一段"）。</li>
+     *   <li>{@link NpcDialogueReplyPayload} —— 本项目**第一个客户端 → 服务端**包：玩家点了回复选项。
+     *       只带"实体网络 id + 回复下标"，目标由服务端解析（见该包的类注释与联动设计文档 §3）。</li>
+     * </ul>
+     */
+    private void registerPayloads(RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar(MODID);
+        registrar.playToClient(
+                TreasureSyncPayload.TYPE,
+                TreasureSyncPayload.STREAM_CODEC,
+                TreasureSyncPayload::handleClient);
+        registrar.playToClient(
+                NpcDialogueOpenPayload.TYPE,
+                NpcDialogueOpenPayload.STREAM_CODEC,
+                NpcDialogueOpenPayload::handleClient);
+        // 注意方向：这是**服务端受理**的包（playToServer），不是 playToClient。
+        registrar.playToServer(
+                NpcDialogueReplyPayload.TYPE,
+                NpcDialogueReplyPayload.STREAM_CODEC,
+                NpcDialogueReplyPayload::handleServer);
     }
 
     /** FML 通用设置（双端都执行）。 */
@@ -168,6 +208,29 @@ public class BeLoongCore {
         event.addListener(StructureEffectLoader.INSTANCE);
         event.addListener(BeloongWaterRegionLoader.INSTANCE);
         event.addListener(WaystonePlacementLoader.INSTANCE);
+        event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
+        event.addListener(NpcRouteLoader.INSTANCE);      // NPC 路线（同上，目录 beloong/npc_route）
+    }
+
+    /**
+     * 注册命令。
+     * <p>
+     * {@code RegisterCommandsEvent} 在每次服务端启动（含单人世界的内置服务端）时触发，
+     * 命令注册在**该次**的 dispatcher 上，因此每次都要重新注册。
+     * <p>
+     * 两条命令：{@link NpcCommand}（通用 NPC 的验收与摆位工具）与 {@link CgCommand}（过场动画播放）。
+     * 它们共享 {@code /beloong} 这个根字面量 —— 各自 {@code register} 一个同名 literal 是**可以**的：
+     * Brigadier 会按下标名把子树合并（依据见 {@link CgCommand} 类注释里引的
+     * {@code CommandNode.addChild} 源码）。
+     * <p>
+     * ⚠️ 合并**不带走**后注册者的 {@code requires} 谓词 ⇒ 两处必须写同样的权限等级，
+     * 否则改第二处是无效的。
+     */
+    @SubscribeEvent
+    public void onRegisterCommands(RegisterCommandsEvent event) {
+        NpcCommand.register(event.getDispatcher());
+        CgCommand.register(event.getDispatcher());
+        RouteCommand.register(event.getDispatcher());   // 按玩家定位的路线指派（ChatBox 选项调用）
     }
 
     /** 服务端启动时触发。 */

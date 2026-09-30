@@ -1,0 +1,48 @@
+{
+  "_comment": "注释（本模组自用）：dialogBox.renderEvents 里那条 @Options 显示事件是必需的 —— 主题的 option 默认 hidden，而 ChatOption.click() 对 hidden 直接 return false，不 show 就既看不见也点不动；trigger end 是组件级事件，由 DialogBox.setAllOver 触发（每页文字播完各一次，没有选项的页解析为空、无副作用）。functionalButton 三个都要写：ChatBoxScreen 的 Ctrl 快进要求 fastForwardButton() 非 null。版式说明（只讲语义，具体数值以本文件的数据为准）：本主题所有坐标/尺寸都是**屏幕高度的百分比**，不是像素；dialogBox 是 alignY=bottom（贴屏幕底），其 height 同时决定上沿位置；option 的 alignY 决定锚点方向 —— top 是从屏幕上方往下数 y，bottom 是从屏幕下方往上数（多选项由该处向上叠，见 ChatOption.java:110-113）。现有数值由用户看着画面亲自调定（2026-10-01），不要从任何注释反推它们。",
+  "dialogBox": {
+    "texture": "chatbox:textures/chatbox/default_dialog_box.png",
+    "alignX": "left",
+    "alignY": "bottom",
+    "lineWidth": 70,
+    "width": 100,
+    "height": 34,
+    "nameX": 20,
+    "nameY": 4,
+    "textX": 20,
+    "textY": 9,
+    "renderEvents": [
+      {
+        "trigger": "end",
+        "type": "show",
+        "value": "@Options"
+      }
+    ]
+  },
+  "functionalButton": [
+    {
+      "type": "log"
+    },
+    {
+      "type": "fastForward"
+    },
+    {
+      "type": "autoPlay"
+    }
+  ],
+  "option": {
+    "texture": "chatbox:textures/options/default_no_checked_option.png",
+    "selectTexture": "chatbox:textures/options/default_checked_option.png",
+    "lockTexture": "chatbox:textures/options/default_lock_checked_option.png",
+    "x": 0,
+    "y": 50,
+    "width": 50,
+    "height": 10,
+    "alignX": "right",
+    "alignY": "top",
+    "optionChatX": 6.5,
+    "optionChatY": 3.0,
+    "textAlign": "left",
+    "hidden": true
+  }
+}

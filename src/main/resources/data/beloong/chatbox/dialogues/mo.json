@@ -1,0 +1,95 @@
+{
+  "theme": "beloong:minimal",
+  "isPause": false,
+  "isScreen": true,
+  "dialogues": {
+    "start": [
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.p1"
+        }
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.p2"
+        },
+        "options": [
+          {
+            "text": "beloong.chatbox.mo.option_ok",
+            "next": "-1",
+            "click": {
+              "type": "command",
+              "value": "execute as @s run advancement grant @s only beloong:npc/1_1; execute as @s run beloong route beloong:mo_route_1"
+            }
+          }
+        ]
+      }
+    ],
+    "waystone": [
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w1"
+        }
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w2"
+        },
+        "options": [
+          {
+            "text": "beloong.chatbox.mo.w_opt1",
+            "next": "2"
+          },
+          {
+            "text": "beloong.chatbox.mo.w_opt2",
+            "next": "2"
+          }
+        ]
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w3"
+        }
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w4"
+        }
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w5"
+        },
+        "options": [
+          {
+            "text": "beloong.chatbox.mo.w_opt3",
+            "next": "5"
+          }
+        ]
+      },
+      {
+        "dialogBox": {
+          "name": "beloong.chatbox.mo.name",
+          "text": "beloong.chatbox.mo.w6"
+        },
+        "options": [
+          {
+            "text": "beloong.chatbox.mo.option_ok",
+            "next": "-1",
+            "click": {
+              "type": "command",
+              "value": "execute as @s run advancement grant @s only beloong:npc/2_1; execute as @s run beloong route beloong:mo_route_2"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

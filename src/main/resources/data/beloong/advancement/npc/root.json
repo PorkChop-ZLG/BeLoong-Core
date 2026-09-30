@@ -1,0 +1,60 @@
+{
+  "criteria": {
+    "root": {
+      "trigger": "minecraft:location",
+      "conditions": {
+        "player": [
+          {
+            "condition": "minecraft:entity_properties",
+            "entity": "this",
+            "predicate": {
+              "location": {
+                "dimension": "beloong:loong_palace",
+                "position": {
+                  "x": {
+                    "min": -8,
+                    "max": 8
+                  },
+                  "y": {
+                    "min": 56,
+                    "max": 72
+                  },
+                  "z": {
+                    "min": -16,
+                    "max": 0
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "background": "dragonsurvival:textures/block/stone_dragon_door_top.png",
+    "description": {
+      "translate": "beloong.advancement.npc/root.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "count": 1,
+      "id": "beloong:beloong_logo"
+    },
+    "show_toast": false,
+    "title": {
+      "translate": "beloong.advancement.npc/root"
+    }
+  },
+  "requirements": [
+    [
+      "root"
+    ]
+  ],
+  "rewards": {
+    "experience": 0
+  },
+  "sends_telemetry_event": false
+}

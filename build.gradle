@@ -139,6 +139,11 @@ dependencies {
     // GeckoLib - required by Dragon Survival
     implementation "curse.maven:geckolib-388172:8350073"
 
+    // ChatBox — 必选依赖（视觉小说式对话框，GALGAME 风格）
+    // 参考源：开源模组参考文件\chatbox（github.com/zhenshiz/chatbox，GPL-3.0）
+    // 其自身只 required neoforge ≥21.1.199 与 minecraft [1.21,1.22)，KubeJS/GeckoLib 等均为软依赖
+    implementation "curse.maven:chatbox-for-mc-1276866:8947867"
+
     // LockDown - required dependency
     implementation "curse.maven:lockdown-reneoforged-1492416:8245680"
     // Mixin Annotation Processor - generates refmap for @Inject resolution
@@ -182,7 +187,16 @@ dependencies {
     // Qliphoth Awakening — 必选前置
     compileOnly "curse.maven:qliphoth-awakening-1271707:7653113"
     localRuntime "curse.maven:qliphoth-awakening-1271707:7653113"
-    compileOnly "curse.maven:fdlib-1271749:7844741"
+
+    // FDLib — 必选前置（2026-09-30 由 compileOnly 升为 implementation，理由见
+    // docs/plans/2026-09-30-cg-system-design.md 的 D1）：
+    // ① item/effect/DawnLightEffect.java:91-94 早已在**无守卫**调用 FDLibCalls.sendScreenEffect；
+    // ② mods.toml 已 required fdbosses，而 fdbosses 自身 required fdlib ⇒ 整合包里 fdlib 缺席时
+    //    会先因 fdbosses 而拒绝加载。
+    // ⇒ 这是把现状写进声明，不引入新依赖。它的 systems/cutscenes/ 是 CG 系统的相机底座。
+    // 版本 1.0.9 = 实际核对过的版本（Gradle 缓存的 fdlib-1271749-7844741.jar 与整合包的
+    // 【前置】fdlib-1.0.9-1.21.1.jar 同为 973,335 字节，systems/cutscenes/ 下 19 个 class 齐全）。
+    implementation "curse.maven:fdlib-1271749:7844741"
     localRuntime "curse.maven:fdlib-1271749:7844741"
 
     // LionfishAPI — 必选前置（地狱之门的模型/动画基类 AdvancedEntityModel 来自这里）

@@ -1,0 +1,110 @@
+package com.zonlong.beloong.dialogue;
+
+import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.client.NpcDialogueScreen;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * 「打开 NPC 对话」网络包（服务端 → 单个玩家），只在**该玩家**右键命中时发送。
+ * <p>
+ * 服务端是唯一的决策点：它判定这次右键是否命中、以及该玩家此刻该看到哪一条
+ * （见 {@code NpcDialogueHandler}）。客户端**不持有对话全表** —— 因此没有客户端缓存，
+ * 也没有登录全量同步。
+ * <p>
+ * <b>为什么载荷是「客户端渲染所需的最小事实」而不是 {@link NpcDialogueEntry} 本体</b>：
+ * {@code StreamCodec} 解码失败**无法优雅降级** —— NeoForge 在解码阶段抛异常会**中止连接**，
+ * 而不是丢掉一个包。而条目里的 {@code EntityType} 在客户端只能做注册表反查，
+ * 是整条链路上**唯一可失败的一步**。于是：
+ * <ul>
+ *   <li>不放 {@code EntityType}，兜底名改用
+ *       {@link net.minecraft.world.entity.EntityType#getDescriptionId()}（普通字符串）；</li>
+ *   <li>需要实体本体的场合（取名要用命名牌自定义名）由 {@link #entityId()} 在客户端按网络 id 找，
+ *       找不到就退到兜底名；</li>
+ *   <li>{@code trigger} 不上线 —— 触发判定只在服务端做，客户端渲染用不到它；</li>
+ *   <li><b>回复选项只发"服务端已判定可见的项"</b>：每项 = 标签翻译键 + 它在数据 {@code replies[]}
+ *       里的**原始下标**（缺省空表）。客户端点击后回传"实体 id + 该数据下标"，目标由服务端用自己的表解析。
+ *       于是：改过的客户端无法让服务端播放任意 ChatBox 对话，也无法让服务端显示被阶段闸门隐藏的选项
+ *       （阶段判定见 {@code NpcDialogueStage}）；且载荷里只有字符串与整数，
+ *       天然满足下面那条"全函数永不抛"的不变量。</li>
+ * </ul>
+ * 结果：线格式**全函数、永不抛**。
+ *
+ * @param nameKey         说话人名字的翻译键（数据文件里的 {@code name}）；缺省用实体显示名
+ * @param fallbackNameKey 兜底名的翻译键（服务端取实体类型名，如 {@code entity.minecraft.villager}）
+ * @param pages           逐页文本
+ * @param entityId        目标实体的网络 id（客户端用于取命名牌自定义名；实体未加载时允许找不到）
+ * @param replies         **当前可见**的回复选项（标签键 + 数据下标；缺省空表 ⇒ 界面只有「离开」）
+ */
+public record NpcDialogueOpenPayload(
+        Optional<String> nameKey,
+        String fallbackNameKey,
+        List<NpcDialogueEntry.Page> pages,
+        int entityId,
+        List<VisibleReply> replies
+) implements CustomPacketPayload {
+
+    /**
+     * 一个可见的回复选项。
+     *
+     * @param text  标签的翻译键
+     * @param dataIndex 它在数据 {@code NpcDialogueEntry#replies()} 里的**原始下标** ——
+     *                  服务端受理点击时按这个下标回到原表复检（用"可见列表下标"会在状态变化后点错回复）。
+     *                  <b>刻意叫 {@code dataIndex} 而不是 {@code index}</b>：{@code Reply.index} 是
+     *                  **ChatBox 的页序号**，两者同名会让人以为是同一个东西。
+     */
+    public record VisibleReply(String text, int dataIndex) {
+        /** 字符串 + 整数，无查表无分支 ⇒ 全函数。 */
+        public static final StreamCodec<ByteBuf, VisibleReply> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8, VisibleReply::text,
+                ByteBufCodecs.VAR_INT, VisibleReply::dataIndex,
+                VisibleReply::new);
+    }
+
+    public static final Type<NpcDialogueOpenPayload> TYPE =
+            new Type<>(ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "npc_dialogue_open"));
+
+    /**
+     * 末尾的 {@code mapStream} 与 {@code TreasureSyncPayload#STREAM_CODEC} 保持同一写法。
+     * <p>
+     * 严格说它**不是必需的**：{@code StreamCodec.composite} 的首参类型是
+     * {@code StreamCodec<? super B, T>}，而 {@link ByteBuf} 是 {@link RegistryFriendlyByteBuf}
+     * 的父类型，所以光凭左侧声明的目标类型也能推出 {@code B = RegistryFriendlyByteBuf}
+     * —— 带不带 {@code mapStream}，线格式完全一致。保留只为与本模组既有那条包写法统一，
+     * 免得下一个人把两处改成不同风格。
+     */
+    public static final StreamCodec<RegistryFriendlyByteBuf, NpcDialogueOpenPayload> STREAM_CODEC =
+            StreamCodec.composite(
+                    ByteBufCodecs.optional(ByteBufCodecs.STRING_UTF8), NpcDialogueOpenPayload::nameKey,
+                    ByteBufCodecs.STRING_UTF8, NpcDialogueOpenPayload::fallbackNameKey,
+                    NpcDialogueEntry.Page.STREAM_CODEC.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::pages,
+                    ByteBufCodecs.VAR_INT, NpcDialogueOpenPayload::entityId,
+                    VisibleReply.STREAM_CODEC.apply(ByteBufCodecs.list()), NpcDialogueOpenPayload::replies,
+                    NpcDialogueOpenPayload::new
+            ).mapStream(buf -> (ByteBuf) buf);
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
+    }
+
+    /**
+     * 客户端处理器。默认在**主线程**执行（与 {@code TreasureSyncPayload} 同款），
+     * 故直接 {@code setScreen} 即可，不需要 {@code context.enqueueWork}。
+     * <p>
+     * 这里引用客户端类 {@link NpcDialogueScreen} 是安全的：专用服务器上本方法**永不被调用**，
+     * 类加载是惰性的，{@code Screen} 那一系不会在服务端被加载。与
+     * {@code TreasureSyncPayload#handleClient} 引用 {@code ClientTreasureCache} 完全同款。
+     */
+    public static void handleClient(NpcDialogueOpenPayload payload, IPayloadContext context) {
+        NpcDialogueScreen.open(payload);
+    }
+}

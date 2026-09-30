@@ -1,5 +1,7 @@
 package com.zonlong.beloong.registry;
 
+import com.zonlong.beloong.entity.DihuangLoongEntity;
+import com.zonlong.beloong.entity.MoEntity;
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -11,6 +13,7 @@ import net.minecraft.world.entity.ai.attributes.RangedAttribute;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
 import net.neoforged.neoforge.event.entity.EntityAttributeModificationEvent;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.jetbrains.annotations.Nullable;
@@ -94,5 +97,18 @@ public class ModAttributes {
     @SubscribeEvent
     public static void attachAttributes(EntityAttributeModificationEvent event) {
         event.add(EntityType.PLAYER, GROWTH_SPEED);
+    }
+
+    /**
+     * 为 NPC 提供属性表。
+     * <p>
+     * <b>为什么放在这里而不是客户端类</b>：属性是**服务端权威**的。若只在客户端类订阅
+     * {@link EntityAttributeCreationEvent}，专用服务器上的 NPC 会没有属性表。
+     * 本类是双端都加载的类（{@code @EventBusSubscriber} 未限定 dist），正是它该待的地方。
+     */
+    @SubscribeEvent
+    public static void onEntityAttributeCreation(EntityAttributeCreationEvent event) {
+        event.put(ModEntities.DIHUANG_LOONG.get(), DihuangLoongEntity.createAttributes().build());
+        event.put(ModEntities.MO.get(), MoEntity.createAttributes().build());
     }
 }

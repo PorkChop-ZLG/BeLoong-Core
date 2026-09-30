@@ -1,0 +1,93 @@
+{
+  "parent": "beloong:npc/1_1",
+  "criteria": {
+    "default_block_use": {
+      "trigger": "minecraft:default_block_use",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:location_check",
+            "predicate": {
+              "block": {
+                "blocks": "waystones:prismarine_waystone"
+              },
+              "dimension": "beloong:loong_palace",
+              "position": {
+                "x": {
+                  "min": -7,
+                  "max": 7
+                },
+                "y": {
+                  "min": 71,
+                  "max": 85
+                },
+                "z": {
+                  "min": -64,
+                  "max": -50
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "any_block_use": {
+      "trigger": "minecraft:any_block_use",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:location_check",
+            "predicate": {
+              "block": {
+                "blocks": "waystones:prismarine_waystone"
+              },
+              "dimension": "beloong:loong_palace",
+              "position": {
+                "x": {
+                  "min": -7,
+                  "max": 7
+                },
+                "y": {
+                  "min": 71,
+                  "max": 85
+                },
+                "z": {
+                  "min": -64,
+                  "max": -50
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "display": {
+    "announce_to_chat": false,
+    "show_toast": false,
+    "hidden": false,
+    "frame": "task",
+    "icon": {
+      "count": 1,
+      "id": "waystones:prismarine_waystone"
+    },
+    "title": {
+      "translate": "beloong.advancement.npc/2_0"
+    },
+    "description": {
+      "translate": "beloong.advancement.npc/2_0.desc"
+    }
+  },
+  "requirements": [
+    [
+      "default_block_use"
+    ],
+    [
+      "any_block_use"
+    ]
+  ],
+  "rewards": {
+    "experience": 0
+  },
+  "sends_telemetry_event": false
+}

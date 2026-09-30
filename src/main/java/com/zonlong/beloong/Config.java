@@ -36,6 +36,50 @@ public class Config {
             .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
+    // ==================== 简易 NPC 对话 ====================
+    // 本组字段**分宿两处**，取决于它的判定发生在哪一端：
+    //   - enabled      → SERVER_SPEC：触发判定在服务端，由服务端决定是否受理右键；
+    //   - charsPerTick / nameScale → CLIENT_SPEC：纯渲染参数，只影响本地观感。
+    // 首版三项全在客户端，那是因为当时的触发判定也在客户端（见
+    // docs/plans/2026-09-25-npc-dialogue-data-driven-design.md）。
+
+    /** 简易 NPC 对话。字段在下方两个 static 块中分别赋值。 */
+    public static final class NpcDialogue {
+        private NpcDialogue() {}
+
+        /** 总开关（默认启用）。**服务端配置** —— 服务端据此决定是否受理右键。 */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 打字机速度（字/tick），默认 1 ≈ 每秒 20 字 */
+        public static ModConfigSpec.IntValue charsPerTick;
+        /** 说话人名字字号倍数（1.0 = 与正文同号，最清晰） */
+        public static ModConfigSpec.DoubleValue nameScale;
+    }
+
+    static {
+        CLIENT_BUILDER.push("npc_dialogue");
+
+        // enabled 刻意不在客户端定义 —— 它已迁到 SERVER_SPEC（见文件底部的服务端 static 块）。
+        // 理由：判定在服务端；且首版 D19 想要的"将来给第三方模组一键让位"本就是
+        // 整合包/服务端级决定，不是每个玩家各自的偏好。
+
+        NpcDialogue.charsPerTick = CLIENT_BUILDER
+                .comment("Typewriter speed in characters per tick (1 = default, about 20 chars per second)",
+                        "打字机速度（字/tick），默认 1 ≈ 每秒 20 字")
+                .translation("beloong.configuration.npcDialogueCharsPerTick")
+                .defineInRange("charsPerTick", 1, 1, 20);
+
+        NpcDialogue.nameScale = CLIENT_BUILDER
+                .comment("Speaker-name font scale. 1.0 = same size as body text (crispest);",
+                        "1.5 = as in the reference screenshots, but non-integer scaling of the",
+                        "bitmap font makes some strokes 1px wide and others 2px",
+                        "说话人名字的字号倍数。1.0 = 与正文同号（最清晰）；",
+                        "1.5 = 对齐参考图，但位图字体非整数缩放会让部分笔画 1px、部分 2px")
+                .translation("beloong.configuration.npcDialogueNameScale")
+                .defineInRange("nameScale", 1.5D, 1.0D, 2.0D);
+
+        CLIENT_BUILDER.pop(); // npc_dialogue
+    }
+
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
 
     // ==================== 通用配置 ====================
@@ -253,6 +297,20 @@ public class Config {
 
 
     static {
+        // ========== npc_dialogue ==========
+        // 触发判定在服务端（NpcDialogueHandler 在服务端受理右键），所以"要不要受理"是
+        // 服务端决定。纯渲染参数（charsPerTick / nameScale）仍在 CLIENT_SPEC。
+        // 语言键与客户端同名分组复用同一个，故模组菜单里分组标题仍是"简易 NPC 对话"。
+        SERVER_BUILDER.push("npc_dialogue");
+
+        NpcDialogue.enabled = SERVER_BUILDER
+                .comment("Enable the simple NPC dialogue screen",
+                        "启用简易 NPC 对话界面")
+                .translation("beloong.configuration.npcDialogueEnabled")
+                .define("enabled", true);
+
+        SERVER_BUILDER.pop(); // npc_dialogue
+
         // ========== loong_palace.environment_protection ==========
         SERVER_BUILDER.push("loong_palace");
         SERVER_BUILDER.push("environment_protection");

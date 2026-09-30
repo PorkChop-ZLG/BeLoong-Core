@@ -1,0 +1,202 @@
+package com.zonlong.beloong.entity;
+
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+
+/**
+ * 末（Mo）NPC —— {@link NpcEntity} 的第二个子类。
+ * <p>
+ * AI、无敌 / 不可推动 / 不消失、移动与攻击能力全部继承基类；本类只回答"是什么"，
+ * 外加三处**资产决定的**必要适配（见下）。碰撞箱与实体类型绑定在
+ * {@code registry/ModEntities}，模型 / 贴图 / 渲染器在 {@code client/} 侧。
+ *
+ * <h2>资产来源</h2>
+ * 资产由**本地模型暂存目录** {@code docs/models/} 迁移而来（该目录专门存放模型源文件、
+ * **不入库**——模型是第三方作者的资产）：**几何与贴图**取自 {@code docs/models/末2/}
+ * （2026-09-27 换用，逐字节拷贝），**动画**取自 {@code docs/models/末/} 并经多轮修整。
+ * 逐项事实（骨骼数、贴图尺寸、哪几条动画还对不上骨骼）见
+ * {@link com.zonlong.beloong.client.model.MoModel} 的类注释。
+ * <p>
+ * 该模型原本是给 **Yes Steve Model（YSM）** 用的玩家模型——这一点决定了下面几处适配，
+ * 完整分析见 {@code docs/末模型分析.md}（含 GeckoLib 与 YSM 双侧源码证据）。
+ *
+ * <h2>2026-09-27 实机反馈与修复：三个症状同一个根因</h2>
+ * 实机报了三件事：① 模型比碰撞箱大太多；② 武器位置偏移、不在手上；③ 模型整体偏离碰撞箱。
+ * 三者**同源**，而且都不是"模型做得太大"，是我把 {@code wings_idle}（当时还叫 {@code 翅膀默认（展开）}）当叠加层用错了。
+ * <p>
+ * 该动画**不是"翅膀姿势层"，而是一整套「有翼形态」的全身姿态**：它给
+ * {@code Root} 设了 {@code scale = 1.8} 与 {@code position = [-13, -7.98, 16.89]}，
+ * 给 {@code Weapen} 设了 {@code position} 与 {@code scale = 1.2}。
+ * 而 {@code AnimationProcessor.java:107-127} 对每根骨骼是**按通道独立**写值的：
+ * 某控制器**没设**的通道，它**不会**把骨骼复位。
+ * {@code idle} 里**根本没有 {@code Root} 这一轨**，也不给 {@code Weapen} 设位移/缩放 ⇒
+ * 那三个通道从翅膀层**原样泄漏**到最终姿态：
+ * <ul>
+ *   <li>{@code Root.scale = 1.8} ⇒ 整个模型被放大 1.8 倍（症状 ①）；</li>
+ *   <li>{@code Root.position} ⇒ 整个模型被平移约 0.8 格横 / 0.5 格下 / 1.1 格前（症状 ③）；</li>
+ *   <li>{@code Weapen.position} + {@code Weapen.scale} ⇒ 武器被推离手并放大 1.2 倍；
+ *       而武器的**旋转**来自 {@code idle} ⇒ 混合姿态（症状 ②）。</li>
+ * </ul>
+ * <b>修法</b>（用户裁定"保留翅膀张开"）：从资产 {@code animations/mo.animation.json} 的
+ * {@code wings_idle} 里删掉 5 个泄漏键 —— {@code Root.position}、{@code Root.scale}、
+ * {@code Weapen.position}、{@code Weapen.scale}、{@code Tail.scale}（共 188 字节，
+ * 括号内的 24 → 22 根骨骼）。当时其余 29 条动画一字未动
+ * （{@code fly}/{@code swim}/{@code swim_stand} 是 2026-09-27 另一次改动修的，见下），
+ * {@code Root}/{@code Tail}/{@code Weapen}
+ * 三根骨骼本身当然仍在 geo 中，只是不再被翅膀层改。
+ * 另加了 0.80 的渲染缩放（见 {@code MoRenderer}）——模型按原版玩家的骨架尺寸算是偏大的，
+ * 缩放后头顶与原版玩家齐平。这是**与上述泄漏无关的另一件事**。
+ * <p>
+ * 📌 <b>2026-09-27 后续（用户裁定）</b>：换用与动画匹配的新几何后，翅膀已是完整的两条链，
+ * 且 {@code idle}/{@code walk}/{@code run}/{@code fly}/{@code sit}/{@code descend}/{@code attack}
+ * **每一条都自带 54~55 根翅膀骨的通道** ⇒ 这一层被**整个删除**，本类不再注册任何控制器。
+ * 因此下面（以及旧版本里）关于"翅膀层必须注册在主控制器**之前**""飞行时要把翅膀层 STOP"
+ * 之类**关于注册顺序的结论随之失效**，保留本节只作历史记录 ——
+ * 它记录了"用独立叠加层去补姿态"这条路为什么走不通（会与主控制器争同一批骨骼）。
+ *
+ * <h2>来自资产的其余缺陷</h2>
+ * GeckoLib 对"动画/骨骼找不到"**完全静默**，因此这些不会报错，只会表现为"某些东西不动"：
+ * <ul>
+ *   <li>✅ <b>已修（2026-09-27）</b>：{@code fly} / {@code swim} / {@code swim_stand} 原先在加载期
+ *       就被**整条丢弃** —— 它们的 Molang 表达式含单引号与中文，违反 GeckoLib 的
+ *       {@code MathParser.EXPRESSION_FORMAT}（{@code MathParser.java:46} 那个既不含 {@code '}
+ *       也不含 CJK 的字符类），而 {@code BakedAnimationsAdapter} 是**按条 try/catch、失败即丢整条**。
+ *       症状是"代码请求它们时毫无反应也不报错"。
+ *       <p>
+ *       修法是**删掉那 10 条表达式所在的 6 个骨骼条目**（{@code AllBody_Molang} 与
+ *       {@code Head_Molang}，三条各一对）—— 这两根骨骼**都不在 geo 里**，GeckoLib 本来就会
+ *       {@code if (bone == null) continue} 跳过 ⇒ 删它们是**纯删死数据，不改变任何可见姿态**，
+ *       却让三条动画从此能加载。{@code fly} 因此可用于飞行 AI（见 {@code NpcEntity#flyAnimationName()}）。
+ *       <br>⚠️ <b>{@code run} 里也有一条 {@code AllBody_Molang}，但那条内容合法，未动</b> ——
+ *       改这类问题时不要按骨骼名全局替换，要按「所在动画 + 是否真的违规」逐个确认。</li>
+ *   <li>{@code walk} / {@code run} 各引用了 74 / 75 根模型不存在的骨骼
+ *       （翅膀、头发、披风、发光件），这些骨骼只是**不动**，不影响身体；</li>
+ *   <li>{@code walk} / {@code run} 里的 {@code ysm.head_yaw} 是 YSM 私有变量，
+ *       在 GeckoLib 下未注册 ⇒ **恒为 0** ⇒ 走路时头不随视角转（有意先不处理）。</li>
+ * </ul>
+ */
+public class MoEntity extends NpcEntity {
+
+    public MoEntity(EntityType<? extends MoEntity> entityType, Level level) {
+        super(entityType, level);
+    }
+
+    /**
+     * 属性表。全部基础值来自 {@link NpcEntity#createNpcAttributes()}
+     * （血量 1000 / 击退抗性 1.0 / 攻击力 100 / 移速 0.3）。
+     * <p>
+     * 注册点在 {@code registry/ModAttributes}（属性是服务端权威的，必须放双端都加载的类）。
+     */
+    public static AttributeSupplier.Builder createAttributes() {
+        return NpcEntity.createNpcAttributes();
+    }
+
+    // ===================== 动画名 =====================
+
+    /**
+     * 待机动画名 —— 资产里这条叫 {@code idle}（117 骨骼 / 4 秒 / <b>0 缺失骨骼</b>）。
+     * {@code walk} / {@code run} 的名字与基类默认一致，故不覆写。
+     * <p>
+     * <b>2026-09-27：键名已从中文改为 ASCII，那条字符集陷阱就此闭环。</b>
+     * 原名是 {@code 待机动画}，与 {@code 翅膀默认（展开）}（→ {@code wings_idle}）一起英文化。
+     * 依据留档如下，<b>不要再改回中文</b>。
+     * <p>
+     * GeckoLib 读 json 用的是
+     * {@code IOUtils.toString(inputStream, Charset.defaultCharset())}
+     * （{@code FileLoader.java:73}）—— **平台默认字符集，不是 UTF-8**。
+     * Java 21（JEP 400）起该默认值就是 UTF-8，本机实测也是
+     * {@code file.encoding=UTF-8}（{@code native.encoding=GBK}），所以中文键名**平时**能对上；
+     * 迁移时也曾用字节比对验证过类文件与 json 里的名字一致。
+     * <p>
+     * 但若启动器额外传了 {@code -Dfile.encoding=GBK}（部分旧版中文启动器会这么干），
+     * 资产里的中文键名会被按 GBK 解码、与类里的 UTF-8 字面量**对不上**；
+     * 而 GeckoLib 对"找不到动画"是**静默跳过**（{@code AnimationProcessor.java:60-61} 的
+     * {@code if (animation != null)}）⇒ 症状是**待机动画永远不播、且没有任何日志**，极难排查。
+     * <p>
+     * 改成 ASCII 后，编译期字面量与资产字节**都不再依赖任何字符集**，该隐患彻底消失。
+     * 资产的另 6 个中文键名（{@code 躯体选择备份} 等）代码从不引用，故未改。
+     */
+    @Override
+    protected String idleAnimationName() {
+        return "idle";
+    }
+
+    /**
+     * 飞行动画名 —— 资产里有 {@code fly}（2026-09-27 修好、能加载的那条）。
+     * <p>
+     * 📌 <b>2026-09-29 更新</b>：{@code sit} / {@code dance} / {@code descend} 已从主动画文件
+     * {@code mo.animation.json} 拆到 {@code mo.extra.animation.json}，由
+     * {@code MoModel#getAnimationResourceFallbacks} 合并进来（GeckoLib 原生机制：
+     * 主文件优先，名字 miss 才查备用文件）。
+     * <p>
+     * 于是"坐下 / 跳舞"<b>不再是状态</b>，而是用
+     * {@code /beloong npc <targets> play sit} / {@code play dance} 播的<b>表情</b>
+     * （`state`/`move`/`attack`/`reset` 都会清掉它，见 {@code NpcState} 的类注释）。本类因此<b>不再覆写</b>任何
+     * "某状态的动画名"方法 —— 基类只留 {@link #flyAnimationName()} 与 idle/walk/run 这几个。
+     * <p>
+     * ⚠️ <b>保留下面的教训</b>：本类注释曾写着"没有 {@code sit}"，那是**只看了资产里
+     * "飞 / 翅膀"相关子集就下的断言**；把全部动画列全后确认它存在（实测也能正常播）。
+     * ⇒ <b>说"某资产里没有 X"之前，必须把清单列全。</b>
+     */
+    @Override
+    protected String flyAnimationName() {
+        return "fly";
+    }
+
+    // ===================== 动画控制器 =====================
+    //
+    // 本类**不再注册任何自己的控制器**（2026-09-27 第二次改动，用户裁定）。
+    //
+    // 原先这里有一个名为 "wings" 的常驻层：每 tick 循环播 wings_idle，专门给翅膀一个姿态。
+    // 那是为**旧几何**准备的 —— 旧模型的翅膀只有一条左右对称压在同一批骨上的链，
+    // 而当时的 idle / walk / run 都不驱动翅膀骨，所以必须靠一个独立层提供翅膀姿态。
+    // 换用新几何后（见 MoModel 的类注释），翅膀已是完整的两条链（geo 里 55 根含 Wing 的骨），
+    // 且 idle / walk / run / fly / sit / descend / attack **每一条都自带 54~55 根翅膀骨的通道**
+    // ⇒ 独立层不但多余，还会与基类主控制器**争同一批骨骼**
+    // （GeckoLib 对同一根骨骼是按通道绝对赋值、后注册者覆盖前者，
+    // 见 AnimationProcessor.java:107-110）⇒ 整层删除。
+    // 现在只由基类 NpcEntity 的状态机控制器驱动，本类一行控制器代码都不需要。
+    //
+    // 当初为什么会引入这一层、以及它曾经造成的三个症状，见类注释
+    // "2026-09-27 实机反馈与修复：三个症状同一个根因"一节（保留作历史记录）。
+
+    // ===================== 视锥剔除 =====================
+
+    /**
+     * 模型最远几何延伸（格），**按渲染缩放 0.80 折算后**。
+     * <p>
+     * 原始包围盒（16 单位 = 1 格）：{@code X ±26.74 / Y -27.04~+58.04 / Z -8.02~+118.58} 单位，
+     * 乘 0.80 后为 {@code X ±1.34 / Y -1.35~+2.90 / Z -0.40~+5.93} 格 ——
+     * 最远是翅膀向后 <b>5.93 格</b>，而碰撞箱只有 {@code 0.6 × 1.8}。
+     * 取 {@code 7.0} 以盖住 5.93 + 半个箱宽并留余量
+     * （geo 里作者标的 {@code visible_bounds_width: 16} 也与此量级一致，
+     * 但那个字段在 GeckoLib 4.x 里是**死数据**、全仓无消费者，改 geojson 没有用）。
+     * <p>
+     * 注意：这个外扩量**依赖 {@code MoRenderer.MODEL_SCALE}**。若将来改缩放，
+     * 这里要按同一比例跟着改，否则会出现"翅膀在画面里消失"的回归。
+     */
+    private static final double CULLING_INFLATE = 7.0D;
+
+    /**
+     * 扩大视锥剔除盒 —— <b>不这么做，翅膀会在画面里凭空消失。</b>
+     * <p>
+     * 原版剔除用的是 {@code EntityRenderer#shouldRender} 里的
+     * <b>{@code livingEntity.getBoundingBoxForCulling().inflate(0.5)}</b>
+     * （{@code EntityRenderer.java:58}，另见 {@code :76} 的距离判断）——
+     * 取的是**实体上的这个方法**，不是渲染器上的，所以覆写点在本类而不在 {@code MoRenderer}。
+     * 默认实现返回碰撞箱，于是"身体离开视锥"就等价于"整个模型不画"，
+     * 而本模型的翅膀在身体之外还有近 6 格。
+     * <p>
+     * <b>本仓先例</b>：地黄龙没有这个问题（它 9 格长但碰撞箱 1.5×2.5，且是"贴地"造型，
+     * 该缺口记在代码审查 P1-8）。
+     * <p>
+     * 对称外扩而不是"按模型方向外扩"是必须的：本实体会被
+     * {@code LookAtPlayerGoal} 转向玩家，翅膀的朝向随之旋转。
+     */
+    @Override
+    public AABB getBoundingBoxForCulling() {
+        return super.getBoundingBoxForCulling().inflate(CULLING_INFLATE);
+    }
+}

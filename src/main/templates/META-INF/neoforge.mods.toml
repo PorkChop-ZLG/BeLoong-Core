@@ -114,6 +114,17 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# FDLib — 必选前置（2026-09-30 新增，理由见 docs/plans/2026-09-30-cg-system-design.md 的 D1）。
+# 它的 systems/cutscenes/（过场系统）是 CG 系统的相机底座。
+# 版本号取自实际下载并开箱核对过的 jar（CF 文件 7844741）：modId=fdlib、mod_version=1.0.9。
+# 注：fdbosses 自身 required fdlib，故此处是把既有传递依赖显式化，不是新增约束。
+[[dependencies.${mod_id}]]
+    modId="fdlib"
+    type="required"
+    versionRange="[1.0.9,)"
+    ordering="AFTER"
+    side="BOTH"
+
 [[dependencies.${mod_id}]]
     modId="dragonsurvival"
     type="required"
@@ -203,6 +214,15 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# ChatBox（视觉小说式对话框）—— 必选依赖。
+# 版本号取自实际下载的 jar（CF 文件 8947867）：modId=chatbox、version=1.1.5。
+# 它自身只 required neoforge >=21.1.199 与 minecraft [1.21,1.22)，
+# KubeJS / GeckoLib / watermedia / terra_entity 均为软依赖（其 mods.toml 未声明），
+# 故本模组只需声明 chatbox 本身，不必连带声明它们。
+[[dependencies.${mod_id}]]
+    modId="chatbox"
+    type="required"
+    versionRange="[1.1.5,)"
 # Raids:Enhanced（袭击增强）— 可选兼容：让它的袭击者把龙之生存猎人视为同伴。
 # 注入的是该模组的内部方法 RaidBlimp#checkTargetClass，上游改名会静默失效，
 # 因此这里写 versionRange 让「版本不匹配」在启动日志里可见（见 2026-09-18 审查第 2 条）。
