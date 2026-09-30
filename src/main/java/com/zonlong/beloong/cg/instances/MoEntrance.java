@@ -62,7 +62,7 @@ import java.util.List;
  *
  * <h2>为什么整条轨迹可以在触发那一刻烘死成世界坐标</h2>
  * {@code descend} 的 {@code Root} 骨骼位移全程恒定为 {@code (0, 0.332, 0)} ⇒ <b>实体本身一动不动</b>
- * ⇒ 相机轨迹只依赖末的位置与朝向，而这两者在整段 CG 里都不变。
+ * ⇒ 相机轨迹只依赖末的位置与**观察者的位置**（两者在整段 CG 里都不变），与末朝哪无关。
  * 这同时绕开了 fdlib 一个结构性缺口：它的朝向逻辑被写死成"关键点之间插值"
  * （{@code CutsceneExecutor} 构造器硬编码 {@code new NormalLookProcessor()}，private 且无 setter），
  * <b>无法自动看向移动目标</b> —— 而本 CG 不需要。
@@ -220,7 +220,7 @@ public final class MoEntrance extends CgAnimation {
         List<CameraPos> track = ctx.track(
                 DURATION_TICKS,
                 SAMPLE_STEP,
-                tick -> ctx.ahead(distanceAt(tick)).add(0.0D, VIEW_EYE_HEIGHT, 0.0D),
+                tick -> ctx.towardViewer(distanceAt(tick)).add(0.0D, VIEW_EYE_HEIGHT, 0.0D),
                 MoEntrance::elevationAt);
         for (CameraPos pos : track) {
             data.addCameraPos(pos);

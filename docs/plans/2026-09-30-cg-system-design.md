@@ -28,10 +28,10 @@
 | 议题 | 裁定 |
 |---|---|
 | 谁观看 | **只有执行指令的玩家**。其他人照常游戏 |
-| 相机机位锚点 | **完全由末决定**：`末.pos + 末.forward × d + 眼高`（v1 固定 d=8；**v2 起 d 从 8 推到 3**） |
+| 相机机位锚点 | **v4：方向由"观察者站在末的哪一侧"决定，不读末的朝向** —— `末.pos + (末.pos − 观察者.pos).normalize() × d + 眼高`。（v1–v3 曾是"完全由末决定"：`末.pos + 末.forward × d`；**v4 为什么改，见 §八 8.1**） |
 | pitch 曲线来源 | **写死一条缓动曲线**，不参考动画的实际高度 |
 | 开场处理 | **一开始就对准高处**（v1：+44.3° → +59.8°；**v2 改为用户直接给的一整条七段曲线**，见 §3.3） |
-| 8 格边界的朝向风险 | **接受**，靠"执行者站在末面前"这个操作前提 |
+| 8 格边界的朝向风险 | ~~**接受**，靠"执行者站在末面前"这个操作前提~~ → **v4 已从根上移除**：机位方向不再读末的朝向（见下） |
 | 观察者自己的身体 | **v2 新增**：给观察者上一个原版隐身效果（见 D8）；**v3 起时长 = CG 时长 + 10 tick** |
 
 > **v2 规格裁定**（2026-09-30，用户实机后给出）：仰角由用户**直接指定**（−62.25 / −24.75 / −46.00 / 0）；
@@ -41,6 +41,12 @@
 > ② 编排改为六段 —— `−46°` 一直保持到 **2.2 秒**，**2.2 → 2.5 秒**同时做"下拉到平视 + 推近到 3 格"，
 > 2.5 秒之后全程静止。**v3 基本消除了 v2 的"末出画 0.8 秒"**（见 §3.3 的表）。
 > 详表见 §3.3；秒 → tick 在 v3 里**全部是整数**（v2 那个需要取整的 1.72 秒已整段删除）。
+>
+> **v4 修订**（2026-09-30，用户实机发现 bug 后裁定）：**相机机位方向改为由观察者决定** ——
+> `anchorToViewer = (末.pos − 观察者.pos)` 取 XZ 归一化，**不再读末的任何朝向**。
+> 原因是 v1–v3 读的 `末.getYRot()` 是**行走朝向**而非"面朝/看向"的方向，
+> NPC 走过路之后镜头会飞到它背后。**这是本条裁定表里"8 格边界的朝向风险"那一行的替代方案** ——
+> 原来的"接受风险 + 靠操作前提"被证明**风险描述本身就是错的**。完整根因见 §八 8.1。
 
 ---
 
@@ -214,7 +220,7 @@
 | C1 | `build.gradle` | 改 | fdlib `compileOnly` → `implementation` |
 | C2 | `src/main/templates/META-INF/neoforge.mods.toml` | 改 | 新增 fdlib required 依赖 |
 | C3 | `cg/CgAnimation.java` | 新 | **抽象配方**：`name()` / `animationName()` / `build(CgContext)` + **`final play(...)`**（预检 → **触发动画** → **上隐身** → 发包）+ 可选钩子 `viewerInvisibilityTicks()` / `viewerInvisibilityAmplifier()`（默认 0 = 不隐身，见 D8） |
-| C4 | `cg/CgContext.java` | 新 | **只读上下文 + 三个几何原语**（`ahead` / `sightLine` / **`track`** —— v2 起支持"机位与仰角同时随时间变化"） |
+| C4 | `cg/CgContext.java` | 新 | **只读上下文 + 三个几何原语**（**`towardViewer`** / `sightLine` / **`track`** —— v2 起支持"机位与仰角同时随时间变化"，**v4 起方向基准是"锚点 → 观察者"**） |
 | C5 | `cg/CgRegistry.java` | 新 | `name → CgAnimation` 唯一映射（`LinkedHashMap` 保序）+ 命令补全 |
 | C6 | `cg/instances/MoEntrance.java` | 新 | `mo_entrance`：全部数值为具名常量 |
 | C7 | `command/CgCommand.java` | 新 | `/beloong cg <target> play <name>` |
@@ -244,10 +250,10 @@ public abstract class CgAnimation {
 **`CgContext` 的三个原语**
 
 ```java
-public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 forward) {
+public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 anchorToViewer) {
 
-    /** 从锚点沿 target 朝向前方 blocks 格（水平）。 */
-    public Vec3 ahead(double blocks);
+    /** 从锚点朝观察者那一侧 blocks 格（水平）。 */
+    public Vec3 towardViewer(double blocks);
 
     /** 视线方向：水平朝向 aimPoint、仰角 elevationDeg 度（正 = 上看）的单位向量。 */
     public static Vec3 sightLine(Vec3 camPos, Vec3 aimPoint, double elevationDeg);
@@ -306,23 +312,26 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
 —— **v3 全部是整数，没有取整问题**。
 （历史：v2 的 `1.72` 秒 = **34.4** tick 不是整数，用户当时在 34/35 里选了 35；**v3 把它整段删掉了**。）
 
-**相机几何（v2 起距离也在变）**
+**相机几何（v2 起距离也在变；v4 起方向基准换成观察者）**
 
 ```
-机位 P(t) = 末.pos + 末.forward × d(t) + (0, 1.62, 0)
+机位 P(t) = 末.pos + anchorToViewer × d(t) + (0, 1.62, 0)
+             anchorToViewer = (末.pos − 观察者.pos) 取 XZ 后归一化   ← v4：只由两个位置决定
              d(t) = 8            (t ≤ 44)
                   = 8 → 3，easeInOut   (44 < t < 50)
                   = 3            (t ≥ 50)
-水平朝向 = P(t) → 末.pos   —— 恒为 −forward，整段不变
+水平朝向 = P(t) → 末.pos   —— 恒为 −anchorToViewer，整段不变
 ```
 
 - **高度恒为 1.62 格**（末的脚底 + 原版玩家站立眼高）—— 用户要求推近后"依旧平视"，故只做径向平移。
   ⚠️ 这是**写进轨迹的高度**，不等于**最终渲染出来的高度**：fdlib 的 `ClientCameraEntity` 眼高是
   `0.2 × 0.85`，原版 `Camera` 还会叠一层平滑眼高、切换后从玩家的 1.62 逐渐衰减 ⇒
   **开场头几帧实际机位偏高且平滑过渡**。故"开场略高"不要靠调 `PITCH_START_DEG` 解决。
-- 因为机位始终落在"锚点沿 forward 的前方"这条直线上，**推近不会带来任何偏航**。
-- `末.forward` 由 `Vec3.directionFromRotation(0, 末.getYRot())` 求得（**不是** `Entity#getForward()`
-  —— 那个含俯仰，见 `CgContext.FORWARD_EPSILON` 的注释）。
+- 因为机位始终落在"锚点 → 观察者"这条直线上，**推近不会带来任何偏航**。
+- ⚠️ **v4 的核心**：`anchorToViewer` 由两个**位置**相减得到，**不读任何实体的 yaw**。
+  只取方向、距离仍由 `d(t)` 决定 ⇒ "构图恒为 8 格"不变，且**不再要求玩家恰好站在 8 格处**。
+  v1–v3 读 `末.getYRot()` 造成的"镜头飞到末背后"的问题至此消失 ——
+  根因与证据见 §八 8.1 与 `CgContext.DIRECTION_EPSILON` 的注释。
 
 **✅ v3 基本消除了 v2 的"末出画 0.8 秒"（而且比原先写的还要好）**
 
@@ -438,8 +447,8 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 
 ### 3.4 数据流（§4）
 
-> **v3 更新**：本节的图已同步 —— 采样点 **121 个且位置与朝向都在变**，
-> `forward` 用 `directionFromRotation(0, getYRot())`（**不是** `getForward()`，那个含俯仰），
+> **v4 更新**：本节的图已同步 —— 采样点 **121 个且位置与朝向都在变**；
+> `anchorToViewer` 由 **`(末.pos − 观察者.pos)` 取 XZ 后归一化**得到（**v4 起不读末的任何朝向**）；
 > 并含一步"给观察者上隐身（130 tick）"。若与代码不符，**以代码为准并回改本节**。
 
 ```
@@ -451,13 +460,13 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
         │ hit
         ▼
   CgContext.of(viewer, target)          // anchor = target.position()
-        │                                // forward = Vec3.directionFromRotation(0, target.getYRot())
-        │                                //           —— 水平单位向量；刻意不用含俯仰的 getForward()
+        │                                // anchorToViewer = (anchor − viewer.position()) 取 XZ 归一化
+        │                                //   ⚠️ v4：只由两个位置决定，不读 target 的 yaw
         ▼
   MoEntrance.build(ctx)                 // 纯函数：121 × CameraPos（位置与朝向都随时间变）
         │
         ▼
-  CgAnimation.play 的预检                // ★ 轨迹非空 / forward 非零 / build 未抛 / 目标可播动画
+  CgAnimation.play 的预检                // ★ 轨迹非空且 time>0 / 方向非零 / build 未抛 / 目标可播动画
         │
         ├──────► target.setEmote("descend")
         │            │ 原版实体数据通道（force 发包）
@@ -515,12 +524,12 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 |---|---|---|
 | CG 名不存在 | 命令**报错**（附可用名列表）· 不播放 | fail-closed；同 `NpcDialogueStage` 对未知进度 id 的口径，`CgRegistry` 打**每名一次**英文 WARN |
 | target 不是 `NpcEntity` | 命令报错 · 不播放 | 没有 `setEmote`；照 `NpcCommand.fail()` 的"明确报错、不静默" |
-| `forward` 水平长度 ≈ 0 | 命令报错 + 英文 WARN · **不发包** | 否则归一化出 NaN ⇒ 坏镜头。活实体几乎不可能触发，但**静默播放坏镜头比报错更糟** |
+| 观察者与锚点**水平重合**（玩家站进了末的身体里） | 命令报错 + 英文 WARN · **不发包** | 方向无定义，归一化会出 NaN ⇒ 坏镜头。**静默播放坏镜头比报错更糟**。（v1–v3 这条写的是"`forward` 水平长度 ≈ 0"，即"目标朝向退化"——v4 起方向不来自目标，判据改为这条） |
 | `build` 抛任何异常 | 捕获 → 命令报错 + 英文 WARN · 不发包 | 照 `EmoteAnimationLookup` catch `Throwable` 的先例：宁可退化成"没播放"，也不让 CG 的 bug 崩掉命令分发 |
 | **构建出的 `CameraPos` 列表为空** | 命令报错 + 英文 WARN · **不发包、不触发动画** | ★ `CutsceneCameraHandler.java:175` 的 `getFirst()` **无判空**；空列表会让客户端收包即抛 `NoSuchElementException`，且每 tick 再抛一次。这是 `learned-patterns.md:1390` 的直接应用 |
-| `descend` 在资产里不存在 | **CG 照常播放**（相机照转），末保持 idle | 资产是客户端数据、服务端无从校验。`EmoteAnimationLookup` 已打英文 WARN
+| `descend` 在资产里不存在 | **CG 照常播放**（相机照转），末保持 idle | 资产是客户端数据、服务端无从校验。`EmoteAnimationLookup` 已打英文 WARN；`hasActiveEmote()` 查不到 ⇒ 返回 false ⇒ `main` 不让位 ⇒ 状态动画照旧（**刻意的优雅降级**，非静默失败） |
 | 观察者隐身效果被拒（`MobEffectEvent.Added` 被取消 / `canMobEffectBeApplied` 为 false） | `addEffect` 返回 false ⇒ 打**英文 WARN**，CG 照常播 | 这种"什么都没发生"必须留痕；见 `CgAnimation.play` 第 ⑤ 步。此时玩家可能看到自己的身体 |
-| 下发过场包时抛异常 | 捕获 → 英文 WARN · 返回 0 | 动画与隐身**已经生效且不回滚**（三步不是原子的）—— 返回 0 只表示"没下发出去"，不代表"什么都没发生" |；`hasActiveEmote()` 查不到 ⇒ 返回 false ⇒ `main` 不让位 ⇒ 状态动画照旧（**刻意的优雅降级**，非静默失败） |
+| 下发过场包时抛异常 | 捕获 → 英文 WARN · 返回 0 | 动画与隐身**已经生效且不回滚**（三步不是原子的）—— 返回 0 只表示"没下发出去"，不代表"什么都没发生" |
 | 执行者不在 target 附近 | 照常播放 | 机位由末决定 ⇒ 与玩家位置无关（D-anchor 的性质，非疏漏） |
 | 玩家在 CG 中被推动 / 掉虚空 | 相机不受影响 | 轨迹已烘成世界坐标 |
 | target 在 CG 中被 `/kill` | **CG 照常跑完**；末消失，镜头轨迹不变 | 世界坐标烘制的附带好处：CG 不依赖目标存活 |
@@ -561,18 +570,24 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
      所以代码可以保持"用另一个常量定义"的写法，而不必为脚本可解析退化成裸字面量）
    - A7 采样密度 —— **刻意不是** `duration % step == 0`（那对 1/2/3/4/40 全通过，是个空断言），
      而是"第⑤段那个 6 tick 的窗口至少采到 3 个点"
+   - **A8 机位方向不得回去读实体的 yaw** —— v4 修掉的那个实机 bug 的**回归闸**。
+     脚本**先剥掉 Java 注释再查代码**（因为注释里故意留着 `getYRot()`/`getForward()` 在讲历史），
+     一旦代码里再出现 `getYRot()` / `getYHeadRot()` / `getYBodyRot()` / `getForward()` /
+      `getLookAngle()` / `directionFromRotation()` 即失败。
 3. 语言键两语言集合一致（**250 / 250**）
 4. `mods.toml` 里 fdlib 条目存在且 `type="required"`
 
 > 这套断言与阶段闸门那条"ChatBox 的进度 id 必须与 `mo.json` 的 `end_advancement` 字符串一致"
 > 是同一类做法：**"需求"与"实现"之间必须有机器可查的一致性** ——
-> v1 防的是"资产重导出后镜头静默失准"，v2 防的是"改了常量却与需求脱钩"。
+> v1 防的是"资产重导出后镜头静默失准"，v2 防的是"改了常量却与需求脱钩"，
+> v4 防的是"把已经踩过的坑再踩一遍"。
 
 **实机清单（用户执行）**
 
 | # | 操作 | 期望 |
 |---|---|---|
-| 1 | **脱甲、清空双手**，站到末面前 8 格（末面朝你）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管；HUD／手／准星／方块高亮全消失；**身体模型看不见了**；**无隐身粒子**。<br>⚠️ 隐身**不含盔甲/手持物/鞘翅层**（见 D8 第 3 条），所以必须脱甲验；<br>⚠️ 开头可能有 1~3 帧仍看得见身体（见 `CgAnimation.play` 第 ⑤ 步） |
+| 1 | **脱甲、清空双手**，站到末**附近任意一侧**（末朝哪都行）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管；HUD／手／准星／方块高亮全消失；**身体模型看不见了**；**无隐身粒子**。<br>⚠️ 隐身**不含盔甲/手持物/鞘翅层**（见 D8 第 3 条），所以必须脱甲验；<br>⚠️ 开头可能有 1~3 帧仍看得见身体（见 `CgAnimation.play` 第 ⑤ 步）；<br>✅ **v4：相机一定落在"你这一侧"，与末朝哪无关**（v1–v3 会飞到它背后）；距离仍是**离末 8 格**，与你站多远无关 |
+| 1b | **v4 专项**：先让末走一段路（`/beloong npc <target> move …` 或引它走动），再重播 | 相机**仍在你这侧**，不再出现"跑到末背后右下角" |
 | 2 | 第 0 秒 | 相机在 8 格外**大幅仰视**（`xRot ≈ −62.25`） |
 | 3 | 0.25 秒 | 仰角甩到约 −24.75°，并**保持到 0.8 秒** |
 | 4 | 0.8 → 1.2 秒 | 仰角**平滑爬升**到约 −46° |
@@ -586,7 +601,7 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 | 12 | 反例 B：目标选非 NPC 实体 | 命令报错；画面无变化 |
 | 13 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
 | 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**但隐身会继续走完它的 6.5 秒** —— 效果是独立的，我们不清理） |
-| 15 | 查日志 | 无 `NoSuchElementException`、无 "List of camera positions cannot be empty"；另有一行 INFO 记录 anchor / forward / 首个机位 / key 数 |
+| 15 | 查日志 | 无 `NoSuchElementException`、无 "List of camera positions cannot be empty"；另有一行 INFO 记录 anchor / anchorToViewer / 首个机位 / key 数 |
 
 **不做**：不新增 test 源集；不为 CG 写单元测试（项目无此基础设施）。
 
@@ -619,13 +634,14 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 > 本节是**实施完成后**补的，记录三件在本设计初稿里不可能有的东西：与计划的偏离、
 > 实机后定稿的数值、以及收尾审查的结论与遗留项。
 
-### 8.1 与计划的偏离（三版编排）
+### 8.1 与计划的偏离（四版：编排三版 + 方向基准一版）
 
-| 版本 | 提交 | 编排 | 触发原因 |
+| 版本 | 提交 | 变了什么 | 触发原因 |
 |---|---|---|---|
-| **v1** | `8292a77` | 三段：仰角 **从资产推导**（+44.3° / +59.8° / 断点 34 / 68），机位恒 8 格 | 设计初稿 |
+| **v1** | `8292a77` | 三段编排：仰角 **从资产推导**（+44.3° / +59.8° / 断点 34 / 68），机位恒 8 格 | 设计初稿 |
 | **v2** | `e50adb0` | 七段：仰角**由用户直接给定**，机位 1.75s 后推到 3 格；**末刻意出画 0.8 秒** | 用户实机看过后改为手工给角度 |
 | **v3** | `6b133d4` | 六段：−46° 保持到 2.2s，**2.2→2.5s 同时**下拉 + 推近；2.5s 后静止 | 用户同日第二轮修订 |
+| **v4** | 待提交 | **相机机位方向改为由观察者决定**，不再读末的任何朝向 | **用户实机发现 bug**：末走过路之后镜头飞到它背后 |
 
 **v2 相对 v1 的两处结构性变化**（不只是改数字）：
 1. **仰角与资产的几何彻底解耦** ⇒ `cg_invariants.py` 里"从资产重算仰角"与"`AllBody` 峰值 ≈ +288.5"
@@ -637,6 +653,47 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 简言之，fdlib 不隐藏玩家自己的身体，而 NeoForge 给 `LevelRenderer` 打了补丁
 （`// Neo: render local player entity when it is not the camera entity`）会在"相机不是玩家"时
 把本地玩家渲染出来。
+
+### 8.1b v4：为什么"机位由目标朝向决定"是错的（一次真 bug 的根因）
+
+**症状**（用户实测）：末**没走过路**时播 CG，相机正常在它前方；末**自己走动过之后**再播，
+相机跑到别处，**通常在末的背后右下角**。
+
+**根因：我们读错了字段。** v1–v3 的机位方向取 `Vec3.directionFromRotation(0, 末.getYRot())`，
+并在注释里把它叫做"目标朝向"。但原版里三个 yaw 分工不同：
+
+| 字段 | 含义 | 谁写它 | 同步 |
+|---|---|---|---|
+| **`yRot`** | 实体的**本体/行进**朝向 | **只有移动**（`MoveControl` / `travel`） | ✅ |
+| `yHeadRot` | **头**朝向 = 在看哪 | `LookControl.tick()`（`this.mob.yHeadRot = ...`） | ✅ |
+| `yBodyRot` | **身体**朝向 | `BodyRotationControl.clientTick()` | ❌ 不同步 |
+
+`BodyRotationControl.clientTick()` 的源码就是判决书：
+
+```java
+if (this.isMoving()) { this.mob.yBodyRot = this.mob.getYRot(); ... }   // 只有移动时身体才 = yRot
+else                 { ... this.rotateBodyIfNecessary(); }              // 静止时身体去追 yHeadRot
+```
+
+而 `LookAtPlayerGoal` 走 `LookControl.setLookAt(...)`，`LookControl.tick()` **只写 `yHeadRot`**
+（`LookControl.java` 里 `setYRot` **零命中**）。
+
+⇒ **"看向玩家"从头到尾不修改 `yRot`。** 一个走过路的 NPC，`yRot` 会**永久停在最后一次行进方向**上；
+于是镜头被烘到那个旧方向的 8 格外 —— 任意角度，而玩家眼里末明明正回头看着他
+（`LookAtPlayerGoal` 让头转过去，站桩约 11 tick 后身体也逐步对齐头部）。
+
+**这同时说明原来的"已知代价"写错了**：v1–v3 把它记成"依赖目标正朝向执行者，
+而机位距离 8 格正好卡在 `facePlayerDistance = 8.0F` 的边界上"，并选择接受。
+实际上**与站多远无关** —— `LookAtPlayerGoal` 生效了也不写我们读的字段。
+
+**v4 的修法（用户裁定）**：机位方向改由**观察者**决定 ——
+`anchorToViewer = (末.pos − 观察者.pos)` 取 XZ 归一化。它只由两个**位置**决定，
+不读任何实体的 yaw；因为只取方向、距离仍由 `d(t)` 决定，"构图恒为 8 格"保持不变，
+而且**不再要求玩家恰好站在 8 格处**。副作用是那条"8 格边界的朝向风险"整体消失。
+
+**回归闸**：`cg_invariants.py` 新增 **A8** —— 剥离 Java 注释后，`CgContext` 代码里
+不得再出现 `getYRot()` / `getYHeadRot()` / `getYBodyRot()` / `getForward()` / `getLookAngle()` /
+`directionFromRotation()`。变异测试证明它抓得到（换回 v3 写法或改用 `getYHeadRot()` 都会失败）。
 
 ### 8.2 实机后定稿的数值（T9 通过，T10 未触发）
 
@@ -671,6 +728,8 @@ fdlib 的关键点**只能等距**（`NormalLookProcessor.java:23-27`），`CgCo
 | fdlib 的**位置比朝向晚约 1 tick** | fdlib 的既知相位差；`CgContext.track` 的 javadoc 记了补偿方法（距离断点前移 / 仰角断点后移，二选一） |
 | 开场头几帧实际机位偏高 | fdlib 相机实体的眼高 + 原版 `Camera` 的平滑眼高过渡所致，**不是轨迹错**（见 §3.3 的说明） |
 | `CgRegistry` 的 `WARNED_UNKNOWN` 只增不清 | 按坏名计、量极小；同项目既有先例，仅记录 |
+| **观察者与锚点水平重合时拒播**（v4 的退化判据） | 阈值只有 `1e-6`，所以"站进末体内但仍有一点水平偏移"时方向**有定义、但会很吵**。属使用者自己造成的构图，不额外校验 |
+| ~~8 格边界的朝向风险~~ | **v4 已从根上移除**（机位方向不再读末的朝向，也不再要求玩家恰好站 8 格）。见 §8.1b |
 | fdlib 强制切第一人称后**不还原**、归位是硬切 | 属"修正 fdlib 副作用"的非目标，需 mixin，不做 |
 
 ### 8.5 回退

@@ -86,6 +86,21 @@ T10 的"按反馈调常量"因此**未触发**（无需调参即通过）。
 | 隐身时长 | 100 tick（5 秒） | **130 tick** = `DURATION_TICKS + 10`（用户原本要"与动画同长"，实测考量后选择留 10 tick 余量） |
 | T8 断言 | 7 组 15 条 | **7 组 14 条**（少一条：`T_FALL_END == 35` 那条随断点一起删除） |
 
+**v4 修订**（同日，**用户实机发现 bug 后裁定**）—— 这一轮**改的是架构里的一条裁定，不是数值**：
+
+| 项 | v1–v3 | **v4** |
+|---|---|---|
+| 机位**方向**的基准 | **目标的朝向**：`directionFromRotation(0, 末.getYRot())` | **锚点 → 观察者**：`(末.pos − 观察者.pos)` 取 XZ 归一化 |
+| 读不读实体 yaw | 读 `末.getYRot()` | **完全不读**（只由两个位置决定） |
+| 玩家距离的约束 | 必须站在末**正前方 8 格**，否则构图错 | **无约束** —— 只取方向，距离恒由 `d(t)` 决定 |
+| "8 格边界的朝向风险" | 记成**已知代价**并接受 | **整体消失**（那条代价的描述本身就是错的） |
+| 退化判据 | "目标朝向退化" | "**观察者与锚点水平重合**" |
+
+**根因**（详见设计文档 §8.1b）：`getYRot()` 是这具实体的**行走朝向**，只有移动会写它；
+"看向玩家"写的是 `yHeadRot`（`LookControl`），**永远不改 `yRot`**
+⇒ 末走过路之后 `yRot` 永久停在上一次行进方向，镜头就飞到那个方向的 8 格外（实测常见"背后右下角"）。
+**与"站多远"无关** —— 所以原来那条"8 格卡在 `LookAtPlayerGoal` 边界上"的代价描述是错的。
+
 **没有变的**：方案 A 的整体架构、D1–D7、`CgRegistry`、`CgCommand`、语言键、`DURATION_TICKS = 120`
 （仍与 `descend` 同步）、`StopMode.AUTOMATIC`、零持久状态 / 零新网络包、`SAMPLE_STEP = 1`（121 点）。
 **新增的**：**D8 观察者隐身**（设计文档 §1）。
@@ -332,7 +347,8 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 
 | # | 操作 | 期望 |
 |---|---|---|
-| 1 | **脱甲、清空双手**，站到末面前 8 格（末面朝你）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管；HUD／手／准星／方块高亮全消失；**身体模型看不见了**；**无隐身粒子**（开头 1~3 帧可能仍可见身体） |
+| 1 | **脱甲、清空双手**，站到末**附近任意一侧**（末朝哪都行）· `/beloong cg @e[type=beloong:mo,limit=1] play mo_entrance` | 相机被接管；HUD／手／准星／方块高亮全消失；**身体模型看不见了**；**无隐身粒子**（开头 1~3 帧可能仍可见身体）。✅ **v4：相机一定落在"你这一侧"**，距离恒为离末 8 格 |
+| 1b | **v4 专项**：先让末走一段路，再重播 | 相机**仍在你这侧**，不再"跑到末背后右下角" |
 | 2 | 第 0 秒 | 相机在 8 格外**大幅仰视**（`xRot ≈ −62.25`） |
 | 3 | 0.25 秒 | 仰角甩到约 −24.75°，并**保持到 0.8 秒** |
 | 4 | 0.8 → 1.2 秒 | 仰角**平滑爬升**到约 −46° |
@@ -346,7 +362,7 @@ python D:\Minecraft\tools\YSMParser\cg_invariants.py; if ($LASTEXITCODE -ne 0) {
 | 12 | 反例 B：目标选非 NPC（如僵尸） | 命令报错；画面无变化 |
 | 13 | 反例 C：连按两次同一条指令 | **干净地从头重播**，不出现两个镜头打架 |
 | 14 | 反例 D：中途 `/fdlib fix cutscene` | 相机立即归还（**隐身会继续走完它的 6.5 秒** —— 效果独立于 CG 生命周期） |
-| 15 | 查 `run/logs/latest.log` | 无 `NoSuchElementException`、无 `List of camera positions cannot be empty`；另有 INFO 行记录 anchor / forward / 首个机位 / key 数 |
+| 15 | 查 `run/logs/latest.log` | 无 `NoSuchElementException`、无 `List of camera positions cannot be empty`；另有 INFO 行记录 anchor / anchorToViewer / 首个机位 / key 数 |
 
 ---
 

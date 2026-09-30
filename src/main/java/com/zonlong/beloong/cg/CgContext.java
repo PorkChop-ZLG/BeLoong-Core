@@ -23,18 +23,21 @@ import java.util.function.DoubleUnaryOperator;
  * <h2>三个字段的语义</h2>
  * <ul>
  *   <li>{@link #anchor} —— 目标的位置（脚底）。所有偏移都以它为原点；</li>
- *   <li>{@link #forward} —— 目标朝向的**水平单位向量**，由
- *       {@code Vec3.directionFromRotation(0, target.getYRot())} 求得。
- *       ⚠️ <b>刻意不用 {@code Entity#getForward()}</b> —— 那个是**含俯仰**的三维视向量，
- *       原因与后果见 {@link #FORWARD_EPSILON} 的注释；</li>
+ *   <li>{@link #anchorToViewer} —— <b>"锚点 → 观察者"的水平单位向量</b>，由两个位置相减得到。
+ *       ⚠️ <b>刻意不读目标的任何朝向</b>（既不读 {@code getYRot()}、也不读 {@code getForward()}）
+ *       —— 理由是一个实机才踩到的坑，见 {@link #DIRECTION_EPSILON} 的注释；</li>
  *   <li>{@link #viewer} —— 唯一会看到这条 CG 的玩家（用户 2026-09-30 裁定：只发给执行者）。</li>
  * </ul>
  *
- * <h2>为什么机位"完全由目标决定"</h2>
- * 用户 2026-09-30 裁定：`相机 = 目标.pos + 目标.forward × N`。于是同一条 CG 在任何地方触发都得到
- * 同一个构图，与玩家实际站哪无关。**代价**是它依赖"目标正朝向执行者"这个操作前提
- * —— {@code NpcEntity.facePlayerDistance() = 8.0F}，而本 CG 取的机位距离恰好也是 8 格，
- * **正好卡在 {@code LookAtPlayerGoal} 的生效边界上**。用户明确选择接受这个风险（不加前置校验）。
+ * <h2>机位方向由"观察者在哪一侧"决定，距离由 N 决定（v4）</h2>
+ * {@code 相机 = 目标.pos + (目标.pos − 观察者.pos).normalize() × N}。
+ * 于是同一条 CG 在任何地方触发都得到**同一个构图**（距离恒为 N、回看目标），
+ * 且**与目标朝哪无关** —— 目标的朝向不再是输入，"玩家站在目标的哪一侧"才是。
+ * <p>
+ * v1–v3 曾是"完全由目标决定"（{@code 目标.pos + 目标.forward × N}），并把"依赖目标正朝向执行者"
+ * 写成一条**已知代价**接受掉。实机证明那条代价的描述是错的：{@code forward} 读的
+ * {@code getYRot()} 是**行走朝向**，而"看向玩家"根本不改它 ⇒ **目标走过路之后镜头会飞到它背后**，
+ * 且与"玩家站多远"无关。详见 {@link #DIRECTION_EPSILON}。
  *
  * <h2>坐标系约定：本类只产出"向量"，不产出"角度"</h2>
  * {@link #sightLine} 返回**单位向量**，交给 fdlib 的 {@code CameraPos(Vec3, Vec3)} 去分解成 yaw/pitch
@@ -43,58 +46,68 @@ import java.util.function.DoubleUnaryOperator;
  *
  * <p>设计文档：{@code docs/plans/2026-09-30-cg-system-design.md}（§2 组件 / §3 编排）。
  */
-public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 forward) {
+public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 anchorToViewer) {
 
     /**
-     * {@link #forward} 的水平**长度平方**下限。低于它（或为 NaN）即认定"朝向退化"。
+     * {@link #anchorToViewer} 的水平**长度平方**下限。低于它（或为 NaN）即认定"方向退化"。
      *
-     * <h2>⚠️ 为什么用 {@code directionFromRotation(0, yRot)} 而不用 {@code Entity#getForward()}</h2>
-     * {@code Entity#getForward()} 是 <b>含俯仰的三维视向量</b>：
+     * <h2>⚠️ 为什么机位方向取"锚点 → 观察者"，而不是目标的 yaw（2026-09-30 v4 变更）</h2>
+     * v1–v3 用的是 {@code Vec3.directionFromRotation(0, target.getYRot())}，即"**目标的朝向**"。
+     * 那个做法有一个**实机才暴露的缺陷**：{@code getYRot()} 是这具实体的**行走朝向**，
+     * 不是它"面朝 / 看向"的方向 ——
      * <pre>
-     *   Entity#getForward()  = Vec3.directionFromRotation(this.getRotationVector())
-     *   getRotationVector()  = (getXRot(), getYRot())
-     *   ⇒ 水平投影长度 = |cos(xRot)|        // 只有 xRot == 0 时才是单位长
+     *   yRot       ← 只有【移动】会写它（MoveControl / travel）
+     *   yHeadRot   ← LookControl.tick() 写它（"看向谁"写的就是这个字段）
+     *   yBodyRot   ← BodyRotationControl.clientTick()：移动时 = yRot；静止时追 yHeadRot（且【不同步】）
      * </pre>
-     * 于是 {@code |xRot|} 接近 90° 时水平分量趋近于零，会被**误判成"朝向退化"而拒播整条 CG**。
-     * 这<b>不是</b>理论情形：本模组 NPC 的飞行态装的是原版 {@code FlyingMoveControl}
-     * （见 {@code NpcEntity.enableFlight()}），它每 tick 用
-     * {@code setXRot(rotlerp(getXRot(), -atan2(Δy, 水平距离), 20))} 写俯仰，
-     * 而 {@code disableFlight()} <b>不把 XRot 归零</b> ⇒ 末只要执行过
-     * {@code state … flying} + {@code move <接近正上/正下的空中坐标>}，落地后 XRot 仍可能接近 ±90°。
+     * ⇒ 一个走过路的 NPC，{@code yRot} 会**永久停在最后一次行进方向**上；
+     * "看向玩家"只改 {@code yHeadRot}（身体随后跟上），<b>永远不改 {@code yRot}</b>。
+     * 于是相机会被烘到那个旧行进方向的 8 格外 —— 任意角度，实测常见"落在末的背后"，
+     * 而玩家眼里末明明正回头看着他。**根因是读错了字段，与"站多远"无关。**
      * <p>
-     * 换成 {@code directionFromRotation(0, yRot)} 后<b>与俯仰完全解耦</b>：按定义就是水平单位向量，
-     * 且朝向与 {@code getForward()} 一致 —— 后者只是把同一个 XZ 方向乘了 {@code |cos(xRot)|}，
-     * 归一化后方向相同。
+     * 改成"锚点 → 观察者"后，机位方向<b>完全不再读目标的任何朝向</b>：它由"玩家站在哪一侧"决定，
+     * 而那是触发者当场的、确定的事实。又因为只取<b>方向</b>、距离仍由 {@code N} 决定，
+     * "构图恒为 8 格"这一性质保持不变，而且**不必再要求玩家恰好站在 8 格处**。
      *
-     * <h2>于是这个 epsilon 退化成真正的防御</h2>
-     * 它只为 NaN / 非有限值兜底（{@code getYRot()} 理论上可能被外部写成 NaN）。
-     * 判据刻意写成 {@code !(lengthSqr > eps)} 而不是 {@code lengthSqr < eps} ——
+     * <h2>于是 v1–v3 那条"俯仰耦合"风险整体消失了</h2>
+     * 曾经专门记过：{@code Entity#getForward()} 是含俯仰的三维视向量，水平投影长 {@code |cos(xRot)|}，
+     * 而本模组 NPC 的飞行态（原版 {@code FlyingMoveControl}）会写俯仰、{@code disableFlight()}
+     * 又不归零 ⇒ XRot 可能长期接近 ±90°，导致被**误判成"朝向退化"而拒播整条 CG**。
+     * 现在 {@code anchorToViewer} 由两个位置相减并强制取 XZ 得到，与任何实体的 xRot/yRot 都无关。
+     *
+     * <h2>这个 epsilon 现在守什么</h2>
+     * 守"观察者与锚点水平重合"（例如玩家站进了末的身体里）。判据刻意写成
+     * {@code !(lengthSqr > eps)} 而不是 {@code lengthSqr < eps} ——
      * <b>NaN 参与任何比较都返回 false</b>，前者能把 NaN 也判成退化，后者会漏掉。
+     * <br>⚠️ 阈值只有 1e-6，所以"站进末体内但仍有一点水平偏移"时方向**有定义、但会很吵** ——
+     * 那属于使用者自己造成的构图，不额外校验。
      */
-    private static final double FORWARD_EPSILON = 1.0E-6D;
+    private static final double DIRECTION_EPSILON = 1.0E-6D;
 
     /**
-     * 构造上下文。
+     * 构造上下文。{@code anchorToViewer} = "锚点 → 观察者"的**水平单位向量**。
      *
-     * @return 上下文；**目标朝向退化（含 NaN）时返回 {@code null}**
+     * @return 上下文；**观察者与锚点水平重合（含 NaN）时返回 {@code null}**
      *         —— 调用方必须 fail-closed，不要播放
      */
     @Nullable
     public static CgContext of(ServerPlayer viewer, Entity target) {
-        Vec3 horizontal = Vec3.directionFromRotation(0.0F, target.getYRot());
-        if (!(horizontal.lengthSqr() > FORWARD_EPSILON)) {
+        Vec3 anchor = target.position();
+        Vec3 horizontal = anchor.subtract(viewer.position()).multiply(1.0D, 0.0D, 1.0D);
+        if (!(horizontal.lengthSqr() > DIRECTION_EPSILON)) {
             return null;
         }
-        return new CgContext(viewer, target, target.position(), horizontal.normalize());
+        return new CgContext(viewer, target, anchor, horizontal.normalize());
     }
 
     /**
-     * 从锚点沿目标朝向前方 {@code blocks} 格（**水平**，Y 不变）。
+     * 从锚点**朝观察者那一侧**水平 {@code blocks} 格（Y 不变）。
      * <p>
-     * 这是 FDBosses 里 `bossPos.add(forward.multiply(40,40,40))` 那类写法的具名化版本。
+     * 这是 FDBosses 里 {@code bossPos.add(forward.multiply(40,40,40))} 那类写法的具名化版本，
+     * 只是方向基准换成了"锚点 → 观察者"（为什么换，见 {@link #DIRECTION_EPSILON} 的说明）。
      */
-    public Vec3 ahead(double blocks) {
-        return anchor.add(forward.scale(blocks));
+    public Vec3 towardViewer(double blocks) {
+        return anchor.add(anchorToViewer.scale(blocks));
     }
 
     /**
@@ -107,13 +120,13 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
      * <p>水平分量取 {@code aimPoint - camPos} 的 XZ 部分。理论上它可能为零（机位与注视点同一条竖直线），
      * 此时水平朝向无定义；本方法退化为 {@code +Z}。**这是纯防御** —— 本系统的几何下机位与注视点
      * 恒相距一个正的距离（{@code VIEW_DISTANCE_FAR} / {@code VIEW_DISTANCE_NEAR} 格），不可达。
-     * <p>退化判据与 {@link #of} 共用 {@link #FORWARD_EPSILON}（同一个**长度平方**阈值），
+     * <p>退化判据与 {@link #of} 共用 {@link #DIRECTION_EPSILON}（同一个**长度平方**阈值），
      * 并同样写成 {@code !(x > eps)} 以便把 NaN 一并判为退化。
      */
     public static Vec3 sightLine(Vec3 camPos, Vec3 aimPoint, double elevationDeg) {
         Vec3 horizontal = aimPoint.subtract(camPos).multiply(1.0D, 0.0D, 1.0D);
         double lengthSqr = horizontal.lengthSqr();
-        Vec3 unitHorizontal = !(lengthSqr > FORWARD_EPSILON)
+        Vec3 unitHorizontal = !(lengthSqr > DIRECTION_EPSILON)
                 ? new Vec3(0.0D, 0.0D, 1.0D)
                 : horizontal.scale(1.0D / Math.sqrt(lengthSqr));
         double radians = Math.toRadians(elevationDeg);
@@ -162,8 +175,8 @@ public record CgContext(ServerPlayer viewer, Entity target, Vec3 anchor, Vec3 fo
      * 不能交给 fdlib 的 {@code EasingType}。
      * 这是"把一条手写曲线塞进一个只支持等距关键点的引擎"的通用解法。
      *
-     * <p>水平朝向**始终指向 {@link #anchor}**：由于机位始终在"锚点沿 forward 的前方"这条直线上，
-     * 无论距离怎么变，水平朝向恒为 {@code -forward} —— 所以"推近"不会带来任何偏航。
+     * <p>水平朝向**始终指向 {@link #anchor}**：由于机位始终在"锚点 → 观察者"这条直线上，
+     * 无论距离怎么变，水平朝向恒为 {@code -anchorToViewer} —— 所以"推近"不会带来任何偏航。
      *
      * @param totalTicks   过场总时长；必须与 {@code CutsceneData.time(...)} 一致
      * @param sampleStep   期望的采样间隔（tick）。越小越平滑，包越大

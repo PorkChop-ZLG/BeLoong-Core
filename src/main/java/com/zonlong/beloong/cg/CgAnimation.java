@@ -26,7 +26,7 @@ import net.minecraft.world.entity.Entity;
  *
  * <h2>{@link #play} 里的四条预检（缺一条都会静默产生坏状态）</h2>
  * <ol>
- *   <li><b>朝向退化</b> ⇒ 返回 0。{@link CgContext#of} 会返回 {@code null}；
+ *   <li><b>方向退化</b>（观察者与锚点水平重合）⇒ 返回 0。{@link CgContext#of} 会返回 {@code null}；
  *       归一化一个零向量会得到 NaN，再喂进 {@code CameraPos} 就是一个看不出原因的坏镜头。</li>
  *   <li><b>{@link #build} 抛异常</b> ⇒ 捕获后返回 0。照 {@code EmoteAnimationLookup} 捕 {@code Throwable}
  *       的先例：宁可退化成"这一条没播放"，也不让某条 CG 的 bug 崩掉命令分发。</li>
@@ -67,7 +67,7 @@ public abstract class CgAnimation {
     /**
      * 把这条 CG 编排成一个过场。**纯函数**：不发包、不改世界、不读磁盘。
      *
-     * @param ctx 只读上下文（锚点 = 目标位置，forward = 目标朝向的水平单位向量）
+     * @param ctx 只读上下文（锚点 = 目标位置，anchorToViewer = "锚点 → 观察者"的水平单位向量）
      * @return 过场数据；其 {@code time(...)} 必须与 {@code stopMode(AUTOMATIC)} 配套
      *         （fdlib 里只有 {@code AUTOMATIC} 会在播完后自行归还相机）
      */
@@ -139,12 +139,13 @@ public abstract class CgAnimation {
      */
     public final int play(ServerPlayer viewer, Entity target) {
 
-        // ① 朝向退化 ⇒ 不做任何事（CgContext.of 返回 null）
+        // ① 方向退化 ⇒ 不做任何事（CgContext.of 返回 null）
         CgContext ctx = CgContext.of(viewer, target);
         if (ctx == null) {
             BeLoongCore.LOGGER.warn(
-                    "[BeLoong] cg '{}' aborted: target {} has a degenerate forward vector (cannot place the camera)",
-                    this.name(), target.getType());
+                    "[BeLoong] cg '{}' aborted: viewer {} is horizontally on top of target {} "
+                            + "(the camera direction is undefined)",
+                    this.name(), viewer.getGameProfile().getName(), target.getType());
             return 0;
         }
 
@@ -232,11 +233,11 @@ public abstract class CgAnimation {
         }
 
         // 一条 INFO 记录本次编排的关键几何量：实机标定时若镜头方向不对，
-        // 从这一行就能判断是 forward 取错了、还是仰角常量需要调（见计划 T10 的对照表）。
+        // 从这一行就能判断是不是"观察者与目标的相对方位"取错了、或仰角常量需要调（见计划 T10 的对照表）。
         BeLoongCore.LOGGER.info(
-                "[BeLoong] cg '{}' playing for {} on {} (animation='{}', anchor={}, forward={}, cameraPos={}, keys={}, ticks={})",
+                "[BeLoong] cg '{}' playing for {} on {} (animation='{}', anchor={}, anchorToViewer={}, cameraPos={}, keys={}, ticks={})",
                 this.name(), viewer.getGameProfile().getName(), target.getType(), animation,
-                ctx.anchor(), ctx.forward(), data.getCameraPositions().getFirst().getPos(),
+                ctx.anchor(), ctx.anchorToViewer(), data.getCameraPositions().getFirst().getPos(),
                 data.getCameraPositions().size(), data.getCutsceneTime());
         return 1;
     }
