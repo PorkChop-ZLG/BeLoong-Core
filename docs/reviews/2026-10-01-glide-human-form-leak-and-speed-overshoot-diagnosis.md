@@ -4,7 +4,9 @@
 **审查对象：** `master` @ `4bc8d32`（`ClientFlightHandlerMixin.java` 445 行，滑翔 rev 1–5）
 **DS 参考源码：** `开源模组参考文件/DragonSurvival`，分支 `1.21.1`，HEAD `511692bea`（2026-09-27）
 **DS 实际依赖产物：** `dragons-survival-420799-8973485.jar`（= 2.0.71）—— 关键结论已用 `javap` 与之交叉核对
-**状态：** 已定位，**未修改任何代码**
+**状态：** ✅ **两个缺陷均已修复并实机验收通过**（2026-10-01，用户确认"手感和原版几乎一致"）。
+落地：`f3a1c26`（人类门 + 速度回归原版）→ `555fa6e`（平视悬崖）→ `abc06e9`（累加器生命周期）。
+后续审查报告见 `docs/plans/2026-10-01-glide-human-gate-and-ds-speed-parity-plan.md` 的"追加修复与验收"一节。
 
 ---
 
