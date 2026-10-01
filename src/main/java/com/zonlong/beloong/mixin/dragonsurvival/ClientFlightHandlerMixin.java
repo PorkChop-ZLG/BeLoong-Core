@@ -362,11 +362,27 @@ public abstract class ClientFlightHandlerMixin {
             return;
         }
 
+        // ===== 平视前向累加器的生命周期（唯一复位点） =====
+        // beloong$followLook 是这个累加器**唯一**的消费方；本 tick 不调用它时（非龙 / 非滑翔 / 旋转）
+        // 必须把它清零。依据是 DS 自己的做法：它在退出滑翔时也会清自己的 ax/ay/az ——
+        // ClientFlightHandler:461-464 的 ay = 0（注释原文："Reset ay here so that ending gliding doesn't
+        // cause the player to 'hover' in place erroneously"）、:531-536 与 :538-540 清 ax/az/ay。
+        // 我们镜像了那条累加器的爬升与衰减，就必须一并镜像这个复位：静态字段会跨滑翔、跨世界、
+        // 跨"切人再切回龙"存活，不复位就会让"起步缓缓加速"只在本次会话的第一次滑翔成立。
+        // 注意**不能**在暂停时复位：暂停期间 DS 自己的 wasGliding/累加器同样不更新（见上方的守卫说明），
+        // 保持"暂停 = 时间冻结"的一致语义。
+        boolean dragon = DragonStateProvider.isDragon(player);
+        boolean gliding = dragon && ServerFlightHandler.isGliding(player);
+        boolean spinning = gliding && ServerFlightHandler.isSpin(player);
+        if (!gliding || spinning) {
+            beloong$levelForwardAccumulator = 0.0;
+        }
+
         // ===== 龙判定（与 HEAD、与 ClientFlightHandler:343 同源） =====
         // 人类在此直接返回：不给方向、不给加速、不碰重力。这是"曾滑翔过的龙切成人后
         // 仍能 Ctrl 飞行"这一缺陷的修复点之一（另一半在 HEAD 的零重力门）。
         // 注：不能用"有 FlightData / hasFlight / 翅膀展开"代替——三者对人类同样为真。
-        if (!DragonStateProvider.isDragon(player)) {
+        if (!dragon) {
             return;
         }
 
@@ -374,9 +390,9 @@ public abstract class ClientFlightHandlerMixin {
         // 需求要求滑翔"不受重力影响，且无论 stable_hover 是否开启、flight_level 是否支持稳定悬停"。
         // 这里用最优先 return 来保证该性质由**控制流**承担：后来谁改下面的 Config 或 isEligible
         // 条件，都不会把滑翔重新圈进去。
-        if (ServerFlightHandler.isGliding(player)) {
+        if (gliding) {
             // 旋转攻击保持 DS 原版动力学：只跳过滤线，重力仍已由 HEAD 归零
-            if (!ServerFlightHandler.isSpin(player)) {
+            if (!spinning) {
                 beloong$followLook(player);
             }
             return;
