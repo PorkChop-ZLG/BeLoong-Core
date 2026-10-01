@@ -146,3 +146,48 @@ rev 5 的暂停守卫。
 - **诊断附 A 的结论已回填本节 D2 的刹车率前提**：DS 的滑翔**不**走原版 `isFallFlying()` 分支
   （DS 全源码无 `setSharedFlag`/`startFallFlying`，而 `isFallFlying()` = `getSharedFlag(7)`），
   所以 `f3 = 0.91` 与 `-g` 都照常生效，`A(θ) = g·(2 − 0.75·vd)` 的两项来源成立。
+
+### 6.4 修订：平视悬崖（结构修复，源自 rev 5 的教训）
+
+**症状（实机）**：完全平视时"几乎没有任何动力"。
+
+**根因**：6.1 的实现把**前向等效项放回了 `if (look.y <= 0.0)` 的俯仰符号门内**（因为它当时与
+`levelness` 同块计算）。而 `look.y = -sin(xRot)`，"完全平视"恰好落在门的边界上：摄像机高出一丝
+（`xRot = -0.0001°` ⇒ `look.y = +1.7e-6`）整块被跳过 ⇒ 前向推力**从满值直接掉到 0**。
+更糟的是平视时竖直也是零（2a 有意不缓沉、且 `dM` 因无下坠而失效）⇒ **两条前向能源同时消失**，
+只剩原版 WASD 推力，速度按 `0.9009^n` 衰减（**1 秒掉到 ~1/8**）。
+
+| 姿态（同一"平视"） | 前向输入 | 终端 |
+|---|---|---|
+| `look.y <= 0`（门通过） | 0.079 + WASD | ≈1.0 格/tick（≈21 格/秒） |
+| `look.y > 0`（高一丝） | 仅 WASD | ≈0.26 格/tick（≈5 格/秒） |
+
+**这是 rev 4 已修过、rev 6 又复发的同一类缺陷**——rev 5（提交 `63fcc6f`）的注释甚至原文预言过它：
+"若挂在 `look.y <= 0` 之后……表现为'完全平视时没有任何动力'"。rev 5 唯一做对的一点正是
+**把水平项放在符号门之外**。
+
+**修复（借 rev 5 的结构 + 保留 rev 6 的量级与爬升）**：
+
+```java
+// 权重只看 |look.y| —— 以 0 为中心的对称带，与符号无关
+double levelness = 1.0 - Math.abs(look.y) / beloong$GLIDE_LEVEL_BAND;
+if (levelness < 0.0) levelness = 0.0;
+
+// 前向等效：放在任何符号门之外（rev 5 的做法），保留 DS 式线性爬升
+if (levelness > 0.0) acc = Math.min(acc + RAMP*FS, TARGET*FS); else acc *= 0.98;
+Vec3 lookH = new Vec3(look.x, 0.0, look.z);
+if (acc * levelness > 0.0 && lookH.length() > NORMALIZE_EPSILON)
+    result = result.add(lookH.normalize().scale(acc * levelness));
+
+// 重力等效下压：仍只在"非抬头"施加（它在 look.y = 0 两侧本就连续：levelness→1 时该项→0）
+if (look.y <= 0.0) {
+    double vd = 1.0 - look.y*look.y;
+    result = result.add(0.0, -g_baseline * (2.0 - 0.75*vd) * (1.0 - levelness), 0.0);
+}
+```
+
+**连续性核对**：`look.y = 0` 处前向为满值、下压为 0；`|look.y| = 0.2` 处前向连续归零（带外由 DS 的
+`dM`/`ax/az` 接管）；抬头 `look.y > 0.2` 时前向为 0（代价是带的上半仍按 `levelness` 给少量前推力，
+这是为消除悬崖有意让出的对称性，已在方法 javadoc 记为取舍）。
+
+**量级未变**（用户裁定）：`TARGET = 0.079`（DS 原版档）、`RAMP = 0.004`（≈20 tick 到顶）。

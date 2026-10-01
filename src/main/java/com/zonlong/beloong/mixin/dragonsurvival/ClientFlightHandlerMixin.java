@@ -189,28 +189,38 @@ public abstract class ClientFlightHandlerMixin {
      * 所以"贴合原版速度"不能靠调常数，必须把这两层分别补回来：</p>
      *
      * <pre>
-     *   直接（带外，|look.y| >= GLIDE_LEVEL_BAND）：
-     *       y -= g_baseline · (2 − 0.75·vd)        // vd = cos²θ；= :408 的 g·(−1+0.75vd) 加 原版 −g
-     *   间接（带内，|look.y| &lt;  GLIDE_LEVEL_BAND，因为不缓沉所以 dM 不会发生）：
-     *       沿视线的水平方向补 levelForwardAccumulator · levelness
+     *   直接（下压）：y -= g_baseline · (2 − 0.75·vd) · (1 − levelness)
+     *       vd = cos²θ；= :408 的 g·(−1+0.75vd) 加 原版 travel:2331 的 −g
+     *   间接（前向）：沿视线的水平方向补 levelForwardAccumulator · levelness
      *       levelForwardAccumulator 沿 DS :427-428 的斜率线性爬升到 GLIDE_LEVEL_FORWARD_TARGET
      * </pre>
      *
-     * <p>两项<b>互补</b>（带内下压乘 {@code 1-levelness}、带外 {@code levelness = 0}），
+     * <p>两项<b>互补</b>（下压乘 {@code 1-levelness}、前向乘 {@code levelness}），
      * 因此俯角扫过带边界时前向速度连续——这既保住了 rev 4 修掉的"阶跃"不再复发，
      * 也避免了与 DS 自己的 {@code dM}/{@code ax/az} 重复叠加。</p>
+     *
+     * <p><b>{@code levelness} 必须由 {@code |look.y|} 决定，不能由 {@code look.y} 的符号门控。</b>
+     * 这是 rev 4 的教训、也是 rev 5 唯一做对的一点：{@code look.y = -sin(xRot)}，"完全平视"恰好落在
+     * {@code look.y = 0} 上，摄像机只要高出一丝（{@code xRot = -0.0001°} ⇒ {@code look.y = +1.7e-6}）
+     * 就会整段跳过 ⇒ 推力从满值直接掉到 0，只剩原版 {@code f3 = 0.91} 的摩擦（≈9.91%/tick，
+     * 1 秒掉到 ~1/8）⇒ 表现为"完全平视时几乎没有任何动力"且随摄像机漂移在"有劲/没劲"间跳变。
+     * 故：<b>权重用 {@code |look.y|}，前向项放在任何符号门之外，只有下压留在 {@code look.y <= 0} 内</b>
+     * （下压在 {@code look.y = 0} 两侧本就连续，因为 {@code levelness → 1} 时它 → 0）。</p>
      *
      * <h4>为什么不再用"沿视线的加速"</h4>
      * <p>rev 3/4 曾用一个<b>常开、第 1 tick 就满额的常数</b>（{@code 0.25}）沿视线加速，它是
      * "速度远快于原版 + 起步无缓加速"两个症状的共同来源：DS 自己的前向推力是
      * {@code :426-428} 的<b>线性爬升累加器</b>（{@code 0.004·FS}/tick、约 30 tick 饱和于 {@code 0.12·FS}、
      * 只在低头时累加），而 {@code 0.25} 既比它的饱和值大 2 倍、又绕过了整条爬升路径，
-     * 还叠加在它之上。</p>
+     * 还叠加在它之上。**但 rev 5 那版把它放在符号门之外这一点是对的**（见上），rev 6 一度按
+     * {@code levelness} 把它收回门内，于是那个"平视悬崖"复发——本版即为此修复。</p>
      *
      * <h4>两处有意的取舍</h4>
      * <ul>
-     *   <li><b>抬头完全不碰</b>：DS 的抬头是"向上加速 + 水平略减速"，并非沿视线加速；
-     *       不介入才能保住其既有手感，也避免双重加速（只按 DS 的规则让前向累加器 {@code ×0.98} 衰减）。</li>
+     *   <li><b>竖直在抬头时完全不碰</b>：DS 的抬头是"向上加速 + 水平略减速"；
+     *       竖直上不介入才能保住其既有手感，也避免双重加速。<b>前向项在带的上半
+     *       （{@code 0 < look.y < GLIDE_LEVEL_BAND}）仍按 {@code levelness} 施加</b>，
+     *       这是为消除"平视悬崖"有意让出的对称性——代价是抬头那一小段会比 DS 原版多一点前推力。</li>
      *   <li><b>不加正反馈、不设上限</b>：rev 3 的 {@code 0.128·FS·h} 与 rev 5 的封顶一并删除。
      *       它们是为"只有抬头有加速"打的替代品，在补回重力链之后就是双重计入；
      *       而且源封顶只在 {@code h > 1} 后生效，{@code h < 1} 区间的环增益随 {@code FS} 平方增长
@@ -244,37 +254,41 @@ public abstract class ClientFlightHandlerMixin {
         Vec3 dir = delta.lerp(look.scale(speed), beloong$GLIDE_TURN).normalize();
         Vec3 result = dir.scale(speed);
 
-        // 2) 补能量（仅"非抬头"；抬头完全交给 DS 自己的 ay 与 3.2·delta）
-        if (look.y <= 0.0) {
-            double vd = 1.0 - look.y * look.y;                    // cos²θ，即 DS 的 verticalDelta
-            double levelness = 1.0 - Math.abs(look.y) / beloong$GLIDE_LEVEL_BAND;
-            if (levelness < 0.0) {
-                levelness = 0.0;                                   // |look.y| >= 0 ⇒ 不会超过 1
-            }
+        // 2) 近水平带权重：**以 0 为中心的对称带，只看 |look.y|，与俯仰符号无关**。
+        //    这是 rev 4 的教训、rev 5 唯一做对的一点：look.y = -sin(xRot)，"完全平视"恰好落在
+        //    look.y = 0 上，摄像机只要高出一丝（xRot = -0.0001° ⇒ look.y = +1.7e-6）就会被符号门
+        //    整段挡掉 ⇒ 推力从满值掉到 0，只剩原版 f3 = 0.91 的摩擦（≈9.91%/tick，1 秒掉到 ~1/8）
+        //    ⇒ "完全平视时几乎没有任何动力"。故权重必须由 |look.y| 决定。
+        double levelness = 1.0 - Math.abs(look.y) / beloong$GLIDE_LEVEL_BAND;
+        if (levelness < 0.0) {
+            levelness = 0.0;                                       // |look.y| >= 0 ⇒ 不会超过 1
+        }
 
-            // 2a) 重力等效下压：A(θ) = g·(2 − 0.75·vd)，即 DS :408 加原版 travel 的 −g。
-            //     带内按 (1-levelness) 让位给 2b，保证俯角扫过带边界时前向速度连续
+        // 3) 平视前向等效：**刻意放在任何符号门之外**（rev 5 的做法），
+        //    补上"因不缓沉而没发生的那次下坠本会经 dM 换来的前向速度"。
+        //    带外（|look.y| >= GLIDE_LEVEL_BAND）权重归零，前向交给 DS 自己的 dM / ax/az。
+        if (levelness > 0.0) {
+            // 沿 DS :427-428 的斜率线性爬升（约 20 tick 到顶），上限即目标（带 FS，与 DS 同构）
+            beloong$levelForwardAccumulator = Math.min(
+                    beloong$levelForwardAccumulator + beloong$GLIDE_FORWARD_RAMP * flightSpeed,
+                    beloong$GLIDE_LEVEL_FORWARD_TARGET * flightSpeed);
+        } else {
+            beloong$levelForwardAccumulator *= 0.98;               // 与 DS 非低头时对 ax/az 的衰减一致
+        }
+
+        double forward = beloong$levelForwardAccumulator * levelness;
+        Vec3 lookH = new Vec3(look.x, 0.0, look.z);
+        if (forward > 0.0 && lookH.length() > beloong$NORMALIZE_EPSILON) {
+            result = result.add(lookH.normalize().scale(forward));
+        }
+
+        // 4) 重力等效下压（仍只在"非抬头"施加）：A(θ) = g·(2 − 0.75·vd)，即 DS :408 加原版 travel 的 −g。
+        //    带内乘 (1-levelness) 让位给第 3 步；它在 look.y = 0 两侧本就连续（levelness → 1 时 → 0），
+        //    故留在门内不会产生阶跃。
+        if (look.y <= 0.0) {
+            double vd = 1.0 - look.y * look.y;                     // cos²θ，即 DS 的 verticalDelta
             double down = beloong$gravityBaseline * (2.0 - 0.75 * vd) * (1.0 - levelness);
             result = result.add(0.0, -down, 0.0);
-
-            // 2b) 平视前向等效：补上"因不缓沉而没发生的那次下坠本会经 dM 换来的前向速度"
-            if (levelness > 0.0) {
-                // 沿 DS :427-428 的斜率线性爬升，上限即目标（带 FS，与 DS 同构）
-                beloong$levelForwardAccumulator = Math.min(
-                        beloong$levelForwardAccumulator + beloong$GLIDE_FORWARD_RAMP * flightSpeed,
-                        beloong$GLIDE_LEVEL_FORWARD_TARGET * flightSpeed);
-            } else {
-                beloong$levelForwardAccumulator *= 0.98;           // 与 DS 非低头时对 ax/az 的衰减一致
-            }
-
-            double forward = beloong$levelForwardAccumulator * levelness;
-            Vec3 lookH = new Vec3(look.x, 0.0, look.z);
-            if (forward > 0.0 && lookH.length() > beloong$NORMALIZE_EPSILON) {
-                result = result.add(lookH.normalize().scale(forward));
-            }
-        } else {
-            // 抬头：DS 自己给竖直推力，这里只按 DS 的规则衰减前向累加器
-            beloong$levelForwardAccumulator *= 0.98;
         }
 
         player.setDeltaMovement(result);
