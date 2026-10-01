@@ -275,19 +275,55 @@ public class StructureEffectHandler {
     }
 
     /**
-     * 进度刚被授予 ⇒ <b>立刻</b>撤掉"因为这个门禁而不再应得"的效果。
+     * 进度**刚好完成** ⇒ <b>立刻</b>撤掉"因为这个门禁而不再应得"的效果。
      *
-     * <p>没有这一步就只能等效果自然到期（最多一个 {@code duration}，出厂 5 秒），
-     * 语义上不算错，但玩家已经完成了进度却还要挂着几秒惩罚，体验上说不通。
+     * <p>没有这一步就只能等效果自然到期（最多一个 {@code duration}），语义上不算错，
+     * 但玩家已经完成了进度却还要挂着惩罚，体验上说不通。
      *
-     * <p>只处理**门禁恰好是这个进度**的条目；若同一个效果还有别的（门禁通过的）条目供着它，
-     * 则不撤 —— 用"当前应得集合"来判断，避免把别的结构/别的条目给的效果误删。
+     * <p><b>为什么盯 {@code AdvancementProgressEvent}，而不是语义更正、只发一次的
+     * {@code AdvancementEarnEvent}</b>：NeoForge 把后者 post 在 {@code PlayerAdvancements.award}
+     * 的 {@code display().ifPresent(...)} lambda <b>内部</b>
+     * （见 {@code patches/net/minecraft/server/PlayerAdvancements.java.patch}）⇒
+     * <b>省略了 {@code display} 的隐形进度永远不会触发它</b>。而整合包的"剧情门禁"进度往往正是
+     * 隐形的，那种情况下这个增强会静默失效（效果要等最多一个 duration 才自然消失）。
+     * {@code AdvancementProgressEvent} 在同一个方法里、{@code display} 之外发出 ⇒ 两类进度都覆盖。
+     *
+     * <p>代价：它**每次判据达成都发**、REVOKE 也发 ⇒ 自己筛 {@code ProgressType.GRANT} +
+     * {@code isDone()}，并用 {@link #isUsedAsGate} 先做廉价短路。
      */
     @SubscribeEvent
-    public void onAdvancementEarned(AdvancementEvent.AdvancementEarnEvent event) {
+    public void onAdvancementProgressed(AdvancementEvent.AdvancementProgressEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (event.getProgressType() != AdvancementEvent.AdvancementProgressEvent.ProgressType.GRANT) return;
+        // 每次判据达成都发 ⇒ 只在"这一步刚好让它完成"时才动手
+        if (!event.getAdvancementProgress().isDone()) return;
 
         ResourceLocation earned = event.getAdvancement().id();
+        // 廉价预筛：绝大多数进度与门禁无关，不必为它们去查结构（那要遍历全部结构配置 + 查 StructureStart）
+        if (!isUsedAsGate(earned)) return;
+
+        revokeGatedEffects(player, earned);
+    }
+
+    /** 这个进度 id 是否被任何条目当作门禁用过。只看配置、不查世界，成本极低。 */
+    private boolean isUsedAsGate(ResourceLocation advancementId) {
+        for (List<EffectEntry> entries : StructureEffectLoader.INSTANCE.getConfigMap().values()) {
+            for (EffectEntry ee : entries) {
+                if (ee.advancement().filter(advancementId::equals).isPresent()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 撤掉"门禁恰好是 {@code earned}、且当前已不再应得"的效果。
+     *
+     * <p>只处理**门禁恰好是这个进度**的条目；用"当前应得集合"判断，所以同一个效果若还有别的
+     * （门禁已通过的）条目供着它，就不会被误删。
+     */
+    private void revokeGatedEffects(ServerPlayer player, ResourceLocation earned) {
         Set<ResourceKey<MobEffect>> wanted = effectKeys(collectWantedEntries(player));
 
         for (EffectEntry ee : collectPresentEntries(player)) {
