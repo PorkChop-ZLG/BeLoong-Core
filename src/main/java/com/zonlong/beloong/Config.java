@@ -152,6 +152,76 @@ public class Config {
         COMMON_BUILDER.pop();
     }
 
+    // ==================== 特效实体上限（跨模组修复） ====================
+    // 传奇怪物的 camera_shake / dynamic_camera_zoom 是"裸 Entity + MobCategory.MISC +
+    // 只能靠 tick() 自毁"的纯视觉特效实体。1.21.1 的 Entity#tickCount 由关卡写入
+    // （ServerLevel#tickNonPassenger 里先 tickCount++ 才是 tick()），而实体 tick 另受
+    // inEntityTickingRange 门控 ⇒ 不在实体刻范围内的实例永不被 tick、tickCount 永不增长、
+    // discard() 永不执行，却仍留在 ChunkMap.entityMap 里，被"每个移动包跑一次"的
+    // ChunkMap.move 全量遍历。实例上累积到 183 万个后，玩家登录时单 tick 超过 60 秒，
+    // 被 ServerHangWatchdog 强杀（2026-10-06 悚域事故）。
+    // 这里在生成入口按维度设"在存量"硬上限（判定只在服务端发生，见 perf/EffectEntityCap）。
+    // 取名与默认值理由见 docs/plans/2026-10-06-lm-camera-shake-entity-flood-handover.md。
+    //
+    // ⚠️ 新增/改名配置项时同样必须补中英翻译键（见上方 dread_king_ritual 的说明）。
+
+    public static final class EffectEntityCap {
+        private EffectEntityCap() {}
+
+        /** 总开关 */
+        public static ModConfigSpec.BooleanValue enabled;
+        /** 纳入上限的实体类型 ID 列表 */
+        public static ModConfigSpec.ConfigValue<List<? extends String>> types;
+        /** 每维度、每类型的在存量上限 */
+        public static ModConfigSpec.IntValue maxPerDimension;
+        /** 存量重采样间隔（ticks） */
+        public static ModConfigSpec.IntValue rescanTicks;
+        /** 抑制日志的节流间隔（ticks） */
+        public static ModConfigSpec.IntValue logIntervalTicks;
+    }
+
+    static {
+        COMMON_BUILDER.push("effect_entity_cap");
+
+        EffectEntityCap.enabled = COMMON_BUILDER
+                .comment("Cap concurrent effect entities per dimension (evaluated on the server only)",
+                        "按维度限制特效实体的在存量上限（仅服务端生效）")
+                .translation("beloong.configuration.effectEntityCapEnabled")
+                .define("enabled", true);
+
+        EffectEntityCap.types = COMMON_BUILDER
+                .comment("Entity type ids under the cap; append other mods' bare effect entities as needed",
+                        "纳入上限的实体类型 ID 列表；其它模组的同类裸特效实体可直接追加，无需改代码")
+                .translation("beloong.configuration.effectEntityCapTypes")
+                .defineList("types",
+                        List.of(
+                                "legendary_monsters:camera_shake",
+                                "legendary_monsters:dynamic_camera_zoom"
+                        ),
+                        () -> "",
+                        s -> s instanceof String str && str.contains(":"));
+
+        EffectEntityCap.maxPerDimension = COMMON_BUILDER
+                .comment("Max concurrent entities per dimension per listed type (a normal boss fight keeps only dozens alive)",
+                        "每个维度、每种列出类型的在存量上限（正常 Boss 战同时在场的抖动只有几十个量级）")
+                .translation("beloong.configuration.effectEntityCapMaxPerDimension")
+                .defineInRange("maxPerDimension", 400, 1, 100000);
+
+        EffectEntityCap.rescanTicks = COMMON_BUILDER
+                .comment("How often the loaded-entity count is resampled, in ticks (only when a spawn is attempted)",
+                        "重新统计已加载实体数的间隔（ticks）；只在有召唤尝试时才会统计")
+                .translation("beloong.configuration.effectEntityCapRescanTicks")
+                .defineInRange("rescanTicks", 20, 1, 1200);
+
+        EffectEntityCap.logIntervalTicks = COMMON_BUILDER
+                .comment("Throttle for the suppression log line, in ticks (1200 = one line per minute)",
+                        "上限生效时输出日志的节流间隔（ticks），默认 1200 = 每分钟一条")
+                .translation("beloong.configuration.effectEntityCapLogIntervalTicks")
+                .defineInRange("logIntervalTicks", 1200, 20, 72000);
+
+        COMMON_BUILDER.pop(); // effect_entity_cap
+    }
+
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();
 
     // ==================== 服务端配置 ====================

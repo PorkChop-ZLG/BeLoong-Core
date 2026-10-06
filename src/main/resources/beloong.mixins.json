@@ -38,6 +38,8 @@
     "betterendisland.DragonSummonMixin",
     "betterendisland.ExitPortalUtilsMixin",
     "legendarymonsters.AnnihilationPursuerDamageCapMixin",
+    "legendarymonsters.CameraShakeCapMixin",
+    "legendarymonsters.DynamicCameraZoomCapMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
     "minecraft.DreadKingRitualTriggerMixin",

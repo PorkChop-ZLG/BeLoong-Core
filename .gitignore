@@ -66,3 +66,9 @@ spyglass.json
 # 注意：本规则只对"尚未被跟踪"的文件生效；gitignore 对已跟踪文件无效，
 # 要让某个已跟踪文件脱离版本控制必须显式 git rm --cached。
 docs/models/
+
+### 本机离线依赖兜底仓库 ###
+# local-repo/ 是 build.gradle 里声明在 cursemaven **之前**的本地 Maven 仓库，
+# 用于"cursemaven 拉不动、但手上已有 jar"的场景（目录内为 maven 布局 + 手动下载的产物）。
+# 属本机临时物，不入版本库；网络可达后可删除该目录并移除 build.gradle 中的对应声明。
+local-repo/

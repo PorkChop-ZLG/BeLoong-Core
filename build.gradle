@@ -27,6 +27,15 @@ sourceSets.main.resources {
 }
 
 repositories {
+    // 本机离线兜底仓库：手动下载的 curse.maven 产物按 maven 目录布局放在 local-repo/ 下
+    // （目前只有 legendary-monsters-944035/8902342 的 jar+pom）。
+    // ⚠️ 必须声明在 cursemaven **之前**：cursemaven 不可达时它会先被访问，
+    //    否则 Gradle 要先联网超时数分钟才轮到本地仓库，IDEA 同步也会一并卡死。
+    // 该目录已在 .gitignore 中；网络可达后可删除本声明与 local-repo/ 目录。
+    maven {
+        url = uri("local-repo")
+    }
+
     maven {
         url = "https://cursemaven.com"
         content {
@@ -248,9 +257,14 @@ dependencies {
     // Mowzie's Mobs — 必选依赖（钢铁守护者重锤伤害）
     implementation "curse.maven:mowzies-mobs-250498:7760267"
 
-    // Legendary Monsters — 可选兼容（湮灭猎影伤害上限修复）
-    compileOnly "curse.maven:legendary-monsters-944035:8715533"
-    localRuntime "curse.maven:legendary-monsters-944035:8715533"
+    // Legendary Monsters — 可选兼容（湮灭猎影伤害上限修复 + 特效实体上限）
+    // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
+    // 8902342 是 2026-10-06 起使用的版本；它同时是本模组两个特效实体 Mixin
+    // （mixin/legendarymonsters/CameraShakeCapMixin、DynamicCameraZoomCapMixin）
+    // 的注入点位核对基准：cameraShake(Level,Vec3,FFII) 与 dynamicCameraZoom 的两个重载。
+    // 注：本坐标只影响编译/开发运行时；对整合包声明的依赖版本不做改动。
+    compileOnly "curse.maven:legendary-monsters-944035:8902342"
+    localRuntime "curse.maven:legendary-monsters-944035:8902342"
 
     // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
     localRuntime "curse.maven:vanillabackport-417430:8229724"
