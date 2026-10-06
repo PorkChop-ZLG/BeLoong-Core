@@ -60,7 +60,30 @@ A/B 测试时配置：`[effect_entity_cap] enabled = true`、`maxPerDimension = 
 | # | 事项 | 说明 |
 |---|---|---|
 | 1 | **重新打开开关** | 测试客户端当前 `enabled = false`；线上服务端必须 `enabled = true`（COMMON 配置各端读各自文件） |
-| 2 | **`200` 尚未实机验证** | 本次"开启"阶段用的是 400。200 会把放行速率从 20 次/秒降到 10 次/秒；若抖动观感变弱，可调到 400~1000（事故量级 10 万~180 万，余量极大） |
+| 2 | **`200` 已于第三轮实机跑过**（`used=200 cap=200`，战斗窗口零卡顿） | 口径更正：采样窗口 `rescanTicks=20` = 1 秒，所以**放行速率上限 = `maxPerDimension` 次/秒**（400→400/s、200→200/s；旧版此处误写为 20/s→10/s），而**站立存量恒 ≤ 上限**。实机两点验证：cap=400 时 102 秒抑制 16,118 ≈ (560−400)/s；cap=200 时 78 秒抑制 15,538 ≈ (400−200)/s。若抖动观感变弱可调到 400~1000（事故量级 10 万~180 万，余量极大） |
 | 3 | 再测"修复旧存档"需恢复污染备份 | 当前存档已被治好（这就是目标） |
 | 4 | 修 `count-camera-shake.py` 的 `.mcc` 盲区 | 它把 310,530 报成 456；见设计文档 §六.2 |
 | 5 | 可选加固（本轮未做） | `EntityType#canSerialize()→false`（永不落盘）、`ChunkMap$TrackedEntity#updatePlayer` 配对守卫、`/summon` 等非 LM 生成路径的入世界限流 |
+
+---
+
+## 七、同日第二轮实现（代码审查后）—— 变更与复测清单
+
+第一轮验收通过后做了一轮对抗式代码审查（护栏逻辑/并发 + 集成面/项目约定），据此落地三项改动
+（设计与决策见 `docs/plans/2026-10-06-effect-entity-cap-design.md` 的 D7/D9/D10/D12）：
+
+| 项 | 变更 |
+|---|---|
+| **记账收敛** | 唯一记账点移到 `EntityJoinLevelEvent`（`perf/EffectEntityJoinGate`），两支都管；两个工厂 Mixin 降级为**只判定不记账**的预筛 |
+| **自愈清扫** | `EffectEntityCap#resample` 内顺带清扫"不在实体刻范围"的受监视实体（每趟预算 = 上限），冻结残骸不再永久占用预算 |
+| **阈值范围** | `maxPerDimension` 的配置上限由 `100000` 收到 **1024**（默认仍 200） |
+| **日志更名** | `effect-entity-cap-load` → **`effect-entity-cap-join`**（新增 `source=disk\|new`）；新增 **`effect-entity-cap-sweep`** |
+
+**第一轮的 A/B 证据仍然有效**（读盘支的判定与取消语义未变、磁盘自愈结论未变），但下列内容**需要在第二轮复测**：
+
+1. LM Boss 战：三条锚点各就各位；`used` 只由闸门推进（预筛不再记账）。
+2. 旧存档（从备份复制）读盘：`effect-entity-cap-join … source=disk … refused=` 的**对数里程碑**仍能打出量级。
+3. **自愈**：制造冻结（打一场后 `/tp` 远离）→ 回原地，应在 ≤1 个采样窗口内重新放出抖动，并出现
+   `effect-entity-cap-sweep: … dropped=… reason=not-ticking`。
+4. `/summon legendary_monsters:camera_shake` 越限时应回报"召唤失败"（已接受的行为变化）。
+5. 静态：`gradlew build` 通过、mixin AP 无新增警告、`Config` 编译常量为默认 200 / 上限 1024（已核对）。

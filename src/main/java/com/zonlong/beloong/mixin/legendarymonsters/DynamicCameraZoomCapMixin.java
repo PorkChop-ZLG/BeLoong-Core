@@ -24,7 +24,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>传奇怪物为可选依赖：{@code @Pseudo} + {@code require = 0}，未安装时本 Mixin 整体跳过。</p>
  *
- * <p>注意：本 Mixin 只覆盖模组自身的召唤路径；{@code /summon} 等运维手段不受限。</p>
+ * <p>注意 ①：本 Mixin 只是<b>超限预筛</b>（超限时提前取消，省掉实体构造），<b>不记账</b>——
+ * 放行与拒绝的记账统一由 {@code perf/EffectEntityJoinGate} 挂在
+ * {@code EntityJoinLevelEvent} 上完成，因此 {@code /summon}、数据包、其它模组的
+ * {@code addFreshEntity} 同样受同一个上限约束。</p>
+ *
+ * <p>注意 ②：本 Mixin 覆盖模组自身的召唤路径；即便它因上游改名而静默失效，
+ * 入世界闸门仍会兜住这些实体（代价只是多构造一次实体）。</p>
  */
 @Pseudo
 @Mixin(value = DynamicCameraZoomEntity.class, remap = false)
@@ -41,7 +47,7 @@ public abstract class DynamicCameraZoomCapMixin {
     private static void beloong$capZoomWithCamera(Level level, Vec3 position, float radius, float maxZoom,
                                                   int duration, int zoomFreeze, float zoomSpeed, boolean cameraLocked,
                                                   LivingEntity cameraEntity, CallbackInfo ci) {
-        if (EffectEntityCap.shouldSuppress(level, ModEntities.DYNAMIC_CAMERA_ZOOM.get())) {
+        if (EffectEntityCap.shouldRefuseSpawn(level, ModEntities.DYNAMIC_CAMERA_ZOOM.get())) {
             ci.cancel();
         }
     }
@@ -54,7 +60,7 @@ public abstract class DynamicCameraZoomCapMixin {
             at = @At("HEAD"), cancellable = true, remap = false, require = 0)
     private static void beloong$capZoom(Level level, Vec3 position, float radius, float maxZoom,
                                         int duration, int zoomFreeze, float zoomSpeed, CallbackInfo ci) {
-        if (EffectEntityCap.shouldSuppress(level, ModEntities.DYNAMIC_CAMERA_ZOOM.get())) {
+        if (EffectEntityCap.shouldRefuseSpawn(level, ModEntities.DYNAMIC_CAMERA_ZOOM.get())) {
             ci.cancel();
         }
     }

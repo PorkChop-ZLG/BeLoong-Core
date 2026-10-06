@@ -5,24 +5,27 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 
 /**
- * <b>旧存档读盘闸门</b>：把"修复前就已堆积在存档里的特效实体"挡在世界之外。
+ * <b>入世界闸门</b>：特效实体上限护栏的<b>唯一记账点</b>，同时管住两支。
  *
- * <p>事故背景与机制见 {@link EffectEntityCap} 的类注释。这里只强调三点：</p>
+ * <p>事故背景与机制见 {@link EffectEntityCap} 的类注释。这里强调四点：</p>
  * <ol>
  *   <li><b>为什么挂在 {@code EntityJoinLevelEvent}</b>：NeoForge 把该事件 post 在
  *       {@code PersistentEntitySectionManager#addEntity} 的<b>第一条语句</b>
  *       （UUID 登记、区块段插入、跟踪登记、入 tick 表之前）。取消它 = 该实体
  *       <b>从未进入世界</b>：不进 {@code ChunkMap.entityMap}（因此不会被"每个移动包跑一次"的
- *       {@code ChunkMap.move} 遍历）、不进 tick 表、也不下发客户端。
- *       两条磁盘读取路径都会触发它且标记为 {@code loadedFromDisk=true}：
- *       {@code EntityStorage#read → processPendingLoads → addEntity(e, true)}
- *       与 {@code ChunkSerializer → addLegacyChunkEntities → addEntity(e, true)}。</li>
+ *       {@code ChunkMap.move} 遍历）、不进 tick 表、也不下发客户端。</li>
+ *   <li><b>两支都管</b>：{@code loadedFromDisk=true}（读盘，含
+ *       {@code EntityStorage#read → processPendingLoads} 与
+ *       {@code ChunkSerializer → addLegacyChunkEntities}）与 {@code false}
+ *       （任何来源的新生成：模组工厂、{@code /summon}、数据包、其它模组 {@code addFreshEntity}、
+ *       世界生成放置的实体）。因此"已加载数 ≤ 上限"对所有经实体管理器的入世界路径成立；
+ *       模组工厂上的两个 Mixin 只是超限预筛，不记账。</li>
  *   <li><b>为什么它能修旧存档</b>：被取消的实体不会在下次存盘时被写回
  *       （{@code EntityStorage#storeEntities} 只写内存里的实体；列表为空时直接删除文件），
  *       所以那 31 万个残骸会在第一次进入世界并保存后从 {@code entities/c.x.z.mcc} 里消失。</li>
- *   <li><b>本闸门只治读盘</b>（{@code loadedFromDisk=true}）。"新生成"由模组静态工厂入口的
- *       {@code CameraShakeCapMixin}/{@code DynamicCameraZoomCapMixin} 负责；两条路径共用
- *       {@link EffectEntityCap} 的同一份账，因此上限是统一的。</li>
+ *   <li><b>读盘支多一条 not-ticking 规则</b>：所在区块不在实体刻范围 ⇒ 永不 {@code tickCount++}、
+ *       永不自毁，直接丢弃（新生成支不做这条判定，理由见
+ *       {@code EffectEntityCap#shouldRefuseJoin} 的注释）。</li>
  * </ol>
  *
  * <p>实测代价（2026-10-06，某 31 万残骸的旧存档）：首次进入时服务器仍要解析该区块的
@@ -33,14 +36,11 @@ public final class EffectEntityJoinGate {
 
     @SubscribeEvent
     public void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!event.loadedFromDisk()) {
-            return;
-        }
         // 事件双端都会发；护栏只在服务端判定（集成服客户端一侧也会走到这里）。
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        if (EffectEntityCap.shouldRefuseLoadedEntity(level, event.getEntity())) {
+        if (EffectEntityCap.shouldRefuseJoin(level, event.getEntity(), event.loadedFromDisk())) {
             event.setCanceled(true);
         }
     }

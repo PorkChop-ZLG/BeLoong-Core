@@ -208,10 +208,10 @@ public class Config {
                         s -> s instanceof String str && str.contains(":"));
 
         EffectEntityCap.maxPerDimension = COMMON_BUILDER
-                .comment("Max concurrent entities per dimension per listed type; used by BOTH the spawn gate and the load-from-disk gate (a normal boss fight keeps only dozens alive)",
-                        "每个维度、每种列出类型的在存量上限；生成入口与旧存档读盘闸门统一使用（正常 Boss 战同时在场的抖动只有几十个量级）")
+                .comment("Max concurrent entities per dimension per listed type; used by the join gate (spawn pre-filter + load from disk) and as the per-pass budget of the frozen-residue sweep",
+                        "每个维度、每种列出类型的在存量上限；入世界闸门（生成预筛 + 读盘）统一使用，同时作为\"冻结残骸清扫\"的每趟预算（正常 Boss 战同时在场的抖动只有几十个量级）")
                 .translation("beloong.configuration.effectEntityCapMaxPerDimension")
-                .defineInRange("maxPerDimension", 200, 1, 100000);
+                .defineInRange("maxPerDimension", 200, 1, 1024);
 
         EffectEntityCap.rescanTicks = COMMON_BUILDER
                 .comment("How often the loaded-entity count is resampled, in ticks (only when a spawn or a disk load happens)",
