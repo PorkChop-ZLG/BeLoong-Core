@@ -23,6 +23,7 @@ import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
 import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
+import com.zonlong.beloong.perf.EffectEntityJoinGate;
 import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModCriteria;
@@ -126,6 +127,9 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
         NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
+        // 特效实体"读盘闸门"：把修复前就已堆积在旧存档里的 camera_shake / dynamic_camera_zoom
+        // 挡在世界之外（取消 join）。判定与账目见 perf/EffectEntityCap 与 perf/EffectEntityJoinGate。
+        NeoForge.EVENT_BUS.register(new EffectEntityJoinGate());
 
         if (ModList.get().isLoaded("lockdown")) {
             NeoForge.EVENT_BUS.register(new LockdownTemplateMigration());

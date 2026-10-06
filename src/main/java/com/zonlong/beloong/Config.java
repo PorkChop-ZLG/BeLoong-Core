@@ -160,7 +160,13 @@ public class Config {
     // discard() 永不执行，却仍留在 ChunkMap.entityMap 里，被"每个移动包跑一次"的
     // ChunkMap.move 全量遍历。实例上累积到 183 万个后，玩家登录时单 tick 超过 60 秒，
     // 被 ServerHangWatchdog 强杀（2026-10-06 悚域事故）。
-    // 这里在生成入口按维度设"在存量"硬上限（判定只在服务端发生，见 perf/EffectEntityCap）。
+    // 这里在守两条入世界路径，共用同一份账、同一个上限（判定只在服务端发生，见 perf/EffectEntityCap）：
+    //   ① 生成入口：CameraShakeEntity#cameraShake / DynamicCameraZoomEntity#dynamicCameraZoom
+    //      （mixin/legendarymonsters/ 下两个 Mixin）；
+    //   ② 存档读盘：NeoForge EntityJoinLevelEvent（perf/EffectEntityJoinGate）——
+    //      这一条负责"修复前就已堆积在旧存档里的存量"。实测某个旧存档单个区块里冻着 310,530 个
+    //      camera_shake（外置实体文件 c.3.1.mcc 解压后 108 MB NBT），一进世界即卡死；
+    //      读盘闸门超限即丢弃，且因为实体未登记，下次存盘时它就从文件里消失（存档自愈）。
     // 取名与默认值理由见 docs/plans/2026-10-06-lm-camera-shake-entity-flood-handover.md。
     //
     // ⚠️ 新增/改名配置项时同样必须补中英翻译键（见上方 dread_king_ritual 的说明）。
@@ -172,7 +178,7 @@ public class Config {
         public static ModConfigSpec.BooleanValue enabled;
         /** 纳入上限的实体类型 ID 列表 */
         public static ModConfigSpec.ConfigValue<List<? extends String>> types;
-        /** 每维度、每类型的在存量上限 */
+        /** 每维度、每类型的在存量上限（生成入口与读盘闸门统一使用） */
         public static ModConfigSpec.IntValue maxPerDimension;
         /** 存量重采样间隔（ticks） */
         public static ModConfigSpec.IntValue rescanTicks;
@@ -202,20 +208,20 @@ public class Config {
                         s -> s instanceof String str && str.contains(":"));
 
         EffectEntityCap.maxPerDimension = COMMON_BUILDER
-                .comment("Max concurrent entities per dimension per listed type (a normal boss fight keeps only dozens alive)",
-                        "每个维度、每种列出类型的在存量上限（正常 Boss 战同时在场的抖动只有几十个量级）")
+                .comment("Max concurrent entities per dimension per listed type; used by BOTH the spawn gate and the load-from-disk gate (a normal boss fight keeps only dozens alive)",
+                        "每个维度、每种列出类型的在存量上限；生成入口与旧存档读盘闸门统一使用（正常 Boss 战同时在场的抖动只有几十个量级）")
                 .translation("beloong.configuration.effectEntityCapMaxPerDimension")
-                .defineInRange("maxPerDimension", 400, 1, 100000);
+                .defineInRange("maxPerDimension", 200, 1, 100000);
 
         EffectEntityCap.rescanTicks = COMMON_BUILDER
-                .comment("How often the loaded-entity count is resampled, in ticks (only when a spawn is attempted)",
-                        "重新统计已加载实体数的间隔（ticks）；只在有召唤尝试时才会统计")
+                .comment("How often the loaded-entity count is resampled, in ticks (only when a spawn or a disk load happens)",
+                        "重新统计已加载实体数的间隔（ticks）；只在有召唤或读盘行为时才会统计")
                 .translation("beloong.configuration.effectEntityCapRescanTicks")
                 .defineInRange("rescanTicks", 20, 1, 1200);
 
         EffectEntityCap.logIntervalTicks = COMMON_BUILDER
-                .comment("Throttle for the suppression log line, in ticks (1200 = one line per minute)",
-                        "上限生效时输出日志的节流间隔（ticks），默认 1200 = 每分钟一条")
+                .comment("Throttle for the cap log lines, in ticks (1200 = one line per minute)",
+                        "上限相关日志的节流间隔（ticks），默认 1200 = 每分钟一条")
                 .translation("beloong.configuration.effectEntityCapLogIntervalTicks")
                 .defineInRange("logIntervalTicks", 1200, 20, 72000);
 
