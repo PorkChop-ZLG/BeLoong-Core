@@ -251,12 +251,30 @@ public final class EffectEntityCap {
                 sampled, used, cap, state.suppressed.getOrDefault(type, 0L));
     }
 
-    /** 输出"读盘存量被丢弃"的 ASCII 锚点日志（修复旧存档时的观测量）。 */
+    /**
+     * 输出"读盘存量被丢弃"的 ASCII 锚点日志（修复旧存档时的观测量）。
+     *
+     * <p><b>为什么用对数里程碑而不是纯时间节流</b>：实测一次修复会在几秒内丢出 31 万个实体，
+     * 而纯按 {@code logIntervalTicks}（默认 1200 = 60 秒）节流时，整个 burst 只会留下
+     * <b>第一条</b>（{@code refused=1}）——运维最想看的"到底丢了多少"反而看不到。
+     * 现在改为：累计丢弃数每跨过一个十倍数（1/10/100/1k/10k/100k/…）就打一条，
+     * 因此一次 31 万的修复会留下约 6 行、量级一目了然；同时保留原有的时间节流，
+     * 用于"长期零星丢弃"的场景。两者的计数都是累计值，不会因窗口重置而失真。</p>
+     */
     private static void logRefusedLoad(ServerLevel level, LevelState state, EntityType<?> type,
                                        int sampled, int used, int cap, long now, String reason) {
-        if (state.lastLoadLogAt != NEVER
-                && now - state.lastLoadLogAt < Config.EffectEntityCap.logIntervalTicks.get()) {
+        long total = state.refusedLoaded.getOrDefault(type, 0L);
+        long milestone = state.nextLogMilestone.getOrDefault(type, 1L);
+        boolean milestoneHit = total >= milestone;
+        boolean throttlePassed = state.lastLoadLogAt == NEVER
+                || now - state.lastLoadLogAt >= Config.EffectEntityCap.logIntervalTicks.get();
+        if (!milestoneHit && !throttlePassed) {
             return;
+        }
+        if (milestoneHit) {
+            // 防御性上限：理论上到不了，但避免极端情况下乘 10 溢出。
+            state.nextLogMilestone.put(type,
+                    milestone > Long.MAX_VALUE / 10L ? Long.MAX_VALUE : milestone * 10L);
         }
         state.lastLoadLogAt = now;
         BeLoongCore.LOGGER.warn("[BeLoong] effect-entity-cap-load: dim={} type={} count={} used={} cap={}"
@@ -264,7 +282,7 @@ public final class EffectEntityCap {
                 level.dimension().location(),
                 BuiltInRegistries.ENTITY_TYPE.getKey(type),
                 sampled, used, cap,
-                state.refusedLoaded.getOrDefault(type, 0L),
+                total,
                 state.refusedLoadedNotTicking.getOrDefault(type, 0L),
                 reason);
     }
@@ -281,6 +299,8 @@ public final class EffectEntityCap {
         private final Map<EntityType<?>, Long> refusedLoaded = new HashMap<>();
         /** 其中因"所在区块不在实体刻范围"被丢弃的数量（按类型）。 */
         private final Map<EntityType<?>, Long> refusedLoadedNotTicking = new HashMap<>();
+        /** 下一个日志里程碑（按类型，1/10/100/…）；见 {@code logRefusedLoad} 的说明。 */
+        private final Map<EntityType<?>, Long> nextLogMilestone = new HashMap<>();
         /** 累计被抑制的新召唤数（按类型），仅用于日志诊断。 */
         private final Map<EntityType<?>, Long> suppressed = new HashMap<>();
         private long sampledAt = NEVER;
