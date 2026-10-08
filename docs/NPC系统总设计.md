@@ -1188,6 +1188,86 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 
 ---
 
+## 十二、多人兼容：私有分身（2026-10-01）
+
+> 设计：`docs/plans/2026-10-01-multiplayer-npc-design.md`（D1–D21，已批准）
+> 计划与执行记录：`docs/plans/2026-10-01-multiplayer-npc-plan.md`
+
+**问题**：本模组的 NPC **可以移动** ⇒ 单人时"剧情让 NPC 走开"没问题，多人时却把**共享实体**的位置
+当成了某个玩家的剧情状态 ⇒ 其他玩家的剧情推不动。
+**根因不是"NPC 会动"**，而是"剧情需要的那部分状态是**每人一份**，承载它的实体却只有一份" ——
+对话按**实体类型**查表、回复可见性按**玩家**判（`NpcDialogueStage`），而位置/路线/表情挂在**实体**上。
+
+### 12.1 分类规则：按"这个实体承载谁的状态"
+
+| 类别 | 定义 | 可见性 |
+|---|---|---|
+| **公共锚点**（`owner == null`）| 承载**零玩家状态**，永不因某个玩家的剧情而移动 | 对"尚未获得剧情起点进度"的玩家可见 |
+| **私有分身**（`owner != null`）| 承载**恰好一个玩家**的全部剧情状态 | 只有主人可见、可交互；且主人须已进入剧情区间 |
+
+**不变量**：任一玩家眼里，同一类型的 NPC 永远**恰好只有一个**（未开始 ⇒ 锚点；已开始 ⇒ 自己的分身）。
+
+### 12.2 两个实现地基（都用原版机制）
+
+- **可见性 = 覆写 `Entity#broadcastToPlayer(ServerPlayer)` 的纯函数**（`NpcEntity#visibleTo`）。
+  `ChunkMap.TrackedEntity.updatePlayer`（`ChunkMap.java:1327-1343`）每个追踪周期逐玩家调用它：
+  返回 false ⇒ 对该玩家 `removePairing` 且永不 `addPairing` ⇒ 该玩家客户端上**实体根本不存在**
+  （无渲染、无碰撞箱、无法右键），且**零自定义网络包、零客户端改动**。
+  ⚠️ 它每周期对范围内每个玩家都调 ⇒ **不得写实体字段、不得发包**（有守卫钉住）。
+  ⚠️ 不要误用 `isInvisibleTo`：那只是渲染层。
+- **事实来源 = 玩家自己的原版进度** ⇒ 不新增任何每玩家持久状态。
+
+### 12.3 数据驱动：`npc_story`
+
+`data/beloong/beloong/npc_story/<实体类型路径>.json`（**按实体类型命名**，与 `npc_dialogue` 同构）：
+
+```jsonc
+{ "start_advancement": "beloong:npc/root", "end_advancement": "beloong:npc/2_1",
+  "spawn": "anchor", "cg": "mo_entrance",
+  "lifetime_ticks": 72000, "clear_on_logout": false,
+  "required_dimension": "beloong:loong_palace", "dimension_grace_ticks": 1200 }
+```
+
+- **存在声明式 + 演出事件式**：分身"该不该在"由进度区间声明，一个对账器让世界与声明一致（幂等、自愈）；
+  登场 CG 由"起点进度**被获得**"这一事件驱动 —— **已经播过的标记就是那个进度本身**，不必新增状态。
+- 生成时机 = **起点进度获得的那一刻**（`root` 由位置触发自动发放）。必须在**第一次对话之前**：
+  路线指派靠 `LastDialogueNpc`（玩家最近对话过的实体）解析目标。
+- 生成位置 = **锚点的位置与朝向** ⇒ 玩家视角"那只 mo 一直在原地"，切换无感。
+  找不到锚点 ⇒ 身前 4 格 + WARN（⚠️ 不能放脚下：`CgContext.of` 遇方向退化会返回 null ⇒ CG 中止）。
+- `cg` 解析失败只 WARN，**不影响分身生成**（生成与演出解耦）。
+
+### 12.4 租约与清理
+
+| 轴 | 字段 | 默认 | 说明 |
+|---|---|---|---|
+| 时间 | `lifetime_ticks` | 72000（1 小时）| `-1` = 永久；⚠️ 不用 0 表示永久 |
+| 会话 | `clear_on_logout` | false | **退出即清**（名字就是这个意思；真正的兜底是时长）|
+| 空间 | `required_dimension` + `dimension_grace_ticks` | 省略=不限 / 1200 | 离开维度超过宽限才清 ⚠️ 没有它，在龙宫死一次就会被判成弃坑 |
+
+- **撤销 = 沿 `end_advancement` 的父链走回 `start_advancement`**，逐 criterion 撤
+  （照原版 `AdvancementCommands.java:448-458`；`PlayerAdvancements` 只提供按 criterion 的 revoke）。
+  实测链严格线性：`root ← (无)`、`1_1 ← root`、`2_0 ← 1_1`、`2_1 ← 2_0`，无兄弟。
+- **是否撤回由"是否已完成"决定**（D16）：进行中 ⇒ 清理 **且** 撤回；已完成 ⇒ 只清理。
+  否则通关玩家会被一小时到点打回起点。
+- **清理与撤回必须原子**（D15）：只做一半 = 软锁（有进度没分身）或"同时看到两个"。
+- **`已获起点但无分身` ⇒ 统一按"剧情重新开始"（D21）**：撤回整条链，玩家回入口重获起点。
+  ⚠️ 不可改为"就地补生成"：中期阶段补一只站入口的分身 ⇒ 两条回复都不显示 ⇒ 卡死。
+- 到期前由 `Config.NpcStory.expiryWarningTicks`（默认 30 秒）给玩家 actionbar 提示。
+
+### 12.5 相关文件
+
+| 位置 | 内容 |
+|---|---|
+| `npcstory/NpcStory` / `NpcStoryLoader` | 声明 + 加载（未知名拒绝、未知实体类型拒绝、`lifetime_ticks < -1` 拒绝）|
+| `npcstory/NpcStoryHandler` | 事件路径（生成 + CG）+ 声明路径（对账）+ 清理/撤回 |
+| `entity/NpcEntity` | `BeloongOwner` / `BeloongBornAt` / `BeloongExpireAt` / `BeloongOutsideSince` + `broadcastToPlayer` / `visibleTo` |
+| `data/beloong/beloong/npc_story/mo.json` | 末的剧情声明 |
+| `Config.NpcStory` | 总开关 / 巡检间隔 / 到期提示提前量 |
+| 语言键 | `beloong.configuration.npcStory*`、`beloong.npc.story.expiring` |
+
+⚠️ 旧的 `cg/MoEntranceTrigger`（"在玩家 ±48 格内就近搜一只末当演员"）**已删除**：
+演员改为按需构造，那两类问题（找不到就不播、可能挑到别人的分身）随之消失。
+
 ## 附：本文与旧文档的编号对照
 
 旧文档的决策编号（D1–D57、对话系统 D1–D33、风险 R0–R18）**不在本文中续用**。
