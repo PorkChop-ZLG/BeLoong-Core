@@ -43,6 +43,23 @@ public class Config {
     // 首版三项全在客户端，那是因为当时的触发判定也在客户端（见
     // docs/plans/2026-09-25-npc-dialogue-data-driven-design.md）。
 
+    /**
+     * NPC 剧情（私有分身的生命周期）。**全部是服务端配置** —— 判定与清理都只在服务端做。
+     */
+    public static final class NpcStory {
+        private NpcStory() {}
+
+        /** 总开关（默认启用）。关掉即停用对账与清理，已存在的分身原样留着。 */
+        public static ModConfigSpec.BooleanValue enabled;
+
+        /** 对账器巡检间隔（tick，默认 100 = 5 秒）。 */
+        public static ModConfigSpec.IntValue reconcileIntervalTicks;
+
+        /** 到期前多久开始提示玩家（tick，默认 600 = 30 秒；0 = 不提示）。 */
+        public static ModConfigSpec.IntValue expiryWarningTicks;
+    }
+
+
     /** 简易 NPC 对话。字段在下方两个 static 块中分别赋值。 */
     public static final class NpcDialogue {
         private NpcDialogue() {}
@@ -310,6 +327,31 @@ public class Config {
                 .define("enabled", true);
 
         SERVER_BUILDER.pop(); // npc_dialogue
+
+        // ========== npc_story ==========
+        // 私有分身的生命周期：判定与清理都只在服务端做，故三项全在 SERVER_SPEC。
+        SERVER_BUILDER.push("npc_story");
+
+        NpcStory.enabled = SERVER_BUILDER
+                .comment("Master switch for NPC story doubles (spawn / reconcile / cleanup)",
+                        "NPC 剧情分身的对账与清理总开关；关掉后已存在的分身原样留着")
+                .translation("beloong.configuration.npcStoryEnabled")
+                .define("enabled", true);
+
+        NpcStory.reconcileIntervalTicks = SERVER_BUILDER
+                .comment("How often (in ticks) the reconciler sweeps online players; default 100 = 5s",
+                        "对账器巡检间隔（tick），默认 100 = 5 秒")
+                .translation("beloong.configuration.npcStoryReconcileIntervalTicks")
+                .defineInRange("reconcileIntervalTicks", 100, 1, 72000);
+
+        NpcStory.expiryWarningTicks = SERVER_BUILDER
+                .comment("Warn the player this many ticks before a double expires; 0 disables the warning",
+                        "分身到期前多久提示玩家（tick），默认 600 = 30 秒；0 = 不提示")
+                .translation("beloong.configuration.npcStoryExpiryWarningTicks")
+                .defineInRange("expiryWarningTicks", 600, 0, 72000);
+
+        SERVER_BUILDER.pop(); // npc_story
+
 
         // ========== loong_palace.environment_protection ==========
         SERVER_BUILDER.push("loong_palace");

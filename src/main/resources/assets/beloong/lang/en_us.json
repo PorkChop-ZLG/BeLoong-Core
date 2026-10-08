@@ -278,5 +278,13 @@
   "entity.beloong.dread_king_ritual_marker": "Dread King Ritual Marker",
   "item.beloong.hell_gate.key": "§7A great gate to hell, opened with %s§r§7.",
   "item.beloong.hell_gate.no_key": "§7A great gate to hell that no key can open.",
-  "subtitles.beloong.block.hell_gate.open": "Hell Gate opens"
+  "subtitles.beloong.block.hell_gate.open": "Hell Gate opens",
+  "beloong.configuration.npc_story": "NPC Story",
+  "beloong.configuration.npcStoryEnabled": "NPC story doubles",
+  "beloong.configuration.npcStoryEnabled.tooltip": "Master switch for spawning, reconciling and cleaning up private story doubles",
+  "beloong.configuration.npcStoryReconcileIntervalTicks": "Reconcile interval",
+  "beloong.configuration.npcStoryReconcileIntervalTicks.tooltip": "How often (in ticks) online players are reconciled; shorter heals faster but costs more",
+  "beloong.configuration.npcStoryExpiryWarningTicks": "Expiry warning lead",
+  "beloong.configuration.npcStoryExpiryWarningTicks.tooltip": "Warn the player this many ticks before a private double expires; 0 disables",
+  "beloong.npc.story.expiring": "§eYour story has %s seconds left — it will restart from the palace entrance"
 }

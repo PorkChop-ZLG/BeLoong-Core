@@ -405,6 +405,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     @Nullable
     private UUID owner;
 
+    /** 出生时刻（游戏时间）；0 = 无租约。 */
+    private long bornAt;
+
+    /** 绝对到期时刻；0 = 无租约，{@code Long.MAX_VALUE} = 永久。 */
+    private long expireAt;
+
+    /** 首次被观察到不在有效维度的时刻；0 = 在有效维度内。 */
+    private long outsideSince;
+
     /** 迄今离目标最近的水平距离平方；用于"卡住就放弃"的有界失败判断。 */
     private double moveBestDistSqr = Double.MAX_VALUE;
 
@@ -1211,6 +1220,51 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return !NpcDialogueStage.isEarned(player, story.startAdvancement());
     }
 
+    // ===================== 租约（私有分身的生命周期）=====================
+
+    /** 出生时刻（游戏时间）；0 = 无租约。 */
+    public long bornAt() {
+        return this.bornAt;
+    }
+
+    /** 绝对到期时刻；0 = 无租约，{@code Long.MAX_VALUE} = 永久。 */
+    public long expireAt() {
+        return this.expireAt;
+    }
+
+    /** 首次被观察到不在有效维度的时刻；0 = 在有效维度内。 */
+    public long outsideSince() {
+        return this.outsideSince;
+    }
+
+    /**
+     * 写入租约。**只在服务端生效**（与 {@link #setOwner} 同构）。
+     * <p>
+     * {@code expireAt} 由调用方在**生成那一刻**用数据里的时长折算好（{@code NpcStory#expiryAt}），
+     * 本类不碰数据 —— 这样"改数据里的时长"不会影响已存在的分身。
+     */
+    public void setLease(long bornAt, long expireAt) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.bornAt = bornAt;
+        this.expireAt = expireAt;
+    }
+
+    /** 更新"离开有效维度"的计时起点；传 0 表示回到了有效维度内。 */
+    public void setOutsideSince(long outsideSince) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.outsideSince = outsideSince;
+    }
+
+    /** 按给定时刻判断租约是否已到期（无租约或永久 ⇒ 永不到期）。 */
+    public boolean hasExpired(long now) {
+        return this.expireAt > 0L && this.expireAt != Long.MAX_VALUE && now > this.expireAt;
+    }
+
+
     /**
      * 状态落盘用的 NBT 键。
      * <p>
@@ -1241,6 +1295,24 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      */
     private static final String OWNER_NBT_KEY = "BeloongOwner";
 
+    /** 私有分身的出生时刻（所在维度的游戏时间 tick）。 */
+    private static final String BORN_AT_NBT_KEY = "BeloongBornAt";
+
+    /**
+     * 私有分身的**绝对到期时刻**（所在维度的游戏时间 tick）；{@code Long.MAX_VALUE} = 永久。
+     * <p>
+     * ⚠️ 存**绝对时刻**而不是"只存出生时刻、时长每次现读数据"：设计 D14 承诺
+     * "以后改数据里的时长**不会**追溯影响已经存在的分身" —— 若每次现读，改数据就会改变老分身的寿命。
+     */
+    private static final String EXPIRE_AT_NBT_KEY = "BeloongExpireAt";
+
+    /**
+     * 玩家**首次被观察到不在有效维度**的时刻（0 = 当前在有效维度内）。
+     * <p>
+     * 放在实体上而不是玩家或全局：宽限是**这一个分身的**状态，且随实体一起存档，与租约其余部分同源。
+     */
+    private static final String OUTSIDE_SINCE_NBT_KEY = "BeloongOutsideSince";
+
     /**
      * 状态落盘。
      * <p>
@@ -1262,6 +1334,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         // 同理：只有私有分身才写归属键（公共锚点的存档里不该出现它）。
         if (this.owner != null) {
             compound.putUUID(OWNER_NBT_KEY, this.owner);
+            compound.putLong(BORN_AT_NBT_KEY, this.bornAt);
+            compound.putLong(EXPIRE_AT_NBT_KEY, this.expireAt);
+            compound.putLong(OUTSIDE_SINCE_NBT_KEY, this.outsideSince);
         }
     }
 
@@ -1294,6 +1369,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.routeIndex = Math.max(0, compound.getInt(ROUTE_INDEX_NBT_KEY));
         // 向后兼容：旧存档没有这个键 ⇒ hasUUID 为 false ⇒ owner 保持 null ⇒ 公共锚点。
         this.owner = compound.hasUUID(OWNER_NBT_KEY) ? compound.getUUID(OWNER_NBT_KEY) : null;
+        // 租约同理向后兼容：旧存档没有这几个键 ⇒ getLong 返回 0 ⇒ 无租约（不会被误判成已过期）。
+        this.bornAt = compound.getLong(BORN_AT_NBT_KEY);
+        this.expireAt = compound.getLong(EXPIRE_AT_NBT_KEY);
+        this.outsideSince = compound.getLong(OUTSIDE_SINCE_NBT_KEY);
         // 下标 clamp：路线数据是**热的**（/reload 可改），两次加载之间它可能变短。
         // 此刻若该路线已加载 ⇒ 直接 clamp 并提示；尚未加载 ⇒ 原样保留，等它可用时
         // routeFinished() 会按"越界即已完成"处理（坏数据不崩）。
