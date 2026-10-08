@@ -7,7 +7,7 @@
 **Approach:** 方案 A（已批准）：按**状态所有权**分类 / 可见性用原版钩子（不自造系统）/ 事实来源用**玩家已有的原版进度**（不新增每玩家持久状态）/ 数据驱动 `npc_story` / 撤回沿 `end_advancement` 的父链走回 `start_advancement`。
 
 **设计文档：** [`2026-10-01-multiplayer-npc-design.md`](2026-10-01-multiplayer-npc-design.md)（已批准，含 D1–D21）
-**状态：** **计划待批准**（批准后进入执行；每批完成后回填执行状态）
+**状态：** **执行中** —— 批次① 已完成（T1 `4532c1a` + T2 `c80a238`），批次② 待开始；每批完成后回填执行状态（见文末「执行记录」）
 
 ---
 
@@ -15,8 +15,8 @@
 
 | 批次 | 任务 | 一句话 | 需要实机？ | 状态 |
 |---|---|---|---|---|
-| **① 地基** | T1 | `npc_story` 数据层（Codec + Loader + `mo.json`）| 否 | 待执行 |
-| ① | T2 | `NpcEntity` 归属 + 可见性（owner NBT + `broadcastToPlayer`）| 否（回归：地黄龙）| 待执行 |
+| **① 地基** | T1 | `npc_story` 数据层（Codec + Loader + `mo.json`）| 否 | ✅ 完成 `4532c1a` |
+| ① | T2 | `NpcEntity` 归属 + 可见性（owner NBT + `broadcastToPlayer`）| 否（回归：地黄龙）| ✅ 完成 `c80a238` |
 | **② 私人化闭环** | T3 | 分身管家：生成（锚点同位置/朝向 + 兜底）| **是** | 待执行 |
 | ② | T4 | CG 移交给分身（删 ±48 搜索）+ 交互闸门 | **是** | 待执行 |
 | **③ 租约与清理** | T5 | 租约写入实体（`bornAt` + **`expireAt`**）| 否 | 待执行 |
@@ -245,3 +245,30 @@
 
 计划批准后：按批次执行（批次 ① → ② → ③ → ④），每批完成后回填本文件的执行状态，
 "需要实机"的任务由用户在游戏里确认；全部完成后进入收尾（T10）。
+
+---
+
+## 执行记录
+
+### 批次① 地基 —— **已完成**
+
+| 任务 | 提交 | 验证 |
+|---|---|---|
+| T1 `npc_story` 数据层 | `4532c1a` | `build` BUILD SUCCESSFUL ✓ ／ jar 内三产物齐全 ✓ ／ 注册**恰好一次**（grep 复核）✓ ／ 两套不变量 + 三探针全绿 ✓ |
+| T2 `NpcEntity` 归属 + 可见性 | `c80a238` | 同上全绿 ✓ ／ 自查 `visibleTo` 方法体（无字段写入）✓ |
+
+**实施期修订 / 备注**
+
+1. **T1 自查修正**：未知实体类型改用 `getOptional`（项目既有写法，见 `NpcDialogueEntry.decodeEntity`），
+   而不是"先 `get()` 再 `containsKey()`" —— 后者会先拿到注册表默认值，读起来像收下了一个错的类型。
+2. **T2 把进度查询提成公用入口**：`NpcDialogueStage.isEarned(player, id)`（复用既有的 fail-closed
+   与"每个 id 只报一次"WARN），而不是复制一份实现 —— 该类注释已注明它现在同时是
+   "NPC 按玩家可见性"的判定入口。
+3. **给 T9 的守卫留了一条坑**：不能用朴素的 `=` 检查"方法体内无赋值" ——
+   `visibleTo` 里的 `NpcStory story = ...` 是**局部变量**，会被误报。
+   T9 的守卫要按"类的字段名集合 + `this.` 赋值 + 已知 mutator 调用"来判。
+
+**仍待实机确认（随批次②一并看）**
+
+- 载入日志出现 `npc stories: N file(s) scanned, M story(ies) loaded`
+- `beloong:dihuang_loong` 行为不变（可见、可交互）；未获 `root` 时 `beloong:mo` 可见
