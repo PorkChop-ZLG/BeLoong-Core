@@ -1,5 +1,10 @@
 package com.zonlong.beloong.entity;
 
+import net.minecraft.server.level.ServerPlayer;
+import com.zonlong.beloong.npcstory.NpcStory;
+import com.zonlong.beloong.npcstory.NpcStoryLoader;
+import com.zonlong.beloong.dialogue.NpcDialogueStage;
+import java.util.UUID;
 import com.zonlong.beloong.entity.ai.NpcRouteGoal;
 import com.zonlong.beloong.route.NpcRoute;
 import com.zonlong.beloong.route.NpcRouteLoader;
@@ -59,7 +64,9 @@ import java.util.EnumMap;
  *   <li><b>无敌</b>：{@link #isInvulnerableTo} 只放行 {@code BYPASSES_INVULNERABILITY}
  *       （{@code /kill} 与虚空）—— 刻意留的管理后路；</li>
  *   <li><b>不可推动</b>：{@link #isPushable()} 恒 false；</li>
- *   <li><b>永不消失</b>：{@link #requiresCustomPersistence()} 恒 true。</li>
+ *   <li><b>永不消失</b>：{@link #requiresCustomPersistence()} 恒 true；</li>
+ *   <li><b>按玩家可见</b>：{@link #broadcastToPlayer} 一律走 {@link #visibleTo}
+ *       （见下面「多人兼容」一节）。**没有剧情的 NPC 恒为可见** ⇒ 现有子类行为一字不变。</li>
  * </ul>
  * 这三条写成**覆写方法**而不是构造函数里 set：{@code /summon} 与刷怪蛋的流程是
  * "先 {@code create()}（构造函数在此运行）再 {@code load(标签)}"，而 {@code load()} 会把
@@ -104,6 +111,36 @@ import java.util.EnumMap;
  * 将来若确实需要定制身朝，正统扩展点是覆写 {@code Mob#createBodyControl()} 返回
  * {@code BodyRotationControl} 的子类（原版自己在用：{@code Phantom:63}、{@code Armadillo:392}、
  * {@code Camel:635}、{@code Shulker:146}），而不是 {@code tickHeadTurn}。
+ *
+ * <h2>多人兼容：公共锚点与私有分身（2026-10-01）</h2>
+ * 本模组的 NPC **可以移动**（区别于传统站桩 NPC）⇒ 单人时"剧情让 NPC 走开"没问题，
+ * 多人时却会把**共享实体**的位置当成某个玩家的剧情状态 ⇒ 其他玩家的剧情推不动。
+ * <p>
+ * 根因不是"NPC 会动"，而是"剧情需要的那部分状态是**每人一份**，承载它的实体却只有一份"：
+ * 对话按**实体类型**查表、回复可见性按**玩家**判（{@code NpcDialogueStage}），
+ * 而位置/路线/表情挂在**实体**上。解决办法是把"需要每人一份的那部分"也变成每人一份的实体。
+ * <p>
+ * <b>分类规则：按"这个实体承载谁的状态"</b>（不是按"它能不能动"）：
+ * <ul>
+ *   <li><b>公共锚点</b>（{@link #owner} == null）：承载**零玩家状态**，永不因某个玩家的剧情而移动；
+ *       对"还没有自己分身"的玩家可见；</li>
+ *   <li><b>私有分身</b>（{@link #owner} != null）：承载**恰好一个玩家**的全部剧情状态，只对该玩家可见。</li>
+ * </ul>
+ * <b>不变量</b>：任一玩家眼里，同一类型的 NPC 永远**恰好只有一个** ——
+ * 未开始（未获得剧情起点进度）⇒ 看到公共锚点；已开始 ⇒ 看到自己的分身。两条规则在同一刻互换。
+ * <p>
+ * <b>实现地基是原版钩子，不自造系统</b>：覆写 {@link #broadcastToPlayer}（{@code Entity.java:3021}，默认 true）
+ * ⇒ {@code ChunkMap.TrackedEntity.updatePlayer}（{@code ChunkMap.java:1327-1343}）会对该玩家
+ * {@code removePairing} 且永不 {@code addPairing} ⇒ 该玩家客户端上**这个实体根本不存在**
+ * （无渲染、无碰撞箱、无法右键），且**零自定义网络包、零客户端改动**。
+ * （原版同款用法：{@code ServerPlayer.java:957-961} 让旁观者不接收自己。）
+ * <p>
+ * ⚠️ <b>{@link #visibleTo} 必须是纯函数</b>：它**每个追踪周期、对范围内每个玩家**被调用，
+ * 只能依赖"实体 + 该玩家"，不得写实体字段、不得发包（改其行为前先读这一段）。
+ * ⚠️ 不要误用 {@code Entity#isInvisibleTo}（{@code Entity.java:2420}）：那只是**渲染层**，
+ * 实体仍在客户端，碰撞与交互都还在。
+ * <p>
+ * 设计文档：{@code docs/plans/2026-10-01-multiplayer-npc-design.md}（D1–D21）。
  *
  * <h2>子类必须提供</h2>
  * 实体类型绑定（见 {@code registry/ModEntities}）、碰撞箱（那里）、渲染器与模型
@@ -359,6 +396,14 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 当前路点下标；等于路点数即"已抵达终点"（不另设"已完成"标记）。 */
     private int routeIndex;
+
+    /**
+     * 私有分身的归属玩家；{@code null} = **公共锚点**（见类注释「多人兼容」一节）。
+     * <p>
+     * 刻意不做成"每个玩家一份的字段"：一个实体只属于一个玩家 —— 这正是"每人一份"的落点。
+     */
+    @Nullable
+    private UUID owner;
 
     /** 迄今离目标最近的水平距离平方；用于"卡住就放弃"的有界失败判断。 */
     private double moveBestDistSqr = Double.MAX_VALUE;
@@ -1093,6 +1138,67 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return MOVE_ARRIVE_DISTANCE;
     }
 
+    // ===================== 多人：归属与可见性 =====================
+
+    /** 私有分身的归属玩家；{@code null} = 公共锚点。 */
+    @Nullable
+    public UUID owner() {
+        return this.owner;
+    }
+
+    /**
+     * 设置归属。**只在服务端生效**（与 {@link #setRoute} 同构：客户端不持有这类权威状态）。
+     * <p>
+     * 传 {@code null} 即"变回公共锚点"。
+     */
+    public void setOwner(@Nullable UUID owner) {
+        if (this.level().isClientSide()) {
+            return;
+        }
+        this.owner = owner;
+    }
+
+    /** 是否是**私有分身**（有主）。 */
+    public boolean isPrivate() {
+        return this.owner != null;
+    }
+
+    /**
+     * 原版钩子：<b>这个实体要不要发给该玩家</b>。
+     * <p>
+     * {@code ChunkMap.TrackedEntity.updatePlayer}（{@code ChunkMap.java:1327-1343}）每个追踪周期
+     * 逐玩家调用它：返回 {@code false} ⇒ 对该玩家 {@code removePairing} 且永不 {@code addPairing}
+     * ⇒ 该玩家客户端上**这个实体根本不存在**（无渲染、无碰撞箱、无法右键）。
+     * 本类只做转发，判定写在可覆写的 {@link #visibleTo} 里。
+     */
+    @Override
+    public boolean broadcastToPlayer(ServerPlayer player) {
+        return this.visibleTo(player);
+    }
+
+    /**
+     * 该玩家能不能看见本实体。**纯函数：不写实体字段、不发包、不查实体。**
+     * <p>
+     * 规则（两条都**只依赖进度** ⇒ O(1)，不需要任何实体搜索）：
+     * <ul>
+     *   <li>本类型**没有剧情声明**（{@code NpcStoryLoader} 查不到）⇒ 恒可见
+     *       —— 地黄龙等既有 NPC 行为一字不变；</li>
+     *   <li>有主人 ⇒ 仅对主人可见；</li>
+     *   <li>无主人（公共锚点）⇒ 对"**尚未获得剧情起点进度**"的玩家可见。</li>
+     * </ul>
+     * ⚠️ 不可在这里写缓存/发通知/查实体：它每追踪周期对范围内每个玩家都被调用。
+     */
+    protected boolean visibleTo(ServerPlayer player) {
+        NpcStory story = NpcStoryLoader.INSTANCE.get(this.getType());
+        if (story == null) {
+            return true;
+        }
+        if (this.owner != null) {
+            return player.getUUID().equals(this.owner);
+        }
+        return !NpcDialogueStage.isEarned(player, story.startAdvancement());
+    }
+
     /**
      * 状态落盘用的 NBT 键。
      * <p>
@@ -1113,6 +1219,17 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private static final String ROUTE_INDEX_NBT_KEY = "BeloongRouteIndex";
 
     /**
+     * 私有分身的**归属玩家**（UUID）。**没有这个键 = 公共锚点**。
+     * <p>
+     * 用原版的 {@code putUUID}/{@code hasUUID}/{@code getUUID} 而不是自己拆字符串：
+     * UUID 是原版实体 NBT 的既有类型，拆字符串只会多一处解析失败的可能。
+     * <p>
+     * ⚠️ 只有**非空**才写：公共锚点的存档里不该出现这个键（旧存档读到的就是"空"
+     * ⇒ 公共锚点 ⇒ 行为与引入本系统之前一致）。
+     */
+    private static final String OWNER_NBT_KEY = "BeloongOwner";
+
+    /**
      * 状态落盘。
      * <p>
      * <b>写名字而不是 ordinal</b>：枚举顺序将来变了也不会把旧存档读错
@@ -1129,6 +1246,10 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         if (this.routeName != null) {
             compound.putString(ROUTE_NBT_KEY, this.routeName.toString());
             compound.putInt(ROUTE_INDEX_NBT_KEY, this.routeIndex);
+        }
+        // 同理：只有私有分身才写归属键（公共锚点的存档里不该出现它）。
+        if (this.owner != null) {
+            compound.putUUID(OWNER_NBT_KEY, this.owner);
         }
     }
 
@@ -1159,6 +1280,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         String route = compound.getString(ROUTE_NBT_KEY);
         this.routeName = route.isEmpty() ? null : ResourceLocation.tryParse(route);
         this.routeIndex = Math.max(0, compound.getInt(ROUTE_INDEX_NBT_KEY));
+        // 向后兼容：旧存档没有这个键 ⇒ hasUUID 为 false ⇒ owner 保持 null ⇒ 公共锚点。
+        this.owner = compound.hasUUID(OWNER_NBT_KEY) ? compound.getUUID(OWNER_NBT_KEY) : null;
         // 下标 clamp：路线数据是**热的**（/reload 可改），两次加载之间它可能变短。
         // 此刻若该路线已加载 ⇒ 直接 clamp 并提示；尚未加载 ⇒ 原样保留，等它可用时
         // routeFinished() 会按"越界即已完成"处理（坏数据不崩）。

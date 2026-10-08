@@ -35,6 +35,9 @@ import java.util.Set;
  * 单线程访问，普通集合够用）。
  * <p>
  * 设计文档：{@code docs/plans/2026-09-29-npc-advancement-stage-system-design.md}。
+ * <p>
+ * 2026-10-01 起本类**同时是「NPC 按玩家可见性」的判定入口**（{@code NpcEntity#visibleTo} 用它判断
+ * "这个玩家是否已经开始了剧情"）—— 两处共用同一套 fail-closed 语义与"每个 id 只报一次"的 WARN。
  */
 public final class NpcDialogueStage {
 
@@ -60,6 +63,25 @@ public final class NpcDialogueStage {
         return player.getAdvancements().getOrStartProgress(holder).isDone()
                 ? StageState.DONE
                 : StageState.NOT_DONE;
+    }
+
+    /**
+     * 某个进度该玩家是否**已完成**（公用入口：对话回复可见性与 NPC 按玩家可见性都用它）。
+     * <p>
+     * fail-closed：id 查不到（数据写错）⇒ 返回 {@code false}，并**每个 id 只报一次**英文 WARN
+     * （与 {@link #visible} 同款）。对"锚点可见性"而言这个方向是正确的：查不到 ⇒ 判"未开始"
+     * ⇒ 锚点保持可见 ⇒ 事情仍然可做，而不是把玩家关在门外。
+     * <p>
+     * ⚠️ 调用方注意：NPC 可见性判定会在**每个追踪周期、对范围内每个玩家**调到这里
+     * ⇒ 本方法必须**廉价且不写游戏状态**（现在是"一次 id 查 + 一次进度状态查"，满足）。
+     */
+    public static boolean isEarned(ServerPlayer player, ResourceLocation id) {
+        StageState state = stateOf(player, id);
+        if (state == StageState.UNKNOWN) {
+            warnUnknown(id);
+            return false;
+        }
+        return state == StageState.DONE;
     }
 
     /**
