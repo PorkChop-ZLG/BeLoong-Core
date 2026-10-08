@@ -426,6 +426,31 @@ MAX_HEALTH / KNOCKBACK_RESISTANCE / MOVEMENT_SPEED / ARMOR / ARMOR_TOUGHNESS，
 
 ---
 
+### 3.10 实体标签 `beloong:npcs`（新增 NPC 必须手动登记）
+
+> **注册新的 NPC 实体后，必须把 NPC 实体手动添加到 `beloong:npcs` 标签中，不提供代码自动生成。**
+
+- 标签文件：`data/beloong/tags/entity_type/npcs.json`（`"replace": false`，允许别人继续往里加）。
+  当前成员：`beloong:dihuang_loong`、`beloong:mo`。
+- **为什么不自动生成**：本模组不引入任何 datagen 流程（现有数据文件全是手写并纳入版本管理的），
+  自动生成会带进一套构建期依赖与"生成物是否要提交"的问题；而 NPC 实体屈指可数、变更极少，
+  手动登记的维护成本远低于它的复杂度。**代价**是"加了实体忘了登记"不会报错 —— 这一条由
+  `tools/YSMParser/stage_invariants.py` 的断言兜住（它会读出 `ModEntities` 里全部
+  `extends NpcEntity` 的实体，与标签内容逐项比对，不一致就 FAIL）。
+- **这个标签被谁用**：
+  - `data/c/tags/entity_type/capturing_not_supported.json`
+  - `data/c/tags/entity_type/teleporting_not_supported.json`
+  —— 两份都只写 `{"replace": false, "values": ["#beloong:npcs"]}`，即把全部 NPC 声明为
+  "**不可被抓取**（不能被装进生物罐之类）"与"**不可被传送**"，供其它模组查询（见下）。
+- ⚠️ **`replace` 必须是 `false`**：`TagLoader.java:53-54` 里 `if (tagfile.replace())` 会把
+  **所有来源**（NeoForge 自己 + 其它模组 + 数据包）已贡献的条目**整个丢弃**。写 `true` 会静默
+  清掉别人的条目，属于"看起来没错、实际破坏兼容"的写法。
+- ⚠️ **这两个 `c:` 标签是"对外声明"，不是我们自己的行为开关**：原版与 NeoForge 代码里
+  **没有任何一处读它们**（实证：全库只在标签生成器、语言文件、弃用警告表里出现），
+  真正据此行动的是**别的模组**（抓取类/传送类模组应当查询它们，见 NeoForge
+  `net/neoforged/neoforge/common/Tags.java:293-305` 的 javadoc）。所以：**加不加它们，
+  本模组的 `/tp`、`/beloong route` 行为都不会变**；它防的是"别的模组把 NPC 抓走/传走"。
+
 ## 四、地黄龙 NPC
 
 `DihuangLoongEntity` 目前**不到 50 行**：一个构造函数 + 一个 `createAttributes()`（直接转发基类）。
