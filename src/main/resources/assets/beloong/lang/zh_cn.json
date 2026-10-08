@@ -286,5 +286,6 @@
   "beloong.configuration.npcStoryReconcileIntervalTicks.tooltip": "每隔多少 tick 巡检一次在线玩家（默认 100 = 5 秒），间隔越短自愈越快、开销越高",
   "beloong.configuration.npcStoryExpiryWarningTicks": "到期提示提前量",
   "beloong.configuration.npcStoryExpiryWarningTicks.tooltip": "分身到期前多久提示玩家（tick，默认 600 = 30 秒）；0 = 不提示",
-  "beloong.npc.story.expiring": "§e你的这段剧情还剩 %s 秒，超时会从龙宫入口重新开始"
+  "beloong.npc.story.expiring": "§e你的这段剧情还剩 %s 秒，超时会从龙宫入口重新开始",
+  "beloong.npc.story.outside_dimension": "§e你已离开龙宫，%s 秒后这段剧情会重置"
 }

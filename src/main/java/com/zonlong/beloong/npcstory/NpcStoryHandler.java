@@ -36,9 +36,13 @@ import java.util.Map;
 /**
  * <b>私有分身的管家</b> —— 让世界与 {@link NpcStory} 的声明保持一致。
  * <p>
- * 本类目前只负责**事件路径**：玩家获得 {@code start_advancement} 的那一刻
- * ⇒ 幂等确保"只属于他"的分身存在 ⇒ 再由**分身**播放该剧情声明的 CG。
- * （声明路径的对账器 —— 登录/进度变化/低频巡检 —— 是计划 T6，尚未落地。）
+ * 两条路径分工明确（设计 D10）：
+ * <ul>
+ *   <li><b>事件路径</b>：玩家获得 {@code start_advancement} 的那一刻 ⇒ 幂等确保"只属于他"的分身存在
+ *       ⇒ 再由**分身**播放该剧情声明的 CG（一次性演出只能由事件驱动）；</li>
+ *   <li><b>声明路径（对账器）</b>：登录 / 低频巡检 / 退出清理 ⇒ 按声明补齐或清除分身。
+ *       声明式 ⇒ 幂等、可反复跑、自愈（掉线、重启、数据热重载都不会留下坏状态）。</li>
+ * </ul>
  *
  * <h2>为什么生成时机是"获得起点进度那一刻"</h2>
  * 路线指派是靠 {@code LastDialogueNpc}（玩家**最近对话过的那个实体**）解析目标的
@@ -64,10 +68,14 @@ import java.util.Map;
  *   start 未获得 ∧ 有分身                    ⇒ 孤儿 ⇒ 删除 + WARN
  *   start 已获得 ∧ 无分身                    ⇒ **D21 重置**：撤回整条链 + WARN（不生成、不播 CG）
  *   start 已获得 ∧ 有 ∧ 已过期              ⇒ 清理；**未完成才撤回**，已完成只清理
- *   start 已获得 ∧ 有 ∧ 离开有效维度超过宽限 ⇒ 清理 + 未完成则撤回
- *   已完成（有 end）∧ 有                     ⇒ 保留（D6：结尾"它坐在那里"对主人有意义）
- *   同一玩家有多个分身                        ⇒ 保留最近出生的、其余删除 + WARN
+ *   start 已获得 ∧ 有 ∧ 离开有效维度超过宽限 ⇒ 清理 + 未完成则撤回（宽限内给倒计时提示）
+ *   clear_on_logout ∧ 玩家退出             ⇒ 清理 + 未完成则撤回
+ *   已完成（有 end）                          ⇒ **一律保留、不清理**（D6：结尾"它坐在那里"对主人有意义）
+ *   同一玩家有多个分身                        ⇒ 保留最近出生（并列时最近）的、其余删除 + WARN
  * </pre>
+ * ⚠️ <b>"扫不到分身"不等于"分身丢了"</b>：实体查询只覆盖**已加载区块**。
+ * 因此只有在"**那一轮扫到了无主锚点**"（= 那片区块确实加载着）时才把缺失当真，
+ * 且要**连续若干轮**都缺才动手 —— 否则会出现"登录就被撤回进度"这类事故（D19 的宽限在登录路径上失效）。
  * ⚠️ <b>"无分身"与"刚获得起点"不会打架</b>：起点进度由位置触发器在玩家 tick 内发放，
  * {@code AdvancementEarnEvent} 是**同步**派发的 ⇒ 等本对账器所在的 {@code ServerTickEvent.Post}
  * 跑起来时，分身已经生成完了。若生成真的失败，对账器就走 D21 重置 —— 这正是想要的失败模式。
@@ -82,6 +90,34 @@ public class NpcStoryHandler {
 
     /** 巡检计数器（事件处理器是单例，只注册一次）。 */
     private int tickCounter;
+
+    /** 连续多少轮"扫不到分身"才认定它真的丢了。防的是区块未加载造成的误判。 */
+    private static final int MISSES_BEFORE_RESET = 3;
+
+    /**
+     * "疑似缺失"计数（键 = 玩家 + 剧情）。
+     * <p>
+     * ⚠️ **只在内存里**：它是"连续观察到几次"的瞬时判断，不是状态 ⇒ 不落盘、不违反设计 D4
+     * （"事实来源是原版进度，不新增每玩家持久状态"）。重启后重新数即可。
+     */
+    private final Map<String, Integer> missingCounts = new java.util.HashMap<>();
+
+    /** 玩家 + 剧情 的复合键（内存计数的键）。 */
+    private static String missingKey(java.util.UUID player, NpcStory story) {
+        return player + "@" + story.startAdvancement();
+    }
+
+    private int missesOf(java.util.UUID player, NpcStory story) {
+        return this.missingCounts.getOrDefault(missingKey(player, story), 0);
+    }
+
+    private void addMiss(java.util.UUID player, NpcStory story) {
+        this.missingCounts.put(missingKey(player, story), missesOf(player, story) + 1);
+    }
+
+    private void clearMiss(java.util.UUID player, NpcStory story) {
+        this.missingCounts.remove(missingKey(player, story));
+    }
 
     @SubscribeEvent
     public void onAdvancementEarned(AdvancementEvent.AdvancementEarnEvent event) {
@@ -135,9 +171,12 @@ public class NpcStoryHandler {
     }
 
     /**
-     * {@code clear_on_logout = true} 的剧情：玩家退出即清理。
+     * {@code clear_on_logout = true} 的剧情：玩家退出即清理（未通关则同时撤回，D16）。
      * <p>
-     * 名字就是这个意思 ⇒ 不做"离线宽限"（那需要额外记录退出时刻，等于为一个小开关引入新状态）。
+     * ⚠️ 按**要求维度**找分身，而不是"玩家退出时所在维度" —— 分身可能留在龙宫里，
+     * 而玩家是在主世界退出的。
+     * <p>
+     * 名字就是"退出即清"的意思 ⇒ 不做"离线宽限"（那需要额外记录退出时刻，等于为一个小开关引入新状态）。
      * 我们的数据用的是 {@code false}（意外断线可续），真正的兜底是租约的时长。
      */
     @SubscribeEvent
@@ -150,8 +189,16 @@ public class NpcStoryHandler {
             if (!story.clearOnLogout()) {
                 continue;
             }
-            for (NpcEntity npc : doublesOf(player, player.serverLevel(), entry.getKey())) {
-                removeDouble(npc, story, player, "logout", false);
+            ServerLevel level = story.requiredDimension()
+                    .map(id -> player.server.getLevel(ResourceKey.create(Registries.DIMENSION, id)))
+                    .orElse(player.serverLevel());
+            if (level == null) {
+                continue;
+            }
+            // 通关闭环：未通关才撤回（与超时/维度规则同款，D16）。
+            boolean finished = NpcDialogueStage.isEarned(player, story.endAdvancement());
+            for (NpcEntity npc : doublesOf(player, level, entry.getKey())) {
+                removeDouble(npc, story, player, "logout", !finished);
             }
         }
     }
@@ -168,65 +215,99 @@ public class NpcStoryHandler {
     /**
      * 对一条剧情做一次全量对账。
      * <p>
-     * 效率：**每个相关维度只遍历一次实体**建 {@code owner → 分身} 映射，再逐个在线玩家比对
-     * （O(实体 + 玩家)）。绝不在每个追踪周期都跑的代码里这么干。
+     * 效率：**每个相关维度只遍历一次实体**，同时建 {@code owner → 分身} 映射与锚点计数；
+     * 再逐个在线玩家比对（O(实体 + 玩家)）。绝不在每个追踪周期都跑的代码里这么干。
+     * <p>
+     * ⚠️ <b>只在"要求维度"里扫</b>（有 required_dimension 时）：
+     * 退而求其次去扫"每个在线玩家所在维度"会顺带扫主世界，5 秒一次，代价与收益不成比例。
      */
     private void reconcileStory(MinecraftServer server, EntityType<?> type, NpcStory story) {
         Set<ServerLevel> levels = new LinkedHashSet<>();
-        story.requiredDimension().ifPresent(id -> {
-            ServerLevel level = server.getLevel(ResourceKey.create(Registries.DIMENSION, id));
-            if (level != null) {
-                levels.add(level);
+        if (story.requiredDimension().isPresent()) {
+            ServerLevel level = server.getLevel(
+                    ResourceKey.create(Registries.DIMENSION, story.requiredDimension().get()));
+            if (level == null) {
+                return;
             }
-        });
-        // 没有 required_dimension 的剧情：退化为"扫在线玩家当前所在维度"（分身通常就在那儿）。
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            levels.add(player.serverLevel());
+            levels.add(level);
+        } else {
+            // 没有 required_dimension 的剧情：退化为"扫在线玩家当前所在维度"（分身通常就在那儿）。
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                levels.add(player.serverLevel());
+            }
         }
         if (levels.isEmpty()) {
             return;
         }
 
         Map<UUID, List<NpcEntity>> byOwner = new LinkedHashMap<>();
+        int anchors = 0;
         for (ServerLevel level : levels) {
             for (Entity entity : level.getAllEntities()) {
-                if (entity.getType() == type && entity instanceof NpcEntity npc && npc.owner() != null) {
+                if (entity.getType() != type || !(entity instanceof NpcEntity npc)) {
+                    continue;
+                }
+                if (npc.owner() == null) {
+                    anchors++;
+                } else {
                     byOwner.computeIfAbsent(npc.owner(), key -> new ArrayList<>()).add(npc);
                 }
             }
         }
 
+        // ⚠️ "搜索可信"的判据：**扫到了无主锚点**。锚点是分身出生的地方，它扫不到就说明那片区块
+        // 根本没加载（玩家在别的维度、或离得太远）—— 此时"没找到分身"不代表"分身丢了"，
+        // 任何清理/重置都不许做（否则会出现"登录就被撤回进度"这种事故）。
+        boolean searchTrustworthy = anchors > 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            reconcilePlayer(player, story, byOwner.getOrDefault(player.getUUID(), List.of()));
+            reconcilePlayer(player, story, byOwner.getOrDefault(player.getUUID(), List.of()), searchTrustworthy);
         }
     }
 
-    private void reconcilePlayer(ServerPlayer player, NpcStory story, List<NpcEntity> mine) {
+    private void reconcilePlayer(ServerPlayer player, NpcStory story, List<NpcEntity> mine,
+                                 boolean searchTrustworthy) {
         boolean started = NpcDialogueStage.isEarned(player, story.startAdvancement());
         boolean finished = NpcDialogueStage.isEarned(player, story.endAdvancement());
 
         if (mine.isEmpty()) {
-            if (started) {
-                // D21：已开始却没有分身 ⇒ 统一按"剧情重新开始"（撤回整条链，回入口重获起点进度）。
-                // ⚠️ 刻意**不**就地补生成：中期阶段补一只站在入口的分身，会让两条回复都不显示 ⇒ 玩家卡死。
-                BeLoongCore.LOGGER.warn(
-                        "[BeLoong] npc story '{}': player '{}' has the start advancement but no double"
-                                + " — revoking the story so it can be restarted from the beginning",
-                        story.startAdvancement(), player.getGameProfile().getName());
-                revokeStory(player, story);
+            // ⚠️ 通关玩家**永不**在这里被重置（D6 终态保留 / D16）：他们的分身到期或被清掉之后，
+            // 剧情就是"已经结束了"，不该再被撤回。
+            if (!started || finished || !searchTrustworthy) {
+                if (started && !finished && !searchTrustworthy) {
+                    // 搜索不可信 ⇒ 记一次"疑似缺失"，连续若干轮才动手（避免区块加载造成的误撤）。
+                    this.addMiss(player.getUUID(), story);
+                    int misses = this.missesOf(player.getUUID(), story);
+                    if (misses < MISSES_BEFORE_RESET) {
+                        return;
+                    }
+                } else {
+                    return;
+                }
             }
+            this.clearMiss(player.getUUID(), story);
+            // D21：已开始却没有分身 ⇒ 统一按"剧情重新开始"（撤回整条链，回入口重获起点进度）。
+            // ⚠️ 刻意**不**就地补生成：中期阶段补一只站在入口的分身，会让两条回复都不显示 ⇒ 玩家卡死。
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc story '{}': player '{}' has the start advancement but no double"
+                            + " — revoking the story so it can be restarted from the beginning",
+                    story.startAdvancement(), player.getGameProfile().getName());
+            revokeStory(player, story);
             return;
         }
+        this.clearMiss(player.getUUID(), story);
 
-        // 重复分身：保留最近出生的那个（bornAt 为 0 的旧实体排在最后），其余删除。
+        // 重复分身：保留最近出生的那个；bornAt 并列（含旧实体的 0）时保留**离玩家最近**的那个，
+        // 避免把玩家真正在用的那一只删掉。
         if (mine.size() > 1) {
             List<NpcEntity> sorted = new ArrayList<>(mine);
-            sorted.sort(Comparator.comparingLong(NpcEntity::bornAt).reversed());
+            sorted.sort(Comparator
+                    .comparingLong(NpcEntity::bornAt).reversed()
+                    .thenComparingDouble(player::distanceToSqr));
             NpcEntity keep = sorted.get(0);
             for (NpcEntity extra : sorted.subList(1, sorted.size())) {
                 BeLoongCore.LOGGER.warn(
-                        "[BeLoong] npc story '{}': player '{}' has {} doubles — keeping the newest,"
-                                + " removing the rest",
+                        "[BeLoong] npc story '{}': player '{}' has {} doubles — keeping the newest"
+                                + " (and nearest), removing the rest",
                         story.startAdvancement(), player.getGameProfile().getName(), mine.size());
                 removeDouble(extra, story, player, "duplicate", false);
             }
@@ -244,13 +325,19 @@ public class NpcStoryHandler {
             return;
         }
 
+        // ⚠️ 已通关 ⇒ 分身**保留**（D6：剧情结尾"它坐在那里"对主人有意义）⇒ 不再按租约/维度清理它。
+        // 代价是通关玩家的分身会一直留着 —— 数量被"通关人数"限住，且只对本人可见。
+        if (finished) {
+            return;
+        }
+
         long now = npc.level() instanceof ServerLevel level
                 ? level.getGameTime()
                 : player.serverLevel().getGameTime();
 
         // 租约到期
         if (npc.hasExpired(now)) {
-            removeDouble(npc, story, player, "timeout", !finished);
+            removeDouble(npc, story, player, "timeout", true);
             return;
         }
 
@@ -264,12 +351,24 @@ public class NpcStoryHandler {
             } else if (npc.outsideSince() == 0L) {
                 npc.setOutsideSince(now);
             } else if (now - npc.outsideSince() > story.dimensionGraceTicks()) {
-                removeDouble(npc, story, player, "outside_dimension", !finished);
+                removeDouble(npc, story, player, "outside_dimension", true);
                 return;
+            } else {
+                warnDimensionGrace(player, story, npc, now);
             }
         }
 
         warnBeforeExpiry(player, story, npc, now);
+    }
+
+    /** 离开有效维度期间的提示（宽限内每次巡检都发，充当倒计时）。 */
+    private void warnDimensionGrace(ServerPlayer player, NpcStory story, NpcEntity npc, long now) {
+        long remaining = story.dimensionGraceTicks() - (now - npc.outsideSince());
+        if (remaining <= 0L) {
+            return;
+        }
+        player.displayClientMessage(
+                Component.translatable("beloong.npc.story.outside_dimension", Math.max(1L, remaining / 20L)), true);
     }
 
     /** 到期前的可见提示（actionbar）。它同时充当倒计时，所以窗口内每次巡检都发。 */

@@ -286,5 +286,6 @@
   "beloong.configuration.npcStoryReconcileIntervalTicks.tooltip": "How often (in ticks) online players are reconciled; shorter heals faster but costs more",
   "beloong.configuration.npcStoryExpiryWarningTicks": "Expiry warning lead",
   "beloong.configuration.npcStoryExpiryWarningTicks.tooltip": "Warn the player this many ticks before a private double expires; 0 disables",
-  "beloong.npc.story.expiring": "§eYour story has %s seconds left — it will restart from the palace entrance"
+  "beloong.npc.story.expiring": "§eYour story has %s seconds left — it will restart from the palace entrance",
+  "beloong.npc.story.outside_dimension": "§eYou have left the palace — this story resets in %s seconds"
 }

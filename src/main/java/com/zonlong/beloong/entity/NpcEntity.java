@@ -45,6 +45,7 @@ import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumMap;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -1167,6 +1168,9 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         this.owner = owner;
     }
 
+    /** 已经报过"私有但没有剧情声明"的实体（每个实体只报一次，避免每追踪周期刷屏）。 */
+    private static final Set<java.util.UUID> WARNED_ORPHAN = new java.util.HashSet<>();
+
     /** 是否是**私有分身**（有主）。 */
     public boolean isPrivate() {
         return this.owner != null;
@@ -1211,8 +1215,19 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             if (!player.getUUID().equals(this.owner)) {
                 return false;
             }
-            // 剧情数据缺失时保守放行（只对主人可见，不会外泄）；数据正常时要求"已进入剧情区间"。
-            return story == null || NpcDialogueStage.isEarned(player, story.startAdvancement());
+            // 剧情声明缺失（文件被删/改名/写错）⇒ **一律不可见**（fail-closed）：
+            // 这种"孤儿分身"如果继续只对主人可见，玩家就会**同时**看到锚点与它 ⇒ 破坏"恰好一个"的不变量。
+            // 它不会被本模组清理（该类型已不在对账范围内）⇒ 留一条 WARN，管理员可用 /kill 收尾。
+            if (story == null) {
+                if (WARNED_ORPHAN.add(this.getUUID())) {
+                    BeLoongCore.LOGGER.warn(
+                            "[BeLoong] private npc '{}' has an owner but no npc_story for its type '{}'"
+                                    + " — hiding it; remove it manually (/kill) if it lingers",
+                            this.getUUID(), this.getType());
+                }
+                return false;
+            }
+            return NpcDialogueStage.isEarned(player, story.startAdvancement());
         }
         if (story == null) {
             return true;
