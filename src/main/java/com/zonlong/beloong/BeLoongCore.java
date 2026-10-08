@@ -31,6 +31,7 @@ import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
 import com.zonlong.beloong.route.NpcRouteLoader;
+import com.zonlong.beloong.npcstory.NpcStoryLoader;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
@@ -210,6 +211,7 @@ public class BeLoongCore {
         event.addListener(WaystonePlacementLoader.INSTANCE);
         event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
         event.addListener(NpcRouteLoader.INSTANCE);      // NPC 路线（同上，目录 beloong/npc_route）
+        event.addListener(NpcStoryLoader.INSTANCE);     // NPC 剧情声明（同上，目录 beloong/npc_story）
     }
 
     /**

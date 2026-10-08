@@ -1,0 +1,10 @@
+{
+  "start_advancement": "beloong:npc/root",
+  "end_advancement": "beloong:npc/2_1",
+  "spawn": "anchor",
+  "cg": "mo_entrance",
+  "lifetime_ticks": 72000,
+  "clear_on_logout": false,
+  "required_dimension": "beloong:loong_palace",
+  "dimension_grace_ticks": 1200
+}
