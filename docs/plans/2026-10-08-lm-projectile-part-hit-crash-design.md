@@ -164,3 +164,20 @@ cerbons `EntityPart`），而 `ShieldPart` 的父实体 `AbstractShieldEntity ex
 - `src/main/java/com/zonlong/beloong/mixin/legendarymonsters/ChorusEnergyBulletEntityOnHitGuardMixin.java`
 - `src/main/resources/beloong.mixins.json`（新增两条）
 - 参考源码：`D:\Minecraft\开源模组参考文件\IceAndFire-CE\…\MultipartPartEntity.java`、`irons-spells-n-spellbooks\…\ShieldPart.java`、`irons-spells-n-spellbooks\…\AbstractShieldEntity.java`、NeoForge 补丁源码 `EnderDragonPart.java`
+
+## 八、收尾记录（2026-10-08）
+
+| 项 | 内容 |
+|---|---|
+| 提交 | `5759f7c`「传奇怪物强转实体类型崩溃bug修复」（5 个文件：守卫 + 两个 Mixin + `beloong.mixins.json` + 本文档） |
+| 产物 | `build/libs/beloong-0.10.2.jar`，5,116,976 B，`sha256 D9A1AF5FF8EC503D984AC0EE087C5C788979485C4D268F031D3A423C9B46FEC3`；干净树重建 `BUILD SUCCESSFUL`（jar UP-TO-DATE） |
+| 已部署（测试端） | `D:\AAA_testclient\.minecraft\versions\BeLoong 1.4\mods\beloong-0.10.2.jar` 与上表**字节一致** ⇒ 验收跑的就是本提交的产物 |
+| 静态验证 | ① 临时 `require = 1` 时 Mixin AP 校验通过（名字/描述符/处理函数签名全对）；② 两个目标类确有 `onHitEntity(EntityHitResult)V`；③ jar 含 3 个新类 + 两条登记；④ 处理函数字节码为 `getEntity() → shouldSkipNonLivingHit(Entity,String) → CallbackInfo.cancel()` |
+| 实机验证 | 65 次命中（`DragonPartEntity`（冰火 雷/冰/火龙）、`ShieldPart`、`ShulkerMimicPart`），**零崩溃**；日志全部来自 `Server thread`（服务端记账生效）、含命中实体类名 |
+| 性能验证 | 服务端 spark（33.25 s）：全模组 8 个方法、自身 4.0 ms；客户端 spark（93.40 s）：本修复 **0 帧**；日志写入零热点 |
+
+**未覆盖 / 待办**：
+
+1. `ChorusEnergyBulletEntity` 的守卫**只做过静态验证**，实机尚未触发过该路径（`chorus_energy_bullet` 由"扭曲者"使用，测试里没遇到）。日后顺手打一次即可确认。
+2. LM 仍为可选依赖且 `require = 0`：上游若改名/改签名，两处 `@Inject` 会静默失效（回到崩溃状态）。观测点是日志锚点 `lm-projectile-hit-guard` 是否还出现。
+3. **部署同步**：`D:\BeLoong\.minecraft\versions\BeLoong\mods` 与 `D:\Minecraft\BeLoong-Server\mods` 目前仍是 `beloong-0.10.1.jar`（10/01），需要把 0.10.2 这份同步过去，修复才会进入正式整合包/服务端。
