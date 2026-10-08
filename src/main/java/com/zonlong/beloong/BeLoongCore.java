@@ -3,6 +3,7 @@ package com.zonlong.beloong;
 import com.zonlong.beloong.npcstory.NpcStoryHandler;
 import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.command.MynpcCommand;
 import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
@@ -233,6 +234,8 @@ public class BeLoongCore {
         NpcCommand.register(event.getDispatcher());
         CgCommand.register(event.getDispatcher());
         RouteCommand.register(event.getDispatcher());   // 按玩家定位的路线指派（ChatBox 选项调用）
+        // 玩家作用域：目标是"归属执行者、且类型匹配"的那只 NPC（ChatBox 选项调用；不依赖对话历史 —— 见类注释）
+        MynpcCommand.register(event.getDispatcher(), event.getBuildContext());
     }
 
     /** 服务端启动时触发。 */

@@ -287,5 +287,10 @@
   "beloong.configuration.npcStoryExpiryWarningTicks": "Expiry warning lead",
   "beloong.configuration.npcStoryExpiryWarningTicks.tooltip": "Warn the player this many ticks before a private double expires; 0 disables",
   "beloong.npc.story.expiring": "§eYour story has %s seconds left — it will restart from the palace entrance",
-  "beloong.npc.story.outside_dimension": "§eYou have left the palace — this story resets in %s seconds"
+  "beloong.npc.story.outside_dimension": "§eYou have left the palace — this story resets in %s seconds",
+  "beloong.command.mynpc.unknown_type": "Unknown entity type %s (types with a story: %s)",
+  "beloong.command.mynpc.no_owned_npc": "No private double of yours — type %s, dimension %s (this command only targets your own double)",
+  "beloong.command.mynpc.effect": "%s gained %s (%s seconds)",
+  "beloong.command.mynpc.effect_failed": "%s already has a stronger %s — not applied",
+  "beloong.command.mynpc.tp": "Teleported %s to %s, %s, %s"
 }

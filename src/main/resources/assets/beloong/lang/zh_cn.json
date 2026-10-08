@@ -287,5 +287,10 @@
   "beloong.configuration.npcStoryExpiryWarningTicks": "到期提示提前量",
   "beloong.configuration.npcStoryExpiryWarningTicks.tooltip": "分身到期前多久提示玩家（tick，默认 600 = 30 秒）；0 = 不提示",
   "beloong.npc.story.expiring": "§e你的这段剧情还剩 %s 秒，超时会从龙宫入口重新开始",
-  "beloong.npc.story.outside_dimension": "§e你已离开龙宫，%s 秒后这段剧情会重置"
+  "beloong.npc.story.outside_dimension": "§e你已离开龙宫，%s 秒后这段剧情会重置",
+  "beloong.command.mynpc.unknown_type": "未知的实体类型 %s（已接剧情的有 %s）",
+  "beloong.command.mynpc.no_owned_npc": "没有属于你的私有分身 —— 类型 %s，维度 %s（这条命令只作用于你自己的分身）",
+  "beloong.command.mynpc.effect": "%s 获得了 %s（%s 秒）",
+  "beloong.command.mynpc.effect_failed": "%s 身上已有更强的 %s，未施加",
+  "beloong.command.mynpc.tp": "已把 %s 瞬移到 %s, %s, %s"
 }
