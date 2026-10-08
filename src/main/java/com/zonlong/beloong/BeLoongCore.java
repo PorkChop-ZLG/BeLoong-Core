@@ -1,5 +1,6 @@
 package com.zonlong.beloong;
 
+import com.zonlong.beloong.npcstory.NpcStoryHandler;
 import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
 import com.zonlong.beloong.command.RouteCommand;
@@ -10,7 +11,6 @@ import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
-import com.zonlong.beloong.cg.MoEntranceTrigger;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
@@ -123,7 +123,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
-        NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
+        NeoForge.EVENT_BUS.register(new NpcStoryHandler());              // NPC 剧情：获得起点进度 ⇒ 生成私有分身 + 由它播 CG
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
         NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检

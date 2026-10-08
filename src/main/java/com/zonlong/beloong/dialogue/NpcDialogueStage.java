@@ -73,7 +73,12 @@ public final class NpcDialogueStage {
      * ⇒ 锚点保持可见 ⇒ 事情仍然可做，而不是把玩家关在门外。
      * <p>
      * ⚠️ 调用方注意：NPC 可见性判定会在**每个追踪周期、对范围内每个玩家**调到这里
-     * ⇒ 本方法必须**廉价且不写游戏状态**（现在是"一次 id 查 + 一次进度状态查"，满足）。
+     * ⇒ 本方法必须**廉价**（现在是"一次 id 查 + 一次进度状态查"）。
+     * <p>
+     * ⚠️ 它**并不是"不写任何东西"**：底层走原版 {@code getOrStartProgress}，对尚未被追踪的进度
+     * 会**顺手登记一条空记录**（{@code PlayerAdvancements.java:293-299}）。这是原版查询的固有行为、
+     * 也是本类自 {@code visible} 起就一直依赖的写法（见类注释第二段）；它**不改阶段、不发包、
+     * 不动实体字段**，只是为该玩家在该进度上建一条幂等的空进度。
      */
     public static boolean isEarned(ServerPlayer player, ResourceLocation id) {
         StageState state = stateOf(player, id);

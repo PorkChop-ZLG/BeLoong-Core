@@ -1,16 +1,14 @@
 package com.zonlong.beloong.entity;
 
-import net.minecraft.server.level.ServerPlayer;
-import com.zonlong.beloong.npcstory.NpcStory;
-import com.zonlong.beloong.npcstory.NpcStoryLoader;
-import com.zonlong.beloong.dialogue.NpcDialogueStage;
-import java.util.UUID;
 import com.zonlong.beloong.entity.ai.NpcRouteGoal;
 import com.zonlong.beloong.route.NpcRoute;
 import com.zonlong.beloong.route.NpcRouteLoader;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.client.model.EmoteAnimationLookup;
 import com.zonlong.beloong.entity.ai.NpcAttackGoal;
+import com.zonlong.beloong.npcstory.NpcStory;
+import com.zonlong.beloong.npcstory.NpcStoryLoader;
+import com.zonlong.beloong.dialogue.NpcDialogueStage;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -35,6 +33,7 @@ import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -46,6 +45,7 @@ import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.EnumMap;
+import java.util.UUID;
 
 /**
  * 本模组**通用 NPC 基类**。
@@ -68,7 +68,7 @@ import java.util.EnumMap;
  *   <li><b>按玩家可见</b>：{@link #broadcastToPlayer} 一律走 {@link #visibleTo}
  *       （见下面「多人兼容」一节）。**没有剧情的 NPC 恒为可见** ⇒ 现有子类行为一字不变。</li>
  * </ul>
- * 这三条写成**覆写方法**而不是构造函数里 set：{@code /summon} 与刷怪蛋的流程是
+ * 这些写成**覆写方法**而不是构造函数里 set：{@code /summon} 与刷怪蛋的流程是
  * "先 {@code create()}（构造函数在此运行）再 {@code load(标签)}"，而 {@code load()} 会把
  * {@code Invulnerable}（{@code Entity.java:1759}）、{@code PersistenceRequired}
  * （{@code Mob.java:437}）从标签读回，**标签里没有对应键时就覆盖成 false**。
@@ -123,7 +123,7 @@ import java.util.EnumMap;
  * <b>分类规则：按"这个实体承载谁的状态"</b>（不是按"它能不能动"）：
  * <ul>
  *   <li><b>公共锚点</b>（{@link #owner} == null）：承载**零玩家状态**，永不因某个玩家的剧情而移动；
- *       对"还没有自己分身"的玩家可见；</li>
+ *       对"**尚未获得剧情起点进度**"的玩家可见；</li>
  *   <li><b>私有分身</b>（{@link #owner} != null）：承载**恰好一个玩家**的全部剧情状态，只对该玩家可见。</li>
  * </ul>
  * <b>不变量</b>：任一玩家眼里，同一类型的 NPC 永远**恰好只有一个** ——
@@ -1179,22 +1179,34 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 该玩家能不能看见本实体。**纯函数：不写实体字段、不发包、不查实体。**
      * <p>
-     * 规则（两条都**只依赖进度** ⇒ O(1)，不需要任何实体搜索）：
+     * 判定顺序**刻意是"先归属、后数据"**：
      * <ul>
-     *   <li>本类型**没有剧情声明**（{@code NpcStoryLoader} 查不到）⇒ 恒可见
-     *       —— 地黄龙等既有 NPC 行为一字不变；</li>
-     *   <li>有主人 ⇒ 仅对主人可见；</li>
-     *   <li>无主人（公共锚点）⇒ 对"**尚未获得剧情起点进度**"的玩家可见。</li>
+     *   <li><b>有主人</b>（私有分身）：先判"是不是我的" —— 不是 ⇒ 直接不可见。
+     *       ⚠️ 这一步**不查剧情数据**：私有性是实体自身的状态，数据缺失/loader 没跑时
+     *       绝不能退化成"对所有人可见"（那会把私有分身暴露给全服）。</li>
+     *   <li>是我的 ⇒ 还要求我**已进入剧情区间**（已获得起点进度）。
+     *       ⚠️ 这条是为了守住不变量"任一玩家眼里恰好一个"：进度被撤回
+     *       （对账器重置 / 手动 {@code /advancement revoke} / 存档回档）而分身还没被删掉时，
+     *       若这里仍返回 true，玩家会**同时**看到锚点与自己的分身。
+     *       加上这条之后，那个窗口里玩家只看到锚点，分身随后由对账器删掉（计划 T6/T7）。</li>
+     *   <li><b>无主人</b>（公共锚点）：本类型没有剧情声明 ⇒ 恒可见
+     *       —— 地黄龙等既有 NPC 行为一字不变；有声明 ⇒ 对"尚未获得起点进度"的玩家可见。</li>
      * </ul>
+     * 三条都**只依赖实体自身的归属 + 该玩家的进度** ⇒ O(1)，不需要任何实体搜索。
+     * <p>
      * ⚠️ 不可在这里写缓存/发通知/查实体：它每追踪周期对范围内每个玩家都被调用。
      */
     protected boolean visibleTo(ServerPlayer player) {
         NpcStory story = NpcStoryLoader.INSTANCE.get(this.getType());
+        if (this.owner != null) {
+            if (!player.getUUID().equals(this.owner)) {
+                return false;
+            }
+            // 剧情数据缺失时保守放行（只对主人可见，不会外泄）；数据正常时要求"已进入剧情区间"。
+            return story == null || NpcDialogueStage.isEarned(player, story.startAdvancement());
+        }
         if (story == null) {
             return true;
-        }
-        if (this.owner != null) {
-            return player.getUUID().equals(this.owner);
         }
         return !NpcDialogueStage.isEarned(player, story.startAdvancement());
     }

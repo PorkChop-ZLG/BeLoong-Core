@@ -1,5 +1,6 @@
 package com.zonlong.beloong.dialogue;
 
+import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.Config;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -52,6 +53,12 @@ public class NpcDialogueHandler {
         }
 
         Entity target = event.getTarget();
+        // 交互闸门：**私有分身只认主人**。正常玩家看不到别人的分身（NpcEntity#visibleTo），
+        // 所以走不到这里；但改包/去同步的客户端可以凭实体 id 直接发交互 ⇒ 服务端必须自己判一次。
+        if (target instanceof NpcEntity npc && npc.isPrivate()
+                && !player.getUUID().equals(npc.owner())) {
+            return;
+        }
         NpcDialogueEntry entry = NpcDialogueLoader.INSTANCE.get(target.getType());
         if (entry == null) {
             return;
