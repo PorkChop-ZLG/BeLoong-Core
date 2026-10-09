@@ -240,6 +240,16 @@ check("stage_suffix" not in death_src and "stage_suffix" not in zh_data,
 check("dragon_stage." in death_src,
       "datapack-defined stages still fall back to DS's own dragon_stage.* key")
 
+# Regression guard for the 2026-10-09 attribution fix: LivingEntity#die reads
+# damageSource.getEntity() for kill stats / ATTACKING_ENTITY / PLAYER_KILLED_ENTITY,
+# so the execute damage source MUST carry the killer entity.
+check("super(type, killer)" in death_src,
+      "ExecuteDamageSource passes the killer entity to DamageSource (kill attribution)")
+check("new ExecuteDamageSource(damageType, player)" in open(
+    os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                 "registry", "ExecuteThresholdEffect.java"), encoding="utf-8").read(),
+      "ExecuteThresholdEffect builds the damage source with the killer")
+
 # 9. ExecuteEffect#getDescription argument count ------------------------------
 print("[9] java/language contract")
 src = open(os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",

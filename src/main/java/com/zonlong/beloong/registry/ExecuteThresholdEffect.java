@@ -131,13 +131,16 @@ public class ExecuteThresholdEffect extends MobEffect {
     /**
      * 结算一次斩杀：真实伤害 → 清理标记 → 记账冷却 → 粒子 / 音效 / 提示。
      *
-     * <p><b>伤害来源刻意不带实体</b>（{@link ExecuteDamageSource} 走的是单参构造器
-     * {@code new DamageSource(holder)}，两个实体都是 {@code null}）：归因交给
-     * {@code getKillCredit()}，而死亡消息由 {@link ExecuteDamageSource} 覆写、
-     * 按击杀者的<b>真实成长阶段</b>渲染（见该类的类注释）。
-     * 因此在这之前必须显式 {@code setLastHurtByPlayer} 把击杀者钉死——
-     * {@code getKillCredit()} 先看 {@code lastHurtByPlayer}，为 {@code null} 时才会退到
-     * {@code lastHurtByMob}。</p>
+     * <p>伤害来源用 {@link ExecuteDamageSource}，并且<b>把击杀者挂上去</b>
+     * （{@code new ExecuteDamageSource(damageType, player)}）——原版 {@code LivingEntity#die}
+     * 里所有「算不算玩家击杀」的分支都读 {@code damageSource.getEntity()}：
+     * 击杀统计（{@code Player#killedEntity}）、掉落表的 {@code ATTACKING_ENTITY}、
+     * {@code PLAYER_KILLED_ENTITY} 进度判据、{@code dropExperience(...)}。
+     * 该伤害来源不带实体的话，死亡消息里虽然有玩家的名字（走 {@code getKillCredit()}），
+     * 但击杀不会算在他头上。</p>
+     *
+     * <p>另外在这之前显式 {@code setLastHurtByPlayer}：它同时喂给掉落表的
+     * {@code LAST_DAMAGE_PLAYER}、经验值计算与 {@code getKillCredit()}，与伤害来源里的实体互为兜底。</p>
      */
     private static void execute(ServerPlayer player, LivingEntity victim, ExecuteAbility.Config config) {
         ServerLevel level = player.serverLevel();
@@ -147,10 +150,10 @@ public class ExecuteThresholdEffect extends MobEffect {
 
         float damage = config.damage().calculate(config.level());
 
-        // 先钉死击杀归因，再结算伤害：死亡消息在 hurt() 内部就会被算出来。
+        // 先钉死击杀归因，再结算伤害：死亡消息与掉落都在 hurt() 内部就会被算出来。
         victim.setLastHurtByPlayer(player);
 
-        if (!victim.hurt(new ExecuteDamageSource(damageType), damage)) {
+        if (!victim.hurt(new ExecuteDamageSource(damageType, player), damage)) {
             // 无敌实体 / 已死亡等：不消耗标记，也不进冷却。
             return;
         }
