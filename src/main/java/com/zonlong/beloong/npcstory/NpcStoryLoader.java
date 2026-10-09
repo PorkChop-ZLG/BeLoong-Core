@@ -62,7 +62,8 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
      */
     private static final Set<String> KNOWN_FIELDS = Set.of(
             "start_advancement", "end_advancement", "spawn", "cg",
-            "lifetime_ticks", "clear_on_logout", "required_dimension", "dimension_grace_ticks");
+            "lifetime_ticks", "clear_on_logout", "required_dimension", "dimension_grace_ticks",
+            "keep_after_finish");
 
     private NpcStoryLoader() {
         super(new Gson(), "beloong/npc_story");

@@ -44,11 +44,17 @@ import java.util.Optional;
  *                            玩家离开该维度超过 {@link #dimensionGraceTicks} ⇒ 清理 + 撤回。
  * @param dimensionGraceTicks 离开维度到清理之间的**宽限**（tick），缺省 {@value #DEFAULT_DIMENSION_GRACE_TICKS}。
  *                            ⚠️ 没有它，在龙宫死一次（重生回主世界）就会被判成"弃坑"⇒ 进度被清。
+ * @param keepAfterFinish    剧情**完成之后**是否保留私有分身，缺省 {@code false} = **不保留**
+ *                            （通关即清理 ⇒ 玩家会重新看到公共锚点）。
+ *                            ⚠️ 默认取 {@code false} 是刻意的：**新剧情默认干净** —— 长流程
+ *                            （例如整合包那条横跨"变龙"的支线）不可能给一个短租约，
+ *                            若不回收，通关玩家的分身会永久留场（只对本人可见，但会持续累积）。
+ *                            短剧情若需要"结尾它坐在那里"的观感（设计 D6），**显式写 true**。
  */
 public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAdvancement,
                        String spawn, Optional<String> cg, long lifetimeTicks,
                        boolean clearOnLogout, Optional<ResourceLocation> requiredDimension,
-                       long dimensionGraceTicks) {
+                       long dimensionGraceTicks, boolean keepAfterFinish) {
 
     /** 分身出现位置的唯一取值：公共锚点处（位置与朝向都复制）。 */
     public static final String SPAWN_ANCHOR = "anchor";
@@ -73,7 +79,9 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
             ResourceLocation.CODEC.optionalFieldOf("required_dimension")
                     .forGetter(NpcStory::requiredDimension),
             Codec.LONG.optionalFieldOf("dimension_grace_ticks", DEFAULT_DIMENSION_GRACE_TICKS)
-                    .forGetter(NpcStory::dimensionGraceTicks)
+                    .forGetter(NpcStory::dimensionGraceTicks),
+            Codec.BOOL.optionalFieldOf("keep_after_finish", Boolean.FALSE)
+                    .forGetter(NpcStory::keepAfterFinish)
     ).apply(instance, NpcStory::new));
 
     /** 是否永久（不做任何基于时长的清理）。 */

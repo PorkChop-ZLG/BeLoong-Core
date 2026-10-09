@@ -6,5 +6,6 @@
   "lifetime_ticks": 72000,
   "clear_on_logout": false,
   "required_dimension": "beloong:loong_palace",
-  "dimension_grace_ticks": 1200
+  "dimension_grace_ticks": 1200,
+  "keep_after_finish": true
 }

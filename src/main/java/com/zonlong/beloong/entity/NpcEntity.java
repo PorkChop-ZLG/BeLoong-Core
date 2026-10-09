@@ -1197,15 +1197,17 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      *   <li><b>有主人</b>（私有分身）：先判"是不是我的" —— 不是 ⇒ 直接不可见。
      *       ⚠️ 这一步**不查剧情数据**：私有性是实体自身的状态，数据缺失/loader 没跑时
      *       绝不能退化成"对所有人可见"（那会把私有分身暴露给全服）。</li>
-     *   <li>是我的 ⇒ 还要求我**已进入剧情区间**（已获得起点进度）。
-     *       ⚠️ 这条是为了守住不变量"任一玩家眼里恰好一个"：进度被撤回
-     *       （对账器重置 / 手动 {@code /advancement revoke} / 存档回档）而分身还没被删掉时，
-     *       若这里仍返回 true，玩家会**同时**看到锚点与自己的分身。
-     *       加上这条之后，那个窗口里玩家只看到锚点，分身随后由对账器删掉（计划 T6/T7）。</li>
+     *   <li>是我的 ⇒ 还要求我**处在剧情区间内**：
+     *       已获得起点进度 **且** 未进入"已完成且要回收"的状态。
+     *       ⚠️ 前者守住不变量"任一玩家眼里恰好一个"（进度被撤回而分身还没被删掉时，
+     *       玩家只看到锚点，分身随后由对账器删掉）。
+     *       ⚠️ 后者是 {@code keep_after_finish=false} 的观感面：通关后分身即将被回收，
+     *       此刻起就让玩家看到**公共锚点**（它就在剧情结尾把 NPC 送回去的位置上）⇒ 观感连续。</li>
      *   <li><b>无主人</b>（公共锚点）：本类型没有剧情声明 ⇒ 恒可见
-     *       —— 地黄龙等既有 NPC 行为一字不变；有声明 ⇒ 对"尚未获得起点进度"的玩家可见。</li>
+     *       —— 地黄龙等既有 NPC 行为一字不变；有声明 ⇒ 对"尚未获得起点进度"或
+     *       "已完成且要回收"的玩家可见。</li>
      * </ul>
-     * 三条都**只依赖实体自身的归属 + 该玩家的进度** ⇒ O(1)，不需要任何实体搜索。
+     * 判定只依赖实体自身的归属 + 该玩家的进度 ⇒ O(1)，不需要任何实体搜索。
      * <p>
      * ⚠️ 不可在这里写缓存/发通知/查实体：它每追踪周期对范围内每个玩家都被调用。
      */
@@ -1227,12 +1229,26 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 }
                 return false;
             }
-            return NpcDialogueStage.isEarned(player, story.startAdvancement());
+            // ⚠️ && 的短路是有意的：没开始过的玩家连"是否已完成"都不必查
+            // （少一次进度查询，也少一条懒建的空进度记录）。
+            return NpcDialogueStage.isEarned(player, story.startAdvancement())
+                    && !finishedAndReaped(player, story);
         }
         if (story == null) {
             return true;
         }
-        return !NpcDialogueStage.isEarned(player, story.startAdvancement());
+        return !NpcDialogueStage.isEarned(player, story.startAdvancement())
+                || finishedAndReaped(player, story);
+    }
+
+    /**
+     * 「剧情已完成、且该剧情声明通关后**不保留**分身」—— 此时该玩家眼里应当看到的是**公共锚点**。
+     * <p>
+     * 抽成一个方法是为了让上面两处分支读起来是同一句话；它只是两次进度查询，没有副作用。
+     */
+    private static boolean finishedAndReaped(ServerPlayer player, NpcStory story) {
+        return !story.keepAfterFinish()
+                && NpcDialogueStage.isEarned(player, story.endAdvancement());
     }
 
     // ===================== 租约（私有分身的生命周期）=====================
