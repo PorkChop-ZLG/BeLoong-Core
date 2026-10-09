@@ -90,7 +90,7 @@
 | 1 | 新 effect「斩杀线」，标记斩杀者与斩杀线 | `ModMobEffects.EXECUTE_THRESHOLD` + `ExecuteThresholdEffect` | **斩杀线**由 `amplifier` 编码（客户端可读，血条直接用）；**斩杀者**由 DS 自带的 `AdditionalEffectData` 机制记录（见 §5.2） |
 | 2 | 被动技能「斩杀」，成长值 150～300，15 级，线性 | `execute.json` 的 `upgrade` | `dragon_growth`，`growth_requirement = linear(150, +10)` ⇒ 150…290 |
 | 3 | 攻击非友方生物时施加斩杀 effect | `ExecuteMarkHandler#onLivingDamagePost` | 玩家目标走原版 `canHarmPlayer`，非玩家目标走 DS 的 `TargetingMode.NON_ALLIES` + 宠物 / DS 召唤物豁免，见 §5.9 |
-| 4 | 999999 真实伤害，无视护甲与抗性，数据驱动 | `execute.json` 的 `damage` + `data/beloong/damage_type/execute.json` + 6 个 `minecraft:tags/damage_type/*` | 见 §5.4 |
+| 4 | 999999 真实伤害，无视护甲与抗性，数据驱动 | `execute.json` 的 `damage` + `data/beloong/damage_type/execute.json` + 8 个 `minecraft:tags/damage_type/*` | 伤害来源带击杀者实体，击杀正常计入玩家（统计 / 进度 / 掉落表 `ATTACKING_ENTITY`）——见 §5.5 |
 | 5 | 触发后进入冷却，最长 10 s、最短 5 s | `execute.json` 的 `cooldown` + `ExecuteCooldown` | 用 NeoForge 附件存「可再次触发的时间戳」，**不走 DS 的 activation 冷却**（理由见 §5.3） |
 | 6 | 斩杀线 15 级、每级 +0.5% | `execute.json` 的 `threshold` | `linear(3.0, +0.5)` |
 | 7 | effect 每级 +0.5%，初始 0.5% | `ExecuteThresholdEffect#thresholdFraction` | `(amplifier + 1) × 0.005` |
@@ -161,31 +161,42 @@ if (value().activation().type() == Activation.Type.SIMPLE || isPassive() && valu
 
 > 1.21.1 的**吸收（absorption）无法用标签关闭**：NeoForge 把吸收挪到了 `actuallyHurt` 里无条件结算（`LivingEntity.java:1790-1792`），`DamageTypeTags` 里也没有 `bypasses_absorption`（`DamageTypeTags.java:8-40`）。已验证并接受。
 
-### 5.5 死亡消息：无来源伤害 + 覆写 `getLocalizedDeathMessage`
+### 5.5 死亡消息与击杀归因：`getEntity()` 必须挂玩家，文案自己覆写
 
-**第一层：为什么要用「无来源」伤害。**
-`DamageSource.getLocalizedDeathMessage`（`DamageSource.java:78-93`）只在 `causingEntity == null && directEntity == null` 时才走 `.player` 变体：
+**第一层：击杀必须算在玩家头上。** `LivingEntity#die` 里所有「算不算玩家击杀」的分支读的都是 `damageSource.getEntity()`，**不是** `getKillCredit()`：
 
 ```java
-if (this.causingEntity == null && this.directEntity == null) {
-    LivingEntity killCredit = livingEntity.getKillCredit();
-    return killCredit != null
-        ? Component.translatable("death.attack." + msgId + ".player", victim.getDisplayName(), killCredit.getDisplayName())
-        : Component.translatable("death.attack." + msgId, victim.getDisplayName());
+Entity entity = damageSource.getEntity();                       // ← 归因看这里
+LivingEntity killer = this.getKillCredit();
+if (this.deathScore >= 0 && killer != null) {
+    killer.awardKillScore(this, this.deathScore, damageSource);  // 记分板击杀数：只看 killCredit
+}
+...
+if (entity == null || entity.killedEntity(serverlevel, this)) {  // ← entity 为 null 直接短路
+    this.gameEvent(GameEvent.ENTITY_DIE);
+    this.dropAllDeathLoot(serverlevel, damageSource);            //   掉落照掉，但击杀统计丢了
 }
 ```
 
-⇒ 结算时用 **单参构造器**（`DamageSource.java:56-58`，两个实体都是 `null`），并在这之前显式 `victim.setLastHurtByPlayer(applier)`（`LivingEntity.java:626-629`），把 `getKillCredit()`（`LivingEntity.java:1813-1820`，先 `lastHurtByPlayer` 再 `lastHurtByMob`）钉死成斩杀者。
+`Player#killedEntity` 干的正是 `awardStat(Stats.ENTITY_KILLED…)`；掉落表的 `LootContextParams.ATTACKING_ENTITY`、`PLAYER_KILLED_ENTITY` 进度判据、`dropExperience(damageSource.getEntity())` 也都依赖它。
 
-**第二层：为什么还要覆写。** 原版这条路只给 `.player` 传两个参数（受害者、击杀者），**语言值里注入不了任何额外动态文本**。而「远古」在 DS 里是一个**具体的成长阶段**（`dragon_stage.dragonsurvival.ancient`，来自内置 `ancient_stage` 数据包；「远古龙碾压 / 连锁挖掘」也都是该阶段专属），一条新生龙用斩杀打死怪却报「被远古龙被动斩杀」是错的。
+⇒ **伤害来源必须带玩家**（`new ExecuteDamageSource(type, player)`，与原版 `playerAttack` / `mobAttack` 的构造方式一致），否则死亡消息里虽然有玩家的名字，击杀却不算他的。
 
-⇒ 用 `ExecuteDamageSource extends DamageSource` **覆写** `getLocalizedDeathMessage`（该方法 public 非 final，`DamageSource.java:78`），**不需要 mixin**。三种分支：
+> ⚠️ 第一版这里是**错的**：为了走原版 `.player` 变体而刻意用了无实体的 `new DamageSource(holder)`，
+> 结果击杀统计 / 进度 / 掉落表的 `ATTACKING_ENTITY` 全部落空（`getKillCredit()` 只救回了记分板与死亡消息）。
+> 2026-10-09 由用户指出后改为带实体。
+
+**第二层：文案自己覆写。** 原版 `getLocalizedDeathMessage` 只给 `.player` 变体传两个参数（受害者、击杀者），**语言值里注入不了任何额外动态文本**。而「远古」在 DS 里是一个**具体的成长阶段**（`dragon_stage.dragonsurvival.ancient`，来自内置 `ancient_stage` 数据包；「远古龙碾压 / 连锁挖掘」也都是该阶段专属），一条新生龙用斩杀打死怪却报「被远古龙被动斩杀」是错的。
+
+⇒ 用 `ExecuteDamageSource extends DamageSource` **覆写** `getLocalizedDeathMessage`（该方法 public 非 final，`DamageSource.java:78`；NeoForge 的 `IDeathMessageProvider.DEFAULT` 对 `DeathMessageType.DEFAULT` 正是直接委派给它），**不需要 mixin**。三种分支：
 
 | 情况 | 语言键 | 参数 | 中文示例 |
 |---|---|---|---|
 | 击杀者是龙 | `death.attack.beloong.execute.player` | 3（受害者 / 击杀者 / 阶段词） | 僵尸被 Steve 的**成年龙**被动斩杀了 |
 | 击杀者不是龙（如中途变回人形） | `death.attack.beloong.execute.unknown_source` | 2 | 僵尸被 Steve 的龙族被动斩杀了 |
 | 拿不到击杀者 | `death.attack.beloong.execute` | 1 | 僵尸被龙族被动斩杀了 |
+
+击杀者优先取 `getEntity()`（构造时挂上的玩家），取不到才退到 `LivingEntity#getKillCredit()`；`victim.setLastHurtByPlayer(player)` 同时喂给掉落表的 `LAST_DAMAGE_PLAYER` 与经验值计算，两条路互为兜底。
 
 阶段词 = **本模组自己的词条**（`death.attack.beloong.execute.stage.<阶段路径>`，内置 newborn/young/adult/ancient 四条；中文「新生龙/幼年龙/成年龙/远古龙」，英文「Newborn/Young/Adult/Ancient dragon」）。
 数据包自定义的阶段不在表里，回退到 **DS 自己的阶段语言键**（`Translation.Type.STAGE.wrap`），且**不再补字**。
