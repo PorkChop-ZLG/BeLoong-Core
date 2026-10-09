@@ -203,7 +203,7 @@ private void beloong$solarGuardBreak(DamageSource source, float amount, Callback
 | T2 | 潜行右键太阳射线 | 同 T1 + 燃烧仍在 + **只扣 1 层** |
 | T3 | 太阳打击 | 同 T2 |
 | T4 | 用太阳伤害打死骑士 | 中英死亡信息正确、无空格、无 `%2$s` 残留 |
-| T5 | 语义保留 | ① 弹射物保护对射线仍减伤；② `adventure/overoverkill` 仍可由耀斑达成 |
+| T5 | 语义保留 | ① 弹射物保护对射线仍减伤（`is_projectile` 补回生效）；② **~~`adventure/overoverkill` 仍可由耀斑达成~~ —— 此条无效**（该成就要求主手持有 `mace`，而耀斑要求主手为空）；③ 耀斑仍能打碎盔甲架（`can_break_armor_stand`）；④ 四招仍会引发村民/动物惊慌（`panic_causes`）|
 | T6 | 负向：普通攻击打骑士 | 与未装本功能完全一致 |
 | T7 | 过场中打骑士 | 不掉血不掉层 |
 | T8 | 层数=0 后继续打 | 伤害照常、层数不再变化、无负数 |
@@ -268,3 +268,16 @@ M2 实机确认三招全部生效（伤害落地 + 破防击穿护盾），随�
    ⇒ 太阳祝福四招（耀斑 / 射线 / 打击 / 超新星燃烧）现已全部接入同一标签与同一判定路径。
 
 **收尾（2026-10-09）**：M3（破防反馈 + 计数式锚点）与 M4（超新星燃烧）均实机通过，任务完成。T4 的验证方式修正为 `/damage … by …`（原版不广播生物死亡信息）。登记两条与本次无关的既有问题：① `hp=0.1` 假死经确认**不会永久卡死**（骑士随后正常死亡）；② 15 条 `Unable to parse animation` 源自 **Mowzie 自己动画文件里的非法 `NaN` 表达式**（`assets/mowziesmobs/animations/umvuthi.animation.json`），整合包本就使用 GeckoLib 4.9.3，属既有视觉问题。
+
+**增补 4（代码审查后的加固，2026-10-09）**：
+- **补回的原版标签从 2 个扩到 4 个**：除 `#is_player_attack` / `#is_projectile` 外，还补了
+  `#can_break_armor_stand`（耀斑原本能一击打碎盔甲架，换类型后会**静默打不动**）与
+  `#panic_causes`（四招原本都会让村民/动物惊慌）。方法：枚举原类型（`player_attack` / `mob_projectile`）
+  在原版 `damage_type` 标签里的**全部**出现位置，而不是凭印象挑两个。
+- **D7 的语义保留从此可验证**：`overoverkill` 那条预期作废（它要求主手持有 `mace`，而耀斑要求主手为空，
+  耀斑永远达不成），改用"打碎盔甲架 + 引发惊慌"两条可实机验证的等价项。
+- **静默漂移的加固**：耀斑的半径与基准伤害都改为**锚定上游字面量**（`@ModifyConstant`）——
+  上游改这两个值会启动期硬失败，而不是注入照常、数值悄悄变；同时把 Mowzie 的 `versionRange`
+  收紧到 `[1.8.2,1.9)`，让"上游新增同名伤害类型 id"这类遮蔽风险也在启动期暴露。
+- **开关口径落实**：`[solar_guard_break] enabled` 现在**同时**短路转换层（`SolarDamageTypes.convert`）
+  与骑士侧判定 ⇒ 关闭后连伤害类型都不换，行为完全回到 Mowzie 原版。

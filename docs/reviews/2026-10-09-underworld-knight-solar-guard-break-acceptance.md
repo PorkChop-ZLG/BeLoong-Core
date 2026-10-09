@@ -73,8 +73,10 @@
 
 | # | 检查 | 期望 |
 |---|---|---|
-| T5a | 穿**弹射物保护**附魔被太阳射线打中 | 仍按 `#minecraft:is_projectile` 减伤（`mowziesmobs:solar_beam` 已补进该标签）|
-| T5b | 用太阳耀斑完成 `adventure/overoverkill`（50 颗心伤害）| 仍能达成（`mowziesmobs:solar_flare` 已补进 `#minecraft:is_player_attack`）|
+| T5a | 穿**弹射物保护**附魔被太阳射线打中 | 仍按 `#minecraft:is_projectile` 减伤（`mowziesmobs:solar_beam` 等已补进该标签）|
+| T5b | 用耀斑打**盔甲架** | 仍能一击打碎（`mowziesmobs:solar_flare` 已补进 `#minecraft:can_break_armor_stand`）—— 这是换类型后曾被漏掉的真实回退 |
+| T5c | 用太阳伤害打**村民 / 动物** | 仍会惊慌逃跑（四招均已补进 `#minecraft:panic_causes`）|
+| ~~T5d~~ | ~~用耀斑完成 `adventure/overoverkill`~~ | **此验证项不成立（已作废）**：该成就除了要求 `#is_player_attack`，还要求主手持有 `minecraft:mace`；而耀斑的 `canUse()` 要求主手**必须为空** ⇒ 耀斑永远达不成它。`#is_player_attack` 我们仍照补（无害且语义正确），但没有可用的原版验证手段 |
 
 ---
 
@@ -83,9 +85,9 @@
 | # | 场景 | 期望 |
 |---|---|---|
 | T6 | 普通武器 / 其它模组伤害打骑士 | **与未装本功能完全一致**：护盾照挡、`stuck` 破防照旧、冥界印记照旧（骑士不因本功能变脆）|
-| T7 | 开场（377t）/ 复活（440t）过场中打骑士 | 不掉血、不掉层（`processPurt` 的 `isCinematic()` 提前返回）|
+| T7 | 开场（377t）/ 复活（440t）过场中打骑士 | 不掉血、不掉层（`processHurt` 的 `isCinematic()` 提前返回）|
 | T8 | 护盾层数 = 0 后继续用太阳伤害打 | 伤害照常、层数不再变化（不会扣成负数、wisp 显示正常）|
-| T9 | 关闭 `[solar_guard_break] enabled` 后重进 | 四招回到原版：被护盾挡下、无锚点日志、不扣层（**注意**：转换层读同一个开关，见 Important 3 的修复）|
+| T9 | 关闭 `[solar_guard_break] enabled` 后重进 | **`SolarDamageTypes.convert` 与骑士侧共用同一个开关** ⇒ 关闭后连伤害类型都不再转换（死亡文案、按 `player_attack` 身份判定的第三方逻辑全部回到原版），被护盾挡下、无锚点日志、不扣层 |
 | T10 | **未装「首领崛起」**启动（把 bossesrise 从 mods 移走）| 客户端与服务端均正常启动：`@Pseudo` 使骑士侧 Mixin 整体跳过；太阳伤害类型转换照旧生效（打别的生物时只是伤害类型/死亡文案变化）。**⚠️ 目前尚未实机验证** |
 | T11 | **专用服务端 + 客户端**各跑一次 | 双端均无 dist 相关报错；骑士侧逻辑只在服务端结算（客户端不扣层、不播反馈）。**⚠️ 目前尚未验证** |
 
@@ -109,6 +111,7 @@
 4. **T4 死亡信息（已改为可验证方式）** —— 结论：**原办法无法验证**，因为原版**只对玩家广播死亡信息**，生物（含 Boss）死亡不产生聊天/日志行。要用带攻击者的 `/damage … by …` 才能看到文案（见 §2 T4 行）。
 5. **`hp=0.1` 的"假死"观察项（已确认不是死锁）** —— 第二轮曾见血量被钳在 0.1 且 `dealt=true` 但 `hp` 不变；**第三轮实测确认它不会永久卡死**：最后一条锚点 `19:07:58`，`19:08:04` 即取得进度 `kill_underworld_knight`（骑士假死序列自行推进后正常死亡）。这是模组**阶段 1 假死/复活**的正常表现（`shouldCancelDeath` 挡死并留一丝血，期间护盾还会被闸门装回），我们的路径不 `setState`，不介入该流程。
 6. **与本次魔改无关的既有问题（仅登记）**：日志里 15 条 `Unable to parse animation`（`supernova` / `attack_single` / `mass_buff` / `flapping_wings_standing`），根因是 **Mowzie 自己的动画文件写了非法表达式**（`assets/mowziesmobs/animations/umvuthi.animation.json`：`"NaN-(math.sin(query.anim_time * 2800) * 3)"`）被新版 GeckoLib 的表达式编译器拒绝。整合包本来就是 GeckoLib 4.9.3，故此为**既有视觉问题**（这些动画不播），与本次改动无关、也不影响伤害/破防逻辑。
+7. **护盾层数的"残余竞争"待观察** —— 代码审查（复核）确认：结算过程中有两条可达路径会把护盾写回来（50% 闸门 `:460/:462`、死亡取消 `shouldCancelDeath` `:530/:541`），我们的 `stacksAfter <= stacksBefore` 判据能拦住**净增**；残余是"模组写成 ≤ 当前值"的两种：`1->1`（可接受，等于这一击扣掉 1 层）与 **phase 2 且 `stacksBefore == 2` 时的 `2->1`**（模组本意是给 phase 3 留 1 层，可能被我们再扣成 0）。后者罕见，实机若复现请记录当时的 `#序号` 与 `hp` 变化。
 
 > **已从"不做"移出**：破防音效/粒子反馈（T12，`c642dd5`）、计数式锚点（T13，`e69b650`）—— 两项均已在 M2 之后实现，验收项见 §2.1。
 

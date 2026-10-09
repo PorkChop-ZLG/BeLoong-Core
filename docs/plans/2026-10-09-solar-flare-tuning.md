@@ -31,7 +31,14 @@
 | 击退 / 段时序 / 减速 / 音效动画 | — | **不变** | — |
 | Mowzie 配置 | — | **不改** | 保持四招共享倍率的语义，避免与整合包已有的 ×10 重复叠加 |
 
-**为什么伤害不用 `@ModifyConstant(floatValue = 2.0F)`**：`2.0F` 在字节码里是 **`fconst_2`** 专用指令（不进常量池），常量匹配不可靠；改 `hurt` 的参数是确定的，而且天然保留配置倍率语义。
+**为什么伤害也改成 `@ModifyConstant`（代码审查后的修正）**：初版实现是"把已乘配置倍率的伤害 ×2"，
+代码审查指出这是**隐式假设**——上游若把基准从 `2.0F` 改成 `2.5F`，注入照常成功、实际基准静默变成 5.0（比设计值高 25%），
+启动期毫无提示。现已与半径一样改为**锚定字面量**：`@ModifyConstant(floatValue = 2.0F)` → 4.0F。
+<br>`2.0F` 在字节码里确实是 **`fconst_2`**（不进常量池），但 Mixin **可以**匹配常量指令：
+`BeforeConstant` javadoc 写明 "searches for `LDC` **and other constant opcodes**"，实现走
+`Bytecode.isConstant(insn)`（`Bytecode.CONSTANTS_ALL`）。所以那不构成"不能用 @ModifyConstant"的理由
+（本文件初版断言"常量匹配不可靠"，属判断错误，已更正）。
+⇒ 现在上游改基准或半径都会**启动期硬失败**（`injectors.defaultRequire = 1`），不再有静默漂移。
 
 **数值集中在这两行**（后续要调只改这里）：
 `src/main/java/com/zonlong/beloong/mixin/mowziesmobs/SolarFlareAbilityTuningMixin.java`
@@ -44,8 +51,15 @@ private static final float BELOONG_FLARE_DAMAGE_FACTOR = 2.0F;
 
 ## 三、影响面与副作用（需知悉）
 
-1. **9 格是很大的球体**：范围内**所有**生物（队友、宠物、村民、被动怪）都会被命中并击退 1.8 格 —— 原版 3.2 格时这个问题不明显。
-2. **与破防功能的叠加**：伤害类型仍被换成 `mowziesmobs:solar_flare`（既有 `SolarFlareAbilitySolarDamageMixin` 未动），所以对冥界骑士**依旧能穿盾 + 扣 1 层**；本次只是把数值调大。
+1. **9 格的准确形状**：`radius` 这同一个局部量被传了 4 次，落地为 `getEntityLivingBaseNearby(user, 9, 9, 9, 9)` ⇒
+   ① 候选域 = `player.getBoundingBox().inflate(9,9,9)`（约 **18×18×18 的立方体**）；
+   ② 再按 `player.distanceTo(e) <= 9` 过滤，而 `distanceTo` 是**以玩家脚底为球心的 3D 欧氏距离** ⇒
+   对高大 Boss 而言**有效水平距离 < 9 格**（Y 分量占掉额度），地下/天上的目标会被 ② 滤掉。
+2. **友军/宠物/村民会被一起打**（**已接受的设计行为，不是缺陷**）：Mowzie 的循环只排除施法者自己
+   （`if (aHit != this.getUser())`），**没有队伍过滤** ⇒ 9 格内的队友、宠物、村民、被动生物都会被命中并被击退 1.8 格。
+   原版 3.2 格时几乎察觉不到。要收窄改 `SolarFlareAbilityTuningMixin.BELOONG_FLARE_RADIUS` 即可
+   （当前按用户要求硬编码、无配置开关；需要时随时可提升为 COMMON 配置）。
+3. **与破防功能的叠加**：伤害类型仍被换成 `mowziesmobs:solar_flare`（既有 `SolarFlareAbilitySolarDamageMixin` 未动），所以对冥界骑士**依旧能穿盾 + 扣 1 层**；本次只是把数值调大。
 3. **配置倍率照旧生效**（这是刻意的）：整合包 ×10 时耀斑 = **约 40/次**（原 20）；开发环境 ×1 时 = **4/次**（原 2）。若你觉得整合包里 40 偏高，调 Mowzie 的 `suns_blessing_attack_multiplier` 即可（会同时影响另外三招）。
 4. 击退判定依赖 `hurt` 的返回值 ⇒ 被无敌帧挡下（`amount <= lastHurt`）时既不结算伤害也不击退，与原版行为一致。
 
