@@ -1,8 +1,8 @@
 {
   "values": [
-    "mowziesmobs:solar_flare",
-    "mowziesmobs:solar_beam",
-    "mowziesmobs:supernova",
-    "mowziesmobs:sun_strike"
+    { "id": "mowziesmobs:solar_flare", "required": false },
+    { "id": "mowziesmobs:solar_beam", "required": false },
+    { "id": "mowziesmobs:supernova", "required": false },
+    { "id": "mowziesmobs:sun_strike", "required": false }
   ]
 }
