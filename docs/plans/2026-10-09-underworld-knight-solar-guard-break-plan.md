@@ -193,3 +193,35 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 | **M1** | 耀斑链端到端（T1–T7 后） | 用户实机：伤害落地 + 扣 1 层 + 锚点 |
 | **M2** | 射线/打击接入（T8–T9 后） | 用户实机：三招齐活 + 燃烧保留 + 只扣 1 层 |
 | **M3** | 交付（T10–T11 后） | 用户执行完整验收清单（含 T5 语义保留、T6–T9 边界、R1–R3） |
+
+---
+
+## 执行日志（滚动更新）
+
+| 任务 | 状态 | 结果 / 提交 |
+|---|---|---|
+| T0 | ✅ 完成 | `eb69ab1` 设计与调研文档；另 `5927e13` 清掉上一轮悬置的 GeckoLib 更新 |
+| T1 | ✅ 完成 | `de87cc4` 三个伤害类型；json 校验通过（5 字段齐全、`message_id` 与文件名一致） |
+| T2 | ✅ 完成 | `bab8c6a` 破防标签 + 原版标签补回；**只写我们新增的条目**（见下方"计划偏差 1"） |
+| T3 | ✅ 完成 | `b2ebc12` 死亡信息；zh/en 各 299 键、集合差异 0；数据层检查点构建 SUCCESSFUL |
+| T4 | ✅ 完成 | `4bdaa6b` 常量与转换工具；编译 + `javap` 核验 |
+| T5 | ✅ 完成 | `cc9e14b` 耀斑转换 Mixin；构建通过；jar 内 10/10 目标文件落地 |
+| T6 | ✅ 完成 | `d3dfbc5` 骑士判定 Mixin + COMMON 开关；临时 `require=1` 探针无 AP 报错后还原为 `0`；lang 299/299 一致 |
+| T7 | ⚠️ **部分完成**（见下） | 骑士侧取得**字节码级证据**；耀斑/射线/打击三处改由 M1/M2 实机日志证明 |
+| M1 | ⏸ 等待用户实机 | — |
+| T8–T11 | ⏳ 待 M1 通过后继续 | — |
+
+### T7 详细结论（dev 专用服务端静态探针）
+
+- ✅ `run/logs/latest.log:918`：`Mixing legendarymonsters.UnderworldKnightGuardBreakMixin from beloong.mixins.json into …UnderworldKnightEntity`；`:919` 合成 lambda 重命名；另有 `@Inject::beloong$solarGuardBreak(…)V does use it's CallbackInfoReturnable`。
+- ✅ 导出类 `run/.mixin.out/class/net/unusual/…/UnderworldKnightEntity.class` 的 `javap -c` 证明注入确实在 **HEAD**：
+  `hurt` 开头 = `new CallbackInfoReturnable("hurt", true)` → `handler$bjc000$beloong$solarGuardBreak(source, amount, cir)` → `isCancelled()` ? `getReturnValueZ()` : 原方法体（原体第一条即 `processPurt(source, amount, false)`）；
+  handler 体内含 `getImmuneStacks()` → `processPurt(DamageSource,F,Z)` → `removeOneImmuneStack()`。
+- ⚠️ **耀斑 / 射线 / 打击三处 Mixin 本轮未被触及**：Mixin 在**类加载时**应用，而 `SolarFlareAbility` / `EntitySolarBeam` / `EntitySunstrike` 只在游戏内实际使用技能 / 生成实体时才会被加载 ⇒ 静态探针无法覆盖，改由 M1/M2 实机日志里的 `Mixing …` 行证明。
+- ⚠️ **dev 专用服务端无法完全启动（既有环境限制，与本次改动无关）**：必选依赖 **chatbox** 在 `RegisterPayloadHandlersEvent` 里加载 `net/minecraft/client/multiplayer/ClientLevel` ⇒ `RuntimeDistCleaner` 报 invalid dist DEDICATED_SERVER ⇒ `ModLoadingException`，服务端停在 mod loading 阶段。因此**注册表 / 数据包加载（S2 的 `Registry loading errors`、标签 `missing following references`）未能验证**，留到 M1 实机客户端日志核查。
+- 🔧 **临时改动已还原**：`run/mods` 的 iris/sodium 曾临时移至 `run/_disabled_client_mods`（探针需要），现已移回且临时目录已删除 ✓；残留 dev 服务端进程已终止 ✓。
+
+### 计划偏差记录
+
+1. **T2 不重复抄写原版 values**（计划原文写"读出原版内容再追加"）：标签是**并集**语义（源码证据：`TagLoader.load` 用 `listMatchingResourceStacks` 遍历同一 tag 路径的**所有**资源并 `list.add` 累加，除非该文件写 `"replace": true`），且项目已有先例（`data/minecraft/tags/damage_type/{bypasses_cooldown,no_knockback}.json` 里只写 `beloong:tornado`）。只写新增条目可避免原版更新后出现重复/陈旧值。
+2. **T7 范围收窄**：原计划希望"四条 Mixin 都在导出类里核对"。实际只有骑士侧满足条件（另三处的目标类在探针期间不会加载），已在下方 M1 清单里改用"实机日志的 `Mixing` 行 + 日志锚点"作为等价证据。
