@@ -1321,6 +1321,13 @@ ChatBox 的选项 `click` 是以**玩家**身份执行命令的，而地图作�
 **提醒的两级数据驱动**：两条提醒的**提前量**（`warn_before_ticks`）与**文案**都在各自的分组里；
 文案优先级 = `warn_text`（字面，`%s` 填剩余秒数）⇒ `warn_key`（翻译键）⇒ 模组内置默认键（中性措辞，不含地名）。
 
+⚠️ **键是客户端解析的** ⇒ 数据包用的 `warn_key` 必须存在于**客户端**的语言文件里，否则玩家屏幕上会出现原始键名。
+本模组与整合包的做法：`beloong.npc.story.mo.expiring` / `beloong.npc.story.mo.outside_dimension` 两个键写在
+**模组**的 `assets/beloong/lang/{zh_cn,en_us}.json`（随 jar 分发 ⇒ 任何装了模组的客户端都能渲染）；
+整合包若要改措辞，在自己的 `kubejs/assets/beloong/lang/` 下写**同名键**覆盖即可（语言按 key 合并）。
+两份 `npc_story/mo.json` 都把**可写字段显式写出**（不依赖缺省），差别只在有意为之的那一项：
+模组自带的那份 `lease.keep_after_finish: true`（保住 D6），整合包那份为 `false`（参与离线结算）。
+
 ## 附：本文与旧文档的编号对照
 
 旧文档的决策编号（D1–D57、对话系统 D1–D33、风险 R0–R18）**不在本文中续用**。
