@@ -92,6 +92,9 @@ public class NpcStoryHandler {
     /** 巡检计数器（事件处理器是单例，只注册一次）。 */
     private int tickCounter;
 
+    /** 已经做过"进度 id 自检"的那次加载代号；-1 = 还没做过（见 {@link #checkStoryIdsOnce}）。 */
+    private int checkedReloadStamp = -1;
+
     /** 连续多少轮"扫不到分身"才认定它真的丢了。防的是区块未加载造成的误判。 */
     private static final int MISSES_BEFORE_RESET = 3;
 
@@ -145,6 +148,34 @@ public class NpcStoryHandler {
                     () -> BeLoongCore.LOGGER.warn(
                             "[BeLoong] npc story for '{}' names unknown cg '{}' — the double was spawned"
                                     + " but no cg was played", entry.getKey(), name)));
+        }
+    }
+
+    /**
+     * 加载后**一次性**自检：每条剧情的起点/终点进度是否真实存在。
+     * <p>
+     * ⚠️ 为什么不在加载期查：进度由 {@code ServerAdvancementManager} 在**同一次重载**里加载，
+     * 而重载是并行的监听器图 ⇒ 我们的监听器不保证在它之后跑。所以退一步：
+     * 在重载后的第一轮巡检做一次，ERROR 点名到"哪条剧情、缺哪个 id"。
+     * <p>
+     * 这两个 id 错了就是 dead on arrival：剧情永远不可能触发，撤回时也走不完父链 ⇒ 必须报出来。
+     */
+    private void checkStoryIdsOnce(MinecraftServer server) {
+        int stamp = NpcStoryLoader.INSTANCE.reloadStamp();
+        if (stamp == this.checkedReloadStamp) {
+            return;
+        }
+        this.checkedReloadStamp = stamp;
+        for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
+            NpcStory story = entry.getValue();
+            for (ResourceLocation id : List.of(story.startAdvancement(), story.endAdvancement())) {
+                if (server.getAdvancements().get(id) == null) {
+                    BeLoongCore.LOGGER.error(
+                            "[BeLoong] npc story for '{}' references advancement '{}' which does not exist"
+                                    + " — this story can never trigger (check the data pack)",
+                            entry.getKey(), id);
+                }
+            }
         }
     }
 
@@ -226,6 +257,7 @@ public class NpcStoryHandler {
         if (!Config.NpcStory.enabled.get()) {
             return;
         }
+        checkStoryIdsOnce(server);
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
             reconcileStory(server, entry.getKey(), entry.getValue());
         }
@@ -278,8 +310,49 @@ public class NpcStoryHandler {
         // 根本没加载（玩家在别的维度、或离得太远）—— 此时"没找到分身"不代表"分身丢了"，
         // 任何清理/重置都不许做（否则会出现"登录就被撤回进度"这种事故）。
         boolean searchTrustworthy = anchors > 0;
+
+        // ⚠️ keep_after_finish=true 的剧情**整条跳过离线结算**（设计 D6）：离线判不出"主人是否已通关"，
+        // 而 true 的意义正是"通关后永久保留" ⇒ 宁可不清理，也不误删。这类剧情的中途分身
+        // 仍会在主人**下次登录**时被正常判定并清理。
+        boolean skipOfflineSettlement = story.keepAfterFinish();
+
+        // ⚠️ 先**快照** owner 集合：下面会删实体，边遍历边改会踩 ConcurrentModificationException。
+        for (UUID owner : List.copyOf(byOwner.keySet())) {
+            ServerPlayer online = server.getPlayerList().getPlayer(owner);
+            if (online != null) {
+                reconcilePlayer(online, story, byOwner.get(owner), searchTrustworthy);
+            } else if (!skipOfflineSettlement) {
+                settleOffline(story, owner, byOwner.get(owner));
+            }
+        }
+        // 在线玩家**没有**分身时也要巡检（走 mine.isEmpty() 分支：D21 重置）——
+        // 上一循环只覆盖了"表里有的 owner"。
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            reconcilePlayer(player, story, byOwner.getOrDefault(player.getUUID(), List.of()), searchTrustworthy);
+            if (!byOwner.containsKey(player.getUUID())) {
+                reconcilePlayer(player, story, List.of(), searchTrustworthy);
+            }
+        }
+    }
+
+    /**
+     * <b>离线结算</b>：主人不在线时，只做"租约到期"这一件事 —— 删分身，**不撤进度**。
+     * <p>
+     * 为什么不撤：离线读不到玩家进度（{@code PlayerAdvancements} 只存在于在线的 {@code ServerPlayer} 上）。
+     * 撤进度留给该玩家**下次登录**：那时 {@link #reconcilePlayer} 会看到"已开始 ∧ 无分身"，
+     * 走 D21 撤回整条链；而"已通关者永不重置"（上轮 C1 的修复）保证通关玩家的进度不会被误撤。
+     * <p>
+     * 为什么不判其它四项（维度 / 孤儿 / 通关回收 / 重复）：它们分别需要"玩家此刻在哪"或"进度"，离线都没有。
+     */
+    private void settleOffline(NpcStory story, UUID owner, List<NpcEntity> mine) {
+        for (NpcEntity npc : mine) {
+            long now = npc.level() instanceof ServerLevel level ? level.getGameTime() : 0L;
+            if (npc.hasExpired(now)) {
+                npc.discard();
+                BeLoongCore.LOGGER.info(
+                        "[BeLoong] npc story '{}': removed double of OFFLINE player '{}'"
+                                + " (reason: timeout_offline)",
+                        story.startAdvancement(), owner);
+            }
         }
     }
 
@@ -387,28 +460,54 @@ public class NpcStoryHandler {
         warnBeforeExpiry(player, story, npc, now);
     }
 
-    /** 离开有效维度期间的提示（宽限内每次巡检都发，充当倒计时）。 */
+    /** 离开有效维度期间的提示（进入提醒窗口后每次巡检都发，充当倒计时）。 */
     private void warnDimensionGrace(ServerPlayer player, NpcStory story, NpcEntity npc, long now) {
         long remaining = story.dimensionGraceTicks() - (now - npc.outsideSince());
         if (remaining <= 0L) {
             return;
         }
-        player.displayClientMessage(
-                Component.translatable("beloong.npc.story.outside_dimension", Math.max(1L, remaining / 20L)), true);
+        long warn = story.dimension().warnBeforeTicks().orElse(NpcStory.DEFAULT_WARN_BEFORE_TICKS);
+        if (warn <= 0L || remaining > warn) {
+            return;
+        }
+        remind(player, story.dimension().warnText(), story.dimension().warnKey(),
+                remaining, "beloong.npc.story.outside_dimension");
     }
 
-    /** 到期前的可见提示（actionbar）。它同时充当倒计时，所以窗口内每次巡检都发。 */
+    /** 到期前的提示（actionbar）。进入提醒窗口后每次巡检都发，充当倒计时。 */
     private void warnBeforeExpiry(ServerPlayer player, NpcStory story, NpcEntity npc, long now) {
-        int warning = Config.NpcStory.expiryWarningTicks.get();
-        if (warning <= 0 || story.isPermanent() || npc.expireAt() <= 0L) {
+        if (story.isPermanent() || npc.expireAt() <= 0L) {
             return;
         }
         long remaining = npc.expireAt() - now;
-        if (remaining <= 0L || remaining > warning) {
+        if (remaining <= 0L) {
             return;
         }
-        player.displayClientMessage(
-                Component.translatable("beloong.npc.story.expiring", Math.max(1L, remaining / 20L)), true);
+        // 数据里没写（Optional 空）⇒ 用**全局配置**兜底（设计 D11）；显式写 0 = 不提醒。
+        long warn = story.lease().warnBeforeTicks()
+                .orElse((long) Config.NpcStory.expiryWarningTicks.get());
+        if (warn <= 0L || remaining > warn) {
+            return;
+        }
+        remind(player, story.lease().warnText(), story.lease().warnKey(),
+                remaining, "beloong.npc.story.expiring");
+    }
+
+    /**
+     * 发一条提醒。文案来源**按优先级**：数据里的 {@code warn_text}（字面，优先）⇒
+     * {@code warn_key}（翻译键）⇒ 模组内置默认键。
+     * <p>
+     * ⚠️ 只有"键是否存在"是服务端**无法校验**的一类（{@code lang} 是客户端资源）——
+     * 写错时玩家屏幕上会出现原始键名，这是刻意保留的暴露方式（设计 D10）。
+     * ⚠️ {@code warn_text} 里写 {@code %s} 才填剩余秒数；不写就是固定文案。
+     */
+    private void remind(ServerPlayer player, Optional<String> text, Optional<String> key,
+                        long remainingTicks, String builtinKey) {
+        long seconds = Math.max(1L, remainingTicks / 20L);
+        Component message = text
+                .map(t -> Component.literal(t.contains("%s") ? t.replace("%s", Long.toString(seconds)) : t))
+                .orElseGet(() -> Component.translatable(key.orElse(builtinKey), seconds));
+        player.displayClientMessage(message, true);
     }
 
     // ===================== 清理与撤回 =====================
@@ -452,7 +551,7 @@ public class NpcStoryHandler {
     private boolean revokeStory(ServerPlayer player, NpcStory story) {
         AdvancementHolder holder = player.server.getAdvancements().get(story.endAdvancement());
         if (holder == null) {
-            BeLoongCore.LOGGER.warn(
+            BeLoongCore.LOGGER.error(
                     "[BeLoong] npc story '{}': advancement '{}' does not exist — nothing was revoked",
                     story.startAdvancement(), story.endAdvancement());
             return false;
