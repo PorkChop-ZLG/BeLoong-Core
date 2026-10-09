@@ -32,7 +32,7 @@
 - 不把校验收紧推广到 `npc_dialogue` / `npc_route`（另一批）
 - 不做跨维度传送；不引入每玩家持久状态
 
-**状态：批次① 已完成；批次② 进行中。**
+**状态：全部完成**（批次①`e07eca9` / 批次②`693da47` / 批次③）；收尾审查见文末。
 
 ---
 
@@ -214,3 +214,36 @@
    📌 教训：编译通过 ≠ 逻辑正确；工具方法要自己念一遍语义。
 4. 守卫 ⑰ 里新增的"**自带 mo.json 的键都在 schema 内**"这一条，正好能机器化地抓住
    "改了代码忘改数据"（本轮最危险的中间态）—— 它现在是对**两份真实数据文件**的静态等价校验。
+
+## 批次② 离线结算与数据驱动提醒 —— **已完成**（`693da47`）
+
+7 条新守卫全 PASS：`timeout_offline` 独立 reason / `keep_after_finish` 跳过离线结算 /
+owner 遍历前快照 / 一次性自检存在 / 两个提醒的提前量与字面文案都读数据 / 内置文案不含地名。
+
+## 批次③ 整合包迁移与收尾 —— **已完成**
+
+- **T12**：整合包 `mo.json` 迁移到新结构（`ticks: 72000` · `keep_after_finish: false` ·
+  `host = beloong:loong_palace` · `enforce: true` · `grace_ticks: 6000`）；
+  旧版已备份进 `kubejs/_backup_20261001/`（追加 `.vN`，保留历次改动前版本）。
+- **T13**：活文档 §12.7（离线结算 + 报错不静默）+ memory 第二十三则。
+
+**两份数据的迁移对照（关键）**
+
+| | 迁移前（旧平铺）| 迁移后（嵌层）|
+|---|---|---|
+| 模组自带 | `lifetime_ticks: 72000` `keep_after_finish: true` `required_dimension` `dimension_grace_ticks: 1200` | `lease{ ticks: 72000, keep_after_finish: true, warn_text: … }` + `dimension{ host, enforce: true, warn_text: … }`（宽限走新缺省 6000）|
+| 整合包 | `ticks: 72000`（测试期）`keep_after_finish: false` `host` `enforce` `grace: 200`（测试期 10 秒）| `lease{ ticks: 72000, keep_after_finish: false }` + `dimension{ host, enforce: true, grace_ticks: 6000 }` |
+
+⇒ **要快速验 D2（离开维度规则）**：把整合包里的 `grace_ticks` 临时改成 `200`（10 秒）再 `/reload`。
+
+## 实机验收清单（交给用户）
+
+1. `/reload` ⇒ 日志 `npc stories: 1 file(s) scanned, 1 story(ies) loaded`
+2. **故意写错一个字段名**（如把 `ticks` 写成 `tick`）⇒ 整文件被拒 + ERROR 点名到 `lease.tick`
+3. **故意写旧版平铺**（如顶层写 `lifetime_ticks`）⇒ 被拒 + ERROR **附"应写成 lease.ticks"**
+4. **故意 `enforce: true` 却不写 `host`** ⇒ 被拒 + ERROR
+5. **离线结算（核心）**：拿新分身 ⇒ **退出游戏** ⇒ 等租约到期（临时把 `ticks` 调到 600 = 30 秒）⇒
+   日志出现 **`reason: timeout_offline`** ⇒ 重登 ⇒ 进度被撤、锚点重现
+6. **`keep_after_finish: true` 不参与离线清理**（用模组自带数据验）⇒ 退出后到期，分身**仍在**
+7. 提醒数据驱动：调大 `warn_before_ticks` 应更早看到提醒；写 `warn_text` 覆盖内置文案；
+   写一个不存在的 `warn_key` ⇒ 屏幕上出现原始键名（唯一无法服务端校验的一类）

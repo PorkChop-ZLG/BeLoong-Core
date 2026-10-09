@@ -1225,8 +1225,9 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 { "start_advancement": "beloong:npc/root", "end_advancement": "beloong:npc/2_1",
   "spawn": "anchor", "cg": "mo_entrance",
   "lifetime_ticks": 72000, "clear_on_logout": false,
-  "required_dimension": "beloong:loong_palace", "dimension_grace_ticks": 1200,
-  "keep_after_finish": true }
+  "lease":     { "ticks": 72000, "keep_after_finish": true,
+                 "warn_text": "§e你的这段剧情还剩 %s 秒，超时会从龙宫入口重新开始" },
+  "dimension": { "host": "beloong:loong_palace", "enforce": true } }
 ```
 
 - **存在声明式 + 演出事件式**：分身"该不该在"由进度区间声明，一个对账器让世界与声明一致（幂等、自愈）；
@@ -1288,6 +1289,37 @@ ChatBox 的选项 `click` 是以**玩家**身份执行命令的，而地图作�
 ⚠️ 它必须与 `npc` / `route` **平级**（`beloong` 的直接子字面量）：`npc` 之后第一个节点是实体参数，
 把字面量放在同一位置会构成同名歧义（见 `RouteCommand` 的类注释）。
 ⚠️ 该族的解析只查**执行者当前维度**；跨维度 `tp` 刻意不做（需要时另设计，不要顺手加 `teleportTo` 分支）。
+
+### 12.7 离线结算与"报错不静默"（2026-10-01）
+
+**离线结算**：对账器的巡检**不再以"玩家在线"为前提** —— 它遍历 `owner → 分身` 表里的每个 owner，
+在线者走完整判定表，**离线者只判租约到期** ⇒ 删分身（日志 reason = `timeout_offline`），**不撤进度**。
+进度留给该玩家**下次登录**：那时"已开始 ∧ 无分身"会走 12.4 的 D21 分支撤回整条链，而"已通关者永不重置"
+（12.4 的 C1 修复）保证通关玩家的进度不被误撤 ⇒ **整个过程不需要任何每玩家持久状态**。
+这一步的意义：龙宫这类**常加载维度**里，弃坑玩家的分身在主人离线时**照样 tick** —— 离线结算把它们收掉，
+上限从"无界"变成"在线玩家数 + 最近一个租约内下线过的人数"。
+
+⚠️ 两个前提：① 剧情必须写 `dimension.host`（否则 0 人在线时巡检无维度可扫，离线结算对该剧情不生效）；
+② `lease.ticks` 必须是**有限值**（`-1` 永久 ⇒ 没有到期时刻 ⇒ 离线结算永远不会发生）。
+⚠️ `keep_after_finish: true` 的剧情**整条跳过离线结算**（离线判不出"是否已通关"，而 true 的意义正是
+"通关后永久保留" ⇒ 宁可不清理也不误删）；这类剧情的中途分身仍在**登录时**被清。
+
+**报错不静默**：凡是服务端查得到的，一律**加载期硬校验、错就拒绝整文件**，并点名到"哪个分组里的哪个键"：
+
+| 检查 | 失败后果 |
+|---|---|
+| 未知字段（**递归到每一层**） | 拒绝；命中旧版平铺写法时 ERROR 还会附**迁移提示**（`lifetime_ticks` ⇒ `lease.ticks`）|
+| `ticks < -1` · `warn_before_ticks < 0` · `grace_ticks < 0` · `warn_text` 空串 · `warn_key` 非法 id | 拒绝 |
+| 逻辑矛盾：`enforce: true` 无 `host`；永久租约却显式要到期提醒 | 拒绝 |
+| `dimension.host` 指向不存在的维度 | 拒绝（加载期按 `LEVEL_STEM` 查；registry 由 `AddReloadListenerEvent` 提供）|
+| `start_advancement` / `end_advancement` 不存在 | **加载后第一轮巡检**报 ERROR（进度与我们在同一次重载里加载、且重载是并行的 ⇒ 加载期不保证查得到）|
+| `cg` 名不存在 | 加载期报 ERROR，但**剧情照常加载**（D9/D12：坏 CG 数据不毁剧情）|
+
+**唯一物理上无法硬报错的一类**：`warn_text`/`warn_key` 指向的**语言键是否存在** —— `lang` 是**客户端**资源，
+服务端拿不到。写错时玩家屏幕上会直接出现原始键名（这是刻意保留的暴露方式）。想绝对不出错就写 `warn_text`。
+
+**提醒的两级数据驱动**：两条提醒的**提前量**（`warn_before_ticks`）与**文案**都在各自的分组里；
+文案优先级 = `warn_text`（字面，`%s` 填剩余秒数）⇒ `warn_key`（翻译键）⇒ 模组内置默认键（中性措辞，不含地名）。
 
 ## 附：本文与旧文档的编号对照
 
