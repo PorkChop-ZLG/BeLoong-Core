@@ -45,6 +45,7 @@
     "legendarymonsters.UnderworldKnightGuardBreakMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
+    "mowziesmobs.EntitySolarBeamSolarDamageMixin",
     "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
