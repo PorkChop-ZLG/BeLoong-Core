@@ -217,6 +217,7 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 | T12 | ✅ 完成 | `c642dd5` 破防反馈：真的扣层时复刻"击中冥界印记"的两个音效 + 两个粒子（对齐 `KnightMarkEntity.hurt:126-130`）|
 | T13 | ✅ 完成 | `e69b650` 计数式锚点：层数变化必记（不受节流）+ 其余 1 秒聚合 + `#序号`/分类计数/`hp=before->after`/`totals: hits=… dealt=…` |
 | T14 | ⏳ 待下一轮实机 | 验收清单 §2.1（T12/T13 项）+ **T4 死亡信息**（两轮实机里骑士都没被太阳伤害打死，仍待验证）|
+| T15 | ✅ 完成 | `ba42c8d` **太阳祝福第四招「超新星燃烧」**接入：新增伤害类型 `mowziesmobs:supernova`（+ 标签项 + `#is_projectile` + 死亡信息）+ `EntitySuperNovaSolarDamageMixin`（`tick()` 的 `dealMixedDamage` index 1 + `Entity.hurt` index 0）|
 
 ### T7 详细结论（dev 专用服务端静态探针）
 

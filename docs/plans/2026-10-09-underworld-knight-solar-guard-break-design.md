@@ -260,4 +260,11 @@ M2 实机确认三招全部生效（伤害落地 + 破防击穿护盾），随�
      **`hp=before->after`**（回答"到底有没有掉血"）、`totals: hits=… dealt=… bySource={…}`。
    - 示例：`[BeLoong] solar-guard-break: #12 source=mowziesmobs:solar_beam (this-source=10) stacks=0->0 consumed=false dealt=true hp=180.0->178.0 | totals: hits=12 dealt=11 bySource={mowziesmobs:solar_beam=10, mowziesmobs:solar_flare=2}`
 
+3. **第四个技能「超新星燃烧」（T15，提交 `ba42c8d`）**：实机发现太阳祝福其实有**四招** —— `SupernovaAbility` → `EntitySuperNova`（技能本体只生成实体，伤害在 `EntitySuperNova.tick()` 里）。其伤害结构与射线/打击同构（`:859 dealMixedDamage` 的 `mob_projectile` 段 + `:946 Entity.hurt` 的直接路径，另有一段 `:854 onFire` 保留），因此新增：
+   - 伤害类型 `mowziesmobs:supernova`（`message_id = mowziesmobs.supernova`，数值照抄 `mob_projectile`）；
+   - 追加进 `beloong:underworld_knight_guard_break` 与 `#minecraft:is_projectile`；
+   - `EntitySuperNovaSolarDamageMixin`（`tick()` 的 `dealMixedDamage` index 1 + `Entity.hurt` index 0，`on_fire` 直通）；
+   - 死亡信息 `death.attack.mowziesmobs.supernova`（中英）。
+   ⇒ 太阳祝福四招（耀斑 / 射线 / 打击 / 超新星燃烧）现已全部接入同一标签与同一判定路径。
+
 **仍未验证**：T4（用太阳伤害打死骑士时的中英死亡信息文案）—— 2026-10-09 的两轮实机里骑士都没被太阳伤害打死，留待下一轮。
