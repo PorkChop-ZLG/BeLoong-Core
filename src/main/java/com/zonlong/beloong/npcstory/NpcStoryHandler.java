@@ -208,6 +208,11 @@ public class NpcStoryHandler {
         if (!Config.NpcStory.enabled.get()) {
             return;
         }
+        // ⚠️ 自检放在**这里**（enabled 闸门之后、巡检间隔之前，每 tick 一次 O(1) 判 stamp）：
+        //   ① 它是数据诊断 ⇒ 总开关关着时也该把"引用了不存在的进度"报出来（否则作者永远看不到）；
+        //   ② 重载后 **1 tick 内**就会重算 storiesWithMissingIds —— 否则在下一轮巡检（≤100 tick）之前，
+        //      刚被修好的剧情仍被当成缺失 ⇒ 玩家拿到起点却不生成分身，接着被 D21 误撤。
+        checkStoryIdsOnce(event.getServer());
         int interval = Math.max(1, Config.NpcStory.reconcileIntervalTicks.get());
         if (++this.tickCounter < interval) {
             return;
@@ -268,9 +273,6 @@ public class NpcStoryHandler {
     }
 
     private void reconcileAll(MinecraftServer server) {
-        // ⚠️ 自检要放在 enabled 闸门**之前**：它是数据诊断，不是玩法逻辑 ——
-        // 总开关关着时也该把"数据引用了不存在的进度"报出来（否则作者永远看不到）。
-        checkStoryIdsOnce(server);
         if (!Config.NpcStory.enabled.get()) {
             return;
         }
@@ -289,6 +291,12 @@ public class NpcStoryHandler {
      * 退而求其次去扫"每个在线玩家所在维度"会顺带扫主世界，5 秒一次，代价与收益不成比例。
      */
     private void reconcileStory(MinecraftServer server, EntityType<?> type, NpcStory story) {
+        // 进度 id 缺失的剧情**整条跳过**：它已是 dead on arrival（见 storiesWithMissingIds 的注释）。
+        // 若只挡生成，D21 分支会每轮都打"已撤回"WARN 并去走一条**走不完的撤回链**（终点进度根本不存在
+        // ⇒ 必然再报 ERROR），玩家则停在"已开始 + 无分身"里看着空场景 —— 什么都不做反而更干净。
+        if (this.storiesWithMissingIds.contains(type)) {
+            return;
+        }
         Set<ServerLevel> levels = new LinkedHashSet<>();
         if (story.requiredDimension().isPresent()) {
             ServerLevel level = server.getLevel(
@@ -474,6 +482,10 @@ public class NpcStoryHandler {
             } else {
                 warnDimensionGrace(player, story, npc, now);
             }
+        } else if (npc.outsideSince() != 0L) {
+            // 规则被关掉（enforce=false）时把计时清零：否则玩家在规则关闭期间一直待在维度外，
+            // 等哪天重新启用时会"立即到期"、不给任何宽限 —— 那是很难理解的行为。
+            npc.setOutsideSince(0L);
         }
 
         warnBeforeExpiry(player, story, npc, now);

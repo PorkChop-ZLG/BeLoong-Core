@@ -9,13 +9,15 @@
     "ticks": 72000,
     "keep_after_finish": true,
     "warn_before_ticks": 600,
-    "warn_key": "beloong.npc.story.mo.expiring"
+    "warn_key": "beloong.npc.story.mo.expiring",
+    "clear_on_logout": false
   },
   "dimension": {
     "_comment": "维度：剧情在龙宫 ⇒ 对账器扫这里（离线结算靠它）；离开超过宽限（缺省 5 分钟）就清理 + 撤回。",
     "host": "beloong:loong_palace",
     "enforce": true,
     "warn_before_ticks": 600,
-    "warn_key": "beloong.npc.story.mo.outside_dimension"
+    "warn_key": "beloong.npc.story.mo.outside_dimension",
+    "grace_ticks": 6000
   }
 }
