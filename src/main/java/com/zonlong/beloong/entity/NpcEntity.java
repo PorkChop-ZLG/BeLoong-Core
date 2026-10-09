@@ -1244,7 +1244,11 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /**
      * 「剧情已完成、且该剧情声明通关后**不保留**分身」—— 此时该玩家眼里应当看到的是**公共锚点**。
      * <p>
-     * 抽成一个方法是为了让上面两处分支读起来是同一句话；它只是两次进度查询，没有副作用。
+     * 抽成一个方法是为了让上面两处分支读起来是同一句话。
+     * <p>
+     * ⚠️ 它**不是**"纯查询"：一次进度查询（{@code isEarned(end)} —— 底层对未追踪的进度会顺手登记一条
+     * 空记录，见 {@code NpcDialogueStage} 的说明）+ 一次字段读。调用方靠 {@code &&} 的短路来避免
+     * 为"根本没开始过的玩家"付这次查询。
      */
     private static boolean finishedAndReaped(ServerPlayer player, NpcStory story) {
         return !story.keepAfterFinish()

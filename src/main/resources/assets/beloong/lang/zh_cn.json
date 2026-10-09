@@ -292,5 +292,6 @@
   "beloong.command.mynpc.no_owned_npc": "没有属于你的私有分身 —— 类型 %s，维度 %s（这条命令只作用于你自己的分身）",
   "beloong.command.mynpc.effect": "%s 获得了 %s（%s 秒）",
   "beloong.command.mynpc.effect_failed": "%s 身上已有更强的 %s，未施加",
-  "beloong.command.mynpc.tp": "已把 %s 瞬移到 %s, %s, %s"
+  "beloong.command.mynpc.tp": "已把 %s 瞬移到 %s, %s, %s",
+  "beloong.command.mynpc.not_a_player": "这条命令必须以玩家身份执行 —— 它要解析\"归属你的那只 NPC\"，命令方块/控制台没有\"你\""
 }

@@ -62,6 +62,8 @@ import java.util.Objects;
  *   /beloong mynpc &lt;type&gt; play   &lt;animation&gt; | play stop      ← 播/停表情
  *   /beloong mynpc &lt;type&gt; effect &lt;effect&gt; [seconds] [amplifier] [hideParticles]
  *   /beloong mynpc &lt;type&gt; tp     &lt;pos&gt; [yaw] [pitch]           ← 瞬移（**仅当前维度**）
+ *                                              ⚠️ {@code pos} 里的 {@code ~} 相对的是**执行者**（命令源），
+ *                                              不是被传送的那只 NPC —— 想"就地"请写绝对坐标。
  * </pre>
  *
  * <h2>为什么与 {@code npc} / {@code route} 平级</h2>
@@ -178,6 +180,13 @@ public final class MynpcCommand {
                                                         Vec3Argument.getVec3(ctx, "pos"),
                                                         null, null))
                                                 .then(Commands.argument("yaw", FloatArgumentType.floatArg(-180.0F, 180.0F))
+                                                        // 只给 yaw 也成立：pitch 省略 ⇒ 沿用当前俯仰。
+                                                        .executes(ctx -> tp(
+                                                                ctx,
+                                                                ResourceLocationArgument.getId(ctx, "type"),
+                                                                Vec3Argument.getVec3(ctx, "pos"),
+                                                                FloatArgumentType.getFloat(ctx, "yaw"),
+                                                                null))
                                                         .then(Commands.argument("pitch", FloatArgumentType.floatArg(-90.0F, 90.0F))
                                                                 .executes(ctx -> tp(
                                                                         ctx,
@@ -319,7 +328,7 @@ public final class MynpcCommand {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
             // 命令方块/控制台没有"该玩家" ⇒ 明确报错，不猜目标。
-            source.sendFailure(Component.translatable("beloong.command.route.not_a_player"));
+            source.sendFailure(Component.translatable("beloong.command.mynpc.not_a_player"));
             return null;
         }
         EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getOptional(typeId).orElse(null);
@@ -346,7 +355,12 @@ public final class MynpcCommand {
             BeLoongCore.LOGGER.warn(
                     "[BeLoong] player '{}' owns {} '{}' npcs — picking the newest for this command",
                     player.getGameProfile().getName(), mine.size(), typeId);
-            mine.sort(Comparator.comparingLong(NpcEntity::bornAt).reversed());
+            // ⚠️ 必须与对账器**逐字同一取舍**（NpcStoryHandler 的重复分身处理）：
+            // bornAt 优先，并列（旧实体的 0、或同 tick 生成）时取**离玩家最近**的那个 ——
+            // 否则命令动的那只可能正是对账器马上要删掉的那只，而类注释还宣称"同一个取舍"。
+            mine.sort(Comparator
+                    .comparingLong(NpcEntity::bornAt).reversed()
+                    .thenComparingDouble(player::distanceToSqr));
         }
         return mine.get(0);
     }

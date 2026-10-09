@@ -202,6 +202,24 @@ public class NpcStoryHandler {
                 removeDouble(npc, story, player, "logout", !finished);
             }
         }
+        // ⚠️ 退出时也要做一次"通关即回收"：对账器只遍历**在线**玩家，
+        // 若玩家在通关后的那一轮巡检之前下线（clear_on_logout 又是 false），
+        // 他的分身就会隐身滞留到下次登录 —— 那正是 keep_after_finish=false 要消除的东西。
+        for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
+            NpcStory story = entry.getValue();
+            if (story.keepAfterFinish() || !NpcDialogueStage.isEarned(player, story.endAdvancement())) {
+                continue;
+            }
+            ServerLevel level = story.requiredDimension()
+                    .map(id -> player.server.getLevel(ResourceKey.create(Registries.DIMENSION, id)))
+                    .orElse(player.serverLevel());
+            if (level == null) {
+                continue;
+            }
+            for (NpcEntity npc : doublesOf(player, level, entry.getKey())) {
+                removeDouble(npc, story, player, "finished_on_logout", false);   // 只删不撤
+            }
+        }
     }
 
     private void reconcileAll(MinecraftServer server) {

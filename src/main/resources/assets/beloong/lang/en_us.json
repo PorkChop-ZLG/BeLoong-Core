@@ -292,5 +292,6 @@
   "beloong.command.mynpc.no_owned_npc": "No private double of yours — type %s, dimension %s (this command only targets your own double)",
   "beloong.command.mynpc.effect": "%s gained %s (%s seconds)",
   "beloong.command.mynpc.effect_failed": "%s already has a stronger %s — not applied",
-  "beloong.command.mynpc.tp": "Teleported %s to %s, %s, %s"
+  "beloong.command.mynpc.tp": "Teleported %s to %s, %s, %s",
+  "beloong.command.mynpc.not_a_player": "This command must be run as a player — it resolves the npc owned by the executing player"
 }
