@@ -3,8 +3,13 @@ package com.zonlong.beloong.mixin.legendarymonsters;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.registry.ModDamageTypeTags;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.Level;
 import net.unusual.block_factorys_bosses.entity.boss.knight.UnderworldKnightEntity;
+import net.unusual.block_factorys_bosses.init.BossesRiseParticleTypes;
+import net.unusual.block_factorys_bosses.init.BossesRiseSounds;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
@@ -35,6 +40,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 不掉层；0 伤害不掉层。也顺手规避了 {@code removeOneImmuneStack()} 没有下限保护的坑
  * （扣之前判 {@code > 0}）。
  *
+ * <p><b>破防反馈</b>：真的消耗掉一层时，复刻模组"打中冥界印记"的视听反馈
+ * （{@code KnightMarkEntity.hurt:126-130} 的原样两件套：{@code KNIGHT_STACK_REMOVE} +
+ * {@code KNIGHT_HURT} 两个音效、{@code MARK_GLINT_EXP} + {@code MARK_GLINT_EXP_2} 两个粒子）。
+ * <b>只在真正扣层时播</b>：印记是"命中即碎"的一次性实体，天然不会连播；我们的标签伤害
+ * （射线是持续伤害）会高频命中，若每次都播会变成机关枪，而且层数为 0 之后再播"护盾破碎"
+ * 音效也是误导。
+ *
  * <p><b>只在服务端动作</b>：与模组自身的冥界印记路径一致（{@code KnightMarkEntity.hurt} 只在
  * {@code ServerLevel} 结算），否则客户端会改本地状态并出现表现不同步。
  *
@@ -53,7 +65,7 @@ public abstract class UnderworldKnightGuardBreakMixin {
     private static long lastLogMillis = 0L;
 
     /**
-     * 命中破防标签时，改走"无视护盾 + 扣 1 层"的结算路径。
+     * 命中破防标签时，改走"无视护盾 + 扣 1 层"的结算路径，并在真的扣层时播放破防反馈。
      *
      * @param source 伤害来源（由 Mowzie 三招转换而来的太阳伤害类型）
      * @param amount 伤害量
@@ -91,12 +103,53 @@ public abstract class UnderworldKnightGuardBreakMixin {
         boolean dealt = self.processHurt(source, amount, true);
 
         // 只有真的造成了伤害才扣层：过场(cinematic) 与 0 伤害都不会消耗护盾
+        boolean consumed = false;
         if (dealt && self.getImmuneStacks() > 0) {
             self.removeOneImmuneStack();
+            consumed = true;
+        }
+
+        // 真的扣掉一层才播反馈（与"击中冥界印记"同一套音效 + 粒子）
+        if (consumed) {
+            playMarkFeedback(self);
         }
 
         logAnchor(source, stacksBefore, self.getImmuneStacks(), dealt);
         cir.setReturnValue(dealt);
+    }
+
+    /**
+     * 复刻"击中冥界印记"的视听反馈。
+     *
+     * <p>逐项对齐 {@code KnightMarkEntity.hurt}：
+     * <pre>
+     * this.level().playSound(null, x, y + h/2, z, BossesRiseSounds.KNIGHT_STACK_REMOVE.value(), SoundSource.HOSTILE, 6.0F, 2.0F);
+     * this.level().playSound(null, x, y + h/2, z, BossesRiseSounds.KNIGHT_HURT.value(),         SoundSource.HOSTILE, 6.0F, 2.0F);
+     * serverLevel.sendParticles(BossesRiseParticleTypes.MARK_GLINT_EXP.get(),   x, y + h/2, z, 1, 0, 0, 0, 1.0);
+     * serverLevel.sendParticles(BossesRiseParticleTypes.MARK_GLINT_EXP_2.get(), x, y + h/2, z, 1, 0, 0, 0, 1.0);
+     * </pre>
+     * 与印记唯一的差别是位置：印记用它自己的坐标，这里用骑士身上（脚底 + 半身高）——因为我们的
+     * 路径没有印记实体可打。
+     *
+     * @param knight 被破防的冥界骑士
+     */
+    private static void playMarkFeedback(UnderworldKnightEntity knight) {
+        Level level = knight.level();
+        double x = knight.getX();
+        double y = knight.getY() + (double) knight.getBbHeight() * 0.5;
+        double z = knight.getZ();
+
+        level.playSound(null, x, y, z, BossesRiseSounds.KNIGHT_STACK_REMOVE.value(),
+                SoundSource.HOSTILE, 6.0F, 2.0F);
+        level.playSound(null, x, y, z, BossesRiseSounds.KNIGHT_HURT.value(),
+                SoundSource.HOSTILE, 6.0F, 2.0F);
+
+        if (level instanceof ServerLevel serverLevel) {
+            serverLevel.sendParticles(BossesRiseParticleTypes.MARK_GLINT_EXP.get(),
+                    x, y, z, 1, 0.0, 0.0, 0.0, 1.0);
+            serverLevel.sendParticles(BossesRiseParticleTypes.MARK_GLINT_EXP_2.get(),
+                    x, y, z, 1, 0.0, 0.0, 0.0, 1.0);
+        }
     }
 
     /**
