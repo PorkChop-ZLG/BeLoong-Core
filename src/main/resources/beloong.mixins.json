@@ -46,6 +46,7 @@
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
     "mowziesmobs.EntitySolarBeamSolarDamageMixin",
+    "mowziesmobs.EntitySunstrikeSolarDamageMixin",
     "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
