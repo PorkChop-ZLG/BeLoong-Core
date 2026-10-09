@@ -248,7 +248,35 @@
 
 ---
 
-## 连带改动（不在本计划范围，但必须与模组一起交付给整合包）
+## 连带改动 —— ✅ **2026-10-01 已在整合包侧执行完毕**
+
+（整合包：`D:\AAA_testclient\.minecraft\versions\BeLoong 1.4`；改动前备份在
+`kubejs/_backup_20261001/`，jar 备份为 `mods/beloong-0.10.0.jar.bak-20261001`。）
+
+| # | 动作 | 结果 |
+|---|---|---|
+| 1 | 重建并替换 jar | ✅ `build/libs/beloong-0.10.0.jar` → `mods/`（旧 jar 先改名备份；`mods` 里只留 1 个 beloong jar）|
+| 2 | 新增 `kubejs/data/beloong/beloong/npc_story/mo.json` | ✅ `end_advancement = beloong:npc/5_1`、`lifetime_ticks = -1`、**省略** `required_dimension`、`keep_after_finish = false`（显式）|
+| 3 | `mo_pool.json` 的 2 条命令 | ✅ `beloong mynpc beloong:mo effect minecraft:speed 30 1 true` + `beloong mynpc beloong:mo route beloong:mo_route_3` |
+| 4 | `dihuang_loong.json` 两处分支 | ✅ 均改为 `… grant … 3_1; beloong mynpc beloong:mo play stop` |
+| 5 | `dragon_talk.json` | ✅ `… grant … 5_1; beloong mynpc beloong:mo tp 0 64 -8` |
+| 6 | 三个 chatbox 的 `_comment` | ✅ 补上"为什么不能再用选择器指定目标"的说明（旧注释写的是"目标必须写 `@n[…]`"，已成假话）|
+| 7 | 语言键 | ✅ **无需改动** —— 语言按 key 合并（见上文更正）|
+
+**顺带做的一处框架改进**：`NpcStoryLoader` 放行 `_comment`（提交 `1325174`）——
+整合包那一侧**所有**数据文件都靠它写文档，而本 loader 会拒绝未知名。
+
+**这一轮我自己的教训（写下来）**：
+`dragon_talk.json` 被**无备份**修改了 —— 因为我在续跑的临时脚本里重写了一个 `edit()` 辅助函数，
+**漏掉了备份调用**，而第一个辅助函数是带的。所幸该文件的原文被完整读过，已按原文重建一份放进备份目录，
+并在 `README.txt` 里**标明它是重建而非原样备份**。
+📌 定规：**对不可回滚的目标（游戏实例、整合包、线上数据）改文件时，备份必须写在"真正写盘的那个函数"里**，
+不能依赖调用方记得先备份；否则一旦辅助函数被复制/重写，备份就静默消失了。
+
+---
+
+## 原始清单（留档）
+
 
 1. **先替换 jar**：整合包现有的 `beloong-0.10.2.jar` 不含多人系统，也不含本计划的命令族
 2. 新增 `kubejs/data/beloong/beloong/npc_story/mo.json`：`end_advancement = beloong:npc/5_1`、`lifetime_ticks = -1`、**省略** `required_dimension`（`keep_after_finish` 用默认 false 即可）
