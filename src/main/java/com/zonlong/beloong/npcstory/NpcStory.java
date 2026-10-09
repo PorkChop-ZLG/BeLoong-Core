@@ -143,8 +143,10 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
      *                        （否则不知道该"离开谁"）—— 加载期会拒绝这种组合。
      * @param graceTicks      离开到清理之间的**宽限**（tick），缺省
      *                        {@value NpcStory#DEFAULT_DIMENSION_GRACE_TICKS}（5 分钟）。
-     * @param warnBeforeTicks <b>可选</b>：清理前多久开始提醒；缺省
-     *                        {@value NpcStory#DEFAULT_WARN_BEFORE_TICKS}（30 秒）。写 0 = 不提醒。
+     * @param warnBeforeTicks <b>可选</b>：清理前多久开始提醒。**不写**时由 handler 用常量
+     *                        {@value NpcStory#DEFAULT_WARN_BEFORE_TICKS}（30 秒）兜底
+     *                        —— 与 {@link Lease#warnBeforeTicks()} 同一个口径：缺省值在**消费端**，
+     *                        codec 里刻意不带缺省（否则无法区分"没写"与"显式写"）。写 0 = 不提醒。
      * @param warnText        <b>可选</b>：字面文本（优先）；{@code %s} 填剩余秒数。
      * @param warnKey         <b>可选</b>：翻译键（次之）；都不写 ⇒ 内置默认键。
      */

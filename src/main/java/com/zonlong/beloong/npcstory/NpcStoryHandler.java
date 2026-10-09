@@ -95,6 +95,13 @@ public class NpcStoryHandler {
     /** 已经做过"进度 id 自检"的那次加载代号；-1 = 还没做过（见 {@link #checkStoryIdsOnce}）。 */
     private int checkedReloadStamp = -1;
 
+    /**
+     * 引用了**不存在的进度 id** 的剧情（实体类型）。这些剧情是 dead on arrival ——
+     * 永远不可能触发（起点 id 错了）或永远走不完撤回链（终点 id 错了）⇒
+     * **不给它们生成分身**（计划 T9 要求的 fail-closed），只留那条 ERROR 让人去修数据。
+     */
+    private final Set<EntityType<?>> storiesWithMissingIds = new java.util.HashSet<>();
+
     /** 连续多少轮"扫不到分身"才认定它真的丢了。防的是区块未加载造成的误判。 */
     private static final int MISSES_BEFORE_RESET = 3;
 
@@ -136,6 +143,10 @@ public class NpcStoryHandler {
             if (!story.startAdvancement().equals(earned)) {
                 continue;
             }
+            // fail-closed：进度 id 不存在的剧情不生成分身（见 storiesWithMissingIds 的注释）
+            if (this.storiesWithMissingIds.contains(entry.getKey())) {
+                continue;
+            }
 
             NpcEntity npc = ensureDouble(player, level, entry.getKey(), story);
             if (npc == null) {
@@ -166,14 +177,17 @@ public class NpcStoryHandler {
             return;
         }
         this.checkedReloadStamp = stamp;
+        this.storiesWithMissingIds.clear();
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
             NpcStory story = entry.getValue();
             for (ResourceLocation id : List.of(story.startAdvancement(), story.endAdvancement())) {
                 if (server.getAdvancements().get(id) == null) {
                     BeLoongCore.LOGGER.error(
                             "[BeLoong] npc story for '{}' references advancement '{}' which does not exist"
-                                    + " — this story can never trigger (check the data pack)",
+                                    + " — this story is disabled (no double will be spawned) until the data"
+                                    + " pack is fixed",
                             entry.getKey(), id);
+                    this.storiesWithMissingIds.add(entry.getKey());
                 }
             }
         }
@@ -254,10 +268,12 @@ public class NpcStoryHandler {
     }
 
     private void reconcileAll(MinecraftServer server) {
+        // ⚠️ 自检要放在 enabled 闸门**之前**：它是数据诊断，不是玩法逻辑 ——
+        // 总开关关着时也该把"数据引用了不存在的进度"报出来（否则作者永远看不到）。
+        checkStoryIdsOnce(server);
         if (!Config.NpcStory.enabled.get()) {
             return;
         }
-        checkStoryIdsOnce(server);
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
             reconcileStory(server, entry.getKey(), entry.getValue());
         }
@@ -269,7 +285,7 @@ public class NpcStoryHandler {
      * 效率：**每个相关维度只遍历一次实体**，同时建 {@code owner → 分身} 映射与锚点计数；
      * 再逐个在线玩家比对（O(实体 + 玩家)）。绝不在每个追踪周期都跑的代码里这么干。
      * <p>
-     * ⚠️ <b>只在"要求维度"里扫</b>（有 required_dimension 时）：
+     * ⚠️ <b>只在"要求维度"里扫</b>（有 dimension.host 时）：
      * 退而求其次去扫"每个在线玩家所在维度"会顺带扫主世界，5 秒一次，代价与收益不成比例。
      */
     private void reconcileStory(MinecraftServer server, EntityType<?> type, NpcStory story) {
@@ -282,7 +298,7 @@ public class NpcStoryHandler {
             }
             levels.add(level);
         } else {
-            // 没有 required_dimension 的剧情：退化为"扫在线玩家当前所在维度"（分身通常就在那儿）。
+            // 没有 dimension.host 的剧情：退化为"扫在线玩家当前所在维度"（分身通常就在那儿）。
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 levels.add(player.serverLevel());
             }
@@ -441,8 +457,11 @@ public class NpcStoryHandler {
         }
 
         // 有效维度（宽限期内不动它 —— 在龙宫死一次重生的那种短暂离开不该被判成弃坑）
-        if (story.requiredDimension().isPresent()) {
-            boolean inside = player.level().dimension().location().equals(story.requiredDimension().get());
+        // ⚠️ 闸门是 **dimension.enforced()**（= enforce && host 存在），**不是**"有 host 就清"：
+        // host 的职责只是"告诉对账器去哪个维度巡检"（离线结算靠它），要不要"离开就清"
+        // 由 enforce 单独决定（设计 D4）—— 两件事合成一个字段会让长流程被迫二选一。
+        if (story.dimension().enforced()) {
+            boolean inside = player.level().dimension().location().equals(story.dimension().host().get());
             if (inside) {
                 if (npc.outsideSince() != 0L) {
                     npc.setOutsideSince(0L);

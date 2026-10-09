@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.cg.CgRegistry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -228,6 +229,14 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
                                     + " lease.warn_before_ticks > 0 (it would never expire), file rejected",
                             file.getKey());
                     return;
+                }
+                // D9/D12：cg 名错了**不拒绝整文件**（坏 CG 数据不毁剧情），但必须在**加载期**点名报 ERROR，
+                // 而不是等到玩家触发时才 WARN。列表给出全部已注册的 CG 名，便于当场改对。
+                if (story.cg().filter(name -> !CgRegistry.names().contains(name)).isPresent()) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': cg '{}' is not registered — the story still loads,"
+                                    + " but no entrance CG will be played (registered: {})",
+                            file.getKey(), story.cg().get(), String.join(", ", CgRegistry.names()));
                 }
                 if (story.dimension().host().isPresent()) {
                     if (this.registryAccess == null) {
