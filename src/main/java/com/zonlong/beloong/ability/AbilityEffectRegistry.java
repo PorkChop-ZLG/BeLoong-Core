@@ -24,6 +24,9 @@ public class AbilityEffectRegistry {
             event.register(AbilityEntityEffect.REGISTRY_KEY,
                     ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "tornado"),
                     () -> TornadoEffect.CODEC);
+            event.register(AbilityEntityEffect.REGISTRY_KEY,
+                    ResourceLocation.fromNamespaceAndPath(BeLoongCore.MODID, "execute"),
+                    () -> ExecuteEffect.CODEC);
         }
     }
 }

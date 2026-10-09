@@ -127,4 +127,21 @@ public class ModMobEffects {
             "mana_loss",
             () -> new MobEffect(MobEffectCategory.HARMFUL, 0x8B008B) {}
     );
+
+    // ===================== 斩杀线（斩杀被动） =====================
+
+    /**
+     * 斩杀线效果——斩杀被动的标记。
+     *
+     * <p>由 {@link com.zonlong.beloong.registry.ExecuteMarkHandler} 在龙玩家攻击非友方生物时挂到目标身上，
+     * 由 {@link ExecuteThresholdEffect} 每 tick 判定并在血量跌破斩杀线时结算真实伤害。</p>
+     *
+     * <p><b>amplifier 就是斩杀线</b>：{@code 斩杀线 = (amplifier + 1) × 0.5%}。
+     * 放在 amplifier 里是因为它是原版<b>唯一会自动同步到客户端</b>的效果数值，
+     * 将来任何客户端表现（HUD / 血条 / 粒子）都能直接读它，不必再造网络通道。</p>
+     */
+    public static final Holder<MobEffect> EXECUTE_THRESHOLD = REGISTRY.register(
+            "execute_threshold",
+            ExecuteThresholdEffect::new
+    );
 }
