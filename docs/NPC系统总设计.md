@@ -1225,7 +1225,8 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 { "start_advancement": "beloong:npc/root", "end_advancement": "beloong:npc/2_1",
   "spawn": "anchor", "cg": "mo_entrance",
   "lifetime_ticks": 72000, "clear_on_logout": false,
-  "required_dimension": "beloong:loong_palace", "dimension_grace_ticks": 1200 }
+  "required_dimension": "beloong:loong_palace", "dimension_grace_ticks": 1200,
+  "keep_after_finish": true }
 ```
 
 - **存在声明式 + 演出事件式**：分身"该不该在"由进度区间声明，一个对账器让世界与声明一致（幂等、自愈）；
@@ -1243,6 +1244,7 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | 时间 | `lifetime_ticks` | 72000（1 小时）| `-1` = 永久；⚠️ 不用 0 表示永久 |
 | 会话 | `clear_on_logout` | false | **退出即清**（名字就是这个意思；真正的兜底是时长）|
 | 空间 | `required_dimension` + `dimension_grace_ticks` | 省略=不限 / 1200 | 离开维度超过宽限才清 ⚠️ 没有它，在龙宫死一次就会被判成弃坑 |
+| 终态 | `keep_after_finish` | **false** | 通关（获得 `end_advancement`）后是否保留分身。**默认 false = 通关即回收**，此时公共锚点重新对该玩家可见（观感连续：锚点就在剧情把 NPC 送回去的位置）。⚠️ 短剧情要"结尾它坐在那里"的观感（D6）必须**显式写 true** —— 模组自带的 `mo.json` 就是如此 |
 
 - **撤销 = 沿 `end_advancement` 的父链走回 `start_advancement`**，逐 criterion 撤
   （照原版 `AdvancementCommands.java:448-458`；`PlayerAdvancements` 只提供按 criterion 的 revoke）。
@@ -1262,11 +1264,30 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | `npcstory/NpcStoryHandler` | 事件路径（生成 + CG）+ 声明路径（对账）+ 清理/撤回 |
 | `entity/NpcEntity` | `BeloongOwner` / `BeloongBornAt` / `BeloongExpireAt` / `BeloongOutsideSince` + `broadcastToPlayer` / `visibleTo` |
 | `data/beloong/beloong/npc_story/mo.json` | 末的剧情声明 |
+| `command/MynpcCommand` | `/beloong mynpc <类型> {route|play|effect|tp}` —— 以"归属执行者的那只"为目标（供 ChatBox 选项调用）|
 | `Config.NpcStory` | 总开关 / 巡检间隔 / 到期提示提前量 |
 | 语言键 | `beloong.configuration.npcStory*`、`beloong.npc.story.expiring` |
 
 ⚠️ 旧的 `cg/MoEntranceTrigger`（"在玩家 ±48 格内就近搜一只末当演员"）**已删除**：
 演员改为按需构造，那两类问题（找不到就不播、可能挑到别人的分身）随之消失。
+
+### 12.6 让内容作者驱动"自己那只"：`/beloong mynpc`
+
+ChatBox 的选项 `click` 是以**玩家**身份执行命令的，而地图作者能用的选择器都表达不出"属于我的那只"：
+
+| 手段 | 为什么不行 |
+|---|---|
+| `@n[type=beloong:mo]` | 原版"**最近**实体"（`EntitySelectorParser.SELECTOR_NEAREST_ENTITY`）⇒ 可能选中**别人的**分身，也可能选中那只**对玩家不可见的公共锚点**（玩家刚获得起点进度时分身就生成在锚点原地，两者同坐标）|
+| `@s` | 会被 `NpcCommand.npcsIn()` 过滤掉（`@s` 是玩家）|
+| `/beloong route <名>` | 靠 `LastDialogueNpc`（最近对话过的 NPC）⇒ 在"跟 A 说话却要动 B"时必然指错 |
+
+⇒ 玩家作用域的命令族 **`/beloong mynpc <实体类型> {route|play|effect|tp}`**：
+解析规则是 `type == X ∧ BeloongOwner == 执行者 UUID` —— O(实体数)、**不依赖对话历史**、
+**结构上不可能选中公共锚点**（锚点没有归属）。一只都没有时**明确报错**，绝不退化成"最近的那只"。
+
+⚠️ 它必须与 `npc` / `route` **平级**（`beloong` 的直接子字面量）：`npc` 之后第一个节点是实体参数，
+把字面量放在同一位置会构成同名歧义（见 `RouteCommand` 的类注释）。
+⚠️ 该族的解析只查**执行者当前维度**；跨维度 `tp` 刻意不做（需要时另设计，不要顺手加 `teleportTo` 分支）。
 
 ## 附：本文与旧文档的编号对照
 
