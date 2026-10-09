@@ -208,8 +208,12 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 | T5 | ✅ 完成 | `cc9e14b` 耀斑转换 Mixin；构建通过；jar 内 10/10 目标文件落地 |
 | T6 | ✅ 完成 | `d3dfbc5` 骑士判定 Mixin + COMMON 开关；临时 `require=1` 探针无 AP 报错后还原为 `0`；lang 299/299 一致 |
 | T7 | ⚠️ **部分完成**（见下） | 骑士侧取得**字节码级证据**；耀斑/射线/打击三处改由 M1/M2 实机日志证明 |
-| M1 | ⏸ 等待用户实机 | — |
-| T8–T11 | ⏳ 待 M1 通过后继续 | — |
+| M1 | ✅ **通过**（2026-10-09 实机） | 用户 `runClient` 实测：耀斑**确实能破防**（日志锚点 `stacks=1->0 dealt=true`）；当时"看起来无效"的原因是 ① 耀斑伤害低、范围小、无破防反馈 ② **射线/打击当时还没接线**（本轮 T8/T9 已补）|
+| T8 | ✅ 完成 | `f9d02f5` 太阳射线；**E3 已用 Mixin 源码证据解决**（`@ModifyArg` javadoc：默认匹配每一条候选指令，`expect` 仅在 `mixin.debug.countInjections` 时生效 ⇒ 无需 `ordinal`）|
+| T9 | ✅ 完成 | `14ce26d` 太阳打击（两处 `Entity.hurt` 同时注入，handler 按 `on_fire` 判别，第二段燃烧保留）|
+| T10 | ✅ 完成（仅核对，未改机制） | lang 299/299 差异 0；COMMON 段在位；四条 mixin 目标描述符 `javap` 复核通过；按用户要求**不动**锚点节流与手感 |
+| M2 | ⏸ **等待用户实机** | 三招齐活验证 ⇒ 见 [验收清单](../reviews/2026-10-09-underworld-knight-solar-guard-break-acceptance.md) §2 |
+| T11 | ✅ 完成 | 验收清单 `docs/reviews/2026-10-09-underworld-knight-solar-guard-break-acceptance.md` + 调研文档 §十一（无敌判定/破防全链/魔改索引）|
 
 ### T7 详细结论（dev 专用服务端静态探针）
 
@@ -225,3 +229,5 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 
 1. **T2 不重复抄写原版 values**（计划原文写"读出原版内容再追加"）：标签是**并集**语义（源码证据：`TagLoader.load` 用 `listMatchingResourceStacks` 遍历同一 tag 路径的**所有**资源并 `list.add` 累加，除非该文件写 `"replace": true`），且项目已有先例（`data/minecraft/tags/damage_type/{bypasses_cooldown,no_knockback}.json` 里只写 `beloong:tornado`）。只写新增条目可避免原版更新后出现重复/陈旧值。
 2. **T7 范围收窄**：原计划希望"四条 Mixin 都在导出类里核对"。实际只有骑士侧满足条件（另三处的目标类在探针期间不会加载），已在下方 M1 清单里改用"实机日志的 `Mixing` 行 + 日志锚点"作为等价证据。
+3. **锚点文案**：实现里用的是 `dealt=`，设计 §3.3 的示例写的是 `consumed=`（同义，实测可读性更好，未改代码）。
+4. **T8/T9 的实机证据延后**：`EntitySolarBeam`/`EntitySunstrike` 同样只在游戏内使用时才加载，静态探针覆盖不到 ⇒ 交由 M2 的实机日志（S4/S5 两行 `Mixing` + 锚点）确认。
