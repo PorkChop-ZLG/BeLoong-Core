@@ -38,10 +38,18 @@ import java.util.Map;
  *       破防语义被刻意收窄为"只扣 1 层"，不倒地、不双倍伤害。</li>
  * </ul>
  *
- * <p><b>扣层时机</b>：先调 {@code processHurt} 并以其<b>返回值</b>为准 —— 返回 {@code true} 才扣层。
- * 这样天然覆盖两个边界：过场（{@code isCinematic()} 时 {@code processHurt} 直接返回 {@code false}）
- * 不掉层；0 伤害不掉层。也顺手规避了 {@code removeOneImmuneStack()} 没有下限保护的坑
- * （扣之前判 {@code > 0}）。
+ * <p><b>扣层时机（三个条件缺一不可）</b>：先调 {@code processHurt} 拿返回值与结算后的层数，只有同时满足
+ * <ol>
+ *   <li>{@code dealt == true} —— {@code processHurt} 返回真（等价于它的 {@code super.hurt} 被调到）；</li>
+ *   <li>{@code amount > 0} —— <b>必需</b>：{@code LivingEntity.hurt} 在 <b>0 伤害</b>时也会返回 {@code true}
+ *       （其内部 {@code flag2 = !flag || amount > 0.0F}），只看返回值会出现"没掉血却扣层、还播护盾破碎反馈"；</li>
+ *   <li>{@code stacksAfter > 0 && stacksAfter <= stacksBefore} —— <b>必需</b>：50% 血量闸门会在
+ *       {@code processHurt} 内部执行 {@code setImmuneStacks(2|1)} 把护盾<b>重新装上</b>；若
+ *       {@code stacksAfter > stacksBefore}，说明这一层是刚被闸门加回来的，不能再被同一击吃掉
+ *       （模组自带的印记路径是"先扣后结算"，我们顺序相反，必须靠这条判据）。</li>
+ * </ol>
+ * 第三条同时规避了 {@code removeOneImmuneStack()} 没有下限保护的坑（判 {@code > 0} 才扣）。
+ * 过场（{@code isCinematic()}）时 {@code processHurt} 直接返回 {@code false} ⇒ 第一条即拦住。
  *
  * <p><b>破防反馈</b>：真的消耗掉一层时，复刻模组"打中冥界印记"的视听反馈
  * （{@code KnightMarkEntity.hurt:126-130} 的原样两件套：{@code KNIGHT_STACK_REMOVE} +
@@ -115,10 +123,16 @@ public abstract class UnderworldKnightGuardBreakMixin {
         // 走"打中冥界印记"那条通道：无视护盾全额结算，保留血量闸门与动画表现
         boolean dealt = self.processHurt(source, amount, true);
 
-        // 只有真的造成了伤害才扣层：过场(cinematic) 与 0 伤害都不会消耗护盾
+        int stacksAfter = self.getImmuneStacks();
+
+        // 只扣"真的打掉的那一层"（判据见类注释）：
+        //   amount > 0                    —— 0 伤害时 LivingEntity.hurt 也会返回 true；
+        //   stacksAfter <= stacksBefore   —— 闸门可能在 processHurt 内部把盾装回来，装回来的不能再吃；
+        //   stacksAfter > 0               —— removeOneImmuneStack 没有下限保护，扣之前必须判正。
         boolean consumed = false;
-        if (dealt && self.getImmuneStacks() > 0) {
+        if (dealt && amount > 0.0F && stacksAfter > 0 && stacksAfter <= stacksBefore) {
             self.removeOneImmuneStack();
+            stacksAfter = self.getImmuneStacks();
             consumed = true;
         }
 
@@ -127,7 +141,7 @@ public abstract class UnderworldKnightGuardBreakMixin {
             playMarkFeedback(self);
         }
 
-        logHit(source, stacksBefore, self.getImmuneStacks(), dealt, healthBefore, self.getHealth(), consumed);
+        logHit(source, stacksBefore, stacksAfter, dealt, healthBefore, self.getHealth(), consumed);
         cir.setReturnValue(dealt);
     }
 
