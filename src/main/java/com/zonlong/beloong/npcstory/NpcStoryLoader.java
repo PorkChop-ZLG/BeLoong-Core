@@ -63,7 +63,11 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
     private static final Set<String> KNOWN_FIELDS = Set.of(
             "start_advancement", "end_advancement", "spawn", "cg",
             "lifetime_ticks", "clear_on_logout", "required_dimension", "dimension_grace_ticks",
-            "keep_after_finish");
+            "keep_after_finish",
+            // 数据文件里的注释键：整合包那一侧**所有**数据文件都靠它写文档
+            // （npc_route / chatbox / structure_effects 同款）。本 loader 刻意拒绝未知名，
+            // 但 `_comment` 是明确允许的例外 —— 它不参与 codec，只是给人读的。
+            "_comment");
 
     private NpcStoryLoader() {
         super(new Gson(), "beloong/npc_story");
