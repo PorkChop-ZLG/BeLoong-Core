@@ -49,6 +49,7 @@
     "mowziesmobs.EntitySunstrikeSolarDamageMixin",
     "mowziesmobs.EntitySuperNovaSolarDamageMixin",
     "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
+    "mowziesmobs.SolarFlareAbilityTuningMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
     "raidsenhanced.RaidBlimpTargetMixin"
