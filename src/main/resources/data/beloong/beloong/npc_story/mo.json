@@ -1,11 +1,19 @@
 {
+  "_comment": "末的剧情声明（多人兼容 NPC 系统）。字段含义见模组文档 docs/NPC系统总设计.md §十二，设计与决策见 docs/plans/2026-10-01-lease-offline-settlement-design.md（D1–D14）。⚠️ 2026-10-01 起字段按语义分两组（lease / dimension），**旧版平铺写法会被整文件拒绝**（报错里会直接告诉你新位置）。⚠️ 本 loader 会拒绝任何一层的未知字段名（拼错就整文件失效、日志 ERROR、表现为「分身根本不生成」），但每一层都放行 _comment。本文件的两处 warn_text 是刻意写的：内置默认键是**中性措辞**（不含地名），我们这条剧情在龙宫，所以自己提供带地名的文案。",
   "start_advancement": "beloong:npc/root",
   "end_advancement": "beloong:npc/2_1",
   "spawn": "anchor",
   "cg": "mo_entrance",
-  "lifetime_ticks": 72000,
-  "clear_on_logout": false,
-  "required_dimension": "beloong:loong_palace",
-  "dimension_grace_ticks": 1200,
-  "keep_after_finish": true
+  "lease": {
+    "_comment": "租约：末的分身活 1 小时；通关后**保留**（设计 D6：结尾「它坐在那里」对主人有意义）。",
+    "ticks": 72000,
+    "keep_after_finish": true,
+    "warn_text": "§e你的这段剧情还剩 %s 秒，超时会从龙宫入口重新开始"
+  },
+  "dimension": {
+    "_comment": "维度：剧情在龙宫 ⇒ 对账器扫这里（离线结算靠它）；离开超过宽限（缺省 5 分钟）就清理 + 撤回。",
+    "host": "beloong:loong_palace",
+    "enforce": true,
+    "warn_text": "§e你已离开龙宫，%s 秒后这段剧情会重置"
+  }
 }

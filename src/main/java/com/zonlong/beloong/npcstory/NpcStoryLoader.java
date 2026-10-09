@@ -5,7 +5,9 @@ import com.google.gson.JsonElement;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
 import com.zonlong.beloong.BeLoongCore;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
@@ -16,10 +18,12 @@ import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.JsonObject;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -60,17 +64,69 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
      * 允许出现的字段名。**必须与 {@link NpcStory#CODEC} 的字段逐一对齐** ——
      * DFU 的 codec 对写错的键是静默忽略的，所以"未知名拒绝"是这里唯一能挡住拼错的地方。
      */
-    private static final Set<String> KNOWN_FIELDS = Set.of(
-            "start_advancement", "end_advancement", "spawn", "cg",
-            "lifetime_ticks", "clear_on_logout", "required_dimension", "dimension_grace_ticks",
-            "keep_after_finish",
-            // 数据文件里的注释键：整合包那一侧**所有**数据文件都靠它写文档
-            // （npc_route / chatbox / structure_effects 同款）。本 loader 刻意拒绝未知名，
-            // 但 `_comment` 是明确允许的例外 —— 它不参与 codec，只是给人读的。
-            "_comment");
+    private static final Map<String, Set<String>> KNOWN_FIELDS = Map.of(
+            // 顶层：四个基础字段 + 两个语义组
+            "", Set.of("start_advancement", "end_advancement", "spawn", "cg",
+                    "lease", "dimension", "_comment"),
+            // 租约组
+            "lease", Set.of("ticks", "clear_on_logout", "keep_after_finish",
+                    "warn_before_ticks", "warn_text", "warn_key", "_comment"),
+            // 维度组
+            "dimension", Set.of("host", "enforce", "grace_ticks",
+                    "warn_before_ticks", "warn_text", "warn_key", "_comment"));
+
+    /**
+     * 旧版**平铺**写法 → 新位置。命中时 ERROR 里附上提示 ——
+     * 直接解决"改了代码、数据文件忘了跟着改"这类最难自己发现的错误。
+     */
+    private static final Map<String, String> LEGACY_KEYS = Map.of(
+            "lifetime_ticks", "lease.ticks",
+            "clear_on_logout", "lease.clear_on_logout",
+            "keep_after_finish", "lease.keep_after_finish",
+            "required_dimension", "dimension.host (and add dimension.enforce if you want the"
+                    + " \"left the dimension\" cleanup)",
+            "dimension_grace_ticks", "dimension.grace_ticks");
+
+    /** 供"加载后一次性自检"判断是否发生过重载（每次 {@code apply} 自增）。 */
+    private int reloadStamp;
+
+    /** 由 {@code BeLoongCore} 在 {@code AddReloadListenerEvent} 里绑定，用于加载期校验 {@code dimension.host}。 */
+    private RegistryAccess registryAccess;
 
     private NpcStoryLoader() {
         super(new Gson(), "beloong/npc_story");
+    }
+
+    /**
+     * 递归收集未知字段名，返回 {@code "组.键"} 形式的路径（顶层只给键名）。
+     * <p>
+     * ⚠️ 必须递归：嵌层组里写错一个键，DFU 会**静默取缺省**，症状是"字段白写、毫无反馈"。
+     */
+    private static List<String> unknownKeys(JsonObject json, String group) {
+        List<String> unknown = new ArrayList<>();
+        Set<String> allowed = KNOWN_FIELDS.getOrDefault(group, Set.of());
+        for (String key : json.keySet()) {
+            if (allowed.contains(key)) {
+                continue;
+            }
+            unknown.add(group.isEmpty() ? key : group + "." + key);
+            // 已知的组即使自身合法也要继续往里查；未知的键则不再下降（避免报一堆无意义的路径）
+            JsonElement child = json.get(key);
+            if (child instanceof JsonObject nested && KNOWN_FIELDS.containsKey(key)) {
+                unknown.addAll(unknownKeys(nested, key));
+            }
+        }
+        return unknown;
+    }
+
+    /** 由 {@code BeLoongCore} 在 {@code AddReloadListenerEvent} 中调用（每次重载都会重新绑定）。 */
+    public void bindRegistryAccess(RegistryAccess access) {
+        this.registryAccess = access;
+    }
+
+    /** 本次加载的代号（自增）；调用方据此判断"是否发生过重载"以决定要不要重跑一次性自检。 */
+    public int reloadStamp() {
+        return this.reloadStamp;
     }
 
     @Override
@@ -92,12 +148,21 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
             // 先拒"未知字段名"：DFU 的 codec 对写错的键是**静默忽略**（取默认值顶上），
             // 症状是"字段白写、毫无反馈"。已知键集合必须与 NpcStory.CODEC 的字段**逐一对齐**。
             if (file.getValue() instanceof JsonObject json) {
-                Set<String> unknown = new java.util.TreeSet<>(json.keySet());
-                unknown.removeAll(KNOWN_FIELDS);
+                List<String> unknown = unknownKeys(json, "");
                 if (!unknown.isEmpty()) {
-                    BeLoongCore.LOGGER.error(
-                            "npc story file '{}' has unknown field(s) {} — ignored (check spelling)",
-                            file.getKey(), unknown);
+                    // 报错不静默：逐条点名到"哪个组里的哪个键"，旧写法额外给迁移提示
+                    for (String path : unknown) {
+                        String legacy = LEGACY_KEYS.get(path);
+                        if (legacy != null) {
+                            BeLoongCore.LOGGER.error(
+                                    "npc story file '{}': '{}' is the OLD flat layout — it must now be"
+                                            + " written as '{}'", file.getKey(), path, legacy);
+                        } else {
+                            BeLoongCore.LOGGER.error(
+                                    "npc story file '{}': unknown field '{}' — file rejected"
+                                            + " (check spelling)", file.getKey(), path);
+                        }
+                    }
                     return;
                 }
             }
@@ -111,11 +176,72 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
                             "npc story file '{}' names an unknown entity type, ignored", file.getKey());
                     return;
                 }
-                if (story.lifetimeTicks() < -1L) {
+                // ── 取值校验：一律"整文件拒绝 + ERROR"，绝不静默取缺省 ──
+                if (story.lease().ticks() < -1L) {
                     BeLoongCore.LOGGER.error(
-                            "npc story file '{}' has lifetime_ticks {} — only -1 (permanent) or >= 0 is allowed, ignored",
-                            file.getKey(), story.lifetimeTicks());
+                            "npc story file '{}': lease.ticks {} — only -1 (permanent) or >= 0 is allowed,"
+                                    + " file rejected", file.getKey(), story.lease().ticks());
                     return;
+                }
+                if (story.lease().warnBeforeTicks().orElse(0L) < 0L) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': lease.warn_before_ticks must be >= 0, file rejected",
+                            file.getKey());
+                    return;
+                }
+                if (story.dimension().graceTicks() < 0L) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': dimension.grace_ticks must be >= 0, file rejected",
+                            file.getKey());
+                    return;
+                }
+                if (story.dimension().warnBeforeTicks().orElse(0L) < 0L) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': dimension.warn_before_ticks must be >= 0, file rejected",
+                            file.getKey());
+                    return;
+                }
+                if (story.lease().warnText().filter(String::isBlank).isPresent()
+                        || story.dimension().warnText().filter(String::isBlank).isPresent()) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': warn_text must not be blank (remove the field to use the"
+                                    + " default key), file rejected", file.getKey());
+                    return;
+                }
+                if (story.lease().warnKey().filter(k -> !isValidKey(k)).isPresent()
+                        || story.dimension().warnKey().filter(k -> !isValidKey(k)).isPresent()) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': warn_key must be a valid resource location"
+                                    + " (e.g. 'beloong.npc.story.expiring'), file rejected", file.getKey());
+                    return;
+                }
+                if (story.dimension().enforce() && story.dimension().host().isEmpty()) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': dimension.enforce=true requires dimension.host"
+                                    + " (otherwise there is no dimension to leave), file rejected",
+                            file.getKey());
+                    return;
+                }
+                if (story.lease().isPermanent() && story.lease().warnBeforeTicks().orElse(0L) > 0L) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': lease.ticks=-1 (permanent) cannot have"
+                                    + " lease.warn_before_ticks > 0 (it would never expire), file rejected",
+                            file.getKey());
+                    return;
+                }
+                if (story.dimension().host().isPresent()) {
+                    if (this.registryAccess == null) {
+                        // 属于我们的接线问题（不在数据作者身上）：绑定点在 BeLoongCore 的事件里。
+                        BeLoongCore.LOGGER.warn(
+                                "npc story file '{}': registry access not bound — skipping"
+                                        + " dimension.host validation", file.getKey());
+                    } else if (!this.registryAccess.registryOrThrow(Registries.LEVEL_STEM)
+                            .containsKey(story.dimension().host().get())) {
+                        BeLoongCore.LOGGER.error(
+                                "npc story file '{}': dimension.host '{}' does not exist, file rejected",
+                                file.getKey(), story.dimension().host().get());
+                        return;
+                    }
                 }
                 if (!NpcStory.SPAWN_ANCHOR.equals(story.spawn())) {
                     BeLoongCore.LOGGER.error(
@@ -137,9 +263,20 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
         this.stories = Collections.unmodifiableMap(ordered);
         // 同时打印扫描数与装载数 —— 理由同 NpcDialogueLoader：数据放错树时扫描数恒为 0，
         // 而症状是"一切都像没生效、且不报任何错"。
+        this.reloadStamp++;
         BeLoongCore.LOGGER.info(
                 "[BeLoong] reloaded npc stories: {} file(s) scanned, {} story(ies) loaded",
                 files.size(), this.stories.size());
+    }
+
+    /**
+     * 翻译键的**格式**校验：必须是一个合法的 resource location
+     * （{@code beloong.npc.story.expiring} 这种点分形式是合法的 —— 点允许出现在 path 里）。
+     * <p>
+     * ⚠️ 只能查格式：**键是否存在是客户端语言文件的事**，服务端看不到（设计 D10）。
+     */
+    private static boolean isValidKey(String key) {
+        return ResourceLocation.tryParse(key) != null;
     }
 
     /** 按**实体类型**查剧情声明；没有则返回 {@code null}（调用方据此走"普通 NPC"分支）。 */

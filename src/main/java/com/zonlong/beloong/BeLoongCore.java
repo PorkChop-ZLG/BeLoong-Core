@@ -212,6 +212,10 @@ public class BeLoongCore {
         event.addListener(WaystonePlacementLoader.INSTANCE);
         event.addListener(NpcDialogueLoader.INSTANCE);   // NPC 对话（服务端权威，读 data/ 树）
         event.addListener(NpcRouteLoader.INSTANCE);      // NPC 路线（同上，目录 beloong/npc_route）
+        // 交给加载器 registry access —— 只为让它能在**加载期**校验 dimension.host 是否存在
+        // （维度没有静态注册表，而 AddReloadListenerEvent 正好带着这次重载的 RegistryAccess）。
+        // 每次重载都会重新绑定；加载器本身仍是单例 INSTANCE。
+        NpcStoryLoader.INSTANCE.bindRegistryAccess(event.getRegistryAccess());
         event.addListener(NpcStoryLoader.INSTANCE);     // NPC 剧情声明（同上，目录 beloong/npc_story）
     }
 
