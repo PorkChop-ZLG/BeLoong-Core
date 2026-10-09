@@ -44,6 +44,7 @@
     "legendarymonsters.SmallAnnihilationBombEntityOnHitGuardMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
+    "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
     "raidsenhanced.RaidBlimpTargetMixin"
