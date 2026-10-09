@@ -191,7 +191,8 @@ public class Config {
      *
      * <p>消费方：{@code mixin/legendarymonsters/UnderworldKnightGuardBreakMixin}。
      * 判定入口是伤害类型标签 {@code beloong:underworld_knight_guard_break}
-     * （见 {@code registry/ModDamageTypeTags}），目前由 Mowzie 的太阳三招供给伤害类型。
+     * （见 {@code registry/ModDamageTypeTags}），目前由 Mowzie 的太阳四招供给伤害类型
+ * （太阳耀斑 / 太阳射线 / 太阳打击 / 超新星燃烧）。
      *
      * <p>关联设计：{@code docs/plans/2026-10-09-underworld-knight-solar-guard-break-design.md}。
      */
@@ -246,8 +247,8 @@ public class Config {
         COMMON_BUILDER.push("solar_guard_break");
 
         SolarGuardBreak.enabled = COMMON_BUILDER
-                .comment("Let Mowzie's sun damage (solar flare / solar beam / sun strike) pierce the Underworld Knight's shield, consuming one immune stack per hit",
-                        "允许 Mowzie 的太阳伤害（太阳耀斑 / 太阳射线 / 太阳打击）击穿《首领崛起》冥界骑士的护盾，每次命中扣 1 层免疫层数")
+                .comment("Let Mowzie's sun damage (solar flare / solar beam / sun strike / supernova) pierce the Underworld Knight's shield, consuming one immune stack per hit; also gates the damage-type conversion itself",
+                        "允许 Mowzie 的太阳伤害（太阳耀斑 / 太阳射线 / 太阳打击 / 超新星燃烧）击穿《首领崛起》冥界骑士的护盾，每次命中扣 1 层免疫层数；同时控制伤害类型转换本身（关闭后连类型都不换）")
                 .translation("beloong.configuration.solarGuardBreakEnabled")
                 .define("enabled", true);
 

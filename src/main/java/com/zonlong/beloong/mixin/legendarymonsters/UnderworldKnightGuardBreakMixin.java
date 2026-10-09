@@ -41,12 +41,21 @@ import java.util.Map;
  * <p><b>扣层时机（三个条件缺一不可）</b>：先调 {@code processHurt} 拿返回值与结算后的层数，只有同时满足
  * <ol>
  *   <li>{@code dealt == true} —— {@code processHurt} 返回真（等价于它的 {@code super.hurt} 被调到）；</li>
- *   <li>{@code amount > 0} —— <b>必需</b>：{@code LivingEntity.hurt} 在 <b>0 伤害</b>时也会返回 {@code true}
- *       （其内部 {@code flag2 = !flag || amount > 0.0F}），只看返回值会出现"没掉血却扣层、还播护盾破碎反馈"；</li>
- *   <li>{@code stacksAfter > 0 && stacksAfter <= stacksBefore} —— <b>必需</b>：50% 血量闸门会在
- *       {@code processHurt} 内部执行 {@code setImmuneStacks(2|1)} 把护盾<b>重新装上</b>；若
- *       {@code stacksAfter > stacksBefore}，说明这一层是刚被闸门加回来的，不能再被同一击吃掉
- *       （模组自带的印记路径是"先扣后结算"，我们顺序相反，必须靠这条判据）。</li>
+ *   <li>{@code amount > 0} —— <b>必需，但只挡住"调用方传入"的 0 / 负数 / NaN</b>：
+ *       {@code LivingEntity.hurt} 在 0 伤害时也会返回 {@code true}（其内部 {@code flag2 = !flag || amount > 0.0F}），
+ *       只看返回值会出现"没掉血却扣层、还播护盾破碎反馈"。<b>边界</b>：伤害若在 {@code super.hurt} 内部
+ *       被护甲 / 抗性 / 吸收吃光，或被别的模组在 {@code LivingIncomingDamageEvent#setAmount(0)} /
+ *       {@code LivingDamageEvent.Pre#setNewDamage(0)} 里削到 0，我们<b>看不到</b>，此时仍然扣 1 层 ——
+ *       这是有意取舍（护盾是<b>命中计数</b>而非伤害阈值），靠锚点的 {@code hp=before->after} 观测；</li>
+ *   <li>{@code stacksAfter > 0 && stacksAfter <= stacksBefore} —— <b>必需</b>：结算过程中模组自己会写层数，
+ *       已知<b>两条</b>可达路径都会"把盾写回来"：① 50% 血量闸门（{@code UnderworldKnightEntity.java:460/462}
+ *       的 {@code setImmuneStacks(2|1)}，净增）；② <b>死亡取消 {@code shouldCancelDeath}（{@code :530/:541}
+ *       的 {@code setImmuneStacks(1)}）</b> —— 可达链为 {@code LivingEntity.actuallyHurt} →
+ *       {@code AbstractBossEntity.onDamageTaken} → {@code maybeCancelDeath} → {@code shouldCancelDeath}，
+ *       它正是 {@code hp=0.1} 假死的来源。若 {@code stacksAfter > stacksBefore}，说明这一层是刚被模组写回来的，
+ *       不能再被同一击吃掉（模组自带的印记路径是"先扣后结算"，我们顺序相反，必须靠这条判据）。
+ *       <b>已知残余</b>：模组把层数写成"小于等于当前值"时拦不住 —— {@code 1->1} 可接受（等于这一击扣掉 1 层），
+ *       但 phase 2 且 {@code stacksBefore == 2} 时会 {@code 2->1} 被我们再扣成 0（罕见，已登记验收"待观察"）。</li>
  * </ol>
  * 第三条同时规避了 {@code removeOneImmuneStack()} 没有下限保护的坑（判 {@code > 0} 才扣）。
  * 过场（{@code isCinematic()}）时 {@code processHurt} 直接返回 {@code false} ⇒ 第一条即拦住。
@@ -60,6 +69,15 @@ import java.util.Map;
  *
  * <p><b>只在服务端动作</b>：与模组自身的冥界印记路径一致（{@code KnightMarkEntity.hurt} 只在
  * {@code ServerLevel} 结算），否则客户端会改本地状态并出现表现不同步。
+ *
+ * <p><b>对第三方注入的影响</b>：我们在 {@code HEAD} 处 {@code cancel} 并自行结算 ⇒ 其它模组打在
+ * {@code UnderworldKnightEntity#hurt} <b>后半段（TAIL / 靠后的 @Inject）</b>的注入会被这次调用跳过。
+ * 目前没有其它模组注入该方法的记录；若将来出现，需要改成"只翻 flag、不取消"的写法。
+ *
+ * <p><b>计数的生命周期</b>：{@code totalHits} / {@code dealtHits} / {@code HITS_BY_SOURCE} 是<b>进程级</b>
+ * 静态量，跨世界、跨骑士累计且不随读档重置 ⇒ 换世界后 {@code #序号} 与 {@code totals} 会从旧值继续；
+ * 多只骑士同时在场时，1 秒聚合行会互相压制（<b>层数变化行不受影响，永远记录</b>）。
+ * 这是有意的取舍：不为一条诊断日志引入世界加载重置钩子。
  *
  * <p>「首领崛起」在本模组是<b>可选</b>依赖（{@code compileOnly} + {@code localRuntime}），
  * 因此这里用 {@code @Pseudo} + {@code require = 0}：未安装时本 Mixin 整体跳过，
@@ -126,8 +144,8 @@ public abstract class UnderworldKnightGuardBreakMixin {
         int stacksAfter = self.getImmuneStacks();
 
         // 只扣"真的打掉的那一层"（判据见类注释）：
-        //   amount > 0                    —— 0 伤害时 LivingEntity.hurt 也会返回 true；
-        //   stacksAfter <= stacksBefore   —— 闸门可能在 processHurt 内部把盾装回来，装回来的不能再吃；
+        //   amount > 0                    —— 挡住调用方传入的 0/负/NaN（被护甲或其它模组事件削到 0 仍扣 1 层，属有意）；
+        //   stacksAfter <= stacksBefore   —— 模组可能在结算中把盾写回来（50% 闸门 :460/:462、shouldCancelDeath :530/:541）；
         //   stacksAfter > 0               —— removeOneImmuneStack 没有下限保护，扣之前必须判正。
         boolean consumed = false;
         if (dealt && amount > 0.0F && stacksAfter > 0 && stacksAfter <= stacksBefore) {
