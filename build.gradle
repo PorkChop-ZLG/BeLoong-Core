@@ -145,8 +145,8 @@ configurations {
 dependencies {
     // Dragon Survival - required dependency
     implementation "curse.maven:dragons-survival-420799:8973485"
-    // GeckoLib - required by Dragon Survival
-    implementation "curse.maven:geckolib-388172:8350073"
+    // GeckoLib
+    implementation "curse.maven:geckolib-388172:8893490"
 
     // ChatBox — 必选依赖（视觉小说式对话框，GALGAME 风格）
     // 参考源：开源模组参考文件\chatbox（github.com/zhenshiz/chatbox，GPL-3.0）
@@ -265,6 +265,11 @@ dependencies {
     // 注：本坐标只影响编译/开发运行时；对整合包声明的依赖版本不做改动。
     compileOnly "curse.maven:legendary-monsters-944035:8902342"
     localRuntime "curse.maven:legendary-monsters-944035:8902342"
+
+    // Bosses'Rise（首领崛起）— 可选依赖（内部 mod id = block_factorys_bosses，displayName = Bosses'Rise）
+    // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
+    compileOnly "curse.maven:bossesrise-1314084:8123167"
+    localRuntime "curse.maven:bossesrise-1314084:8123167"
 
     // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
     localRuntime "curse.maven:vanillabackport-417430:8229724"
