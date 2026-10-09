@@ -16,6 +16,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 让「可破防」标签里的伤害击穿冥界骑士（赫尔瓦）的护盾，并按设计每次命中扣 1 层免疫层数。
  *
@@ -58,11 +61,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = UnderworldKnightEntity.class, remap = false)
 public abstract class UnderworldKnightGuardBreakMixin {
 
-    /** 日志锚点节流间隔（毫秒）：太阳射线是持续伤害，不节流会刷屏。 */
-    private static final long LOG_THROTTLE_MS = 5000L;
+    /** 计数行的最小间隔（毫秒）：太阳射线是持续伤害，逐条打印会刷屏；**层数变化行不受此限**。 */
+    private static final long COUNT_LOG_MIN_INTERVAL_MS = 1000L;
 
-    /** 上次打印锚点的时间戳（毫秒）；只在服务端主线程读写，无需同步。 */
-    private static long lastLogMillis = 0L;
+    /** 累计命中次数（进程内；服务端主线程单线程读写，无需同步）。 */
+    private static int totalHits = 0;
+
+    /** 累计"真的造成了伤害"的命中次数。 */
+    private static int dealtHits = 0;
+
+    /** 按伤害类型 id 分别累计的命中次数。 */
+    private static final Map<String, Integer> HITS_BY_SOURCE = new HashMap<>();
+
+    /** 上次输出计数行的时间戳（毫秒）。 */
+    private static long lastCountLogMillis = 0L;
 
     /**
      * 命中破防标签时，改走"无视护盾 + 扣 1 层"的结算路径，并在真的扣层时播放破防反馈。
@@ -98,6 +110,7 @@ public abstract class UnderworldKnightGuardBreakMixin {
         }
 
         int stacksBefore = self.getImmuneStacks();
+        float healthBefore = self.getHealth();
 
         // 走"打中冥界印记"那条通道：无视护盾全额结算，保留血量闸门与动画表现
         boolean dealt = self.processHurt(source, amount, true);
@@ -114,7 +127,7 @@ public abstract class UnderworldKnightGuardBreakMixin {
             playMarkFeedback(self);
         }
 
-        logAnchor(source, stacksBefore, self.getImmuneStacks(), dealt);
+        logHit(source, stacksBefore, self.getImmuneStacks(), dealt, healthBefore, self.getHealth(), consumed);
         cir.setReturnValue(dealt);
     }
 
@@ -153,23 +166,42 @@ public abstract class UnderworldKnightGuardBreakMixin {
     }
 
     /**
-     * 打印锚点日志（节流），用于确认注入真的生效。
+     * 计数式锚点：每次命中都累加计数，日志里带上"第几次命中 / 本类型累计 / 层数 / 是否真的掉血 /
+     * 血量变化 / 全场累计统计"。
      *
-     * <p>日志一律英文 ASCII；缺了这行就说明骑士侧注入没生效（未装「首领崛起」或上游改了签名）。
+     * <p><b>输出策略</b>：层数发生变化（真正的破防）**必定记录**；其余命中按
+     * {@value #COUNT_LOG_MIN_INTERVAL_MS} 毫秒聚合，避免太阳射线持续命中时刷屏。
+     * 之前是"5 秒内只留一条、且不带计数"，导致一次连打只看得到 1 行、无法判断真实效果。
+     *
+     * <p><b>为什么记 {@code hp=before->after}</b>：{@code dealt=true} 只说明
+     * {@code super.hurt} 被调到了，最终数值仍可能被护甲 / 抗性 / 无敌帧削减到 0；
+     * 血量前后对比才能回答"到底有没有掉血"。
+     *
+     * <p>日志一律英文 ASCII；锚点整体缺失说明骑士侧注入没生效（未装「首领崛起」或上游改了签名）。
      */
-    private static void logAnchor(DamageSource source, int stacksBefore, int stacksAfter, boolean dealt) {
-        long now = System.currentTimeMillis();
-        if (now - lastLogMillis < LOG_THROTTLE_MS) {
-            return;
-        }
-        lastLogMillis = now;
-
+    private static void logHit(DamageSource source, int stacksBefore, int stacksAfter, boolean dealt,
+            float healthBefore, float healthAfter, boolean consumed) {
         String typeId = source.typeHolder()
                 .unwrapKey()
                 .map(key -> key.location().toString())
                 .orElse(source.getMsgId());
+
+        totalHits++;
+        if (dealt) {
+            dealtHits++;
+        }
+        int sourceHits = HITS_BY_SOURCE.merge(typeId, 1, Integer::sum);
+
+        boolean stacksChanged = stacksBefore != stacksAfter;
+        long now = System.currentTimeMillis();
+        if (!stacksChanged && now - lastCountLogMillis < COUNT_LOG_MIN_INTERVAL_MS) {
+            return;
+        }
+        lastCountLogMillis = now;
+
         BeLoongCore.LOGGER.info(
-                "[BeLoong] solar-guard-break: source={} stacks={}->{} dealt={}",
-                typeId, stacksBefore, stacksAfter, dealt);
+                "[BeLoong] solar-guard-break: #{} source={} (this-source={}) stacks={}->{} consumed={} dealt={} hp={}->{} | totals: hits={} dealt={} bySource={}",
+                totalHits, typeId, sourceHits, stacksBefore, stacksAfter, consumed, dealt,
+                healthBefore, healthAfter, totalHits, dealtHits, HITS_BY_SOURCE);
     }
 }
