@@ -233,6 +233,18 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# Bosses'Rise（首领崛起）— 可选兼容：让"可破防"标签（beloong:underworld_knight_guard_break）
+# 里的伤害击穿冥界骑士（赫尔瓦）的护盾，每次命中扣 1 层免疫层数。
+# 注入的是 UnderworldKnightEntity#hurt（HEAD，cancellable），上游改名改签名会让注入静默失效，
+# 因此与 raidsenhanced 同一条纪律：写 versionRange 让「版本不匹配」在启动日志里可见。
+# 已从该 jar 的 META-INF/neoforge.mods.toml 核实：modId=block_factorys_bosses、version=2.1.2。
+[[dependencies.${mod_id}]]
+    modId="block_factorys_bosses"
+    type="optional"
+    versionRange="[2.1.2,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.
