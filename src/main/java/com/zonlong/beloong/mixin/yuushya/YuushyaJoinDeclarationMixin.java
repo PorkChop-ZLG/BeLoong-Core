@@ -2,7 +2,6 @@ package com.zonlong.beloong.mixin.yuushya;
 
 import com.yuushya.Yuushya;
 import com.zonlong.beloong.BeLoongCore;
-import com.zonlong.beloong.Config;
 import dev.architectury.event.Event;
 import dev.architectury.event.events.common.PlayerEvent;
 import org.spongepowered.asm.mixin.Mixin;
@@ -43,11 +42,21 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * <p><b>可选依赖处理</b>：{@code @Pseudo} + {@code require = 0} —— 未安装《方块小镇》时本 Mixin
  * 整体跳过（不崩、无日志）；上游若改了注册方式导致注入点匹配不到，也只会静默失效
  * （表现为"声明又出现了"），不会影响游戏启动。这也是为什么加了一条
- * <b>进程内只打一次</b>的 INFO 锚点：日志里出现 {@code yuushya-declaration: suppressed ...}
+ * <b>进程内只打一次</b>的 INFO 锚点：启动日志里出现
+ * {@code yuushya-declaration: dropped the PlayerJoin declaration listener at registration time}
  * 就说明拦截生效；反之说明没匹配上。
  *
- * <p><b>配置</b>：{@code [yuushya_declaration] suppress}（COMMON，默认 true = 屏蔽）。
- * 关闭后本 Mixin 不再拦截，声明消息恢复原样。
+ * <p><b>拦截时机（重要）</b>：不是"进世界的那一刻"，而是<b>更早</b> ——
+ * <ol>
+ *   <li>Mixin 在 {@code com.yuushya.Yuushya} <b>类加载</b>时就把 {@code init()} 里的
+ *       {@code Event.register} 调用点改写成了本 handler；</li>
+ *   <li>loader 入口（{@code com.yuushya.neoforge.YuushyaNeoForge}）在<b>模组构造阶段</b>调用
+ *       {@code Yuushya.init()}，此时本 handler 顶替原调用并直接返回 ⇒
+ *       <b>那个 PlayerJoin 监听器从未被注册进事件总线</b>；</li>
+ *   <li>于是玩家之后无论进多少次世界，事件总线里根本没有它 —— 消息<b>既不构造也不发送</b>
+ *       （不是"发出来再吞掉"）；本模组的锚点日志也因此在<b>游戏启动时</b>出现，而不是进世界时。</li>
+ * </ol>
+ * 也就是说：每局游戏只发生一次拦截（注册期），之后零开销、无 per-join 判断。
  *
  * <p>Mowzie / 首领崛起之外的第三个"可选依赖"目标；该模组依赖通过 {@code local-repo/}
  * 优先本地解析（体积约 27 MB，见 build.gradle）。
@@ -78,11 +87,11 @@ public abstract class YuushyaJoinDeclarationMixin {
     )
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void beloong$skipJoinDeclaration(Event event, Object listener) {
-        if (Config.YuushyaDeclaration.suppress.get() && listener instanceof PlayerEvent.PlayerJoin) {
+        if (listener instanceof PlayerEvent.PlayerJoin) {
             if (!beloong$declarationSkipLogged) {
                 beloong$declarationSkipLogged = true;
                 BeLoongCore.LOGGER.info(
-                        "[BeLoong] yuushya-declaration: suppressed the PlayerJoin declaration message (config: yuushya_declaration.suppress)");
+                        "[BeLoong] yuushya-declaration: dropped the PlayerJoin declaration listener at registration time");
             }
             return;
         }
