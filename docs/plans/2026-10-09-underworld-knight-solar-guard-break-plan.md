@@ -212,8 +212,11 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 | T8 | ✅ 完成 | `f9d02f5` 太阳射线；**E3 已用 Mixin 源码证据解决**（`@ModifyArg` javadoc：默认匹配每一条候选指令，`expect` 仅在 `mixin.debug.countInjections` 时生效 ⇒ 无需 `ordinal`）|
 | T9 | ✅ 完成 | `14ce26d` 太阳打击（两处 `Entity.hurt` 同时注入，handler 按 `on_fire` 判别，第二段燃烧保留）|
 | T10 | ✅ 完成（仅核对，未改机制） | lang 299/299 差异 0；COMMON 段在位；四条 mixin 目标描述符 `javap` 复核通过；按用户要求**不动**锚点节流与手感 |
-| M2 | ⏸ **等待用户实机** | 三招齐活验证 ⇒ 见 [验收清单](../reviews/2026-10-09-underworld-knight-solar-guard-break-acceptance.md) §2 |
+| M2 | ✅ **通过**（2026-10-09 实机） | 三招全部生效：伤害落地 + 破防（日志锚点全部为 `solar_beam/solar_flare` 且层数 1→0）；四条 mixin 应用行齐全；无注册表/标签错误 |
 | T11 | ✅ 完成 | 验收清单 `docs/reviews/2026-10-09-underworld-knight-solar-guard-break-acceptance.md` + 调研文档 §十一（无敌判定/破防全链/魔改索引）|
+| T12 | ✅ 完成 | `c642dd5` 破防反馈：真的扣层时复刻"击中冥界印记"的两个音效 + 两个粒子（对齐 `KnightMarkEntity.hurt:126-130`）|
+| T13 | ✅ 完成 | `e69b650` 计数式锚点：层数变化必记（不受节流）+ 其余 1 秒聚合 + `#序号`/分类计数/`hp=before->after`/`totals: hits=… dealt=…` |
+| T14 | ⏳ 待下一轮实机 | 验收清单 §2.1（T12/T13 项）+ **T4 死亡信息**（两轮实机里骑士都没被太阳伤害打死，仍待验证）|
 
 ### T7 详细结论（dev 专用服务端静态探针）
 

@@ -240,3 +240,24 @@ R1 太阳三招打**其它**生物数值/行为不变；R2 骑士其它机制（
 
 1. 用 `planning` 技能把本设计拆成可执行任务（数据层 → Mowzie 转换层 → 骑士判定层 → 观测层 → 验证）
 2. 实施后在本仓库 `memory/decisions-log.md` 记录实际结果，并把"无敌判定 + 破防全链 + 本次设计索引"补进 `docs/首领崛起-冥界骑士-调研.md`
+
+---
+
+## 增补（2026-10-09 · M2 实机通过之后）
+
+M2 实机确认三招全部生效（伤害落地 + 破防击穿护盾），随后按用户要求补了两项 —— **本节优先于 §3.3 的示例**：
+
+1. **破防反馈（T12，提交 `c642dd5`）**：真的消耗掉一层时，复刻模组"击中冥界印记"的视听反馈：
+   `BossesRiseSounds.KNIGHT_STACK_REMOVE` + `KNIGHT_HURT`（`SoundSource.HOSTILE`，音量 6 / 音调 2）
+   ＋ `BossesRiseParticleTypes.MARK_GLINT_EXP` + `MARK_GLINT_EXP_2`（各 1 个），
+   逐项对齐 `KnightMarkEntity.hurt:126-130`；唯一差别是位置用骑士本身（脚底 + 半身高）而不是印记实体。
+   **只在真正扣层时播**：印记"命中即碎"天然不会连播，而标签伤害（射线是持续伤害）每次都播会变机关枪，
+   且层数归零后再播"护盾破碎"音效属于误导。**不做** actionbar 提示（模组那句提示的语义是"被击倒"，与"只扣 1 层"不符）。
+2. **计数式锚点（T13，提交 `e69b650`）**：取代原 §3.3 的"5 秒节流单行"。新规则：
+   - **层数发生变化（真正的破防）必定记录**，不受节流限制；
+   - 其余命中按 **1 秒** 聚合，避免射线持续命中刷屏；
+   - 每行携带：`#累计序号`、来源类型、**该类型累计次数**、`stacks=a->b`、`consumed`、`dealt`、
+     **`hp=before->after`**（回答"到底有没有掉血"）、`totals: hits=… dealt=… bySource={…}`。
+   - 示例：`[BeLoong] solar-guard-break: #12 source=mowziesmobs:solar_beam (this-source=10) stacks=0->0 consumed=false dealt=true hp=180.0->178.0 | totals: hits=12 dealt=11 bySource={mowziesmobs:solar_beam=10, mowziesmobs:solar_flare=2}`
+
+**仍未验证**：T4（用太阳伤害打死骑士时的中英死亡信息文案）—— 2026-10-09 的两轮实机里骑士都没被太阳伤害打死，留待下一轮。
