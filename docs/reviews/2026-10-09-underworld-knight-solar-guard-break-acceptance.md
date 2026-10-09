@@ -1,7 +1,7 @@
 # 冥界骑士「太阳破防」验收清单
 
-**被测版本：** BeLoong-Core **0.10.3**（含提交 `eb69ab1` … `14ce26d`）
-**日期：** 2026-10-09
+**被测版本：** BeLoong-Core **0.10.3**（含提交 `eb69ab1` … `ba42c8d`；M1–M4 四轮实机全部通过）
+**日期：** 2026-10-09（同日收尾）
 **设计 / 计划：** [设计文档](../plans/2026-10-09-underworld-knight-solar-guard-break-design.md) ／ [实施计划](../plans/2026-10-09-underworld-knight-solar-guard-break-plan.md)
 **执行方：** 实机部分由你在整合包侧执行；静态项（构建、`javap`、jar 内容、lang 键一致性）已由开发方完成（见计划文档"执行日志"）
 
@@ -29,7 +29,7 @@
 |---|---|---|
 | S1 | `Mixing mowziesmobs.SolarFlareAbilitySolarDamageMixin … into …SolarFlareAbility` | 耀斑注入生效（**首次使用耀斑时**才打印，因为 Mixin 在类加载时应用）|
 | S2 | `Mixing legendarymonsters.UnderworldKnightGuardBreakMixin … into …UnderworldKnightEntity` | 骑士侧判定生效 |
-| S3 | **不应**出现 `Registry loading errors` / `missing following references` | 3 个伤害类型 json + 标签正确加载 |
+| S3 | **不应**出现 `Registry loading errors` / `missing following references` | 4 个伤害类型 json + 标签正确加载 |
 | S4 | `Mixing mowziesmobs.EntitySolarBeamSolarDamageMixin … into …EntitySolarBeam` | 射线注入生效（首次使用射线后）|
 | S5 | `Mixing mowziesmobs.EntitySunstrikeSolarDamageMixin … into …EntitySunstrike` | 太阳打击注入生效（首次触发后）|
 | S6 | `Mixing mowziesmobs.EntitySuperNovaSolarDamageMixin … into …EntitySuperNova` | **超新星燃烧**注入生效（首次使用后）|
@@ -55,7 +55,7 @@
 | T2 | **太阳射线**（潜行 + 右键发射光束，持续命中）| 同 T1，且 ① 骑士**仍在燃烧**（`on_fire` 段保留）② **一次命中只扣 1 层**（不会一次扣 2 层）|
 | T3 | **太阳打击**（`EntitySunstrike`：太阳鸟的打击 / 太阳祝福相关触发）| 同 T2 |
 | T3b | **超新星燃烧**（`SupernovaAbility` → `EntitySuperNova`，太阳祝福第四招）| 同 T2（锚点来源为 `mowziesmobs:supernova`；燃烧段保留）|
-| T4 | 用太阳伤害把骑士打死 | 死亡信息为 `%1$s被%2$s的太阳耀斑烧成灰烬` / `…太阳射线贯穿` / `…太阳打击碾碎`（中英各 3 条），**不出现** `%2$s` 残留 |
+| T4 | 死亡信息（**注意：原办法验证不了** —— 原版只对**玩家**广播死亡信息，生物死亡没有聊天/日志行）| 改用带攻击者的指令让**玩家**死于该伤害类型：`/damage @s 100 mowziesmobs:supernova by @e[type=mowziesmobs:umvuthi,limit=1]`（四条类型同理）。**必须带 `by`**，否则 `%2$s` 不会被替换、会原样显示 |
 
 **注意**：锚点已改为**计数式**（层数变化必记 + 其余按 1 秒聚合），每行都带 `stacks=…`、`dealt=…`、**`hp=before->after`** 与累计统计 ⇒ **判断标准是"hp 有没有下降 / 层数有没有掉"，不要靠血条视觉或单行日志**（伤害量级很小：耀斑基础 2.0 × 配置倍率，再经护甲削减）。
 
@@ -85,7 +85,7 @@
 | T6 | 普通武器 / 其它模组伤害打骑士 | **与未装本功能完全一致**：护盾照挡、`stuck` 破防照旧、冥界印记照旧（骑士不因本功能变脆）|
 | T7 | 开场（377t）/ 复活（440t）过场中打骑士 | 不掉血、不掉层（`processPurt` 的 `isCinematic()` 提前返回）|
 | T8 | 护盾层数 = 0 后继续用太阳伤害打 | 伤害照常、层数不再变化（不会扣成负数、wisp 显示正常）|
-| T9 | 关闭 `[solar_guard_break] enabled` 后重进 | 三招回到原版：被护盾挡下、无锚点日志、不扣层 |
+| T9 | 关闭 `[solar_guard_break] enabled` 后重进 | 四招回到原版：被护盾挡下、无锚点日志、不扣层 |
 
 ---
 
@@ -93,7 +93,7 @@
 
 | # | 检查 | 期望 |
 |---|---|---|
-| R1 | 太阳三招打**其它**生物（玩家 / 龙 / 普通怪）| 数值与行为不变（只换了伤害类型；死亡信息文案会变，这是预期）|
+| R1 | 太阳四招打**其它**生物（玩家 / 龙 / 普通怪）| 数值与行为不变（只换了伤害类型；死亡信息文案会变，这是预期）|
 | R2 | 骑士其它机制：`stuck` 破防姿势、冥界印记、阶段切换、成就 | 无变化 |
 | R3 | 日志 | 无新增异常 / 无 `solar-guard-break … is unavailable` 警告 |
 
@@ -104,8 +104,9 @@
 1. **手感调整** —— "只扣 1 层 + 不倒地"维持现状；护盾会被模组自身的闸门/阶段装回去（`setImmuneStacks`），是否压制这一点留待后续按手感决定。
 2. **太阳鸟（Umvuthi）施法同样破防** —— 有意为之（类型转换在实体侧，与施法者无关）。
 3. **actionbar 提示** —— 破防反馈只做了音效 + 粒子（对齐"击中冥界印记"的原生反馈）；模组那句 actionbar 提示的语义是"被击倒"，与"只扣 1 层"不符，故不搬。
-4. **T4 死亡信息暂未实机验证** —— 两轮实机里骑士都没被太阳伤害打死；文案已随版本发布（中英各 3 条 + 超新星 1 条），待下一次击杀时顺带确认。
-5. **`hp=0.1` 的"假死"观察项** —— 2026-10-09 第二轮实机里，骑士血量从 72.3 直接落到 **0.1** 后不再变化（`#123` 起连续 `dealt=true` 但 `hp=0.1->0.1`），这是模组**阶段 1 假死/复活**的表现（`shouldCancelDeath` 挡下死亡并留一丝血）。我们的路径**不调用 `setState`**，不会触发调研 §六 B2 那种"假死被外力打断 ⇒ 永久死锁"，但下一轮请顺手观察：**打到 0.1 血后等 30~60 秒，看它是否自行推进（复活/进二阶段）**；若永久卡死，再按 B2 单独排查（与本次魔改无关的模组自身缺陷）。
+4. **T4 死亡信息（已改为可验证方式）** —— 结论：**原办法无法验证**，因为原版**只对玩家广播死亡信息**，生物（含 Boss）死亡不产生聊天/日志行。要用带攻击者的 `/damage … by …` 才能看到文案（见 §2 T4 行）。
+5. **`hp=0.1` 的"假死"观察项（已确认不是死锁）** —— 第二轮曾见血量被钳在 0.1 且 `dealt=true` 但 `hp` 不变；**第三轮实测确认它不会永久卡死**：最后一条锚点 `19:07:58`，`19:08:04` 即取得进度 `kill_underworld_knight`（骑士假死序列自行推进后正常死亡）。这是模组**阶段 1 假死/复活**的正常表现（`shouldCancelDeath` 挡死并留一丝血，期间护盾还会被闸门装回），我们的路径不 `setState`，不介入该流程。
+6. **与本次魔改无关的既有问题（仅登记）**：日志里 15 条 `Unable to parse animation`（`supernova` / `attack_single` / `mass_buff` / `flapping_wings_standing`），根因是 **Mowzie 自己的动画文件写了非法表达式**（`assets/mowziesmobs/animations/umvuthi.animation.json`：`"NaN-(math.sin(query.anim_time * 2800) * 3)"`）被新版 GeckoLib 的表达式编译器拒绝。整合包本来就是 GeckoLib 4.9.3，故此为**既有视觉问题**（这些动画不播），与本次改动无关、也不影响伤害/破防逻辑。
 
 > **已从"不做"移出**：破防音效/粒子反馈（T12，`c642dd5`）、计数式锚点（T13，`e69b650`）—— 两项均已在 M2 之后实现，验收项见 §2.1。
 
@@ -119,3 +120,18 @@
 - `Mixing mowziesmobs.` / `Mixing legendarymonsters.UnderworldKnight`
 - `Registry loading errors` / `missing following references`
 - 崩栈（如果有）：`crash-reports/` 最新文件 + `latest.log` 末尾 60 行
+
+---
+
+## 8. 验收结论（2026-10-09 收尾）
+
+| 轮次 / 项 | 范围 | 结果 |
+|---|---|---|
+| **M1** | 耀斑链端到端 | ✅ 通过（用户实测确认能破防；当时"看着没效果"= 伤害低 + 范围小 + 无反馈 + 射线/打击尚未接线）|
+| **M2** | 三招齐活（+ 射线 / 太阳打击） | ✅ 通过（伤害落地 + 破防 + 燃烧保留 + 一次只扣 1 层）|
+| **M3**（T12/T13）| 破防反馈 + 计数式锚点 | ✅ 通过（`consumed=true` 即反馈触发点；锚点可直接读出命中数与真实掉血 `hp=before->after`）|
+| **M4**（T15）| 第四招「超新星燃烧」 | ✅ 通过（用户实测：能伤害 + 能破防）|
+| 静态项 | 构建 / **五条** Mixin 应用 / jar 内容 / lang 键一致性（300/300）/ 无注册表错误 / 无新崩溃 | ✅ 全过（第三轮日志复核）|
+| 遗留 | T4 改验证方式（见 §2）；§6 第 5/6 条为"与本次无关"的登记项 | 已记录 |
+
+**最终交付物**：`build/libs/beloong-0.10.3.jar`（提交 `ba42c8d` 及之前），四招共用同一破防标签 `beloong:underworld_knight_guard_break` 与同一骑士侧判定路径。

@@ -216,7 +216,10 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 | T11 | ✅ 完成 | 验收清单 `docs/reviews/2026-10-09-underworld-knight-solar-guard-break-acceptance.md` + 调研文档 §十一（无敌判定/破防全链/魔改索引）|
 | T12 | ✅ 完成 | `c642dd5` 破防反馈：真的扣层时复刻"击中冥界印记"的两个音效 + 两个粒子（对齐 `KnightMarkEntity.hurt:126-130`）|
 | T13 | ✅ 完成 | `e69b650` 计数式锚点：层数变化必记（不受节流）+ 其余 1 秒聚合 + `#序号`/分类计数/`hp=before->after`/`totals: hits=… dealt=…` |
-| T14 | ⏳ 待下一轮实机 | 验收清单 §2.1（T12/T13 项）+ **T4 死亡信息**（两轮实机里骑士都没被太阳伤害打死，仍待验证）|
+| T14 | ✅ **通过**（第三轮实机） | 验收清单 §2.1（T12/T13：反馈与计数式锚点在日志中得到验证）+ **T4 改验证方式**（原版不广播生物死亡信息，改用 `/damage … by …`）|
+| M3 | ✅ **通过** | 破防反馈 + 计数式锚点（用户第三轮实测）；`hp=0.1` 假死观察项确认**不会永久卡死**（19:07:58 最后锚点 → 19:08:04 拿到 `kill_underworld_knight`）|
+| M4 | ✅ **通过**（第三轮实机） | 超新星燃烧：能伤害 + 能破防（用户实测确认）|
+| **收尾** | ✅ **任务完成**（2026-10-09） | 五条 Mixin 全部应用、无注册表错误、无我方异常、无新崩溃；最终产物 `beloong-0.10.3.jar`（`ba42c8d`）。遗留：T4 的文案验证需按新方式做；§6 登记两条与本次无关的既有问题 |
 | T15 | ✅ 完成 | `ba42c8d` **太阳祝福第四招「超新星燃烧」**接入：新增伤害类型 `mowziesmobs:supernova`（+ 标签项 + `#is_projectile` + 死亡信息）+ `EntitySuperNovaSolarDamageMixin`（`tick()` 的 `dealMixedDamage` index 1 + `Entity.hurt` index 0）|
 
 ### T7 详细结论（dev 专用服务端静态探针）
@@ -235,3 +238,5 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 2. **T7 范围收窄**：原计划希望"四条 Mixin 都在导出类里核对"。实际只有骑士侧满足条件（另三处的目标类在探针期间不会加载），已在下方 M1 清单里改用"实机日志的 `Mixing` 行 + 日志锚点"作为等价证据。
 3. **锚点文案**：实现里用的是 `dealt=`，设计 §3.3 的示例写的是 `consumed=`（同义，实测可读性更好，未改代码）。
 4. **T8/T9 的实机证据延后**：`EntitySolarBeam`/`EntitySunstrike` 同样只在游戏内使用时才加载，静态探针覆盖不到 ⇒ 交由 M2 的实机日志（S4/S5 两行 `Mixing` + 锚点）确认。
+5. **T4 的验证方式被修正**：计划原文写"用太阳伤害把骑士打死，检查死亡信息"，但**原版只对玩家广播死亡信息**（生物死亡无聊天/日志行）⇒ 该办法不可能观察到文案。验收清单已改为 `/damage @s 100 mowziesmobs:<type> by <实体>`（必须带 `by`，否则 `%2$s` 不会被替换）。
+6. **第四招（超新星）是实测后才补的**：原计划只覆盖三招，第三轮实机发现太阳祝福其实有**四招**，遂新增 T15（伤害类型 `mowziesmobs:supernova` + `EntitySuperNovaSolarDamageMixin` + 死亡信息）。
