@@ -42,6 +42,7 @@
     "legendarymonsters.ChorusEnergyBulletEntityOnHitGuardMixin",
     "legendarymonsters.DynamicCameraZoomCapMixin",
     "legendarymonsters.SmallAnnihilationBombEntityOnHitGuardMixin",
+    "legendarymonsters.UnderworldKnightGuardBreakMixin",
     "mowziesmobs.EntityWroughtnautMaceMixin",
     "mowziesmobs.EntitySculptorCanFlyMixin",
     "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
