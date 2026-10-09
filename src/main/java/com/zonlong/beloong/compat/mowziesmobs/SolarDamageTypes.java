@@ -40,6 +40,14 @@ public final class SolarDamageTypes {
     /** 太阳打击（{@code EntitySunstrike}：太阳鸟 / 太阳祝福的范围打击）。 */
     public static final ResourceKey<DamageType> SUN_STRIKE = key("sun_strike");
 
+    /**
+     * 超新星燃烧（{@code SupernovaAbility} → {@code EntitySuperNova}：太阳祝福的大招）。
+     *
+     * <p>它的伤害结构与太阳射线/打击同构（{@code mob_projectile} + {@code on_fire} 两段），
+     * 因此同样只换第一段、保留燃烧段。
+     */
+    public static final ResourceKey<DamageType> SUPERNOVA = key("supernova");
+
     /** 缺失类型的警告日志节流间隔（毫秒）。 */
     private static final long WARN_THROTTLE_MS = 5000L;
 

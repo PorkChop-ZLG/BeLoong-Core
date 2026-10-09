@@ -208,6 +208,7 @@
   "death.attack.mowziesmobs.solar_beam": "%1$s was pierced by %2$s's solar beam",
   "death.attack.mowziesmobs.solar_flare": "%1$s was incinerated by %2$s's solar flare",
   "death.attack.mowziesmobs.sun_strike": "%1$s was crushed by %2$s's sunstrike",
+  "death.attack.mowziesmobs.supernova": "%1$s was incinerated by %2$s's supernova",
   "dimension.beloong.disaster": "Disaster",
   "dimension.beloong.loong_palace": "Loong Palace",
   "dragon_ability.beloong.air_strike": "Air Strike",
