@@ -25,6 +25,7 @@ import com.zonlong.beloong.item.ModItems;
 import com.zonlong.beloong.network.TreasureSyncPayload;
 import com.zonlong.beloong.perf.EffectEntityJoinGate;
 import com.zonlong.beloong.registry.ModAttributes;
+import com.zonlong.beloong.registry.ModAttachments;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModCriteria;
 import com.zonlong.beloong.registry.ModEntities;
@@ -111,6 +112,7 @@ public class BeLoongCore {
         ModCreativeModeTabs.register(modEventBus);   // 创造模式标签页
         ModAttributes.REGISTRY.register(modEventBus);
         ModMobEffects.REGISTRY.register(modEventBus);
+        ModAttachments.register(modEventBus);        // 数据附件（斩杀冷却票据）
         ModCriteria.REGISTRY.register(modEventBus);  // 进度判据
 
         // === 事件处理器 ===
