@@ -50,6 +50,7 @@
     "mowziesmobs.EntitySuperNovaSolarDamageMixin",
     "mowziesmobs.SolarFlareAbilitySolarDamageMixin",
     "mowziesmobs.SolarFlareAbilityTuningMixin",
+    "yuushya.YuushyaJoinDeclarationMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
     "raidsenhanced.RaidBlimpTargetMixin"

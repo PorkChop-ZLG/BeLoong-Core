@@ -203,6 +203,22 @@ public class Config {
         public static ModConfigSpec.BooleanValue enabled;
     }
 
+    /**
+     * 《方块小镇》（Yuushya Townscape）"进存档声明消息"的抑制开关。
+     *
+     * <p>消费方：{@code mixin/yuushya/YuushyaJoinDeclarationMixin}。
+     * 该模组自 2.3.0 起在 {@code PlayerEvent.PLAYER_JOIN} 时发送一条很长的"声明"系统消息
+     * （免费/反盗版声明，含可点击的官网链接）——每人每次进入存档都会收到，且它自己没有配置开关。
+     *
+     * <p>未安装该模组时对应 Mixin 整体跳过（{@code @Pseudo + require = 0}），本开关无副作用。
+     */
+    public static final class YuushyaDeclaration {
+        private YuushyaDeclaration() {}
+
+        /** 是否屏蔽该声明（默认 true） */
+        public static ModConfigSpec.BooleanValue suppress;
+    }
+
     static {
         COMMON_BUILDER.push("effect_entity_cap");
 
@@ -253,6 +269,16 @@ public class Config {
                 .define("enabled", true);
 
         COMMON_BUILDER.pop(); // solar_guard_break
+
+        COMMON_BUILDER.push("yuushya_declaration");
+
+        YuushyaDeclaration.suppress = COMMON_BUILDER
+                .comment("Suppress the long 'declaration' system message that Yuushya Townscape (2.3.0+) sends every time a player joins a world",
+                        "屏蔽《方块小镇》（Yuushya Townscape）自 2.3.0 起在玩家每次进入存档时发送的那条长声明消息（免费 / 反盗版声明）")
+                .translation("beloong.configuration.yuushyaDeclarationSuppress")
+                .define("suppress", true);
+
+        COMMON_BUILDER.pop(); // yuushya_declaration
     }
 
     public static final ModConfigSpec COMMON_SPEC = COMMON_BUILDER.build();

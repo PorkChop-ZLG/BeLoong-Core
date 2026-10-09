@@ -271,6 +271,24 @@ dependencies {
     compileOnly "curse.maven:bossesrise-1314084:8123167"
     localRuntime "curse.maven:bossesrise-1314084:8123167"
 
+    // Yuushya Townscape（方块小镇）— 可选依赖（mod id = yuushya）。
+    // 用途：屏蔽它自 2.3.0 起的行为 —— 每次玩家进入存档都会发一条很长的系统消息
+    // （"免费/反盗版声明"）。该消息写在 com/yuushya/Yuushya 的 lambda$init$4(ServerPlayer) 里，
+    // 由 PlayerEvent.PLAYER_JOIN 触发（字节码核对：init() 偏移 45-53）。
+    // ⚠️ 该模组体积约 27 MB、在线下载不便，故与 GeckoLib 一样**优先本地**：local-repo/ 的声明
+    //    在 cursemaven 之前，命中本地就不再联网；只有本地缺失时才回退到 cursemaven。
+    // ⚠️ 本地放的是 yuushya-1.21.0-neoforge-2.3.0.jar（SHA256 C410C51E…，26.9 MB）；
+    //    若文件号 7976670 实际对应别的版本，回退联网时会与本地编译版本不一致。
+    // 按用户要求**不**在 src/main/templates/META-INF/neoforge.mods.toml 里声明该依赖，
+    // 因此代码侧一律按"软依赖"处理（@Pseudo + require = 0，未安装时整体静默跳过）。
+    // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
+    compileOnly "curse.maven:yuushya-townscape-533104:7976670"
+    localRuntime "curse.maven:yuushya-townscape-533104:7976670"
+    // Architectury API — 《方块小镇》在它自己的 mods.toml 里声明为 required 依赖，
+    // 因此 dev 运行时必须有它，否则加载 yuushya 会直接报缺前置。上面第 162 行原有
+    // 一份 compileOnly（供本模组自己的架构成熟代码使用），这里补 localRuntime。
+    localRuntime "dev.architectury:architectury-neoforge:13.0.8"
+
     // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
     localRuntime "curse.maven:vanillabackport-417430:8229724"
     // Platform — Vanilla Backport 的前置库；参考源在 开源模组参考文件\Platform
