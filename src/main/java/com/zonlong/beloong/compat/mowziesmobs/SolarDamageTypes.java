@@ -1,6 +1,7 @@
 package com.zonlong.beloong.compat.mowziesmobs;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.Config;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -12,20 +13,31 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
 /**
- * 「太阳祝福」三招的伤害类型常量与伤害源转换工具。
+ * 「太阳祝福」四招的伤害类型常量与伤害源转换工具。
  *
- * <p><b>背景</b>：Mowzie's Mobs 全库<b>没有任何自定义伤害类型</b>，太阳三招用的是原版通用类型
- * （太阳耀斑 = {@code player_attack}；太阳射线 / 太阳打击 = {@code mob_projectile} + {@code on_fire} 两段混合）。
+ * <p><b>背景</b>：Mowzie's Mobs 全库<b>没有任何自定义伤害类型</b>，太阳四招用的都是原版通用类型
+ * （太阳耀斑 = {@code player_attack}；太阳射线 / 太阳打击 / 超新星燃烧 = {@code mob_projectile} + {@code on_fire} 两段混合）。
  * 原版类型无法充当「破防入口」——把它们写进 tag 等于让<b>所有</b>玩家攻击 / 弹射物都变成破防伤害。
- * 因此本模组自建三个伤害类型（注册文件 {@code data/mowziesmobs/damage_type/*.json}），
- * 再由 {@code mixin/mowziesmobs/*} 把三招的伤害源换过来。
+ * 因此本模组自建四个伤害类型（注册文件 {@code data/mowziesmobs/damage_type/*.json}），
+ * 再由 {@code mixin/mowziesmobs/*} 把四招的伤害源换过来。
  *
  * <p><b>为什么注册文件借用了 {@code mowziesmobs} 命名空间</b>：让 tag 内容读起来就是
- * 「太阳耀斑 / 太阳射线 / 太阳打击」这三种太阳伤害（用户选择）。
- * 代价是<b>命名空间遮蔽风险</b>：若将来 Mowzie 自己加了同名 id，资源栈里优先级高的一方静默胜出。
- * 回退方案是整体改名到 {@code beloong:} 命名空间（类型 json / tag / {@code message_id} / 翻译键四处同步）。
+ * 「太阳耀斑 / 太阳射线 / 太阳打击 / 超新星燃烧」这四种太阳伤害（用户选择）。
+ * 代价是<b>命名空间遮蔽风险</b>：若将来 Mowzie 自己加了同名 id，资源栈里优先级高的一方会静默胜出
+ * （{@code getHolderOrThrow} 照样拿得到、tag 照样命中，但 {@code effects}/{@code scaling}/死亡信息变成对方的）。
+ * 缓解：① {@code neoforge.mods.toml} 把 Mowzie 的 {@code versionRange} 收紧到 {@code [1.8.2,1.9)}，
+ * 让"上游新增同名 id / 改动被锚定的字面量"在启动期暴露；
+ * ② 回退方案是整体改名到 {@code beloong:} 命名空间（类型 json / tag / {@code message_id} / 翻译键四处同步）。
  *
- * <p><b>注册项与代码的隔离</b>：三个伤害类型只出现在本类 + 数据文件 + 死亡信息翻译里；
+ * <p><b>补回的原版标签不止两个</b>：把四招加进它们原本所属的<b>全部</b>原版伤害类型标签，
+ * 避免静默的行为回退 —— {@code #is_player_attack}（耀斑）、{@code #is_projectile}（射线/打击/超新星）、
+ * {@code #can_break_armor_stand}（耀斑原本能一击打碎盔甲架）、
+ * {@code #panic_causes}（四招原本都会让村民 / 动物惊慌）。
+ *
+ * <p><b>总开关</b>：COMMON 的 {@code [solar_guard_break] enabled} 关闭时，本类<b>直接原样返回原伤害源</b>
+ * ⇒ 连伤害类型都不换，行为完全回到 Mowzie 原版（与骑士侧共用同一个开关）。
+ *
+ * <p><b>注册项与代码的隔离</b>：四个伤害类型只出现在本类 + 数据文件 + 死亡信息翻译里；
  * 骑士侧只认 tag（{@code registry/ModDamageTypeTags}），不认识本类，
  * 因此「谁可以破防」这件事完全由数据决定。
  */
@@ -71,19 +83,29 @@ public final class SolarDamageTypes {
      * {@code LeaderSunstrikeImmune} 检查、击杀归属、经验与掉落判定也都依赖这两个实体。
      * 只换伤害类型（而非重建一个空源）才能让这些语义全部保持不变。
      *
-     * <p><b>{@code on_fire} 段直通</b>：太阳射线 / 太阳打击是「弹射物 + 燃烧」两段混合伤害。
-     * 保留第二段为原版 {@code on_fire} 有两个好处：① 燃烧效果与火焰保护附魔语义不变；
-     * ② 只有第一段命中破防 tag ⇒ 一次命中只扣 1 层免疫层数（不会一次扣 2 层）。
+     * <p><b>{@code on_fire} 段直通</b>：太阳射线 / 太阳打击 / 超新星燃烧是「弹射物 + 燃烧」两段混合伤害，
+     * 保留第二段为原版 {@code on_fire} 的价值在于<b>保住燃烧效果与火焰保护附魔 / {@code #is_fire} 语义</b>。
+     * <br>（更正一处早期写反的因果：它<b>不是</b>"防一次扣两层"的必要条件 —— 第二段用的是原始
+     * {@code DamageSource}，本来就不在破防 tag 里，骑士侧仍会把它当普通伤害挡下。）
+     *
+     * <p><b>总开关 / 客户端</b>：开关关闭 ⇒ 原样返回（整条转换层短路，含四个技能的全部注入点）；
+     * 客户端也原样返回（{@code SolarFlareAbility.beginSection} 在双端都会执行，但客户端只需要表现，
+     * 不必查注册表，也避免在客户端打缺失警告）。
      *
      * <p><b>失败降级</b>：注册表里找不到目标类型时（例如数据文件被禁用 / 写错）不抛异常打断伤害流程，
      * 而是按原版类型继续并打一条节流警告 —— 表现退化为「太阳伤害被护盾挡下」，不会崩。
      *
      * @param original 原伤害源（Mowzie 构造的 {@code player_attack} / {@code mob_projectile} / {@code on_fire}）
-     * @param target   目标太阳伤害类型（{@link #SOLAR_FLARE} / {@link #SOLAR_BEAM} / {@link #SUN_STRIKE}）
+     * @param target   目标太阳伤害类型（{@link #SOLAR_FLARE} / {@link #SOLAR_BEAM} / {@link #SUN_STRIKE} / {@link #SUPERNOVA}）
      * @return 换成目标类型的新伤害源；不满足条件时原样返回 {@code original}
      */
     public static DamageSource convert(DamageSource original, ResourceKey<DamageType> target) {
-        // 燃烧段不换：换掉会丢燃烧与火焰保护语义，并让一次命中扣掉两层免疫层数
+        // 总开关关闭 ⇒ 不换类型，行为完全回到 Mowzie 原版（骑士侧另有同开关的短路）
+        if (!Config.SolarGuardBreak.enabled.get()) {
+            return original;
+        }
+
+        // 燃烧段不换：保住燃烧与火焰保护语义（它本来就不在破防 tag 里，详见方法注释）
         if (original.is(DamageTypes.ON_FIRE)) {
             return original;
         }
@@ -91,7 +113,9 @@ public final class SolarDamageTypes {
         Entity direct = original.getDirectEntity();
         Entity causing = original.getEntity();
         Level level = direct != null ? direct.level() : (causing != null ? causing.level() : null);
-        if (level == null) {
+
+        // 客户端不换：耀斑的 beginSection 双端都会跑，客户端只负责表现，不必查注册表
+        if (level == null || level.isClientSide()) {
             return original;
         }
 
