@@ -5,6 +5,7 @@ import by.dragonsurvivalteam.dragonsurvival.registry.DSAttributes;
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.FlightData;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.entity_effects.AbilityEntityEffect;
+import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.targeting.TargetingMode;
 import by.dragonsurvivalteam.dragonsurvival.server.handlers.ServerFlightHandler;
 import com.mojang.datafixers.util.Either;
 import com.mojang.serialization.Codec;
@@ -113,6 +114,9 @@ public record AirStrikeEffect(
                 LivingEntity.class,
                 player.getBoundingBox().inflate(size),
                 e -> e != player && e.isAlive() && e.isPickable()
+                        // Skip the dragon's own riders and allies
+                        && e.getRootVehicle() != player.getRootVehicle()
+                        && TargetingMode.NON_ALLIES.isEntityRelevant(player, e, true)
         );
 
         if (hitEntities.isEmpty()) {
