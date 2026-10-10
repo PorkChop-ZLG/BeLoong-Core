@@ -15,8 +15,10 @@ Ordinary healing and damage with unchanged maximum health remain separate.
 During a growth/maximum-health transition the number represents the net damage/healing
 over that window. Changes below four health ULPs are treated as float noise.
 The health value and bar animation are not modified. The hook is scoped to real
-dragon players, resets on entity/world changes, and is enabled only for the
-verified Health Bars 21.1.0 API. Missing Health Bars creates no dependency.
+dragon players, resets on entity/world changes, and is enabled whenever Health
+Bars is installed. Version strings are not checked. Missing Health Bars creates
+no dependency. The hook still expects `HealthTracker.tick(LivingEntity)` and the
+private `lastHealthDelta` field; future API changes require adapting the hook.
 
 The former `AsteorBarHealthFixMixin` is removed. It inferred health from a previous
 entity, counted render calls as ticks and wrote cached health from HUD rendering.

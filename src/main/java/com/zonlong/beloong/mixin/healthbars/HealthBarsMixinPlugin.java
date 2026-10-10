@@ -10,26 +10,24 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
-/** Only enables the optional hook for the Health Bars bytecode checked by this patch. */
+/** Enables the optional hook whenever Health Bars is installed, without a version gate. */
 public final class HealthBarsMixinPlugin implements IMixinConfigPlugin {
     private static final Logger LOGGER = LoggerFactory.getLogger(HealthBarsMixinPlugin.class);
-    private boolean compatible;
+    private boolean enabled;
 
     @Override
     public void onLoad(String mixinPackage) {
         LoadingModList mods = LoadingModList.get();
-        String version = mods == null ? "unavailable" : mods.getMods().stream()
-                .filter(mod -> "healthbars".equals(mod.getModId()))
-                .map(mod -> mod.getVersion().toString()).findFirst().orElse("missing");
-        compatible = "21.1.0".equals(version);
-        if (compatible) {
-            LOGGER.info("[BeLoong] Growth health-number compatibility enabled for Health Bars {}", version);
-        } else if (!"missing".equals(version)) {
-            LOGGER.warn("[BeLoong] Growth health-number compatibility disabled for unverified Health Bars {}", version);
+        enabled = mods != null && mods.getMods().stream()
+                .anyMatch(mod -> "healthbars".equals(mod.getModId()));
+        if (enabled) {
+            LOGGER.info("[BeLoong] Growth health-number compatibility enabled for Health Bars");
+        } else if (mods == null) {
+            LOGGER.warn("[BeLoong] Growth health-number compatibility disabled: mod metadata unavailable");
         }
     }
 
-    @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) { return compatible; }
+    @Override public boolean shouldApplyMixin(String targetClassName, String mixinClassName) { return enabled; }
     @Override public String getRefMapperConfig() { return null; }
     @Override public List<String> getMixins() { return null; }
     @Override public void acceptTargets(Set<String> myTargets, Set<String> otherTargets) {}
