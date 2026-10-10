@@ -13,33 +13,13 @@
               },
               "threshold": {
                 "type": "minecraft:linear",
-                "base": 3.0,
-                "per_level_above_first": 0.5
+                "base": 5.0,
+                "per_level_above_first": 1.0
               },
               "cooldown": {
-                "type": "minecraft:lookup",
-                "fallback": {
-                  "type": "minecraft:linear",
-                  "base": 200,
-                  "per_level_above_first": -7.142857
-                },
-                "values": [
-                  200.0,
-                  193.0,
-                  186.0,
-                  179.0,
-                  171.0,
-                  164.0,
-                  157.0,
-                  150.0,
-                  143.0,
-                  136.0,
-                  129.0,
-                  121.0,
-                  114.0,
-                  107.0,
-                  100.0
-                ]
+                "type": "minecraft:linear",
+                "base": 200,
+                "per_level_above_first": -8
               },
               "mark_duration": {
                 "type": "minecraft:linear",
@@ -71,7 +51,7 @@
     ]
   },
   "upgrade": {
-    "maximum_level": 15,
+    "maximum_level": 16,
     "upgrade_type": "dragonsurvival:dragon_growth",
     "growth_requirement": {
       "type": "minecraft:linear",

@@ -183,6 +183,10 @@ public class ExecuteThresholdEffect extends MobEffect {
      *
      * <p>音效类别同日由 {@link SoundSource#HOSTILE} 改为 {@link SoundSource#PLAYERS}：发声点已经在
      * 玩家身上，归到「玩家」滑条更符合直觉（代价：调「敌对生物」滑条不再影响它）。</p>
+     *
+     * <p><b>音量</b>是本音效唯一的旋钮：2026-10-10 实机反馈偏响，由 {@code 1.0F} 降到 {@code 0.5F}。
+     * 它只改变响度，<b>不改变可听距离</b>——距离由 {@code sounds.json} 的 {@code attenuation_distance}
+     * 决定，本音效未设置，走原版默认衰减。</p>
      */
     private static void playTriggerEffects(ServerLevel level, ServerPlayer player, LivingEntity victim) {
         double spread = Math.max(0.3D, victim.getBbWidth() * 0.8D);
@@ -205,7 +209,7 @@ public class ExecuteThresholdEffect extends MobEffect {
                 player.getZ(),
                 ModSounds.EXECUTE.get(),
                 SoundSource.PLAYERS,
-                1.0F,
-                1.0F);
+                0.5F,   // 音量：2026-10-10 实机反馈偏响，由 1.0F 降半——这是本音效唯一的音量旋钮
+                1.0F);  // 音高
     }
 }

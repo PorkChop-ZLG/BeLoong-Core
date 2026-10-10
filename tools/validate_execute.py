@@ -45,30 +45,53 @@ check("cooldown" not in ability["activation"],
       "activation has no cooldown (DS auto-release would fire on every hit)")
 upgrade = ability["upgrade"]
 check(upgrade["upgrade_type"] == "dragonsurvival:dragon_growth", "upgrade = dragon_growth")
-check(upgrade["maximum_level"] == 15, "maximum_level = 15")
+check(upgrade["maximum_level"] == 16,
+      "maximum_level = 16 (growth 150..300, one level per 10)")
 growth = upgrade["growth_requirement"]
 check(growth["base"] == 150 and growth["per_level_above_first"] == 10,
-      "growth 150 + 10/level -> L15 = %s" % (150 + 10 * 14))
+      "growth 150 + 10/level -> L1 = 150, L16 = %s" % (150 + 10 * 15))
 threshold = effect["threshold"]
-check(threshold["base"] == 3.0 and threshold["per_level_above_first"] == 0.5,
-      "threshold 3.0 + 0.5/level -> L15 = %s%%" % (3.0 + 0.5 * 14))
-cooldowns = effect["cooldown"]["values"]
-check(len(cooldowns) == 15, "15 cooldown values")
-check(cooldowns[0] == 200 and cooldowns[-1] == 100,
-      "cooldown L1 = %s ticks (10s), L15 = %s ticks (5s)" % (cooldowns[0], cooldowns[-1]))
-check(all(cooldowns[i] >= cooldowns[i + 1] for i in range(14)), "cooldown decreases monotonically")
+check(threshold["base"] == 5.0 and threshold["per_level_above_first"] == 1.0,
+      "threshold 5.0 + 1.0/level -> L1 = 5.0%%, L16 = %s%%" % (5.0 + 1.0 * 15))
+# The cooldown used to be a 15-entry "lookup" whose fallback carried the awkward step
+# -7.142857. Once maximum_level became 16, level 16 silently fell through to that
+# fallback (-7.142857 * 15 -> 92 ticks), dropping under the intended 5s floor. An
+# integer step keeps every level exact, so a plain "linear" is both simpler and safe.
+cooldown = effect["cooldown"]
+check(cooldown["type"] == "minecraft:linear", "cooldown is a plain linear (no lookup fallback)")
+check(cooldown["base"] == 200 and cooldown["per_level_above_first"] == -8,
+      "cooldown 200 - 8/level -> L1 = 200 ticks (10s), L16 = %s ticks (%ss)"
+      % (200 - 8 * 15, (200 - 8 * 15) / 20))
+cd_values = [cooldown["base"] + cooldown["per_level_above_first"] * (level - 1)
+             for level in range(1, 17)]
+check(all(float(value).is_integer() for value in cd_values),
+      "every cooldown is a whole number of ticks (no (int)-truncation drift vs the tooltip)")
+check(all(cd_values[i] > cd_values[i + 1] for i in range(15)),
+      "cooldown decreases at every level")
+check(cd_values[-1] < 100,
+      "L16 cooldown %s ticks is below the 5s (100 tick) floor" % cd_values[-1])
 check(effect["damage"]["base"] == 999999, "damage = 999999")
 
 # 3. thresholds <-> effect amplifier -------------------------------------------
 print("[3] threshold / amplifier mapping")
+# The threshold is quantised onto a 0.5% grid by
+# ExecuteThresholdEffect#amplifierForThreshold, and the in-game tooltip prints the
+# RAW linear value. A 1.0%/level curve from 5.0% lands on the grid exactly at every
+# level, so tooltip == applied value everywhere; the mapping is amplifier == 2*level + 7.
 ok = True
-for level in range(1, 16):
+for level in range(1, 17):
     percent = threshold["base"] + threshold["per_level_above_first"] * (level - 1)
     amplifier = round(percent / 0.5) - 1
-    if amplifier != level + 4:
+    applied = (amplifier + 1) * 0.5
+    if amplifier != 2 * level + 7 or abs(applied - percent) > 1e-9:
         ok = False
-        print("      L%d percent=%s amplifier=%s" % (level, percent, amplifier))
-check(ok, "amplifier(level) == level + 4 for every level (L1 -> 5 -> 3.0%%, L15 -> 19 -> 10.0%%)")
+        print("      L%d percent=%s amplifier=%s applied=%s%%" % (level, percent, amplifier, applied))
+check(ok, "every level lands exactly on the 0.5% grid: amplifier == 2*level + 7 "
+          "(L1 -> 9 -> 5.0%, L16 -> 39 -> 20.0%), so the tooltip matches the applied value")
+max_amplifier = max(round((threshold["base"] + threshold["per_level_above_first"] * (level - 1)) / 0.5) - 1
+                    for level in range(1, 17))
+check(max_amplifier <= 255,
+      "max amplifier %d stays within MobEffectInstance's 0..255 clamp" % max_amplifier)
 
 # 4. icons ---------------------------------------------------------------------
 print("[4] icons")
@@ -203,8 +226,14 @@ check(en_data["dragon_ability.beloong.execute.dynamic_desc"].count("%s") == 4,
       "en dynamic_desc takes 4 arguments")
 
 # Percent signs that must survive into the rendered text are emitted as "%%".
-check("%%" in zh_data["dragon_ability.beloong.execute.dynamic_desc"],
-      "zh dynamic_desc escapes its literal percent signs as %%")
+# NOTE (2026-10-10): the execute dynamic_desc used to end with the per-level formula
+# ("每级斩杀线 = 效果等级 × 0.5% + 0.5%"), which is why this assertion originally
+# targeted it. That line was dropped from both lang files, so the key now carries no
+# literal percent sign at all -- there is nothing left to escape there. The effect
+# descriptions are the keys that still print a literal "%". (Whether a value contains
+# a bare "%" anywhere is already covered for EVERY key by section [8] above.)
+check("%%" in zh_data["effect.beloong.execute_threshold.description"],
+      "zh effect description escapes its literal percent signs as %%")
 check("%%" in en_data["effect.beloong.execute_threshold.description"],
       "en effect description escapes its literal percent signs as %%")
 
