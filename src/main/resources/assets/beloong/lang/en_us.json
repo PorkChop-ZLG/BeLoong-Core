@@ -251,7 +251,7 @@
   "dragon_ability.beloong.air_strike.desc": "§7■ Colliding with entities while gliding deals §cdamage§r§7.\n\n■ Damage scales with flight speed, §cwings fold on impact§r§7.§r",
   "dragon_ability.beloong.air_strike.dynamic_desc": "§6Base Damage: %s §6\nSpeed Factor: %s §6\nCollision Size: %s §6\nMin Speed: %s §6\n\nDamage =§6 (§9 Base Damage§6 +§9 Mainhand Weapon§6 +§9 Offhand Weapon§6 ) x§9 Speed§6 x§9 Factor§6 x§9 Dragon Ability Damage§r",
   "dragon_ability.beloong.execute": "Execute",
-  "dragon_ability.beloong.execute.desc": "§7■ Attacking a §cnon-allied creature§r§7 marks it with an §cExecute Threshold§r§7.\n\n■ Once its health drops §cbelow that line§r§7 the mark is consumed and the target takes §ctrue damage§r§7 that ignores armor, resistance, protection enchantments and shields.\n\n■ The threshold grows with ability level; triggering an execute puts the passive on cooldown.§r",
+  "dragon_ability.beloong.execute.desc": "§7■ Attacking an enemy marks it with an §cExecute Threshold§r§7.\n\n■ When the target's health drops §cbelow that line§r§7, the execute triggers immediately, dealing massive §ftrue damage§r.\n\n§7■ The execute threshold rises with the dragon's §2Growth§7, and the cooldown falls with the dragon's §2Growth§7.§r",
   "dragon_ability.beloong.execute.dynamic_desc": "§6Execute threshold: %s §6\nCooldown: %s s §6\nExecute damage: %s §6\nMark duration: %s s",
   "dragon_ability.beloong.tornado": "Tornado",
   "dragon_ability.beloong.tornado.desc": "§7■ Blows a §btornado§7 forward, §apulling in§7 nearby enemies and dealing continuous damage.\n\n■ Deals damage §a5§7 times per second, ignoring damage cooldown.§r",
