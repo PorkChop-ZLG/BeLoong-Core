@@ -54,6 +54,24 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> HELL_GATE_OPEN =
             register("block.beloong.hell_gate.open");
 
+    // ==================== 自制龙之生存技能 ====================
+
+    /**
+     * 「斩杀」（{@code beloong:execute}）触发时的音效，由
+     * {@link ExecuteThresholdEffect} 在<b>施法者（玩家）所在位置</b>播放。
+     * <p>
+     * 音频文件 {@code assets/beloong/sounds/ability/execute.ogg}，来源是用户提供的
+     * {@code Smolder_Heavenscale_SFX_Q3Burn_execute.ogg}，按本模组的键名规则改名后放入。
+     * <p>
+     * ⚠️ 该文件是<b>立体声</b>（2 声道 / 44.1 kHz，Vorbis），而原版惯例是单声道。
+     * 距离衰减仍然生效——{@code SoundEngine} 播放时只依据 {@code Attenuation} 决定
+     * {@code linearAttenuation} / {@code disableAttenuation}，<b>不按声道数分支</b>
+     * （见 1.21.1 {@code SoundEngine.java:483-495}）——但立体声的声像定位不如单声道精确。
+     * 本机无 ffmpeg / oggenc / sox 且无网络，无法就地转单声道。
+     */
+    public static final DeferredHolder<SoundEvent, SoundEvent> EXECUTE =
+            register("ability.beloong.execute");
+
     private ModSounds() {}
 
     /**

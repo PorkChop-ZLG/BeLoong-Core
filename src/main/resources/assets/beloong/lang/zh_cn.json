@@ -319,5 +319,6 @@
   "entity.beloong.dread_king_ritual_marker": "死王仪式标记",
   "item.beloong.hell_gate.key": "§7一扇通往地狱的大门，使用 %s §r§7开启。",
   "item.beloong.hell_gate.no_key": "§7一扇通往地狱的门，没有钥匙可以开启。",
-  "subtitles.beloong.block.hell_gate.open": "地狱之门：敞开"
+  "subtitles.beloong.block.hell_gate.open": "地狱之门：敞开",
+  "subtitles.beloong.ability.execute": "斩杀：触发"
 }

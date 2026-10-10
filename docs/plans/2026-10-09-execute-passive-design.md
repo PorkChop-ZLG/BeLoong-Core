@@ -76,7 +76,7 @@
         ▼
 ④ 表现
    真实伤害（beloong:execute 伤害类型 + 6 个原版伤害标签）
-   龙息粒子 + 末影龙低吼 + actionbar「斩杀触发：<生物名>」
+   龙息粒子（缠在目标身上）+ `ability.beloong.execute` 音效（发在**施法者**身上）+ actionbar「斩杀触发：<生物名>」
 ```
 
 **分层边界**（与三技能设计一致的取舍）：JSON 负责**全部数值**（伤害、斩杀线曲线、冷却曲线、标记时长），Java 负责**行为、归因、失败判定**。
@@ -96,7 +96,7 @@
 | 7 | effect 每级 +0.5%，初始 0.5% | `ExecuteThresholdEffect#thresholdFraction` | `(amplifier + 1) × 0.005` |
 | 8 | 死亡消息（有/无来源两种） | `ExecuteDamageSource` + 4 个语言键 | 覆写 `getLocalizedDeathMessage`，阶段名跟随击杀者真实成长阶段（新生/幼年/成年/远古），见 §5.5 |
 | 9 | 联动血条模组显示斩杀线血量 | **不做**（2026-10-09 用户裁定撤销） | 曾按 AsteorBar 的 `EXTRA_RENDERERS` / `EXTRA_TEXT_RENDERERS` 实现过，代码已删除；保留的事实记录见 §5.7 |
-| 10 | 龙息粒子 + 末影龙音效 + 「斩杀触发：生物名」 | `ExecuteThresholdEffect#execute` | `ParticleTypes.DRAGON_BREATH` / `SoundEvents.ENDER_DRAGON_GROWL` / actionbar |
+| 10 | 龙息粒子 + 斩杀音效 + 「斩杀触发：生物名」 | `ExecuteThresholdEffect#execute` | `ParticleTypes.DRAGON_BREATH`（受害者）/ `ModSounds.EXECUTE` = `ability.beloong.execute`（**施法者**位置，`SoundSource.PLAYERS`）/ actionbar —— 见 §八 |
 
 ---
 
@@ -359,14 +359,15 @@ if (!"s".equals(s4)) {              // 只认 "%s" 与 "%%"，"%d" 之类一律
 | `data/beloong/dragonsurvival/dragon_ability/execute.json` | 能力定义（等级 / 图标 / 全部数值） |
 | `data/beloong/damage_type/execute.json` | 伤害类型（`message_id: beloong.execute`） |
 | `data/minecraft/tags/damage_type/{bypasses_armor,bypasses_effects,bypasses_resistance,bypasses_enchantments,bypasses_shield,bypasses_cooldown,bypasses_wolf_armor,no_knockback}.json` | 追加 `beloong:execute` |
-| `assets/beloong/textures/gui/sprites/abilities/execute_0.png` / `execute_1.png` | 技能图标（32×32） |
+| `assets/beloong/textures/gui/sprites/abilities/execute_0.png` / `execute_1.png` | 技能图标（**64×64**，经用户显式授权的规格例外，见 §八 与总设计 §7.3；0 级为纯去饱和灰度） |
+| `assets/beloong/sounds/ability/execute.ogg` | 斩杀触发音效（用户提供的 `Smolder_Heavenscale_SFX_Q3Burn_execute.ogg` 改名入库；立体声 2ch/44.1 kHz —— 见 §8.2） |
 | `assets/beloong/lang/{zh_cn,en_us}.json` | 名字 / 描述 / 动态描述 / 死亡消息 / 触发提示 / effect 名 |
 
 ### 6.3 工具
 
 | 路径 | 说明 |
 |---|---|
-| `tools/make_execute_icons.py` | 生成两张技能图标（`--force` 才会覆盖已有文件，防止误盖手工润色过的正式美术） |
+| `tools/make_execute_icons.py` | **只从 `execute_1.png` 派生 0 级灰度图**（`execute_1.png` 是交付美术，脚本只读不写、缺失即 exit 1；尺寸随源图、不硬编码 32；自带灰度自检；幂等）。见 §8.3 |
 | `tools/validate_execute.py` | 本技能的静态验收脚本：JSON 语法、数值端点、amplifier 映射、图标存在性、伤害标签、Java 注册点、中英语言键一致性与占位符安全 |
 
 ---
@@ -383,7 +384,7 @@ if (!"s".equals(s4)) {              // 只认 "%s" 与 "%%"，"%d" 之类一律
    - 目标血量跌破斩杀线时立刻结算 999999 真实伤害，护甲/抗性/保护附魔都不减免；
    - 触发后 5～10 秒内不再触发（可连续打多只怪验证）；
    - 死亡消息：新生/幼年/成年/远古龙分别打死怪，文案里的阶段词要对得上；龙不在龙形态时走「龙族被动」分支；
-   - 龙息粒子 + 末影龙低吼 + actionbar 提示。
+   - 龙息粒子（缠在目标身上）+ 斩杀音效（**在施法者身上**播放 `ability.beloong.execute`，距离衰减生效）+ actionbar 提示；字幕开启时显示「斩杀：触发」。
 
 > 需求 9（血条联动）已撤销，不在验收范围内。
 
@@ -400,4 +401,67 @@ if (!"s".equals(s4)) {              // 只认 "%s" 与 "%%"，"%d" 之类一律
 ⇒ 第 2 条与第 5 条必须在能正常运行游戏的机器上补做。
 
 **贴图生成的一个环境坑**（记录以免重复踩）：同一沙箱限制让 `tools/make_execute_icons.py` 无法把 PNG 直接写进 `src/main/resources/assets/...`。本次的做法是先用脚本把图标生成到可写目录，再借 Gradle 守护进程（脱离沙箱）复制进资源树。**在正常机器上直接跑脚本即可**，不需要这一步。
+
+> ⚠️ **2026-10-10 起该脚本的职责已收窄**：它不再生成彩色图标（彩色图标现在是交付美术 `execute_1.png`），只从它派生 0 级灰度图。上面这段沙箱坑记录保留为历史。见 §八。
+
+---
+
+## 八、2026-10-10 调整：图标替换 + 专属触发音效
+
+> **性质：纯表现层调整。** 用户两项需求，均已实施并通过构建/静态门。
+> **不改动**任何数值、目标过滤、结算逻辑、冷却或击杀归因。本节是这两项变更的权威记录。
+
+### 8.1 图标
+
+| | 变更前 | 变更后 |
+|---|---|---|
+| 尺寸 | 32×32 RGBA（由脚本手绘的占位示意图） | **64×64**（用户提供的满幅正式美术，**不缩放**） |
+| 0 级（未解锁） | 脚本手绘的灰阶示意图 | 1 级原图**纯去饱和**得到 |
+| 1 级及以上 | 脚本手绘的彩色示意图 | 原图 |
+| `execute.json` 的 `icon.texture_entries` | 16 条（`from_level` 0…15，1 级以上全部指向同一张） | **2 条**（`0 → execute_0`、`1 → execute_1`） |
+
+- **为什么 2 条就够**：`LevelBasedResource.get(level)` 把 entries 按 `from_level` **降序**排序后，
+  取第一个满足 `level >= fromLevel` 的项（`LevelBasedResource.java:17-33`）⇒ 2 级及以上自然命中
+  `from_level: 1`，**无需逐级写条目**。
+- **64×64 是显式授权的规格例外**：图标规范仍是 32×32（总设计 §7.3），本例经用户 2026-10-10 授权偏离，
+  并已在 §7.3 登记。**未登记的偏离按违规处理。**
+- **灰度口径是量出来的，不是拍脑袋**：既有 4 张 0 级图标（tornado / air_strike / tp_loong_palace /
+  旧 execute）的饱和度**全部恰为 0.000**，亮度比 L0/L1 = 1.00 / 0.84 / 1.31 ⇒ **没有统一的调暗**。
+  因此 0 级图 = 只去饱和、**不压暗**（`convert("L")`，即 ITU-R 601-2 luma）。
+- **原图无 alpha 通道**（colortype=2 RGB，满幅不透明方图），与其余 11 张带透明通道的图标不同；
+  这是原图本身的形态，未做抠图。落库时统一转 RGBA（alpha 全 255），与其他图标格式一致，视觉无差异。
+
+### 8.2 触发音效
+
+| | 变更前 | 变更后 |
+|---|---|---|
+| 音效 | `SoundEvents.ENDER_DRAGON_GROWL`（原版末影龙低吼） | `ModSounds.EXECUTE` = `ability.beloong.execute`（用户提供的 `Smolder_Heavenscale_SFX_Q3Burn_execute.ogg`，改名入库） |
+| 文件 | — | `assets/beloong/sounds/ability/execute.ogg` |
+| **发声点** | 受害者（`victim.getX/Y/Z`） | **施法者（`player.getX/Y/Z`）** |
+| 音量类别 | `SoundSource.HOSTILE` | **`SoundSource.PLAYERS`**（发声点已在玩家身上，归「玩家」滑条） |
+| 播放范围 | 广播给附近所有玩家（`playSound(null, ...)`，含施法者本人） | **不变** |
+| 粒子 | 龙息粒子缠在受害者身上 | **不变**（本次只有音效换位置） |
+
+- **立体声**：该 ogg 是 **2 声道 / 44.1 kHz**，而原版定位音惯例是单声道。已核实 1.21.1 `SoundEngine`
+  播放时只依据 `Attenuation` 决定 `linearAttenuation` / `disableAttenuation`、**不按声道数分支**
+  （`SoundEngine.java:483-495`）⇒ **距离衰减照常生效**，仅声像定位不如单声道精确。
+  本机无 ffmpeg / oggenc / sox 且无网络，无法就地转码 ⇒ **按已知项接受**（用户 2026-10-10 裁定）。
+- 字幕键：`subtitles.beloong.ability.execute`（zh「斩杀：触发」/ en "Execute triggers"），中英各一条。
+
+### 8.3 工具
+
+`tools/make_execute_icons.py` 的职责已收窄为「**从 `execute_1.png` 派生 `execute_0.png`**」：
+
+- **不再生成 `execute_1.png`**——那是交付美术，脚本**只读不写**；源图缺失时明确报错并以 exit 1 退出。
+- **尺寸随源图**（脚本不再硬编码 32），因此下次换成别的尺寸也不需要改脚本。
+- **自带灰度自检**：输出的平均饱和度 > 0.001 即判失败并 exit 1，保证「0 级必为灰度」这条约定不会静默失效。
+- **幂等**：对同一源图重复运行产出逐字节相同的文件。
+- 旧的 `--force` 防覆盖逻辑已随之删除（它保护的是「脚本自己生成的产物」，而彩色图现在不由脚本生成）。
+
+### 8.4 增量验收要点
+
+1. 技能栏里 0 级显示灰度、1 级及以上显示原图，无缺图、无「未找到贴图」。
+2. 触发斩杀时：目标身上出现龙息粒子；**音效从施法者位置发出**并随距离衰减；音量由「玩家」滑条控制。
+3. 字幕开启时显示「斩杀：触发」。
+4. `python tools/validate_execute.py` 全绿；`.\gradlew.bat build` 通过。
 

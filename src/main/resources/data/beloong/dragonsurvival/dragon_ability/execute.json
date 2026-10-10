@@ -67,62 +67,6 @@
       {
         "from_level": 1,
         "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 2,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 3,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 4,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 5,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 6,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 7,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 8,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 9,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 10,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 11,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 12,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 13,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 14,
-        "texture_resource": "beloong:abilities/execute_1"
-      },
-      {
-        "from_level": 15,
-        "texture_resource": "beloong:abilities/execute_1"
       }
     ]
   },

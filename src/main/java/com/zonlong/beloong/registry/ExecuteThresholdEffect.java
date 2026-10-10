@@ -11,7 +11,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
@@ -169,15 +168,23 @@ public class ExecuteThresholdEffect extends MobEffect {
 
         ExecuteCooldown.mark(player, Math.max(0, (int) config.cooldown().calculate(config.level())));
 
-        playTriggerEffects(level, victim);
+        playTriggerEffects(level, player, victim);
 
         player.displayClientMessage(
                 Component.translatable(MESSAGE_TRIGGERED, victim.getDisplayName()),
                 /* actionbar = */ true);
     }
 
-    /** 龙息粒子缠身 + 末影龙低吼。 */
-    private static void playTriggerEffects(ServerLevel level, LivingEntity victim) {
+    /**
+     * 触发表现：粒子缠在<b>受害者</b>身上，音效挂在<b>施法者</b>身上。
+     *
+     * <p>音效的发声点自 2026-10-10 起由受害者改为施法者（用户需求）。第 1 个参数仍传 {@code null}，
+     * 即广播给附近所有玩家（含施法者自己）——变的只是发声位置。</p>
+     *
+     * <p>音效类别同日由 {@link SoundSource#HOSTILE} 改为 {@link SoundSource#PLAYERS}：发声点已经在
+     * 玩家身上，归到「玩家」滑条更符合直觉（代价：调「敌对生物」滑条不再影响它）。</p>
+     */
+    private static void playTriggerEffects(ServerLevel level, ServerPlayer player, LivingEntity victim) {
         double spread = Math.max(0.3D, victim.getBbWidth() * 0.8D);
 
         level.sendParticles(
@@ -193,11 +200,11 @@ public class ExecuteThresholdEffect extends MobEffect {
 
         level.playSound(
                 null,
-                victim.getX(),
-                victim.getY(),
-                victim.getZ(),
-                SoundEvents.ENDER_DRAGON_GROWL,
-                SoundSource.HOSTILE,
+                player.getX(),
+                player.getY(),
+                player.getZ(),
+                ModSounds.EXECUTE.get(),
+                SoundSource.PLAYERS,
                 1.0F,
                 1.0F);
     }

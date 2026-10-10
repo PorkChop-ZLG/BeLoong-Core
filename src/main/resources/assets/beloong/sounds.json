@@ -24,5 +24,11 @@
     "sounds": [
       "beloong:block/hell_gate_open"
     ]
+  },
+  "ability.beloong.execute": {
+    "subtitle": "subtitles.beloong.ability.execute",
+    "sounds": [
+      "beloong:ability/execute"
+    ]
   }
 }
