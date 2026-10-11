@@ -58,7 +58,16 @@ public final class ExecuteMarkSyncHandler {
         sendCurrent(entity);
     }
 
-    /** 玩家开始追踪某实体时补发一次（原版只补发它自己那套）。 */
+    /**
+     * 玩家开始追踪某实体时补发一次（原版只补发它自己那套）。
+     *
+     * <p><b>⚠️ 这里刻意「无条件发」，即使该实体没有标记</b>（2026-10-11 审查 S-4，用户裁定保留）：
+     * 未挂标记时发的是 {@link com.zonlong.beloong.compat.healthbars.ExecuteMarkSyncPayload#NO_MARK}，
+     * 它同时起到<b>纠正客户端陈旧条目</b>的作用。若按字面「无标记就早退」优化掉，会出现这个 bug：
+     * 实体先被标记 → 玩家离开追踪范围 → 标记在服务端过期（无人追踪，没有包） → 玩家回到范围内
+     * ⇒ 客户端缓存里那条陈旧标记**永远不会被纠正**，血条上会一直画着一条不存在的斩杀线。
+     * 代价只是每个新进入视野的生物一条约 6 字节的包。</p>
+     */
     @SubscribeEvent
     public void onStartTracking(final PlayerEvent.StartTracking event) {
         if (event.getTarget() instanceof LivingEntity living) {

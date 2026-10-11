@@ -26,7 +26,11 @@ import net.minecraft.world.entity.LivingEntity;
  * <h3>它标记什么</h3>
  * <ul>
  *   <li><b>斩杀线</b>：由 {@code amplifier} 编码，{@code 斩杀线 = (amplifier + 1) × 0.5%}。
- *       技能等级 L 对应 {@code amplifier = L + 4}（L1 → 5 → 3.0%；L15 → 19 → 10.0%）。
+ *       技能等级 L 对应 {@code amplifier = 2L + 7}（L1 → 9 → 5.0%；L16 → 39 → 20.0%）。
+ *       <p><b>⚠️ 2026-10-11 更正（数值）</b>：此处原写「{@code amplifier = L + 4}
+ *       （L1 → 5 → 3.0%；L15 → 19 → 10.0%）」—— 那是 16 级 / 5%→20% 改版<b>之前</b>的 15 级口径。
+ *       真值由 {@link #amplifierForThreshold(float)} 与 {@code execute.json} 决定：
+ *       百分比 = {@code L + 4}（L1 → 5.0%，L16 → 20.0%），amplifier = 该百分比 / 0.5% − 1 = {@code 2L + 7}。</p>
  *       <p><b>⚠️ 2026-10-11 更正</b>：这里原写「amplifier 是 {@link MobEffectInstance} 里
  *       <b>唯一会被原版自动同步到客户端</b>的数值」—— <b>该说法对旁观者是错的</b>。
  *       原版只把效果的<b>粒子外观</b>放进实体元数据
@@ -50,8 +54,11 @@ import net.minecraft.world.entity.LivingEntity;
  * 掉血可能来自别的玩家、火焰、摔落或 DoT。放在受害者身上的 tick 里判定，
  * 上述所有来源都能覆盖；斩杀者离线/掉技能时自然失效，不需要清理逻辑。
  *
- * <p>刻意保留的副作用：斩杀者正在冷却时，目标会「卡在斩杀线以下」，
- * 冷却结束的瞬间立刻被斩杀——这正是斩杀线标记应有的威慑力。</p>
+ * <p><b>⚠️ 2026-10-11 更新（本段原结论已部分作废）</b>：原写「斩杀者正在冷却时，目标会卡在斩杀线
+ * 以下，冷却结束的瞬间立刻被斩杀」。自冷却语义**反转为「冷却期间不得挂线」**后（设计文档 §十七），
+ * 这条只在「标记仍在目标身上」时成立：斩杀一旦触发就会**消耗标记并进冷却**，而冷却期间无法重新挂线
+ * ⇒ 「卡在线上等着被斩」通常需要**另一位不在冷却的龙**来挂线。
+ * 判据本身（血量低于线即触发）没有变。</p>
  *
  * @see ExecuteAbility 能力等级与数值来源
  * @see ExecuteCooldown 冷却记账
@@ -82,14 +89,21 @@ public class ExecuteThresholdEffect extends MobEffect {
      */
     public static final String MESSAGE_REFUSED = "message.beloong.execute.refused";
 
-    /** 标记方块（mob effect）的颜色：暗金，与「斩杀线」的视觉基调一致。 */
+    /** 标记方块（mob effect）的颜色：暗红 {@code RGB(139,0,0)}（因 {@code visible} / {@code showIcon} 全关，仅登记语义）。 */
     private static final int COLOR = 0x8B0000;
 
     public ExecuteThresholdEffect() {
         super(MobEffectCategory.HARMFUL, COLOR);
     }
 
-    /** 斩杀线比例（0.005 = 0.5%）。 */
+    /**
+     * 斩杀线比例（0.005 = 0.5%）。
+     *
+     * <p><b>刻意不做上限夹取</b>（用户 2026-10-11 裁定）：{@code amplifier} 越大斩杀线越高，
+     * 超过 100% 也允许 —— 那是「几乎无条件斩杀」的合法极端，不作为缺陷处理。
+     * 正常情况下 amplifier 由本模组自己编码（L1 → 9，L16 → 39），不会越界；
+     * 外部（指令 / 数据包）给超大 amplifier 也走同一条路，只是此时通常没有 applier，结算闸门②会拦住。</p>
+     */
     public static float thresholdFraction(int amplifier) {
         return (amplifier + 1) * THRESHOLD_PER_LEVEL;
     }
@@ -190,6 +204,12 @@ public class ExecuteThresholdEffect extends MobEffect {
         // 但若此时不消耗标记，就会每 tick 重试一次：目标自己的受击音效刷屏（钢铁守护者尤其明显），
         // 且标记永远耗不掉。冷却的语义由此明确为「触发过就进冷却，成败不论」。
         boolean damaged = victim.hurt(new ExecuteDamageSource(damageType, player), damage);
+        // 以「目标是否真的死了」作为「斩杀成功」的判据，而**不是** hurt() 的布尔返回值（2026-10-11 审查 I-1）：
+        //   · 灾变系在伤害上限下 hurt 返回 true（伤害落地但只掉 20~25，IABoss_monster.java:140）⇒ 布尔会谎报成功；
+        //   · 目标早已死亡时 hurt 返回 false（LivingEntity:1147-1148），但那是「我们没介入」，
+        //     既不是成功、也不该报「被它挡下」。
+        // 判据用 isDeadOrDying()，与 hurt 自己拒绝死亡实体的那一条**同一个谓词**。
+        boolean killed = victim.isDeadOrDying();
 
         // 标记用完即弃，避免死亡动画期间重复结算。
         //
@@ -198,15 +218,30 @@ public class ExecuteThresholdEffect extends MobEffect {
         // （tickEffects 用空 catch 吞掉了它，见 LivingEntity.java:816-817，而
         // MobEffectInstance.tick 在 applyEffectTick 返回 false 时也会走同一路径）。
         // 后果仅是「该生物本 tick 剩下的状态效果少 tick 一次」，可以接受。
+        //
+        // ⚠️ 这一句**必须无条件执行**：它是「不会每 tick 重试」的唯一保证。
+        // 门第 ⑩ 组会断言 hurt 调用与这一句之间不存在任何 return。
         victim.removeEffect(ModMobEffects.EXECUTE_THRESHOLD);
+
+        if (killed && !damaged) {
+            // 目标在我们出手前就已经死了 —— 典型场景：一击把它从斩杀线【之上】直接打死，
+            // 而标记是由那一击的 LivingDamageEvent.Post 挂上的（于是挂在了尸体上）。
+            // 用户 2026-10-11 裁定：**消耗标记**（否则死亡动画期间会每 tick 重试），
+            // 但**不进冷却** —— 我们的斩杀从未真正介入；对玩家静默，只留一条 DEBUG。
+            BeLoongCore.LOGGER.debug(
+                    "[BeLoong] execute: {} ({}) was already dying; mark consumed, no cooldown",
+                    victim.getDisplayName().getString(), victim.getType());
+            return;
+        }
 
         ExecuteCooldown.mark(player, Math.max(0, (int) config.cooldown().calculate(config.level())));
 
-        if (!damaged) {
-            // (d) 被目标挡下：**不能**谎报「已斩杀」（伤害根本没造成）。给玩家明确反馈 + 留一条日志 ——
-            // 这一类失败此前完全静默（云筑魔像那次连音效都没有），只能靠实机现象反推。
+        if (!damaged || !killed) {
+            // (d) 被目标挡下：**不能**谎报「已斩杀」（伤害没造成，或造成了但没打死）。
+            // 给玩家明确反馈 + 留一条日志 —— 这一类失败此前完全静默（云筑魔像那次连音效都没有），
+            // 只能靠实机现象反推。
             BeLoongCore.LOGGER.info(
-                    "[BeLoong] execute: {} ({}) refused our damage; mark consumed, cooldown started",
+                    "[BeLoong] execute: {} ({}) survived our damage; mark consumed, cooldown started",
                     victim.getDisplayName().getString(), victim.getType());
             player.displayClientMessage(
                     Component.translatable(MESSAGE_REFUSED, victim.getDisplayName()),

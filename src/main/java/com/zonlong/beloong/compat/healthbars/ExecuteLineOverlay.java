@@ -100,7 +100,12 @@ public final class ExecuteLineOverlay {
                                final int barWidth, final LivingEntity entity) {
         // 总开关在 Config 上，由**本类**（客户端专属）主动去读；反过来让 Config 引用本类会崩服，
         // 见 Config#EXECUTE_LINE_ENABLED 的注释。
-        if (!Config.EXECUTE_LINE_ENABLED.get()) {
+        //
+        // `isLoaded()` 是防御性前置（2026-10-11 审查 S-1）：`ConfigValue#get()` 在 spec 未加载时会抛
+        // `IllegalStateException`，而这里的抛点位于 Health Bars 的**每帧** GUI 路径里 ⇒ 一旦触发就是
+        // 帧级异常刷屏。触发条件极罕见（NeoForge 在物理客户端必加载 CLIENT 配置，且会修复损坏文件，
+        // 前一次审查已论证其不可达），但代价只有一次比较。
+        if (!Config.CLIENT_SPEC.isLoaded() || !Config.EXECUTE_LINE_ENABLED.get()) {
             return false;
         }
 

@@ -4,7 +4,6 @@ import by.dragonsurvivalteam.dragonsurvival.common.codecs.ability.ActionContaine
 import by.dragonsurvivalteam.dragonsurvival.registry.attachments.MagicData;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbility;
 import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilityInstance;
-import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.targeting.AbilityTargeting;
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -36,7 +35,7 @@ public final class ExecuteAbility {
      *
      * @param level        当前等级（≥ 1）
      * @param damage       斩杀伤害
-     * @param threshold    斩杀线（百分比数值，3.0 = 3.0%）
+     * @param threshold    斩杀线（百分比数值，5.0 = 5.0%）
      * @param cooldown     触发后的冷却（刻）
      * @param markDuration 斩杀线标记时长（刻）
      */
@@ -90,18 +89,6 @@ public final class ExecuteAbility {
                 if (effect instanceof ExecuteEffect execute) {
                     return execute;
                 }
-            }
-        }
-
-        return null;
-    }
-
-    /** 便于外部（工具提示 / 调试）拿到目标类型，避免重复 import。 */
-    public static @Nullable AbilityTargeting.EntityTargeting entityTargeting(DragonAbilityInstance instance) {
-        for (ActionContainer action : instance.value().actions()) {
-            var targeting = action.effect().target().right();
-            if (targeting.isPresent()) {
-                return targeting.get();
             }
         }
 

@@ -19,6 +19,26 @@ def load_json(path):
         return json.load(handle)
 
 
+def icon_saturation(path):
+    """Worst-case saturation of an icon, or None when Pillow is not importable.
+
+    Used by section [4] to prove the level-0 icon is really grayscale (the icon tool derives it
+    with Image.convert("L"), so any colour left in it means the wrong file was shipped).
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    with Image.open(path) as image:
+        pixels = list(image.convert("RGB").getdata())
+    worst = 0.0
+    for red, green, blue in pixels:
+        high, low = max(red, green, blue), min(red, green, blue)
+        if high:
+            worst = max(worst, (high - low) / high)
+    return worst
+
+
 # 1. every JSON under src/main/resources parses ---------------------------------
 print("[1] JSON syntax")
 count = 0
@@ -58,6 +78,14 @@ check(threshold["base"] == 5.0 and threshold["per_level_above_first"] == 1.0,
 # fallback (-7.142857 * 15 -> 92 ticks), dropping under the intended 5s floor. An
 # integer step keeps every level exact, so a plain "linear" is both simpler and safe.
 cooldown = effect["cooldown"]
+# I-3b: every LevelBasedValue must declare its dispatch type. Without this, a typo in
+# "minecraft:linear" (or switching a field to "lookup") passes BOTH gates and only blows up when
+# the datapack actually loads in game.
+for field, value in (("growth_requirement", growth), ("threshold", threshold),
+                     ("cooldown", cooldown), ("damage", effect["damage"]),
+                     ("mark_duration", effect["mark_duration"])):
+    check(value.get("type") == "minecraft:linear", "%s is a plain linear" % field)
+check(effect["damage"]["per_level_above_first"] == 0, "damage does not scale with level")
 check(cooldown["type"] == "minecraft:linear", "cooldown is a plain linear (no lookup fallback)")
 check(cooldown["base"] == 200 and cooldown["per_level_above_first"] == -8,
       "cooldown 200 - 8/level -> L1 = 200 ticks (10s), L16 = %s ticks (%ss)"
@@ -74,21 +102,34 @@ check(effect["damage"]["base"] == 999999, "damage = 999999")
 
 # 3. thresholds <-> effect amplifier -------------------------------------------
 print("[3] threshold / amplifier mapping")
-# The threshold is quantised onto a 0.5% grid by
-# ExecuteThresholdEffect#amplifierForThreshold, and the in-game tooltip prints the
-# RAW linear value. A 1.0%/level curve from 5.0% lands on the grid exactly at every
-# level, so tooltip == applied value everywhere; the mapping is amplifier == 2*level + 7.
+# I-3a: the grid step lives in JAVA (ExecuteThresholdEffect: THRESHOLD_PER_LEVEL /
+# THRESHOLD_STEP_PERCENT) -- READ IT from there instead of hard-coding 0.5 here. Otherwise
+# changing the Java step would leave this gate green while the in-game line silently shifts.
+effect_path = os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                           "registry", "ExecuteThresholdEffect.java")
+effect_src = open(effect_path, encoding="utf-8").read()
+per_level_match = re.search(r"THRESHOLD_PER_LEVEL\s*=\s*([0-9.]+)F", effect_src)
+step_match = re.search(r"THRESHOLD_STEP_PERCENT\s*=\s*([0-9.]+)F", effect_src)
+check(per_level_match is not None, "ExecuteThresholdEffect declares THRESHOLD_PER_LEVEL")
+check(step_match is not None, "ExecuteThresholdEffect declares THRESHOLD_STEP_PERCENT")
+per_level = float(per_level_match.group(1)) if per_level_match else 0.005
+step = float(step_match.group(1)) if step_match else 0.5
+check(abs(per_level - step / 100.0) < 1e-9,
+      "the two Java constants agree: fraction %s == percent %s / 100" % (per_level, step))
+# The threshold is quantised onto that grid by ExecuteThresholdEffect#amplifierForThreshold, and the
+# in-game tooltip prints the RAW linear value. A 1.0%/level curve from 5.0% lands on the grid
+# exactly at every level, so tooltip == applied value everywhere; the mapping is amplifier == 2*level + 7.
 ok = True
 for level in range(1, 17):
     percent = threshold["base"] + threshold["per_level_above_first"] * (level - 1)
-    amplifier = round(percent / 0.5) - 1
-    applied = (amplifier + 1) * 0.5
+    amplifier = round(percent / step) - 1
+    applied = (amplifier + 1) * step
     if amplifier != 2 * level + 7 or abs(applied - percent) > 1e-9:
         ok = False
-        print("      L%d percent=%s amplifier=%s applied=%s%%" % (level, percent, amplifier, applied))
-check(ok, "every level lands exactly on the 0.5% grid: amplifier == 2*level + 7 "
-          "(L1 -> 9 -> 5.0%, L16 -> 39 -> 20.0%), so the tooltip matches the applied value")
-max_amplifier = max(round((threshold["base"] + threshold["per_level_above_first"] * (level - 1)) / 0.5) - 1
+        print("      L%d percent=%s amplifier=%s applied=%s" % (level, percent, amplifier, applied))
+check(ok, "every level lands exactly on the Java grid (%s%%): amplifier == 2*level + 7 "
+          "(L1 -> 9 -> 5.0%%, L16 -> 39 -> 20.0%%), so the tooltip matches the applied value" % step)
+max_amplifier = max(round((threshold["base"] + threshold["per_level_above_first"] * (level - 1)) / step) - 1
                     for level in range(1, 17))
 check(max_amplifier <= 255,
       "max amplifier %d stays within MobEffectInstance's 0..255 clamp" % max_amplifier)
@@ -101,8 +142,24 @@ for name in ("execute_0", "execute_1"):
     check(os.path.isfile(path), "%s.png exists" % name)
     if os.path.isfile(path):
         with open(path, "rb") as handle:
-            head = handle.read(8)
-        check(head == b"\x89PNG\r\n\x1a\n", "%s.png has a PNG signature" % name)
+            head = handle.read(26)
+        check(head[:8] == b"\x89PNG\r\n\x1a\n", "%s.png has a PNG signature" % name)
+        # I-3e: this gate used to stop at the signature, so a wrong size -- or a colour level-0
+        # icon -- could not fail it. 64x64 is the AUTHORISED exception for this one ability
+        # (32x32 is the project norm, see 总设计 §7.3); the level-0 icon must be grayscale.
+        width = int.from_bytes(head[16:20], "big")
+        height = int.from_bytes(head[20:24], "big")
+        check((width, height) == (64, 64),
+              "%s.png is 64x64 (authorised exception), got %dx%d" % (name, width, height))
+        if name == "execute_0":
+            saturation = icon_saturation(path)
+            if saturation is None:
+                # Fall back to the PNG colour type (0 = grayscale, 4 = grayscale+alpha).
+                check(head[25] in (0, 4),
+                      "execute_0.png is grayscale (PNG colour type %d, Pillow unavailable)" % head[25])
+            else:
+                check(saturation <= 0.001,
+                      "execute_0.png is grayscale (max saturation %.4f)" % saturation)
 for entry in ability["icon"]["texture_entries"]:
     resource = entry["texture_resource"]
     path = os.path.join(ROOT, "src", "main", "resources", "assets", "beloong",
@@ -235,6 +292,26 @@ for stage_path in ("newborn", "young", "adult", "ancient"):
 check(en_data["dragon_ability.beloong.execute.dynamic_desc"].count("%s") == 4,
       "en dynamic_desc takes 4 arguments")
 
+# I-3c: the two actionbar messages and the effect description were previously checked for
+# EXISTENCE only. A stray extra %s in either message throws MissingFormatArgumentException at
+# render time -- in game, never at build time.
+for name, data in (("zh_cn", zh_data), ("en_us", en_data)):
+    check(data["message.beloong.execute.triggered"].count("%s") == 1,
+          "%s 'triggered' message takes exactly 1 argument" % name)
+    check(data["message.beloong.execute.refused"].count("%s") == 1,
+          "%s 'refused' message takes exactly 1 argument" % name)
+    check(data["effect.beloong.execute_threshold.description"].count("%s") == 0,
+          "%s effect description takes no argument" % name)
+
+# I-3d: every subtitle declared in sounds.json must exist in BOTH languages, otherwise the
+# subtitle line renders a raw key.
+sounds = load_json(os.path.join(ROOT, "src", "main", "resources", "assets", "beloong", "sounds.json"))
+subtitles = sorted({entry["subtitle"] for entry in sounds.values()
+                    if isinstance(entry, dict) and "subtitle" in entry})
+check(bool(subtitles), "sounds.json declares at least one subtitle")
+for key in subtitles:
+    check(key in zh_data and key in en_data, "subtitle key present in both langs: " + key)
+
 # Percent signs that must survive into the rendered text are emitted as "%%".
 # NOTE (2026-10-10): the execute dynamic_desc used to end with the per-level formula
 # ("每级斩杀线 = 效果等级 × 0.5% + 0.5%"), which is why this assertion originally
@@ -307,27 +384,57 @@ check(src.count('"%.1f%%"') == 1, "Java formats the threshold argument with Stri
 # and the cooldown MUST still start, otherwise the effect retries on every single tick (the
 # Wroughtnaut's own "undamaged" clang then plays 20x/second). All four invariants are pinned.
 print("[10] refused executes are consumed and cooled down, not retried every tick")
-threshold_src = open(os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
-                                 "registry", "ExecuteThresholdEffect.java"), encoding="utf-8").read()
-check("boolean damaged = victim.hurt(" in threshold_src,
-      "(a) captures the hurt() result instead of returning early on it")
+def strip_java_comments(text):
+    """Remove block and line comments.
+
+    Needed because section [10] reasons about *code* (where a `return` sits); a javadoc `@return`
+    or a prose "return" must not count, and a commented-out line must not satisfy an assertion.
+    """
+    return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", " ", text, flags=re.S))
+
+
+threshold_src = strip_java_comments(open(
+    os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                 "registry", "ExecuteThresholdEffect.java"), encoding="utf-8").read())
+HURT_CALL = "victim.hurt(new ExecuteDamageSource(damageType, player), damage)"
+REMOVE_MARK = "victim.removeEffect(ModMobEffects.EXECUTE_THRESHOLD);"
+check(HURT_CALL in threshold_src, "(a) calls hurt() on the victim")
 check("if (!victim.hurt(" not in threshold_src,
-      "(a) the old 'refused => do not consume the mark' guard is gone")
-if "boolean damaged = victim.hurt(" in threshold_src:
-    hurt_at = threshold_src.index("boolean damaged = victim.hurt(")
-    remove_at = threshold_src.index("victim.removeEffect(ModMobEffects.EXECUTE_THRESHOLD);")
-    cooldown_at = threshold_src.index("ExecuteCooldown.mark(player,")
-    check(hurt_at < remove_at and hurt_at < cooldown_at,
-          "(a) the mark is consumed and the cooldown started unconditionally, after the hurt call")
-check("if (!damaged)" in threshold_src,
-      "(d) the refused case is handled separately from the successful one")
+      "(a) the hurt() result is NOT used as an early-return guard any more")
+check(HURT_CALL in threshold_src and REMOVE_MARK in threshold_src,
+      "(a) both the hurt call and the mark removal exist")
+if HURT_CALL in threshold_src and REMOVE_MARK in threshold_src:
+    hurt_at = threshold_src.index(HURT_CALL)
+    remove_at = threshold_src.index(REMOVE_MARK)
+    check(hurt_at < remove_at, "(a) the mark is removed after the hurt call")
+    # THE anti-retry invariant (review C-2): nothing between the hurt call and the UNCONDITIONAL
+    # mark removal may return early. Inserting `if (!damaged) { return; }` right after the hurt
+    # call -- i.e. reintroducing the every-tick retry -- must turn this red. The previous version
+    # of this section only compared index ORDER and stayed green on exactly that mutation.
+    check("return" not in threshold_src[hurt_at:remove_at],
+          "(a) no early return between hurt() and the mark removal (else: every-tick retry)")
+    stray = [i for i in range(hurt_at, len(threshold_src)) if threshold_src.startswith("return", i)]
+    check(all(i > remove_at for i in stray),
+          "(a) every return after the hurt call only happens once the mark is consumed")
+check("boolean killed = victim.isDeadOrDying();" in threshold_src,
+      "(I-1) success is decided by isDeadOrDying(), not by hurt()'s boolean (capped damage lies)")
+check("if (killed && !damaged)" in threshold_src,
+      "the already-dying case is handled separately (mark consumed, NO cooldown)")
+check("if (!damaged || !killed)" in threshold_src,
+      "(d) the refused case is decided by the RESULT, not by the boolean alone")
 check('MESSAGE_REFUSED = "message.beloong.execute.refused"' in threshold_src,
       "(d) ExecuteThresholdEffect declares MESSAGE_REFUSED")
 
-mark_src = open(os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
-                            "registry", "ExecuteMarkHandler.java"), encoding="utf-8").read()
+mark_src = strip_java_comments(open(
+    os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                 "registry", "ExecuteMarkHandler.java"), encoding="utf-8").read())
 check("ExecuteCooldown.isReady(player)" in mark_src,
       "(b) the mark is not applied while the execute is on cooldown")
+# C-1: addEffect() returning false ALSO means "a stronger mark already exists"
+# (MobEffectInstance.update:144-160), and the forceAddEffect fallback overwrites unconditionally
+# -- so it must be gated on "no mark exists", or a weaker dragon can downgrade a stronger line.
+check("victim.getEffect(ModMobEffects.EXECUTE_THRESHOLD) == null" in mark_src,
+      "(C-1) the forceAddEffect fallback only fires when no mark exists (never downgrades)")
 check("isOurExecuteDamage(event.getSource())" in mark_src,
       "(c) our own execute damage does not re-mark the target")
 check("ExecuteThresholdEffect.DAMAGE_TYPE" in mark_src,

@@ -338,13 +338,19 @@ GuiRenderingHandler.onAfterRenderGui                    (:41)
 - 半透明生效的**归因**更正：来自 `RenderType.gui()` 自带的 `TRANSLUCENT_TRANSPARENCY`，
   而非调用点的 blend 设置。
 
-### 14.4 未修、需人工处置（Important）
+### 14.4 `tools/` 刻意不进版本库（**已裁定，不是待办**）
 
-`tools/` 在 `.gitignore:49` 被整目录忽略 ⇒ 新增的 `tools/validate_execute_line.py`
-**不会**被普通 `git add .` 带走（既有 6 个 `tools/*.py` 是历史 `git add -f` 进来的）。
-本文档不擅自改 `.gitignore` 语义（能生效的 `tools/*` + 反包含形式会让 `tools/` 下 22 个
-spark 转储与 `__pycache__` 冒到 `git status`）。
-⇒ **提交时必须 `git add -f tools/validate_execute_line.py`**。
+`tools/` 在 `.gitignore:49` 被整目录忽略，这是**项目既定政策**，不是遗漏：
+`memory/project-context.md:322` 写明「`tools/` is gitignored: Python asset/verification scripts +
+Spark profile dumps」，`tools/README-element-essence.md:4` 也记「这些脚本与源图是本机文件」。
+
+**⇒ 2026-10-11 用户裁定：保持现状** —— 不为 `tools/` 反加白名单（那会让 `tools/` 下 22 个
+spark 转储与 `__pycache__` 冒进 `git status`），**也不要求 `git add -f`**。
+本节的旧措辞（「提交时必须 `git add -f tools/validate_execute_line.py`」）已作废。
+
+**由此产生的唯一实际约束**：验证脚本**不在**提交里，所以
+① 它们必须在**工作区**里保留并可重跑（换机器 / 重新克隆后需要自己带过去）；
+② 任何「本次验证通过」的结论，其可复现性只依赖工作区状态 + 本文档记录的命令与期望输出。
 
 ---
 
@@ -706,6 +712,49 @@ jar 复核                                -> bypasses_invulnerability.json 已�
 
 ### 19.6 提交状态
 
-改动集中在已跟踪的 8 个文件 + 删除的 1 个数据文件；
-**`tools/validate_execute_line.py` 与 `tools/validate_execute.py` 因 `tools/` 被整目录忽略，
-提交时需 `git add -f`**。提交由作者执行。
+改动集中在已跟踪的 8 个文件 + 删除的 1 个数据文件。
+
+**`tools/` 下的两个验证脚本刻意不进版本库**（项目既定政策，2026-10-11 再次确认；
+见 §14.4）⇒ 提交**不需要**也不需要 `git add -f`，它们的家在工作区。
+代价是「本次验证通过」的可复现性依赖工作区里的脚本 + 本文档记录的命令与期望输出。
+
+---
+
+## 二十、审查 → 修复 → 最终复验（2026-10-11，收尾）
+
+### 20.1 审查
+
+**3 名独立子代理**分片审查（服务端链路 / 客户端与同步 / 数据与门）+ 主审逐条复核，
+报告：`docs/reviews/2026-10-11-execute-skill-code-review.md`
+（**C×2**、**I×4**（其中一项含 7 条子缺口）、**S×10**；并**更正了审查者的 2 处结论**）。
+
+最有价值的一条是 **C-2**：第 ⑩ 组原本只比较 `hurt` 与 `removeEffect` 的**下标先后**，
+对真正的回归（在 `hurt` 之后插入 `if (!damaged) { return; }` = 恢复每 tick 重试）**保持全绿**
+—— 而我此前那次「反向对照」之所以通过，是因为它**整行替换**了 `hurt` 调用，强度高于该回归。
+
+### 20.2 修复（用户裁定：C/I 全修、S 除 S-5 外全处理）
+
+| 类别 | 内容 |
+|---|---|
+| **C-1** | 兜底条件补 `&& victim.getEffect(EXECUTE_THRESHOLD) == null`，弱标记不再覆盖强标记 |
+| **C-2** | 第 ⑩ 组改为「`hurt` 到**无条件**移除标记之间不得有 `return`」+ 分析前剥离注释 ⇒ **同一变异由绿转红**（实测） |
+| **I-1** | 以 `isDeadOrDying()` 判定成败 ⇒ 被伤害上限钳制的 Boss 不再谎报「斩杀触发」 |
+| **新增** | 目标在我方出手前已死（尸体）⇒ 消耗标记、**不进冷却**、静默（用户裁定） |
+| **I-2** | 过期数字（`2L + 7` / amp ≤ 39 / `enchantment.level.40`）与过期结论（「冷却期间卡在线上等斩」） |
+| **I-3 a–g** | 7 组空洞断言补齐（Java 网格常量、四个 `type`、`%s` 个数、字幕键、图标尺寸+灰度、开关接线、`NO_MARK`） |
+| **I-4** | `tools/` **刻意不进版本管理** ⇒ 不修代码，改注释与文档（§14.4 / §19.6） |
+| **S-1/2/3/6/7/8/9** | 加载态前置、删两个死 API、`.copyOnDeath()`、颜色注释、语言门首次全绿、`if (false)` 短路断言 |
+| **S-4/5/10** | **保留 + 在代码里写明理由**（用户裁定；S-5 为刻意允许 >100% 斩杀线） |
+
+### 20.3 最终复验
+
+```
+validate_execute.py        -> ALL CHECKS PASSED（11 组 / 76 条断言）
+validate_execute_line.py   -> ALL CHECKS PASSED（10 组 / 51 条断言）
+check_lang_parity.py       -> ✅ 通过（本会话首次全绿）
+build --rerun-tasks --no-build-cache -> BUILD SUCCESSFUL，3 个警告（与改动前一致）
+C-2 变异对照               -> 修复前 exit=0（假阴性）/ 修复后 exit=1 FAILED 2 check(s)，还原后复绿
+```
+
+**委托方实机复验（最终）**：修复后再次测试，结论「**斩杀技能没有问题了**」
+⇒ 本功能（斩杀被动 + 斩杀线渲染 + Boss 兼容 + 失败不重试）**收尾结束**。

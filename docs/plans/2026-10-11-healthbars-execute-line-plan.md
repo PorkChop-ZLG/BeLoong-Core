@@ -217,7 +217,7 @@ jar beloong-0.10.4.jar                  -> client 列表含 healthbars.GuiRender
 | 编号 | 问题 | 处置 |
 |---|---|---|
 | I-1 | 几何 off-by-one：条左真值是 `posX - 1`，本文档与代码都按 `posX` 实现 | **已修**：`draw` 参数改名 `anchorX`，内部 `anchorX - 1`；设计文档 §二 / §6.1 同步 |
-| I-2 | 新静态门被 `.gitignore:49` 的 `tools/` 吞掉，普通 `git add .` 带不走 | **需人工**：提交时 `git add -f tools/validate_execute_line.py`（未擅改 .gitignore 语义，理由见设计文档 §14.4） |
+| I-2 | 新静态门被 `.gitignore:49` 的 `tools/` 吞掉，普通 `git add .` 带不走 | ✅ **已裁定（2026-10-11）：`tools/` 刻意不进版本管理**，不要求 `git add -f`；脚本留在工作区（见设计文档 §14.4） |
 | I-3 | 门断言②可被 javadoc 里的 `@Pseudo` / `require = 0` 提及单独满足 | **已修**：改对剥注释后的源码断言，并新增两条描述符锁定 |
 | I-4 | 门断言④键表硬编码，`Config.java` 打错字测不到 | **已修**：改为从 `Config.java` 解析段名与键名 |
 | S-x | 剥注释函数方向性错误 + 会吞真引用；缺 `barWidth <= 0` 早退；文档公式/配色数字/归因不一致 | **已修** |
@@ -228,8 +228,10 @@ jar beloong-0.10.4.jar                  -> client 列表含 healthbars.GuiRender
 
 ### 提交提示（本项目的提交由用户做）
 
-工作区待提交：2 个新 Java 文件、1 个新门脚本（**必须 `git add -f`**）、2 个计划文档，
-外加 `Config.java` / `beloong.mixins.json` / 中英语言文件的增量。
+工作区待提交：2 个新 Java 文件、2 个计划文档，外加 `Config.java` / `beloong.mixins.json` /
+中英语言文件的增量。
+**`tools/` 下的门脚本不进版本库**（项目既定政策，2026-10-11 用户再次确认）⇒ **不需要 `git add -f`**，
+它们留在工作区即可；理由与其代价见设计文档 §14.4。
 
 ---
 
@@ -383,5 +385,28 @@ jar beloong-0.10.4.jar                  -> client 列表含 healthbars.GuiRender
 **本轮周期内的三次决定反转均留档**：标签缺席实为刻意（§16.4）、冷却期间改为不可挂线（§十七）、
 `bypasses_invulnerability` 加过又撤回（§十八）。
 
-**提交**：改动集中在已跟踪文件 + 删除的 1 个数据文件；
-`tools/` 下两个验证脚本因整目录被忽略，提交时需 **`git add -f`**。
+**提交**：改动集中在已跟踪文件 + 删除的 1 个数据文件。
+**`tools/` 下两个验证脚本不进版本库**（项目既定政策，2026-10-11 再次确认）⇒ **不需要 `git add -f`**。
+
+---
+
+## 第六轮：代码审查 → 修复 → 最终复验（2026-10-11，收尾）
+
+**审查**：`docs/reviews/2026-10-11-execute-skill-code-review.md` —— 3 名独立子代理分片 + 主审逐条复核，
+得 **C×2 / I×4（含 7 条子缺口）/ S×10**，并**更正了审查者的 2 处结论**。
+最关键的是 **C-2**：第 ⑩ 组只比较下标先后，对真正的回归（`hurt` 之后插入
+`if (!damaged) { return; }` = 恢复每 tick 重试）**保持全绿**。
+
+**修复**（用户裁定：C/I 全修、S 除 S-5 外全处理；`tools/` 不进版本管理）：
+
+| 类别 | 内容 |
+|---|---|
+| 代码 | C-1 兜底不再降级；I-1 改以 `isDeadOrDying()` 判定 + **尸体分支**（消耗标记但不进冷却、静默）；I-2 过期数字与过期结论；S-1 加载态前置；S-2/S-3 删死 API；S-6 `.copyOnDeath()`；S-7 颜色注释 |
+| 保留 + 写明理由 | S-4、S-5（刻意允许 >100%）、S-10 |
+| 门 | C-2 改为「`hurt` 到**无条件**移除标记之间不得有 `return`」+ 剥离注释（**同一变异由绿转红**）；I-3 a–g 七组空洞断言补齐；S-9 `if (false)` 短路；S-8 语言门首次全绿 |
+| 文档 | 设计文档 §14.4/§19.6/§二十、本计划、审查报告、`project-context.md`、`tools/README.md`、`decisions-log(七)` 全部改口为「`tools/` 刻意不进版本管理」 |
+
+**验证**：`validate_execute.py` **11 组 / 76 条**、`validate_execute_line.py` **10 组 / 51 条**、
+`check_lang_parity.py` **三门全绿**；`build --rerun-tasks --no-build-cache` BUILD SUCCESSFUL（3 警告不变）。
+
+**委托方实机复验（最终）**：「**斩杀技能没有问题了**」⇒ **本功能收尾结束。**

@@ -1,5 +1,16 @@
 # 旗帜纹理提取工具
 
+> **本目录（`tools/`）刻意不进版本管理** —— `.gitignore:49` 整目录忽略，这是**项目既定政策**
+> （`memory/project-context.md:322`），2026-10-11 再次确认。因此：**不要 `git add -f`，
+> 也不要为它反加白名单**（那会让本目录下的 spark 转储与 `__pycache__` 冒进 `git status`）。
+> 本目录的脚本 —— 包括验收门 `validate_execute.py` / `validate_execute_line.py` —— 都是
+> **本机工具**：换机器或重新克隆后需要自己带过去，而「门已全绿」这类结论只有在这些脚本
+> 仍在工作区时才可复现。
+>
+> **注意历史的例外**：`README.md`（本文件）、`extract_banner_texture.py`、`make_execute_icons.py`、
+> `make_tornado_icons.py`、`recolor_tornado_texture.py`、`validate_execute.py` 这 6 个是**早年已被跟踪**的，
+> 它们的改动**照常会进提交**；政策约束的是**新脚本不要再往里加**（如 `validate_execute_line.py` 至今未跟踪）。
+
 `extract_banner_texture.py` 用于把 Minecraft 1.21.1 的旗帜物品字符串转换为本模组板子模型可直接使用的 64x64 PNG 纹理。
 
 ## 环境要求

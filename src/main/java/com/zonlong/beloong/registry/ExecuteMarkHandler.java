@@ -89,8 +89,8 @@ public final class ExecuteMarkHandler {
         int amplifier = ExecuteThresholdEffect.amplifierForThreshold(config.threshold().calculate(level));
         int duration = Math.max(1, (int) config.markDuration().calculate(level));
 
-        // showIcon / visible 都关掉：amplifier 最大到 19，原版 HUD 会去查不存在的
-        // enchantment.level.20 语言键；而这个标记本来就是纯内部状态，不需要在 buff 栏占一个图标。
+        // showIcon / visible 都关掉：amplifier 最大到 39（L16），原版 HUD 会去查不存在的
+        // enchantment.level.40 语言键；而这个标记本来就是纯内部状态，不需要在 buff 栏占一个图标。
         MobEffectInstance mark = new MobEffectInstance(
                 ModMobEffects.EXECUTE_THRESHOLD,
                 duration,
@@ -103,9 +103,15 @@ public final class ExecuteMarkHandler {
         // 结算时用来找回「斩杀者」。见 ExecuteThresholdEffect 的类注释。
         //
         // 先走**正常路径**（会经过 canBeAffected / MobEffectEvent.Applicable 等全部原版闸门）；
-        // 被拒时才回退到 forceAddEffect —— 有些 Boss 直接覆写 addEffect 无条件返回 false，
+        // 只有在它**被拒**时才回退到 forceAddEffect —— 有些 Boss 直接覆写 addEffect 无条件返回 false，
         // 那种闸门连 canBeAffected 都不会被问到（见 applyByForce）。
-        if (!victim.addEffect(mark, player)) {
+        //
+        // ⚠️ 必须同时确认「标记确实不存在」再兜底（2026-10-11 审查 C-1）：
+        // addEffect 返回 false 有**两种**含义 —— 被拒，或**已有更强的同类效果**
+        // （MobEffectInstance.update:144-160：新实例更弱时两个分支都不置位 ⇒ 返回 false）。
+        // 后者若也走 forceAddEffect，就会用弱标记**覆盖**强标记（L1 的 5% 线盖掉 L16 的 20% 线），
+        // 并把 applier 改成低等级那位 —— 两条不同等级的龙打同一只怪即可触发。
+        if (!victim.addEffect(mark, player) && victim.getEffect(ModMobEffects.EXECUTE_THRESHOLD) == null) {
             applyByForce(victim, mark, player);
         }
     }
@@ -208,10 +214,5 @@ public final class ExecuteMarkHandler {
 
         SummonData summon = victim.getExistingDataOrNull(DSDataAttachments.SUMMON.get());
         return summon == null || !summon.isOwner(player);
-    }
-
-    /** 便于其它系统复用同一口径（例如血条只在「会被斩杀的生物」上画线）。 */
-    public static boolean isMarkableBy(Player player, LivingEntity victim) {
-        return player instanceof ServerPlayer serverPlayer && isValidTarget(serverPlayer, victim);
     }
 }

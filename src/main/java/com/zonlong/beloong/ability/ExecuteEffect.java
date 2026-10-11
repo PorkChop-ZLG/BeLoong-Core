@@ -41,7 +41,7 @@ import java.util.List;
  * （每 20 刻才 {@code apply} 一次）。</p>
  *
  * @param damage       斩杀伤害（真实伤害，默认 999999）
- * @param threshold    斩杀线（百分比数值，例如 3.0 表示 3.0%）
+ * @param threshold    斩杀线（百分比数值，例如 5.0 表示 5.0%）
  * @param cooldown     触发斩杀后的冷却（刻）
  * @param markDuration 斩杀线标记的持续时间（刻）
  */

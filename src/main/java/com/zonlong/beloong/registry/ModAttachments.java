@@ -35,11 +35,15 @@ public final class ModAttachments {
      * <p>
      * {@code 0} = 从未触发过，随时可用。存时间戳而不是倒计时，是为了不必每 tick 递减：
      * 判定只需一次整数比较，且天然在存档重载后仍然正确。
+     * <p>
+     * <b>{@code copyOnDeath()} 是必需的</b>（2026-10-11 审查 S-6）：不加它，玩家一死这条附件就回到
+     * 默认值 {@code 0} ⇒ <b>死亡即清冷却</b>，可以靠「自杀」刷新斩杀冷却。
      */
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<Long>> EXECUTE_READY_AT =
             REGISTRY.register("execute_ready_at",
                     () -> AttachmentType.builder(() -> 0L)
                             .serialize(Codec.LONG)
+                            .copyOnDeath()
                             .build());
 
     private ModAttachments() {}
