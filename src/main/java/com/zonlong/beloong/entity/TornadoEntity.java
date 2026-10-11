@@ -60,6 +60,10 @@ import net.minecraft.world.phys.Vec3;
  * 注意该 tag <b>同时</b>使每次命中都播一次受伤音效并广播一个伤害事件包，且没有任何
  * tag 能压掉音效，故伤害按 {@link #DAMAGE_INTERVAL_TICKS} 刻批量结算、单次伤害等比例放大，
  * 详见该常量的注释。
+ * <p>
+ * <b>本实体自己不放任何音效</b>（类里没有一处 {@code playSound}）：持续的风声由<b>客户端</b>的
+ * {@code client.TornadoSoundHandler} 用循环音效实例绑在本实体上播放 —— 循环素材靠服务端定时重播
+ * 会断口/重叠，且要多发一堆声音包。也因此<b>不得</b>从本类引用任何客户端类。
  */
 public class TornadoEntity extends Projectile {
 

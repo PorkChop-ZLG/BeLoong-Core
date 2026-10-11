@@ -7,14 +7,25 @@
             {
               "effect_type": "beloong:tornado",
               "damage_per_hit": {
-                "type": "minecraft:linear",
-                "base": 2.0,
-                "per_level_above_first": 1.0
+                "type": "minecraft:lookup",
+                "values": [
+                  2.0,
+                  3.3,
+                  5.7,
+                  12.5,
+                  22.2,
+                  40.0
+                ],
+                "fallback": {
+                  "type": "minecraft:linear",
+                  "base": 40.0,
+                  "per_level_above_first": 17.8
+                }
               },
               "lifetime": {
                 "type": "minecraft:linear",
                 "base": 100,
-                "per_level_above_first": 15
+                "per_level_above_first": 20
               },
               "pull_radius": {
                 "type": "minecraft:linear",
@@ -55,10 +66,13 @@
       }
     },
     "cast_time": 20.0,
-    "cooldown": 200.0,
+    "cooldown": {
+      "type": "minecraft:linear",
+      "base": 200.0,
+      "per_level_above_first": -20.0
+    },
     "initial_mana_cost": 2.0,
     "sound": {
-      "start": "minecraft:item.elytra.flying",
       "end": "minecraft:entity.breeze.wind_burst"
     }
   },
@@ -105,7 +119,7 @@
         "per_level_above_first": 50.0
       },
       "values": [
-        20.0,
+        10.0,
         50.0,
         100.0,
         150.0,

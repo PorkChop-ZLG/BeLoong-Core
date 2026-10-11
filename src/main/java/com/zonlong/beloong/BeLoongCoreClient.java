@@ -9,6 +9,7 @@ import com.zonlong.beloong.client.HellGateRenderer;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.MoRenderer;
 import com.zonlong.beloong.client.TornadoRenderer;
+import com.zonlong.beloong.client.TornadoSoundHandler;
 import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
@@ -60,6 +61,8 @@ public class BeLoongCoreClient {
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         NeoForge.EVENT_BUS.register(new LoongPalaceSkyTickHandler());
+        // 龙卷风实体的持续风声：客户端循环实例，绑在风柱实体上（起停见 TornadoSoundHandler）。
+        NeoForge.EVENT_BUS.register(new TornadoSoundHandler());
     }
 
     /**
