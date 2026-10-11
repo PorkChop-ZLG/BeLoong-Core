@@ -245,7 +245,9 @@ GuiRenderingHandler.onAfterRenderGui                    (:41)
 4. `beloong.configuration.executeLineEnabled{,.tooltip}` 与 `execute_line{,.tooltip}` 中英**齐备**；
 5. `.\gradlew.bat build` 通过。
 
-### 9.2 实机验收（需在能跑客户端的机器上做）
+### 9.2 实机验收（**✅ 2026-10-11 已通过**）
+
+> 用户 2026-10-11 的最终结论：「**现在斩杀技能符合预期**」。覆盖范围与已接受的例外见 **§十九**。
 
 1. 给一条**成长 150** 的远古龙装上斩杀，砍监守者 → 左上角血条出现橙色区段，竖线在 **5%** 处；
 2. 成长拉到 **300**（L16）→ 竖线移到 **20%**（500 血条上 ≈ 100 血的位置）；
@@ -424,11 +426,13 @@ decisions-log 第 11 条；先例：`mixin/minecraft/DreadKingRitualTriggerMixin
 `mixin/minecraft/LivingEntityExecuteMarkSyncMixin` + 条目 `"minecraft.LivingEntityExecuteMarkSyncMixin"`
 + 6 处 `remap = false`，并把这条规范写成静态门第 ⑦ 组的断言（放回根目录或漏写 `@At` 的 `remap` 都会红）。
 
-### 15.6 仍未验证
+### 15.6 实机验收：**✅ 已通过**（2026-10-11）
 
-**修复后的实机表现尚未验收**（静态门只证明接线正确）。需用户复测：
-斩杀线是否出现、竖线是否落在 5%（成长 150）/ 20%（成长 300）、打半血区段是否不缩水、
-伤害飘字是否仍清晰、无标记的怪是否一点橙色都没有。
+第二轮修复后由用户实机复测，结论「**现在斩杀技能符合预期**」：
+
+- 斩杀线**正常渲染**（第一轮的「完全无渲染」已消除），竖线按成长值落位（150 → 5% / 300 → 20%）；
+- 打半血时橙色区段宽度不变；伤害飘字清晰；无标记的怪一点橙色都没有；
+- 随后又暴露出 Boss 挂不上标记的问题 —— 那是**独立的第三个原因**，见 §十六。
 
 ---
 
@@ -497,13 +501,18 @@ check(not os.path.isfile(.../bypasses_invulnerability.json),
 > **⚠️ 2026-10-11(五) 再次反转：该标签已被撤回。** 用户实测发现它「类似 `/kill`」的效果
 > **会让部分 Boss 的动画失效**，遂恢复「不得存在」。完整往返记录见 **§十八**。
 
-### 16.5 仍未解决：灾变多部件 Boss **看不到线**（待实机确认）
+### 16.5 **已关闭：无需处理**（2026-10-11 实机确认）
 
-与效果无关的独立一环：Health Bars 的准星拾取拿到的是 `Cm_Part_Entity extends PartEntity`
-（**不是 `LivingEntity`**），而 `PickEntityHandler` 只把**原版** `EnderDragonPart` 解析回 `parentMob`
-⇒ `GuiRenderingHandler:48` 的 `instanceof LivingEntity` 不成立 ⇒ 这类生物**根本没有 GUI 血条**。
-若需要修，是 **1 个** `mixin/healthbars/` 下的 mixin（`PartEntity → parentMob`），不是 N 个 Boss 模组 mixin。
-用户将先实机确认。
+原本担心「灾变多部件 Boss 看不到线」：Health Bars 的准星拾取拿到的是
+`Cm_Part_Entity extends PartEntity`（**不是 `LivingEntity`**），而 `PickEntityHandler` 只把**原版**
+`EnderDragonPart` 解析回 `parentMob` ⇒ 怀疑 `GuiRenderingHandler:48` 的 `instanceof LivingEntity`
+不成立、这类生物根本没有 GUI 血条。
+
+**实机结果：线正常渲染** —— 用户 2026-10-11 报告「凋灵、末影龙、灾变焰魔、**下界合金巨兽**都可以斩杀
+并且**渲染斩杀线**」。也就是说命中盒拾取在这些 Boss 上实际拿到的是主实体（或其父实体），
+那条盲区**没有影响到本功能** ⇒ 原计划的 `PartEntity → parentMob` mixin **不做**。
+（仍作为潜在隐患记在 §十二 升级必查项里：若将来某个多部件 Boss 的准星拾取确实落在部件上，
+症状会表现为「该 Boss 完全没有血条」而非「只有线没有」。）
 
 ### 16.6 验证
 
@@ -652,3 +661,51 @@ jar 复核                                -> bypasses_invulnerability.json 已�
 `mixin/legendarymonsters/AnnihilationPursuerDamageCapMixin` 就是在 `damageCap()` 上 `@Inject`
 改返回值的。代价是每个模组族 1 个 mixin（不是每个 Boss 1 个），且要跟进上游私有逻辑。
 **当前决定：不做**（用户已裁定承认部分 Boss 挡得住）。
+
+---
+
+## 十九、实机验收通过（2026-10-11，收尾）
+
+### 19.1 结论
+
+**用户 2026-10-11 实机结论：「现在斩杀技能符合预期」。** 本功能（斩杀线渲染 + 斩杀触发的 Boss 兼容 +
+失败不再重试）**验收通过，收尾**。
+
+### 19.2 覆盖到的行为（跨五轮测试累计确认）
+
+| 项 | 结果 |
+|---|---|
+| 斩杀线渲染 | ✅ 左上角血条出现橙色 `0→斩杀线` 区段 + 竖线；按成长值落位（150 → 5% / 300 → 20%） |
+| 打半血区段不缩水 | ✅ |
+| 伤害飘字可读 | ✅（合成序上飘字压在我们之上，实测清晰） |
+| 无标记的怪 | ✅ 一点橙色都没有 |
+| 斩杀触发 | ✅ 普通生物、小 Boss，以及**多数 Boss**：凋灵、末影龙、灾变焰魔、下界合金巨兽、传奇怪物的两个 Boss |
+| 被挡下时不重试 | ✅ 消耗标记 + 进冷却 + 提示「斩杀被挡下」+ INFO 日志 |
+| 冷却语义 | ✅ 冷却期间挂不上线；冷却结束后不自动重斩 |
+| 专用服务端 | ✅ 无 `NoClassDefFoundError`（客户端专属类只被 3 个客户端路径引用，门第 ⑤ 组钉住） |
+
+### 19.3 已接受、不再视为缺陷的例外（用户裁定）
+
+| 例外 | 机制 | 处置 |
+|---|---|---|
+| **Mowzie 钢铁守护者** | 正面 / 非破防窗口无条件 `return false`（`EntityWroughtnaut.hurt:194-207`），且它的 `BYPASSES_INVULNERABILITY` 判断位于「伤害源无实体」的 `else` 分支 ⇒ 标签够不到 | **挡得住斩杀**；不为它写 mixin |
+| **传奇怪物 云筑魔像** | 垂直 4 格反 cheese（`IAnimatedMonster:213-222`，而它是飞行 Boss）+ 受击后 10 tick 金身 + `state == 21`（`Cloud_GolemEntity.hurt:1181/1184/1239`），**都不看标签** | 同上 |
+| `bypasses_invulnerability` | 试加后实测**会让部分 Boss 的动画失效**（它是多方共用的 `/kill` 级标签，见 §18.2） | **已撤回**，回到「不得存在」 |
+
+### 19.4 本轮周期内的三次决定反转（均留档，未静默改写）
+
+1. §16.4 —— 「标签缺席」原被误称为遗漏，实为**刻意设计**（初版文档 §5.4 写明「那是 `/kill` 级别的口子」）；
+2. §十七 —— `ExecuteCooldown` 的「冷却期间仍可挂线」**反转为不可挂线**；
+3. §十八 —— 上面那个标签**加过又撤回**（用户实测与初版预判一字不差）。
+
+### 19.5 遗留（明确不做，非遗漏）
+
+- 不给 Mowzie / 传奇怪物写 mixin 让它们的 Boss 可斩（用户裁定）；
+- 不做 Health Bars 的 `PartEntity → parentMob` 拾取补丁（§16.5 实机证明无需）。
+  若将来某个多部件 Boss 表现为「**完全没有血条**」，再回头看这一条。
+
+### 19.6 提交状态
+
+改动集中在已跟踪的 8 个文件 + 删除的 1 个数据文件；
+**`tools/validate_execute_line.py` 与 `tools/validate_execute.py` 因 `tools/` 被整目录忽略，
+提交时需 `git add -f`**。提交由作者执行。
