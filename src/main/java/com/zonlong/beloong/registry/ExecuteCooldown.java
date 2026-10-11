@@ -13,8 +13,17 @@ import net.minecraft.world.entity.player.Player;
  *   }
  * </pre>
  * 也就是说，被动能力只要声明了 {@code cooldown > 0}，<b>每次被触发都会立刻进入满冷却</b>。
- * 而斩杀需要的语义是「<b>触发斩杀之后</b>才进冷却」，且冷却期间<b>仍然可以</b>继续给敌人挂斩杀线。
- * 两者不可调和，因此能力 JSON <b>不声明</b> {@code activation.cooldown}，
+ * 而斩杀需要的语义是「<b>触发斩杀之后</b>才进冷却」—— 这一点与上面的分析一致。
+ *
+ * <p><b>⚠️ 2026-10-11 反转（用户裁定）</b>：本类原写「且冷却期间<b>仍然可以</b>继续给敌人挂斩杀线」，
+ * 现已<b>改为冷却期间不得再挂线</b> —— {@code ExecuteMarkHandler#onLivingDamagePost} 会在挂线前
+ * 检查 {@link #isReady(Player)}。原因：有些生物会<b>无条件</b>拒绝斩杀的伤害
+ * （钢铁守护者 {@code EntityWroughtnaut.hurt:194-207}、云筑魔像 {@code Cloud_GolemEntity.hurt:1181/1184}），
+ * 被挡下后若标记还能被下一次攻击立刻重挂，就会形成「每 tick 重试一次」的无限斩杀与音效刷屏。
+ * 与之配套，{@code ExecuteThresholdEffect#execute} 现在<b>无论伤害是否造成</b>都会消耗标记并进入冷却。
+ * 详见设计文档 §十七。</p>
+ *
+ * <p>两者不可调和，因此能力 JSON <b>不声明</b> {@code activation.cooldown}，
  * 冷却值改由能力 JSON 里 {@code beloong:execute} 效果的 {@code cooldown} 字段提供，
  * 状态存在本模组自己的附件里。
  *

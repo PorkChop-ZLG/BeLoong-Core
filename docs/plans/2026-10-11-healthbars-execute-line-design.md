@@ -429,3 +429,226 @@ decisions-log 第 11 条；先例：`mixin/minecraft/DreadKingRitualTriggerMixin
 **修复后的实机表现尚未验收**（静态门只证明接线正确）。需用户复测：
 斩杀线是否出现、竖线是否落在 5%（成长 150）/ 20%（成长 300）、打半血区段是否不缩水、
 伤害飘字是否仍清晰、无标记的怪是否一点橙色都没有。
+
+---
+
+## 十六、Boss 挂不上斩杀标记：两道闸门与通用解法（2026-10-11，第三轮）
+
+### 16.1 现象
+
+实机：**原版凋灵、灾变 Boss、传奇怪物的三个 Boss** 都无法触发斩杀（连文字/音效/粒子都没有
+⇒ **不是伤害被挡，而是标记根本没挂上**）；而**铁傀儡、监守者、传奇怪物的小 Boss** 全部正常。
+
+### 16.2 两道闸门（实证）
+
+| 闸门 | 实例 | 机制 |
+|---|---|---|
+| **`canBeAffected` 覆写** | 灾变 `IABoss_monster.java:302`、`LLibrary_Boss_Monster.java:235` | 白名单标签 `cataclysm:effective_for_bosses`（30 项原版效果 + 4 项灾变效果），**不含 `beloong:execute_threshold`** ⇒ `addEffect` 第一行 `canMobEffectBeApplied` 否决 |
+| **`addEffect` 覆写** | 原版凋灵 `WitherBoss.java:529-532`（无条件 `return false`）；传奇怪物 `IAnimatedBoss.java:225-227`（同） | 覆写掉 `addEffect` 本身，**连 `canBeAffected` 都不会被问到** |
+
+**传奇怪物「三个 Boss / 小 Boss」的精确解释**：`IAnimatedBoss`（类）只有 **3 个**实现者
+（`Cloud_GolemEntity` / `PossessedPaladinEntity` / `TheObliteratorEntity`）⇒ 正是那三个；
+而 `IAnimatedMiniBoss`（类）虽在 `:161-164` 写了 `canBeAffected → false`，但每个小 Boss 实体又把它
+覆写回 `return super.canBeAffected(instance)`，且 `IAnimatedMiniBoss` 不覆写 `addEffect`
+⇒ 它们走的是 `LivingEntity.addEffect` 正常路径 ⇒ 标记正常挂上。
+
+### 16.3 解法：两个通用杠杆，**零 per-Boss-模组 mixin**
+
+| # | 杠杆 | 覆盖 |
+|---|---|---|
+| ① | `MobEffectEvent.Applicable` @ `EventPriority.LOWEST` ⇒ `setResult(Result.APPLY)` | **一切** `canBeAffected` 实现 |
+| ② | `addEffect` 返回 false 时回退 `LivingEntity.forceAddEffect` | **一切** `addEffect` 覆写 |
+
+① 的依据是原版自己的实现（`MobEffectEvent.Applicable:138-143`）：`Result.APPLY` **直接 `return true`**，
+`canBeAffected` 根本不参与；该事件不可取消、所有监听器都执行、结果取**最后一个** `setResult`
+⇒ 用 `LOWEST` 跑到最后即可稳赢。官方注释即「Forces the event to apply the mob effect」。
+
+② 的依据是 `LivingEntity.forceAddEffect:1014-1024` **不调用被覆写的 `addEffect`**，直接写
+`activeEffects` 并触发 `onEffectAdded`；但它仍走 `canMobEffectBeApplied` ⇒ 被 ① 放行。
+
+**⚠️ ② 必须同时自补「斩杀者」**：`forceAddEffect` **不触发 `MobEffectEvent.Added`**，而 DS 正是在
+该事件里把 `effectSource` 写进 effect 实例的（DS `EffectHandler:21-22`）。不补 ⇒ 标记挂上却永不触发
+（又一个静默失败）。DS 的接口公开：`AdditionalEffectData.dragonSurvival$setApplier(Entity)`。
+
+**③ 数据侧**：新增 `data/minecraft/tags/damage_type/bypasses_invulnerability.json`（含
+`beloong:execute`）⇒ 绕过灾变的 `Math.min(DamageCap(), amount)`（`IABoss_monster:137-140`、
+`LLibrary_Boss_Monster:81-84`）与全部 11 处 Boss 无敌帧。**有了 ① 之后
+`cataclysm:effective_for_bosses` 那个数据文件不再需要**（`Result.APPLY` 直接短路 `canBeAffected`）。
+
+**⑤ 可诊断性**：两道闸门都失败时打一条 `WARN`（罕见、不刷屏）；走兜底成功时打 `DEBUG`。
+
+### 16.4 ⚠️ 记录更正：「标签缺席」原本是**刻意设计**，不是遗漏
+
+`tools/validate_execute.py` 的 `[5]` 段原本有一条断言，是**当初写下的**：
+
+```python
+check(not os.path.isfile(.../bypasses_invulnerability.json),
+      "no bypasses_invulnerability (would pierce creative/invulnerable entities)")
+```
+
+⇒ 「不加这个标签」是**明确的设计决定**（理由就是会穿透创造模式 / 无敌实体）。
+**我在本轮讨论中一度把它说成「遗漏」，那是错的**，在此更正。当初真正没被预见到的，是它的
+**后果**：靠钳制伤害或无敌帧过日子的 Boss 会完全无法被斩杀。
+
+用户于 2026-10-11 在**逐条知悉代价**后明确接受（不死图腾失效、出生保护 / 创造模式 /
+`setInvulnerable(true)` 被穿透、监守者钻地无敌被穿透、灾变 11 处 Boss 无敌帧被穿透），
+因此**不变量已翻转为相反的一条**并记录了谁/何时/为何 —— 没有静默删除这条守卫。
+
+> **⚠️ 2026-10-11(五) 再次反转：该标签已被撤回。** 用户实测发现它「类似 `/kill`」的效果
+> **会让部分 Boss 的动画失效**，遂恢复「不得存在」。完整往返记录见 **§十八**。
+
+### 16.5 仍未解决：灾变多部件 Boss **看不到线**（待实机确认）
+
+与效果无关的独立一环：Health Bars 的准星拾取拿到的是 `Cm_Part_Entity extends PartEntity`
+（**不是 `LivingEntity`**），而 `PickEntityHandler` 只把**原版** `EnderDragonPart` 解析回 `parentMob`
+⇒ `GuiRenderingHandler:48` 的 `instanceof LivingEntity` 不成立 ⇒ 这类生物**根本没有 GUI 血条**。
+若需要修，是 **1 个** `mixin/healthbars/` 下的 mixin（`PartEntity → parentMob`），不是 N 个 Boss 模组 mixin。
+用户将先实机确认。
+
+### 16.6 验证
+
+```
+python tools\validate_execute.py        -> ALL CHECKS PASSED（[5] 的不变量已按裁定翻转）
+python tools\validate_execute_line.py   -> ALL CHECKS PASSED（新增第 ⑨ 组：两道杠杆 + 数据文件 + 自补 applier）
+.\gradlew.bat build --rerun-tasks --no-build-cache -> BUILD SUCCESSFUL，3 个警告（与改动前一致）
+jar 复核                                -> data/minecraft/tags/damage_type/bypasses_invulnerability.json 已打包
+反向对照（5 条）                        -> 删 ① 杠杆 / 删 ② 兜底 / 删自补 applier / 写反正常路径与兜底关系 /
+                                           拿掉 bypasses_invulnerability.json
+                                           —— 全部被门抓住，还原后哈希不变、两门复绿
+```
+
+---
+
+## 十七、斩杀被目标挡下：承认它，并停止每 tick 重试（2026-10-11，第四轮）
+
+### 17.1 现象
+
+第三轮之后，凋灵 / 末影龙 / 灾变焰魔 / 下界合金巨兽都能斩且能渲染线。两个例外：
+
+| 例外 | 现象 |
+|---|---|
+| **Mowzie 钢铁守护者** | 斩杀触发后**造成不了伤害**，且**每 tick 都重试**，声音特别吵 |
+| **传奇怪物 云筑魔像** | **完全无法斩杀**（同模组另一个 Boss 正常） |
+
+### 17.2 根因：目标 `hurt` 里的**无条件拒绝**（不看任何标签）
+
+| Boss | 拒绝条件 | 证据 |
+|---|---|---|
+| **钢铁守护者** | 正面 ±110° 弧内、或不在 `vulnerable` 窗口时 → `playSound(ENTITY_WROUGHT_UNDAMAGED)` + `return false` | `EntityWroughtnaut.hurt:194-207`。**它的 `BYPASSES_INVULNERABILITY` 判断位于「伤害源无实体」的 `else` 分支**（`:204`），而我们的 `ExecuteDamageSource` 带玩家（击杀归因需要）⇒ 永远够不到那个分支 |
+| **云筑魔像** | ① 受击后 10 tick 金身 → `return false`；② `isTargetCheesingBoss()` → `return false`；③ `getAttackState() == 21` → `return false` | `Cloud_GolemEntity.hurt:1181 / 1184 / 1239`。第 ② 条的实现是 `IAnimatedMonster:213-222` —— **纯粹按 Y 轴差**：攻击者比它高 4 格或低 4 格即算 "cheese"。它**是飞行 Boss**，龙在空中打它极易命中这条 ⇒ 永久拒绝、且**完全静默**（`:1184` 没有任何音效/消息） |
+
+**为什么标签救不了**：`IAnimatedBoss.hurt:331-336` 本身认标签（`if (BYPASSES_INVULNERABILITY) return super.hurt(...)` ⇒ 跳过 `Math.min(damageCap(), amount)`），但**子类覆写里那些不看标签的无条件 `return false` 跑在父类之前**。伤害类型标签、`forceAddEffect`、`Result.APPLY` 都**进不到目标 `hurt` 内部**。
+
+⇒ **没有通用手段能强行造成伤害**（与「效果挂不上」不同，那个有通用杠杆，见 §十六）。
+用户 2026-10-11 裁定：**承认部分 Boss 挡得住斩杀**，不为这两个模组写 mixin（**e 不做**）。
+
+### 17.3 但这暴露了一个真 bug：每 tick 重试
+
+原实现把 `hurt` 返回 false 解释成「目标无敌，别消耗标记、别进冷却」：
+
+```java
+if (!victim.hurt(new ExecuteDamageSource(damageType, player), damage)) {
+    // 无敌实体 / 已死亡等：不消耗标记，也不进冷却。
+    return;
+}
+```
+
+⇒ 标记永远耗不掉 ⇒ 下一 tick 再来一次 ⇒ **无限斩杀**。钢铁守护者之所以"声音特别吵"，
+正因为**它每 tick 都播自己的 `ENTITY_WROUGHT_UNDAMAGED`**（我们的斩杀音效在 `hurt` 之后，
+`return false` 时就 return 了，一次都没响过）。
+
+### 17.4 修复（用户裁定 a/b/c/d，e 不做）
+
+| # | 内容 | 位置 |
+|---|---|---|
+| **a** | **无论伤害是否造成**，都消耗标记 + 进入冷却 | `ExecuteThresholdEffect#execute` |
+| **b** | 冷却期间**不再挂线** | `ExecuteMarkHandler#onLivingDamagePost` |
+| **c** | 忽略**我们自己的**斩杀伤害触发的 `LivingDamageEvent.Post`（按伤害类型判断） | 同上（`isOurExecuteDamage`） |
+| **d** | 区分「真斩杀」与「被挡下」：后者给 `message.beloong.execute.refused` 提示 + 一条 `INFO` 日志，**不再谎报「已斩杀」** | `ExecuteThresholdEffect#execute` + 中英语言文件 |
+
+**为什么必须做 (c)**：`ExecuteDamageSource` 带着斩杀者（为了让击杀统计 / 掉落 / 进度归因正确），
+所以**我们自己的斩杀也会触发 `LivingDamageEvent.Post`**，看起来就像「玩家又打了一下」⇒ 自动重新挂线
+⇒ 冷却一结束就自动再斩一次。斩杀伤害不是「玩家攻击」，不应据此挂线。
+
+**⚠️ 记录又一次决定反转**：`ExecuteCooldown` 的类注释原本写着
+「冷却期间**仍然可以**继续给敌人挂斩杀线」—— (b) 正是把它反过来。该注释已改写并记录
+谁/何时/为何（与 §16.4 的 `bypasses_invulnerability` 同一处理方式）。
+
+### 17.5 修复后的语义
+
+- 斩杀**触发过就进冷却**，成败不论；
+- 冷却期间**挂不上线**，所以冷却结束后也不会自动重斩（除非玩家再打一下）；
+- 被挡下时玩家看到「斩杀被挡下」而不是假的「已斩杀」，并且**日志里留痕**（这类失败此前完全静默）。
+
+### 17.6 验证
+
+```
+python tools\validate_execute.py        -> ALL CHECKS PASSED（新增第 ⑩ 组：a/b/c/d 四条不变量）
+python tools\validate_execute_line.py   -> ALL CHECKS PASSED
+.\gradlew.bat build --rerun-tasks --no-build-cache -> BUILD SUCCESSFUL，3 个警告（与改动前一致）
+反向对照（5 条）                        -> 退回旧守卫 / 取消冷却拦截 / 取消自伤过滤 / 不区分被挡下 /
+                                           英文缺 refused 键 —— 全部被门抓住，还原后哈希不变、门复绿
+```
+
+---
+
+## 十八、撤回 `bypasses_invulnerability`（2026-10-11，第五轮）
+
+### 18.1 决定
+
+**用户实测后撤回** §十六 的 ③（那个数据文件），恢复「不得存在」：
+> 那个标签类似 kill 的效果，会让部分 Boss 的动画失效，所以改回去。
+
+### 18.2 为什么它「类似 kill」—— 这个标签是**多方共用**的
+
+`minecraft:bypasses_invulnerability` 不是一个「针对某 Boss 的伤害上限开关」，而是**一堆互不相关的
+无敌判定共同读取的同一个标签**（这一步在 §十六当时只被总结为「代价」，没有点明**共用**的含义）：
+
+| 读取方 | 效果 |
+|---|---|
+| `WitherBoss:483` | 凋灵出生无敌（220 tick）不再挡住它 |
+| 灾变 `IABoss_monster:137-140` / `LLibrary_Boss_Monster:81-84` | 伤害上限 `Math.min(DamageCap(), amount)` 被跳过 |
+| 灾变 11 处 Boss 无敌帧 | 转阶段 / 特殊动画期间的无敌全部失效 ← **动画失效的直接来源** |
+| `LivingEntity:1306-1308` `checkTotemDeathProtection` | 不死图腾不再救人 |
+| `Entity:2683` `isInvulnerableTo` | `setInvulnerable(true)` 的实体可被打穿 |
+| `ArmorStand:397` / `ItemFrame:145` / `Ghast:79` / `Warden:159` / `Player:925` | 各自的无敌（含创造模式）失效 |
+
+⇒ **列入这个标签，等于对上面所有读取方同时宣布「`beloong:execute` 是 `/kill` 级伤害」**，
+而不仅仅是「跳过某个 Boss 的伤害上限」。用户的实测（动画失效）正是这条清单里第 3 项的直接后果。
+
+**而且这一点初版设计文档早就写明**（`2026-10-09-execute-passive-design.md:192`）：
+> ⇒ 伤害类型 `beloong:execute` 同时进这 8 个原版标签。**刻意不加** `minecraft:bypasses_invulnerability`：
+> 那是 `/kill` 级别的口子，会把创造模式玩家、无敌实体一起打穿。
+
+⇒ 用户的实测与初版预判**一字不差**。本轮撤回即回到那条原本就写明的决定。
+
+### 18.3 撤回后的行为（不会退化成每 tick 重试）
+
+缺了这个标签，靠伤害钳制 / 无敌帧过日子的 Boss 会**再次挡下斩杀**（灾变系的
+`Math.min(DamageCap(), amount)` 会把 `999999` 钳成 20~25）—— 但**因为第四轮的 (a) 已落地**，
+被挡下时仍然：**消耗标记 + 进入冷却 + 显示「斩杀被挡下」提示 + 留一条 INFO 日志**，
+所以不会每 tick 重试 ✓。即：**从「打不死但会无限重试」变成「打不死，但会明确告诉你并被冷却拦住」**。
+
+### 18.4 静态门
+
+- `validate_execute.py` `[5]`：不变量回到 `check(not os.path.isfile(...))`，
+  注释保留**完整往返**（初版 → 2026-10-11(三) 允许 → (五) 撤回）与撤回理由。
+- `validate_execute_line.py` 新增 `[9b]`：断言该文件**不存在**，并写明「缺了它只是挡下斩杀，
+  不会退化成每 tick 重试」。
+
+### 18.5 验证
+
+```
+python tools\validate_execute.py        -> ALL CHECKS PASSED（[5] 回到「不得存在」）
+python tools\validate_execute_line.py   -> ALL CHECKS PASSED（新增 [9b]）
+.\gradlew.bat build --rerun-tasks --no-build-cache -> BUILD SUCCESSFUL，3 个警告（与改动前一致）
+jar 复核                                -> bypasses_invulnerability.json 已消失；其余 8 个标签完好
+```
+
+### 18.6 如果将来仍想让这些 Boss 可斩
+
+**不要**再用这个全局标签。可行的窄口径做法（第三轮 §16.3 里已列为对照）是
+**针对具体钳制点写 mixin**，只对 `beloong:execute` 放行 —— 本仓库已有先例：
+`mixin/legendarymonsters/AnnihilationPursuerDamageCapMixin` 就是在 `damageCap()` 上 `@Inject`
+改返回值的。代价是每个模组族 1 个 mixin（不是每个 Boss 1 个），且要跟进上游私有逻辑。
+**当前决定：不做**（用户已裁定承认部分 Boss 挡得住）。

@@ -73,6 +73,15 @@ public class ExecuteThresholdEffect extends MobEffect {
     /** 斩杀触发时打给玩家的提示语言键。 */
     public static final String MESSAGE_TRIGGERED = "message.beloong.execute.triggered";
 
+    /**
+     * 斩杀被目标挡下时的提示键（{@code message.beloong.execute.refused}）。
+     *
+     * <p>存在的理由：有些生物的 {@code hurt} 会<b>无条件</b>拒绝我们的伤害（见 {@code execute} 里的 (a)）。
+     * 那种情况下标记被消耗、冷却已开始，但<b>伤害没有造成</b> —— 此时若仍显示「已斩杀」就是撒谎，
+     * 玩家也无从知道发生了什么（此前这类失败完全静默）。</p>
+     */
+    public static final String MESSAGE_REFUSED = "message.beloong.execute.refused";
+
     /** 标记方块（mob effect）的颜色：暗金，与「斩杀线」的视觉基调一致。 */
     private static final int COLOR = 0x8B0000;
 
@@ -160,10 +169,27 @@ public class ExecuteThresholdEffect extends MobEffect {
         // 先钉死击杀归因，再结算伤害：死亡消息与掉落都在 hurt() 内部就会被算出来。
         victim.setLastHurtByPlayer(player);
 
-        if (!victim.hurt(new ExecuteDamageSource(damageType, player), damage)) {
-            // 无敌实体 / 已死亡等：不消耗标记，也不进冷却。
-            return;
-        }
+        // (a) **无论这一下有没有造成伤害，都必须消耗标记并进入冷却**（用户 2026-10-11 裁定）。
+        //
+        // 为什么：有些生物会用「无条件 return false」拒绝我们的伤害，而且**不看任何标签** ——
+        // 钢铁守护者在正面 / 非破防窗口（EntityWroughtnaut.hurt:194-207，它的
+        // BYPASSES_INVULNERABILITY 判断在「伤害源无实体」的 else 分支里，我们的伤害带玩家，够不到）；
+        // 云筑魔像在垂直 4 格外或受击后 10 tick 内（Cloud_GolemEntity.hurt:1181/1184）。
+        // 通用手段（forceAddEffect / Result.APPLY / 伤害类型标签）都进不到目标的 hurt 内部，
+        // 所以那是**作者刻意的拒绝**，我们承认它挡得住。
+        //
+        // ⚠️ 曾经试过给 beloong:execute 加 minecraft:bypasses_invulnerability，以绕过伤害钳制
+        // （灾变 IABoss_monster.hurt:137-140 会因该标签跳过 Math.min(DamageCap(), amount)）。
+        // 但用户实测确认它「类似 /kill」：该标签被凋灵出生无敌（WitherBoss:483）、灾变各 Boss 的
+        // 转阶段无敌、ArmorStand / ItemFrame / Ghast / Warden 的无敌、以及不死图腾判定
+        // （LivingEntity:1306-1308 checkTotemDeathProtection）**共同读取** —— 列入它等于对所有这些
+        // 读取方同时宣布「这是 kill 级伤害」，**会让部分 Boss 的动画失效**，故 2026-10-11 已撤回。
+        // 初版设计文档 §5.4 也早就写明「刻意不加」（那是 /kill 级别的口子）。
+        // 静态门 validate_execute.py [5] 与 validate_execute_line.py [9b] 都钉住「不得存在」。
+        //
+        // 但若此时不消耗标记，就会每 tick 重试一次：目标自己的受击音效刷屏（钢铁守护者尤其明显），
+        // 且标记永远耗不掉。冷却的语义由此明确为「触发过就进冷却，成败不论」。
+        boolean damaged = victim.hurt(new ExecuteDamageSource(damageType, player), damage);
 
         // 标记用完即弃，避免死亡动画期间重复结算。
         //
@@ -175,6 +201,18 @@ public class ExecuteThresholdEffect extends MobEffect {
         victim.removeEffect(ModMobEffects.EXECUTE_THRESHOLD);
 
         ExecuteCooldown.mark(player, Math.max(0, (int) config.cooldown().calculate(config.level())));
+
+        if (!damaged) {
+            // (d) 被目标挡下：**不能**谎报「已斩杀」（伤害根本没造成）。给玩家明确反馈 + 留一条日志 ——
+            // 这一类失败此前完全静默（云筑魔像那次连音效都没有），只能靠实机现象反推。
+            BeLoongCore.LOGGER.info(
+                    "[BeLoong] execute: {} ({}) refused our damage; mark consumed, cooldown started",
+                    victim.getDisplayName().getString(), victim.getType());
+            player.displayClientMessage(
+                    Component.translatable(MESSAGE_REFUSED, victim.getDisplayName()),
+                    /* actionbar = */ true);
+            return;
+        }
 
         playTriggerEffects(level, player, victim);
 

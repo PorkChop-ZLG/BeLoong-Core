@@ -260,3 +260,101 @@ jar beloong-0.10.4.jar                  -> client 列表含 healthbars.GuiRender
 **仍未验证**：修复后的**实机表现**。需复测：斩杀线是否出现、竖线是否在 5%（成长 150）/
 20%（成长 300）、打半血区段是否不缩水、伤害飘字是否仍清晰、无标记的怪是否一点橙色都没有。
 **在拿到实机结果前，这一功能仍不算完成。**
+
+---
+
+## 第三轮：Boss 挂不上标记 → 两道通用闸门（2026-10-11）
+
+**复测结果**：斩杀线渲染**已正常** ✓（第一轮的根因修复有效）。但发现 **Boss 挂不上斩杀效果**
+（原版凋灵、灾变 Boss、传奇怪物的三个 Boss），而小 Boss 与普通生物（铁傀儡/监守者）正常。
+
+**根因**：全包只有两类闸门 —— `canBeAffected` 覆写（灾变的 `cataclysm:effective_for_bosses` 白名单）
+与 `addEffect` 覆写（凋灵 `WitherBoss:529-532`、传奇怪物 `IAnimatedBoss:225-227`，都是无条件 false）。
+
+**修复**（用户裁定「不许给每个 Boss 模组写 mixin —— 太多，覆盖不全」）：
+
+| # | 内容 | 覆盖 |
+|---|---|---|
+| ① | `MobEffectEvent.Applicable` @ `EventPriority.LOWEST` → `Result.APPLY` | 一切 `canBeAffected` 实现 |
+| ② | `addEffect` 被拒时回退 `forceAddEffect`，并**自补 DS applier** | 一切 `addEffect` 覆写 |
+| ③ | 新增 `data/minecraft/tags/damage_type/bypasses_invulnerability.json` | 伤害上限 + 全部无敌帧 |
+| ⑤ | 两道闸门都失败时打 `WARN`；走兜底成功时打 `DEBUG` | 可诊断性 |
+
+| 项 | 结果 |
+|---|---|
+| 门 | `validate_execute_line.py` 新增**第 ⑨ 组**（两道杠杆 + 数据文件 + 自补 applier），`ALL CHECKS PASSED` |
+| **回归门抓到旧决定** | `validate_execute.py` 的 `[5]` 原本断言「**不得**存在 `bypasses_invulnerability`」—— 这证明标签缺席是**刻意设计**（我在讨论中误称为"遗漏"，已在设计文档 §16.4 更正）。用户知情并接受全部代价后，该不变量已**翻转为相反一条**，注释里记录了谁/何时/为何，**没有静默删除** |
+| 反向对照 | 5 条全部被抓住（删 ① 杠杆 / 删 ② 兜底 / 删自补 applier / 写反正常路径与兜底关系 / 拿掉数据文件），还原后哈希不变、两门复绿 |
+| `build` / jar | BUILD SUCCESSFUL，**3 个警告不变**；数据文件已打包 |
+
+**未做（第 4 项）**：Health Bars 对**非原版多部件实体**的拾取盲区（`Cm_Part_Entity` 不是
+`LivingEntity`，而 `PickEntityHandler` 只解析原版 `EnderDragonPart`）—— 那会让灾变多部件 Boss
+连 GUI 血条都没有。**用户将先实机确认**，故本轮未动。
+
+---
+
+## 第四轮：斩杀被目标挡下 → 停止每 tick 重试（2026-10-11）
+
+**复测结果**：凋灵 / 末影龙 / 灾变焰魔 / 下界合金巨兽**都能斩且能渲染线** ✓。两个例外：
+**Mowzie 钢铁守护者**（打不出伤害 + **每 tick 重试**、声音吵）与**传奇怪物 云筑魔像**（完全斩不了）。
+
+**根因**：这两个 Boss 的 `hurt` 里写了**不看任何标签的无条件 `return false`** ——
+钢铁守护者的正面/非破防窗口（`EntityWroughtnaut.hurt:194-207`，它的 `BYPASSES_INVULNERABILITY`
+判断在「伤害源无实体」的 else 分支里，够不到），云筑魔像的垂直 4 格反 cheese 与 10 tick 金身
+（`Cloud_GolemEntity.hurt:1181/1184`）。**伤害类型标签 / forceAddEffect / Result.APPLY 都进不到
+目标 `hurt` 内部** ⇒ 无通用手段可强行造成伤害。
+
+用户裁定：**承认部分 Boss 挡得住斩杀（e 不做）**，但必须修掉「每 tick 重试」。
+
+| # | 内容 | 结果 |
+|---|---|---|
+| a | **无论伤害是否造成**都消耗标记 + 进冷却 | `ExecuteThresholdEffect#execute` |
+| b | 冷却期间**不再挂线** | `ExecuteMarkHandler#onLivingDamagePost` |
+| c | 忽略**自己的**斩杀伤害触发的 `LivingDamageEvent.Post`（按伤害类型） | 同上 |
+| d | 区分「真斩杀」/「被挡下」：refused 提示 + `INFO` 日志，不谎报 | 中英语言 + 中英各 +1 键 |
+
+**⚠️ 又一处决定反转**：`ExecuteCooldown` 的类注释原本写「冷却期间**仍然可以**继续给敌人挂斩杀线」，
+(b) 把它反过来；注释已改写并记录谁/何时/为何（与第三轮 `bypasses_invulnerability` 同一处理方式）。
+
+| 项 | 结果 |
+|---|---|
+| 门 | `validate_execute.py` 新增**第 ⑩ 组**（a/b/c/d 四条不变量），两门 `ALL CHECKS PASSED` |
+| 反向对照 | 5 条全部被抓住（退回旧守卫 / 取消冷却拦截 / 取消自伤过滤 / 不区分被挡下 / 英文缺键），还原后哈希不变 |
+| `build` | BUILD SUCCESSFUL，**3 个警告不变** |
+| 语言键 | 中英各 **326 → 327**，集合一致 |
+
+**仍未做**：第三轮的第 4 项（Health Bars 多部件拾取盲区）与本周期的 e（不给这两个模组写 mixin）——
+均按用户裁定保留现状。
+
+---
+
+## 第五轮：撤回 `bypasses_invulnerability`（2026-10-11）
+
+**用户裁定**（实测后）：
+> 那个标签类似 kill 的效果，会让部分 Boss 的动画失效，所以改回去。
+
+**为什么它「类似 kill」**：该标签不是一个「针对某 Boss 伤害上限的开关」，而是**一堆互不相关的无敌
+判定共同读取的同一个标签** —— 凋灵出生无敌（`WitherBoss:483`）、灾变伤害上限
+（`IABoss_monster:137-140`）、**灾变 11 处 Boss 转阶段无敌帧**、不死图腾
+（`LivingEntity:1306-1308`）、`setInvulnerable`（`Entity:2683`）、`ArmorStand`/`ItemFrame`/`Ghast`/
+`Warden`/创造模式玩家。列入它等于对所有这些读取方**同时**宣布「`beloong:execute` 是 `/kill` 级伤害」；
+用户的「动画失效」正是其中「灾变 Boss 无敌帧」那一项的直接后果。
+
+**而且初版设计文档早就写明**（`2026-10-09-execute-passive-design.md:192`）：
+「**刻意不加** `minecraft:bypasses_invulnerability`：那是 `/kill` 级别的口子」——
+**用户的实测与初版预判一字不差**，本轮撤回即回到那条原本就写明的决定。
+
+| # | 改动 | 结果 |
+|---|---|---|
+| 1 | 删除 `data/minecraft/tags/damage_type/bypasses_invulnerability.json` | jar 内已消失；同目录其余 8 个标签完好 |
+| 2 | `validate_execute.py [5]` 回到「**不得存在**」，注释保留**完整往返** | `ALL CHECKS PASSED` |
+| 3 | `validate_execute_line.py` 新增 `[9b]` 断言「不得存在」+ 理由 | `ALL CHECKS PASSED` |
+| 4 | `ExecuteThresholdEffect` 注释补上「试过、已撤回」的完整理由（避免将来有人再加） | BUILD SUCCESSFUL，3 个警告不变 |
+
+**撤回后的行为**：靠伤害钳制 / 无敌帧过日子的 Boss 会再次挡下斩杀，但**因为第四轮的 (a) 已落地**，
+被挡下时仍会**消耗标记 + 进冷却 + 显示「斩杀被挡下」+ 留日志** ⇒ 不会退化成每 tick 重试 ✓
+即从「打不死但无限重试」变成「打不死，但会明确告知并被冷却拦住」。
+
+**将来若仍想让这些 Boss 可斩**：不要再用这个全局标签，走**针对具体钳制点的 mixin**
+（只对 `beloong:execute` 放行；本仓库已有先例 `AnnihilationPursuerDamageCapMixin`）。
+**当前决定：不做。**

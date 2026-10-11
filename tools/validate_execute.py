@@ -119,8 +119,18 @@ for tag in ("bypasses_armor", "bypasses_effects", "bypasses_resistance", "bypass
     path = os.path.join(tags_dir, tag + ".json")
     values = load_json(path)["values"]
     check("beloong:execute" in values, "minecraft:%s contains beloong:execute" % tag)
+# bypasses_invulnerability 的往返记录（同一天内两次反转，都保留在案）：
+#   初版 —— 断言**不存在**这个标签文件（理由：它会一并穿透创造模式与 setInvulnerable(true) 的实体）。
+#   2026-10-11(三) —— 用户接受全部代价后允许加入，好让靠伤害钳制 / 无敌帧过日子的 Boss 也能被斩杀。
+#   2026-10-11(五) —— **用户实测后撤回**：该标签的效果接近 /kill，会让**部分 Boss 的动画失效**
+#     （`bypasses_invulnerability` 是被 `WitherBoss` 的出生无敌、灾变各 Boss 的转阶段无敌、
+#      `ArmorStand`/`ItemFrame`/`Ghast`/`Warden` 的无敌、以及 `checkTotemDeathProtection` 共同读取的
+#     同一个标签 —— 一旦列入就等于对所有读取方同时宣布「这是 kill 级伤害」）。
+#     用户选择保住 Boss 动画，接受「部分 Boss 挡得住斩杀」。
+#   结论 —— 不变量回到初版：**不得存在**这个文件。缺了它，Boss 只是「挡下斩杀」而不会崩行为；
+#     而 (a) 已保证挡下时仍然消耗标记 + 进冷却 + 给出「斩杀被挡下」提示，所以不会退化成每 tick 重试。
 check(not os.path.isfile(os.path.join(tags_dir, "bypasses_invulnerability.json")),
-      "no bypasses_invulnerability (would pierce creative/invulnerable entities)")
+      "no bypasses_invulnerability (kill-like: it also disables boss animations; reverted 2026-10-11)")
 
 # 6. effect_type registered in Java --------------------------------------------
 print("[6] java registration")
@@ -287,6 +297,47 @@ check(src.count("String.format") == 4, "getDescription formats 4 values")
 # Args are substituted as components, never re-parsed, so "%%" is the correct
 # String.format escape for the percent sign that ends up in the argument text.
 check(src.count('"%.1f%%"') == 1, "Java formats the threshold argument with String.format(\"%.1f%%\")")
+
+# 10. the execute must not retry every tick when a target refuses the damage ---------------
+# Some mobs refuse our damage with an unconditional `return false` that ignores every damage-type
+# tag (Ferrous Wroughtnaut: EntityWroughtnaut.hurt:194-207, its BYPASSES_INVULNERABILITY check
+# sits in the "no source entity" else-branch; Cloud Golem: Cloud_GolemEntity.hurt:1181/1184,
+# vertical-4-block anti-cheese plus a 10-tick post-hit window). No generic lever can force damage
+# through those, so we accept that they block the execute -- but the mark MUST still be consumed
+# and the cooldown MUST still start, otherwise the effect retries on every single tick (the
+# Wroughtnaut's own "undamaged" clang then plays 20x/second). All four invariants are pinned.
+print("[10] refused executes are consumed and cooled down, not retried every tick")
+threshold_src = open(os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                                 "registry", "ExecuteThresholdEffect.java"), encoding="utf-8").read()
+check("boolean damaged = victim.hurt(" in threshold_src,
+      "(a) captures the hurt() result instead of returning early on it")
+check("if (!victim.hurt(" not in threshold_src,
+      "(a) the old 'refused => do not consume the mark' guard is gone")
+if "boolean damaged = victim.hurt(" in threshold_src:
+    hurt_at = threshold_src.index("boolean damaged = victim.hurt(")
+    remove_at = threshold_src.index("victim.removeEffect(ModMobEffects.EXECUTE_THRESHOLD);")
+    cooldown_at = threshold_src.index("ExecuteCooldown.mark(player,")
+    check(hurt_at < remove_at and hurt_at < cooldown_at,
+          "(a) the mark is consumed and the cooldown started unconditionally, after the hurt call")
+check("if (!damaged)" in threshold_src,
+      "(d) the refused case is handled separately from the successful one")
+check('MESSAGE_REFUSED = "message.beloong.execute.refused"' in threshold_src,
+      "(d) ExecuteThresholdEffect declares MESSAGE_REFUSED")
+
+mark_src = open(os.path.join(ROOT, "src", "main", "java", "com", "zonlong", "beloong",
+                            "registry", "ExecuteMarkHandler.java"), encoding="utf-8").read()
+check("ExecuteCooldown.isReady(player)" in mark_src,
+      "(b) the mark is not applied while the execute is on cooldown")
+check("isOurExecuteDamage(event.getSource())" in mark_src,
+      "(c) our own execute damage does not re-mark the target")
+check("ExecuteThresholdEffect.DAMAGE_TYPE" in mark_src,
+      "(c) the self-damage check goes by damage type, not by class identity")
+
+for name in ("zh_cn", "en_us"):
+    lang = load_json(os.path.join(ROOT, "src", "main", "resources", "assets", "beloong",
+                                  "lang", name + ".json"))
+    check("message.beloong.execute.refused" in lang,
+          "(d) %s carries message.beloong.execute.refused" % name)
 
 print()
 if FAIL:
