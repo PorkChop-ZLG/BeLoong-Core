@@ -36,6 +36,17 @@ public class Config {
             .comment("禁用王国场地的冰火天空盒渲染，解决渲染异常的问题")
             .define("disableMalkuthHellscapeSkybox", false);
 
+    /**
+     * 在 Health Bars 的左上角血条上绘制斩杀线覆盖层（默认启用）。值在下面的客户端 static 块里赋值。
+     *
+     * <p><b>⚠️ 不要在这里（或本类任何位置）引用 {@code compat.healthbars.ExecuteLineOverlay}。</b>
+     * 本类的静态块在<b>双端</b>都会执行，而那个 overlay 引用了 {@code GuiGraphics} 等客户端类型；
+     * 一旦引用，专用服务端就会 {@code NoClassDefFoundError} 崩服。读取方向反过来：
+     * 客户端专属的 overlay 在绘制时读本字段。
+     * {@code tools/validate_execute_line.py} 的第 ③ 条断言守这条。</p>
+     */
+    public static final ModConfigSpec.BooleanValue EXECUTE_LINE_ENABLED;
+
     // ==================== 简易 NPC 对话 ====================
     // 本组字段**分宿两处**，取决于它的判定发生在哪一端：
     //   - enabled      → SERVER_SPEC：触发判定在服务端，由服务端决定是否受理右键；
@@ -78,6 +89,19 @@ public class Config {
                 .defineInRange("nameScale", 1.5D, 1.0D, 2.0D);
 
         CLIENT_BUILDER.pop(); // npc_dialogue
+
+        // ---- 斩杀线显示（Health Bars 左上角血条）----
+        // 只暴露总开关：颜色 / 线宽 / 出头 / α 都是 ExecuteLineOverlay 里的代码常量
+        // （用户 2026-10-11 裁定「只要 enabled」）。
+        CLIENT_BUILDER.push("execute_line");
+
+        EXECUTE_LINE_ENABLED = CLIENT_BUILDER
+                .comment("在 Health Bars 的左上角血条上绘制斩杀线区段（需安装 Health Bars）",
+                        "Draw the execute threshold zone on the Health Bars GUI bar (requires Health Bars)")
+                .translation("beloong.configuration.executeLineEnabled")
+                .define("enabled", true);
+
+        CLIENT_BUILDER.pop(); // execute_line
     }
 
     public static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();

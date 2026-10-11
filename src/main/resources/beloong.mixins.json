@@ -7,7 +7,8 @@
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "asteorbar.AsteorBarHealthFixMixin",
-    "healthbars.HealthTrackerHandlerMixin"
+    "healthbars.HealthTrackerHandlerMixin",
+    "healthbars.GuiRenderingHandlerMixin"
   ],
   "mixins": [
     "dragonsurvival.DragonDestructionHandlerMixin",
