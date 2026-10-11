@@ -155,3 +155,26 @@ Select-String -LiteralPath docs/reviews/2026-10-11-health-display-pr19-review.md
   （`crash-reports/*-client.txt` 里的 Sodium "broken state" 是连锁现象，真因在 `*-fml.txt`）。**已补回 `CallbackInfo` 并在源码里加注释防再次误删。**
 - **对本文档 §Verification 的更正**：Task 3 的静态门（`build` / `compileJava --rerun-tasks` / javap / jar 核对）**无法覆盖 mixin 应用期错误**
   ⇒ **Task 5 的实机 `runClient` 是必需门**，不是可选项；改 Mixin 后必须真正启动一次客户端。
+
+**执行记录（第二轮，2026-10-11）**
+
+- T5 实机验收**未通过**：绿字依旧。经排查确认注入与抑制**均已生效**，失效原因是"只在最大生命变化那一 tick 判定"
+  漏掉了服务端同步的"再对齐"残差（`Mth.ceil` 把 1 ULP 变成 ±1）。
+- 委托方零代码验证：关掉 `render_damage_values` 后绿字消失 ⇒ 绿字确为 Health Bars 的 level 飘字。
+- **T6 已完成**：判定改为两条规则互补（噪声地板 `|Δ| < 1.0` **双向** + 等比判定），**只对龙玩家**、仅客户端；
+  静态门通过（`compileJava --rerun-tasks --no-build-cache --offline` = 0、`build --offline` = 0）。
+- **T7（待委托方实机复验）**：绿字消失；真实 ≥ 1 点的伤害/治疗照常显示；锚点日志出现在 `latest.log`。
+
+**执行记录（第三轮，2026-10-11）**
+
+- 委托方实测：`/gamerule naturalRegeneration false` 后绿字**依旧** ⇒ 二轮的"自然回血"推断被否掉；同时确认二轮新增的噪声地板**是生效的**（因为"+1 且永远只有 +1"在 `Mth.ceil` 下意味着原始差值恰好 1.0，<1 的都被地板拦掉了）。
+- **T8 已完成（按委托方裁定 V1）**：HEAD 注入最前面加"规则 0" —— `entity instanceof LocalPlayer` ⇒ 清快照、抑制本次飘字；规则 1/2 保留给其它龙玩家。
+- 静态门：`compileJava --rerun-tasks --no-build-cache --offline` = 0、`build --offline` = 0；产物 `beloong-0.10.4.jar`（14:43:42）含该类。
+- **T9（待委托方实机复验）**：自己回血/扣血无数字；打怪与怪物数字照常；自己头顶血条/AsteorBar/GUI 正常；锚点日志出现新文案。
+
+**执行记录（第四轮，2026-10-11）**
+
+- 委托方要求：直接改设计，**只保留**"彻底禁用本地玩家自身血量跳字"，删除噪声地板与等比判定两条规则。
+- **T8 完成（极简化）**：`HealthTrackerHandlerMixin` 重写 —— 判定仅 `entity instanceof LocalPlayer`；快照表、两个容差常量、等比/地板逻辑、`DragonStateProvider` 引用全部删除；`@Redirect` 抑制方式不变。
+- 静态门：`compileJava --rerun-tasks --no-build-cache --offline` = 0、`build --offline` = 0；产物 jar 含该类。
+- **T9（待委托方实机复验）**：自己回血/扣血无数字；打怪与怪物数字照常；自己头顶血条/AsteorBar/GUI 正常；锚点日志出现。
