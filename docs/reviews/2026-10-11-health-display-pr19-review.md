@@ -16,7 +16,7 @@
 | **C-2** | `mixin/healthbars/HealthTrackerMixin.java:26` | 可选模组目标缺 `require = 0`，而配置是 `defaultRequire: 1` ⇒ Health Bars 在场但 `tick` 改名即**启动期硬崩**（`@Pseudo` 只兜"类不存在"） | ✅ **已修**：`@Inject(..., require = 0, remap = false)`，与 `mixin/legendarymonsters/*`、`mixin/raidsenhanced/*` 等既有可选目标写法一致 |
 | **C-3** | `HealthBarsMixinPlugin.java`、`beloong.healthbars.mixins.json`、`neoforge.mods.toml:62-63` | 项目首个 `IMixinConfigPlugin` + 第二份 mixin 配置；插件只按 modId 判定，`@Shadow` 字段/方法改名仍硬崩 ⇒ 复杂度净增、"防崩"是假的 | ✅ **已修**：删除插件与独立配置；`HealthTrackerMixin` 并入 `beloong.mixins.json` 的 `client` 数组；toml 只保留 `beloong.mixins.json` 一份配置 |
 | **C-4** | `build.gradle`（依赖块）、`neoforge.mods.toml`（依赖段） | 未登记为可选依赖 ⇒ 版本偏差在启动日志不可见 | ✅ **已修**：`implementation "curse.maven:health-bars-1367734:7122333"`（按委托方要求联网下载、不走 local-repo）+ toml `modId="healthbars" type="optional" versionRange="[21.1.0,)" ordering="AFTER" side="CLIENT"`；modId/版本**取自实际 jar** |
-| **C-5** | `docs/fixes/2026-10-10-growth-health-numbers.md:23-27` | 删除既有 `AsteorBarHealthFixMixin` 无裁定、无留痕；新 hook 只打 Health Bars，AsteorBar 侧"换维度后血量被钳到 20"**无替代** | ⏸ **暂不处理**（委托方：AsteorBar 修复是否回退尚未实测） |
+| **C-5** | `docs/fixes/2026-10-10-growth-health-numbers.md:23-27` | 删除既有 `AsteorBarHealthFixMixin` 无裁定、无留痕；新 hook 只打 Health Bars，AsteorBar 侧"换维度后血量被钳到 20"**无替代** | ⏸ ~~暂不处理~~ → ✅ **2026-10-11 实机复现后已还原**（见 §九） |
 
 ## 二、I-x（应修）——委托方指示本轮不处理
 
@@ -76,6 +76,25 @@
 ## 八、结论
 
 - **C-1 ~ C-4 已按委托方裁定修复**：删除测试设施、补 `require = 0`、合并为单份 `beloong.mixins.json`、登记 `healthbars` 可选依赖（联网下载）。
-- **C-5 暂不处理**（AsteorBar 修复是否回退待实测）；I/S 项按指示保留现状，其中 I-2/I-3 随 C-3 自然消失。
+- ~~**C-5 暂不处理**（AsteorBar 修复是否回退待实测）~~【**2026-10-11 被 §九 取代**：实机确认复现 ⇒ 已选择性回退 PR 的修复并复原该修复】；I/S 项按指示保留现状，其中 I-2/I-3 随 C-3 自然消失。
 - **仍需委托方处理**：实机验收"无 Health Bars / 有 Health Bars"两种情形与换维度、重生场景（C-5 的回退风险一并观察）。
 - **前置已解决**：Health Bars 的 required 前置 Puzzles Lib 坐标已确认（`curse.maven:puzzles-lib-495476:8251525`，v21.1.52），并以 `localRuntime` 落地（见 T-2）。
+
+## 九、处置结果（2026-10-11 追加，委托方裁定）
+
+**实机结论**：移除 `AsteorBarHealthFixMixin` 后，AsteorBar 的旧 BUG **确认复现**（最大生命 > 20 的玩家换维度 / 重生后血量显示被压小）。
+按 `memory/user-preferences.md:24`「追加一节并标记被取代的旧章节」，本节为**追加**，不删改 §一~§八 的历史结论。
+
+**委托方裁定与执行（选择性回退 PR + 复原旧修复）**：
+
+1. **回退 PR 的修复实现**：删除 `client/health/GrowthHealthDeltaTracker`、`mixin/healthbars/HealthTrackerMixin`（含 `beloong.mixins.json` 条目），并删除 PR 自带的 `docs/fixes/2026-10-10-growth-health-numbers.md` 与 `docs/fixes/` 目录；该方案「为何被否」的记录改留于本文件与 `memory/decisions-log.md`。
+2. **保留 PR 新增的模组依赖**：`build.gradle` 的 `implementation "curse.maven:health-bars-1367734:7122333"`、dev 运行时前置 `localRuntime "curse.maven:puzzles-lib-495476:8251525"`、以及 `neoforge.mods.toml` 的 `healthbars` optional 声明全部保留（当前无代码注入它，先留备用）。
+3. **复原 AsteorBar 修复并改为项目约定格式**：新文件 `mixin/asteorbar/AsteorBarHealthFixMixin`，逻辑与原 74 行一致（`tickCount` 回退检测 + 10 帧冻结 + 冻结结束修回血量 + 1.0 阈值），规范性改动为：
+   - 目录移入 `mixin/asteorbar/`；`beloong.mixins.json` 的 `client` 数组条目改为 `asteorbar.AsteorBarHealthFixMixin`；
+   - 补 `@Pseudo` + `require = 0`（AsteorBar 原先连 `neoforge.mods.toml` 都没声明 ⇒ 属历史审查 L7-S2 的启动期硬崩面）；
+   - 补 `remap = false`；
+   - 注入方式由 `@ModifyVariable(at = @At(value = "STORE", ordinal = 0))` 改为 **`@Redirect` 精确改写 `getParameters` 里那一次 `Player.getHealth()`**（javap 实测该方法内该调用仅 1 次 ⇒ 语义锚点，不受局部变量次序影响）；
+   - javadoc 改中文并写清根因（`LivingEntity.setHealth:1130-1132` 的钳位 + `onAttributeUpdated:1101-1104` 的回写 + 换维度新建 LocalPlayer + DS「先移除再施加修饰符」的中间窗口）、做法、代价与根治方向；
+   - `neoforge.mods.toml` 补 `modId="asteorbar" type="optional" versionRange="[1.5.3,)" ordering="AFTER" side="CLIENT"`（版本取自实际 jar 的 `META-INF/neoforge.mods.toml`）。
+
+**为什么最终不采用 PR 的方案**：PR 的动机（旧实现把渲染调用当 tick、拿上一实体缓存血量、在渲染路径写实体状态）确实指出了坏味道，但它把「实现方式有坏味道」当成「这个 BUG 不需要处理」，并假定「HUD 现在会正常读当前实体血量」——而根因（原版在最大生命变化时按新上限回写血量，压低之后没有任何机制抬回）**没有被动过** ⇒ 删掉唯一缓解手段就是回归（本轮实测确认）。

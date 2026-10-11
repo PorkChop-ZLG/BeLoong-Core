@@ -266,6 +266,20 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# AsteorBar（另一个血条模组）— 可选依赖：修复「最大生命 > 20 的玩家换维度 / 重生后血量显示被压小」的 BUG。
+# 根因与做法见 mixin/asteorbar/AsteorBarHealthFixMixin 的类注释（原版在最大生命变化时用新上限回写血量，
+# 换维度时属性包/实体数据包错序会让客户端血量被钳到基础值且无法自恢复）。
+# 注入的是它的 PlayerHealthOverlay#getParameters 里那一次 Player.getHealth() 调用；
+# 上游改名会静默失效（@Pseudo + require = 0），故写 versionRange 让版本偏差在启动日志里可见。
+# 版本取自实际 jar 的 META-INF/neoforge.mods.toml：modId=asteorbar、version=1.5.3。
+# side=CLIENT：它是纯客户端 HUD 模组。
+[[dependencies.${mod_id}]]
+    modId="asteorbar"
+    type="optional"
+    versionRange="[1.5.3,)"
+    ordering="AFTER"
+    side="CLIENT"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.
