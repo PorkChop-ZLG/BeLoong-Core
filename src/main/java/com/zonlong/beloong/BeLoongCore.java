@@ -2,6 +2,7 @@ package com.zonlong.beloong;
 
 import com.zonlong.beloong.dialogue.LastDialogueNpc;
 import com.mojang.logging.LogUtils;
+import com.zonlong.beloong.ability.LifeHealInterruptHandler;
 import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
@@ -124,6 +125,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new BeloongWaterContactHandler());
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
+        NeoForge.EVENT_BUS.register(new LifeHealInterruptHandler());      // 灵愈：施法期间挨打则打断
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
         NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射

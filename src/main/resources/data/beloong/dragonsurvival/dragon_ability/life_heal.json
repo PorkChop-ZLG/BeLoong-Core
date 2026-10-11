@@ -1,0 +1,156 @@
+{
+  "actions": [
+    {
+      "target_selection": {
+        "applied_effects": {
+          "entity_effect": [
+            {
+              "effect_type": "beloong:life_heal",
+              "heal_amount": {
+                "type": "minecraft:lookup",
+                "fallback": {
+                  "type": "minecraft:linear",
+                  "base": 50.0,
+                  "per_level_above_first": 0.0
+                },
+                "values": [
+                  1.0,
+                  2.0,
+                  5.0,
+                  10.0,
+                  25.0,
+                  50.0
+                ]
+              }
+            }
+          ],
+          "targeting_mode": "all"
+        },
+        "target_type": "dragonsurvival:self"
+      },
+      "trigger_rate": 10.0
+    },
+    {
+      "target_selection": {
+        "applied_effects": {
+          "entity_effect": [
+            {
+              "effect_type": "dragonsurvival:particle",
+              "particle_count": 3.0,
+              "particle_data": {
+                "horizontal_position": {
+                  "type": "in_bounding_box"
+                },
+                "horizontal_velocity": {
+                  "base": 0.0
+                },
+                "particle": {
+                  "type": "minecraft:heart"
+                },
+                "speed": 0.02,
+                "vertical_position": {
+                  "type": "in_bounding_box"
+                },
+                "vertical_velocity": {
+                  "base": 0.05
+                }
+              }
+            }
+          ],
+          "targeting_mode": "all"
+        },
+        "target_type": "dragonsurvival:self"
+      },
+      "trigger_rate": 10.0
+    }
+  ],
+  "activation": {
+    "activation_type": "dragonsurvival:channeled",
+    "animations": {
+      "looping": {
+        "animation_key": "spell_charge",
+        "layer": "BREATH",
+        "locks_neck": false,
+        "locks_tail": false,
+        "transition_length": 5
+      }
+    },
+    "cast_time": 1.0,
+    "cooldown": 20.0,
+    "continuous_mana_cost": {
+      "type": "ticking",
+      "amount": {
+        "type": "minecraft:lookup",
+        "fallback": {
+          "type": "minecraft:linear",
+          "base": 5.0,
+          "per_level_above_first": 0.0
+        },
+        "values": [
+          0.1,
+          0.2,
+          0.5,
+          1.0,
+          2.5,
+          5.0
+        ]
+      }
+    },
+    "sound": {
+      "start": "minecraft:block.beacon.activate",
+      "looping": "minecraft:block.beacon.power_select"
+    }
+  },
+  "icon": {
+    "texture_entries": [
+      {
+        "from_level": 0,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 1,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 2,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 3,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 4,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 5,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      },
+      {
+        "from_level": 6,
+        "texture_resource": "beloong:abilities/life_heal_1"
+      }
+    ]
+  },
+  "upgrade": {
+    "upgrade_type": "dragonsurvival:dragon_growth",
+    "maximum_level": 6,
+    "growth_requirement": {
+      "type": "minecraft:lookup",
+      "fallback": {
+        "type": "minecraft:linear",
+        "base": 250.0,
+        "per_level_above_first": 0.0
+      },
+      "values": [
+        10.0,
+        50.0,
+        100.0,
+        150.0,
+        200.0,
+        250.0
+      ]
+    }
+  }
+}
