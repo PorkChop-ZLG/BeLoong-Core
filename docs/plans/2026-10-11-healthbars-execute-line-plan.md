@@ -230,3 +230,33 @@ jar beloong-0.10.4.jar                  -> client 列表含 healthbars.GuiRender
 
 工作区待提交：2 个新 Java 文件、1 个新门脚本（**必须 `git add -f`**）、2 个计划文档，
 外加 `Config.java` / `beloong.mixins.json` / 中英语言文件的增量。
+
+---
+
+## 第二轮：实机验收失败 → 根因 → 修复（2026-10-11）
+
+**Task 6 的实机验收结果：完全没有任何渲染**（两处血条都没有、成长 150/300 都一样），
+但斩杀效果本身照常触发。⇒ 第一轮的静态门全绿**并不能**证明功能可用 —— 这正是计划里
+「实机结果出来前不声称功能完成」那条警告所预言的。
+
+**根因**：第一版把「客户端能免费读到生物的 amplifier」当成事实，而它是**错的**。
+原版**不把生物的 `MobEffectInstance` 同步给旁观者**（只同步粒子外观），
+所以客户端 `getEffect(...)` 恒为 `null`，`draw` 每次都在第二个 `return false` 退出。
+设计文档 §三 原文与 `ExecuteThresholdEffect` 的类注释都写着这个错误前提，**均已更正**。
+
+**修复**（用户裁定方案 A）：由服务端补发一条**最小**自定义包（`entityId + amplifier`，
+比原版那个包还小），客户端缓存后读取。新增 4 个文件、改 4 个文件，详见设计文档 §十五。
+
+| 项 | 结果 |
+|---|---|
+| `compileJava` | BUILD SUCCESSFUL；期间修正一处 `remap` 问题（NeoForge 给原版效果生命周期方法加过参数，必须 `remap = false`） |
+| 门（8 组断言） | `ALL CHECKS PASSED`；新增第 ⑤–⑧ 组，**第 ⑧ 组是本次 bug 的回归闸**（禁止 overlay 再出现 `getEffect(`） |
+| 反向对照 | 6 条（退回读 effect / 原版 mixin 放回根目录 / `@At` 漏写 `remap` / 同步 mixin 未注册 / 包未注册 / 双端类引用客户端缓存）**全部被抓住**，还原后哈希不变 |
+| 命名规范 | 新原版 mixin 按项目规范落在 `mixin/minecraft/`、条目写 `"minecraft.…"`、6 处 `remap = false`（用户 2026-10-11 裁定；首版不合规已迁移） |
+| 回归门 | `validate_execute.py` `ALL CHECKS PASSED` |
+| `build` | BUILD SUCCESSFUL，**3 个警告**（与改动前一致，无新增） |
+| jar 复核 | `client` 列表含 healthbars mixin、`mixins` 列表含同步 mixin、5 个新 class 均已打包 |
+
+**仍未验证**：修复后的**实机表现**。需复测：斩杀线是否出现、竖线是否在 5%（成长 150）/
+20%（成长 300）、打半血区段是否不缩水、伤害飘字是否仍清晰、无标记的怪是否一点橙色都没有。
+**在拿到实机结果前，这一功能仍不算完成。**

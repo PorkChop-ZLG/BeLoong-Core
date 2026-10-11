@@ -2,10 +2,8 @@ package com.zonlong.beloong.compat.healthbars;
 
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.registry.ExecuteThresholdEffect;
-import com.zonlong.beloong.registry.ModMobEffects;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -18,11 +16,16 @@ import net.minecraft.world.entity.LivingEntity;
  * {@code NoClassDefFoundError} 崩服。{@code tools/validate_execute_line.py} 的第 ③ 条断言
  * 就是守这条：全仓只允许一个文件引用它。
  *
- * <h3>斩杀线从哪来（为什么不需要网络同步）</h3>
- * 斩杀线百分比被编码在 effect 的 {@code amplifier} 里（{@code 斩杀线 = (amplifier + 1) × 0.5%}），
- * 而 amplifier 是原版 {@code ClientboundUpdateMobEffectPacket} 的一个字段 ⇒ 只要这实体被客户端追踪，
- * 就能直接读出来。<b>零新增 payload。</b>（这也正是当初把百分比编进 amplifier 而不是放进附件的理由：
- * 附件只存服务端。）
+ * <h3>斩杀线从哪来（⚠️ 2026-10-11 更正：不是「免费读 effect」）</h3>
+ * 斩杀线百分比编码在 effect 的 {@code amplifier} 里，但 {@code MobEffectInstance}
+ * <b>不会被原版同步给旁观者</b> —— 原版只把效果的粒子外观放进实体元数据
+ * （{@code LivingEntity.DATA_EFFECT_PARTICLES}），{@code ClientboundUpdateMobEffectPacket}
+ * 只发给效果持有者本人 / 乘客 / 登录与骑乘时。所以对一只怪调
+ * {@code entity.getEffect(...)} 永远是 {@code null}（这正是 2026-10-11 实机全无渲染的原因）。
+ * <p>
+ * 现在由服务端在标记变化时补发 {@link ExecuteMarkSyncPayload}，客户端存进
+ * {@link ExecuteMarkCache}，本类按实体 id 读。详见
+ * {@link com.zonlong.beloong.registry.ExecuteMarkSyncHandler}。
  *
  * <h3>几何从哪来（⚠️ 左边界是 {@code posX - 1}，不是 {@code posX}）</h3>
  * 上游 GUI 血条 = {@code barWidth × 5} px。{@code GuiRenderingHandler:180} 传下去的是条的
@@ -101,8 +104,10 @@ public final class ExecuteLineOverlay {
             return false;
         }
 
-        MobEffectInstance mark = entity.getEffect(ModMobEffects.EXECUTE_THRESHOLD);
-        if (mark == null) {
+        // 斩杀线来自服务端补发的同步包（原版不把生物的 MobEffectInstance 给旁观者），
+        // 见 ExecuteMarkSyncPayload / ExecuteMarkCache。NO_MARK ⇒ 这只生物没被挂斩杀线。
+        int amplifier = ExecuteMarkCache.get(entity.getId());
+        if (amplifier == ExecuteMarkSyncPayload.NO_MARK) {
             return false; // 这只生物没被挂斩杀线 → 一点橙色都不画
         }
 
@@ -114,7 +119,7 @@ public final class ExecuteLineOverlay {
 
         final int barLeft = anchorX - 1; // 见 @param anchorX：左边界比上游传下来的 posX 小 1
 
-        int line = lineX(barLeft, barWidth, ExecuteThresholdEffect.thresholdFraction(mark.getAmplifier()));
+        int line = lineX(barLeft, barWidth, ExecuteThresholdEffect.thresholdFraction(amplifier));
 
         // ① 半透明橙填充 0→斩杀线。
         //    区段**始终画满**，与当前血量无关（用户 2026-10-11 裁定）：斩杀线是「最大生命的百分比」，

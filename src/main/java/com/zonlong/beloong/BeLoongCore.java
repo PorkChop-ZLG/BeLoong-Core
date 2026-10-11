@@ -11,6 +11,7 @@ import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.cg.MoEntranceTrigger;
+import com.zonlong.beloong.compat.healthbars.ExecuteMarkSyncPayload;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
@@ -33,6 +34,7 @@ import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
 import com.zonlong.beloong.registry.ModSounds;
 import com.zonlong.beloong.route.NpcRouteLoader;
+import com.zonlong.beloong.registry.ExecuteMarkSyncHandler;
 import com.zonlong.beloong.registry.ManaLossHandler;
 import com.zonlong.beloong.structure.StructureEffectHandler;
 import com.zonlong.beloong.structure.StructureEffectLoader;
@@ -129,6 +131,8 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
         NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
+        // 斩杀标记同步：把标记的 amplifier 发给能看见该生物的玩家（原版只同步粒子外观，不同步效果本体）
+        NeoForge.EVENT_BUS.register(new ExecuteMarkSyncHandler());
         // 特效实体"读盘闸门"：把修复前就已堆积在旧存档里的 camera_shake / dynamic_camera_zoom
         // 挡在世界之外（取消 join）。判定与账目见 perf/EffectEntityCap 与 perf/EffectEntityJoinGate。
         NeoForge.EVENT_BUS.register(new EffectEntityJoinGate());
@@ -174,6 +178,12 @@ public class BeLoongCore {
                 NpcDialogueOpenPayload.TYPE,
                 NpcDialogueOpenPayload.STREAM_CODEC,
                 NpcDialogueOpenPayload::handleClient);
+        // 斩杀标记同步：客户端拿不到生物的 MobEffectInstance（原版只同步粒子外观），
+        // 所以由服务端在标记变化时补发 entityId + amplifier。见 ExecuteMarkSyncPayload 的类注释。
+        registrar.playToClient(
+                ExecuteMarkSyncPayload.TYPE,
+                ExecuteMarkSyncPayload.STREAM_CODEC,
+                ExecuteMarkSyncPayload::handleClient);
         // 注意方向：这是**服务端受理**的包（playToServer），不是 playToClient。
         registrar.playToServer(
                 NpcDialogueReplyPayload.TYPE,

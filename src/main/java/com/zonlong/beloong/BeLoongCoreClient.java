@@ -12,6 +12,7 @@ import com.zonlong.beloong.client.TornadoRenderer;
 import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
 import com.zonlong.beloong.client.sky.LoongPalaceSkyEffects;
+import com.zonlong.beloong.compat.healthbars.ExecuteMarkCache;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModParticles;
@@ -23,6 +24,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent;
@@ -58,6 +60,17 @@ public class BeLoongCoreClient {
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         NeoForge.EVENT_BUS.register(new LoongPalaceSkyTickHandler());
+    }
+
+    /**
+     * 登录时清空斩杀标记缓存。
+     * <p>
+     * 实体网络 id 只在一次连接内唯一，掉线重连后会被回收；不清的话，一个陈旧条目可能落到另一只
+     * 新实体身上，在血条上显出一条<b>凭空出现的斩杀线</b>。见 {@code ExecuteMarkCache#clear()}。
+     */
+    @SubscribeEvent
+    static void onClientLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        ExecuteMarkCache.clear();
     }
 
     /** 注册龙宫传送门的粒子渲染工厂（贴图沿用原版 generic_*，只换配色）。 */

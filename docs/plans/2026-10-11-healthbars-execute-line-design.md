@@ -46,17 +46,35 @@
 
 ---
 
-## 三、为什么不需要新的网络通道（需求 4）
+## 三、⚠️ 「不需要新的网络通道」是错的（2026-10-11 实机后更正）
 
-斩杀线是**每个目标各自不同**的量（取决于施斩杀者的技能等级），但它已经被编码进 **mob effect 的 amplifier**，而 amplifier 是原版 `ClientboundUpdateMobEffectPacket` 的一个字段 ⇒ 只要实体被客户端追踪，客户端就能拿到：
+**本节原文（已作废）**主张：斩杀线编码在 mob effect 的 amplifier 里，而 amplifier 是原版
+`ClientboundUpdateMobEffectPacket` 的一个字段 ⇒ 只要实体被客户端追踪就能直接读到，因此**零新增 payload**。
+**这个前提对旁观者是错的**，实机表现为「完全没有任何渲染」。
+
+事实（反编译源逐条核对）：
+
+| 位置 | 事实 |
+|---|---|
+| `ServerEntity`（同步被追踪实体） | **整个文件 `Effect` 出现 0 次** —— 它只同步位置/朝向/头部朝向/实体数据/装备/牵绳/速度 |
+| `ChunkMap` | 不碰 effect |
+| `ClientboundUpdateMobEffectPacket` 全树发送点 | **只有 3 处**：给**乘客**（`LivingEntity:1057`）、给**效果持有者本人**（`ServerPlayer:1493/1505`）、登录与骑乘时（`PlayerList:535` ← 仅 `ServerPlayer:530/2104` 调用）。**没有一处是「发给正在追踪该生物的玩家」** |
+| `LivingEntity:165-173` 的同步字段 | 与效果相关的**只有 2 个**：`DATA_EFFECT_PARTICLES`（`List<ParticleOptions>`，仅**粒子外观**）与 `DATA_EFFECT_AMBIENCE_ID`（一个聚合布尔）。**都不含效果身份、不含 amplifier** |
+| `LivingEntity:828-835` | 客户端拿这两个字段只做一件事：**撒粒子** |
+
+⇒ 客户端对一只怪调 `entity.getEffect(...)` **永远是 `null`**。
+
+**现在的实现**：由服务端补发一条自己的包（`ExecuteMarkSyncPayload`，只带 `entityId + amplifier` ——
+比原版那个包还小），客户端存进缓存后读取。即：**数据本来就在协议里，原版只是不发给旁观者。**
 
 ```java
-MobEffectInstance fx = entity.getEffect(ModMobEffects.EXECUTE_THRESHOLD);   // 原版同步链
-if (fx == null) return;                                                     // 没挂斩杀线 → 不画
-float pct = ExecuteThresholdEffect.thresholdFraction(fx.getAmplifier());    // 0.05 .. 0.20
+// compat/healthbars/ExecuteLineOverlay.java
+int amplifier = ExecuteMarkCache.get(entity.getId());              // 服务端补发的同步包
+if (amplifier == ExecuteMarkSyncPayload.NO_MARK) return false;     // 没挂斩杀线 → 不画
+float pct = ExecuteThresholdEffect.thresholdFraction(amplifier);   // 0.05 .. 0.20
 ```
 
-**⇒ 零新增 payload、零 `AttachmentType.sync`、零自定义包。** 这也正是当初把百分比塞进 amplifier 而不是放进附件的理由（附件只存服务端）。
+**需求 4 因此被追认为「需要一条最小自定义包」**，由用户 2026-10-11 裁定（方案 A）。完整根因与修复见 §十五。
 
 ---
 
@@ -325,3 +343,89 @@ GuiRenderingHandler.onAfterRenderGui                    (:41)
 本文档不擅自改 `.gitignore` 语义（能生效的 `tools/*` + 反包含形式会让 `tools/` 下 22 个
 spark 转储与 `__pycache__` 冒到 `git status`）。
 ⇒ **提交时必须 `git add -f tools/validate_execute_line.py`**。
+
+---
+
+## 十五、实机验收失败 → 根因 → 修复（2026-10-11，第二轮）
+
+### 15.1 现象
+
+用户实机测试：**完全没有任何渲染** —— 左上角 GUI 血条与世界血条都没有斩杀线，成长 150 与 300 都一样；
+**但斩杀效果本身照常触发**。截图 `run/screenshots/2026-10-11_16.59.12.png` 里血条满血 500/500、
+屏幕上没有任何橙色。
+
+### 15.2 证据链（全部来自该次运行的 `debug.log` 与反编译源）
+
+| # | 证据 | 排除掉的可能 |
+|---|---|---|
+| 1 | `Mixing healthbars.GuiRenderingHandlerMixin … into …GuiRenderingHandler` + handler 已注入 | mixin 没生效 ❌ |
+| 2 | 全程**无**注入点告警、无 `NoClassDefFoundError` | 描述符写错／注入点找不到 ❌ |
+| 3 | `run/config/beloong-client.toml` 里 `[execute_line] enabled = true` | 配置读成 false ❌ |
+| 4 | 截图里血条在屏幕上 | GUI 路径没被走到 ❌ |
+| 5 | **锚点日志一次都没打印** | —— ⇒ `draw` 每次都提前 return |
+| 6 | 见 §三 的四条事实 | —— ⇒ **客户端 `getEffect` 恒为 null** |
+
+### 15.3 根因
+
+**上一版把「客户端能免费读到生物的 amplifier」当成了事实，而它是错的。** 客户端对一只怪调
+`entity.getEffect(EXECUTE_THRESHOLD)` 永远返回 `null`，于是 `draw` 在第二个 `return false` 退出。
+服务端不受影响 ⇒ 斩杀照常触发。这个错误前提的来源是 `ExecuteThresholdEffect` 的类注释
+（已于本次一并更正）。
+
+### 15.4 修复（用户裁定：方案 A —— 一条最小自定义包）
+
+| 新增/改动 | 文件 | 作用 |
+|---|---|---|
+| 新 | `compat/healthbars/ExecuteMarkSyncPayload.java` | 只带 `entityId + amplifier`（`NO_MARK = -1` 表示无标记）；`playToClient` 注册；`handleClient` 写缓存 |
+| 新 | `compat/healthbars/ExecuteMarkCache.java` | **客户端专属**缓存 `实体 id → amplifier`；登录时清空（实体 id 会跨连接回收） |
+| 新 | `registry/ExecuteMarkSyncHandler.java` | 服务端发送方；`PlayerEvent.StartTracking` 补发（后进入视野的玩家） |
+| 新 | `mixin/minecraft/LivingEntityExecuteMarkSyncMixin.java` | 注入原版 `onEffectAdded/Updated/Removed`（**common** 列表，服务端执行）。同目录 `DreadKingRitualTriggerMixin` 是命名规范先例 |
+| 改 | `compat/healthbars/ExecuteLineOverlay.java` | 改为读缓存；**不再** `getEffect(...)` |
+| 改 | `BeLoongCore.java` | 注册包 + 注册 `StartTracking` 监听 |
+| 改 | `BeLoongCoreClient.java` | 登录时清空缓存 |
+| 改 | `registry/ExecuteThresholdEffect.java` | 更正那句错误前提 |
+
+**为什么用「注入原版效果生命周期」而不是在业务代码里散落发送**：`LivingEntity:807-811` 表明
+**自然到期也走 `onEffectRemoved`**（且只在服务端），所以挂上/刷新/到期/斩杀移除/`/effect clear`/
+牛奶/死亡**全部被这三处覆盖**，业务代码一行都不用改。
+
+**为什么同步 mixin 必须 `remap = false`**：这三个方法都带 NeoForge 补的参数
+（`onEffectAdded` 第 2 参、`onEffectUpdated` 第 3 参），描述符不在原版混淆表里，
+AP 直接报 `Unable to locate obfuscation mapping for @Inject target`（实测三个都报）。
+NeoForge 1.21 运行时用官方名，故 `remap = false` 在开发与生产都成立。
+
+### 15.5 门也随之加强（`tools/validate_execute_line.py` 现有 8 组断言）
+
+新增第 ⑤–⑧ 组，其中**第 ⑧ 组是这次 bug 的回归闸**：
+
+| 组 | 守什么 |
+|---|---|
+| ⑤ | `ExecuteMarkCache` 只允许被 3 个客户端路径引用（overlay / payload 的 handleClient / `BeLoongCoreClient`）—— 双端类引用它会崩专用服务端 |
+| ⑥ | 包**真的注册了** `playToClient`；漏注册 = 服务端永远不发 = 功能静默死亡（无任何报错） |
+| ⑦ | 同步 mixin 在 **common** `mixins` 列表且钩住三个生命周期方法（放进 `client` 列表 = 服务端不发 = 同样静默死亡） |
+| ⑧ | **overlay 不得再出现 `getEffect(` / `MobEffectInstance`** —— 直接钉死这次退回旧写法的可能 |
+
+**反向对照实测**（改坏 → 期望 FAIL → 还原 → 哈希校验）：第 ⑧ 组「退回直接读 effect」、
+第 ⑦ 组「原版 mixin 放回 `mixin/` 根目录（违反命名规范）」与「`@At` 上漏写 `remap = false`」、
+第 ① 组「同步 mixin 没注册进 common」、第 ⑥ 组「包没注册」、第 ⑤ 组「双端类引用了客户端缓存」
+—— **六条全部被抓住**，还原后文件哈希不变、门复绿。
+
+### 15.7 命名规范合规（用户裁定，2026-10-11）
+
+项目规范：**mixin 按「被 mixin 的模组」的命名空间分类并加前缀** —— 原版目标放
+`com.zonlong.beloong.mixin.minecraft`、`beloong.mixins.json` 条目写 `"minecraft.XxxMixin"`；
+第三方目标放 `mixin/<该模组命名空间>/`。原版目标的注入还必须**在每个 `@Inject` 与其 `@At` 上
+显式 `remap = false`**（`@Mixin` 上不写）。出处：`memory/project-context.md:122`、
+decisions-log 第 11 条；先例：`mixin/minecraft/DreadKingRitualTriggerMixin.java`。
+
+本功能第一版把新 mixin 放在 `mixin/` 根目录、且只在 `@Mixin` 上写了 `remap = false` ——
+**两处都不合规**。根目录那批（`PossibleBiomesFilterMixin` 等）是**历史遗留**，规范是后来才立的，
+用户明确**不回溯修改**；但新写的必须遵守。已迁移为
+`mixin/minecraft/LivingEntityExecuteMarkSyncMixin` + 条目 `"minecraft.LivingEntityExecuteMarkSyncMixin"`
++ 6 处 `remap = false`，并把这条规范写成静态门第 ⑦ 组的断言（放回根目录或漏写 `@At` 的 `remap` 都会红）。
+
+### 15.6 仍未验证
+
+**修复后的实机表现尚未验收**（静态门只证明接线正确）。需用户复测：
+斩杀线是否出现、竖线是否落在 5%（成长 150）/ 20%（成长 300）、打半血区段是否不缩水、
+伤害飘字是否仍清晰、无标记的怪是否一点橙色都没有。

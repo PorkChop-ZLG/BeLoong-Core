@@ -24,6 +24,7 @@
     "ParameterListAccessor",
     "PossibleBiomesFilterMixin",
     "RegionsGetMixin",
+    "minecraft.LivingEntityExecuteMarkSyncMixin",
     "cataclysm.AltarOfAmethystMixin",
     "cataclysm.BurningArenaStructureMixin",
     "cataclysm.RuinedCitadelStructureMixin",

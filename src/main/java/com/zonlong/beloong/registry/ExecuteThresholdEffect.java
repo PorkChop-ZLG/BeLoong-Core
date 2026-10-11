@@ -26,10 +26,18 @@ import net.minecraft.world.entity.LivingEntity;
  * <h3>它标记什么</h3>
  * <ul>
  *   <li><b>斩杀线</b>：由 {@code amplifier} 编码，{@code 斩杀线 = (amplifier + 1) × 0.5%}。
- *       之所以把百分比塞进 amplifier，是因为 amplifier 是 {@link MobEffectInstance} 里
- *       <b>唯一会被原版自动同步到客户端</b>的数值 —— 任何要做客户端表现（HUD / 血条 / 粒子）的
- *       消费者都能直接读到它，不必再造一条网络通道。技能等级 L 对应 {@code amplifier = L + 4}
- *       （L1 → 5 → 3.0%；L15 → 19 → 10.0%）。</li>
+ *       技能等级 L 对应 {@code amplifier = L + 4}（L1 → 5 → 3.0%；L15 → 19 → 10.0%）。
+ *       <p><b>⚠️ 2026-10-11 更正</b>：这里原写「amplifier 是 {@link MobEffectInstance} 里
+ *       <b>唯一会被原版自动同步到客户端</b>的数值」—— <b>该说法对旁观者是错的</b>。
+ *       原版只把效果的<b>粒子外观</b>放进实体元数据
+ *       （{@code LivingEntity.DATA_EFFECT_PARTICLES}），{@code MobEffectInstance} 本体
+ *       <b>不发给旁观者</b>；{@code ClientboundUpdateMobEffectPacket} 仅发给效果持有者本人、
+ *       其乘客、以及登录/骑乘时（{@code LivingEntity:1057}、{@code ServerPlayer:1493/1505}、
+ *       {@code PlayerList:535}）。因此客户端对一只怪调 {@code getEffect(...)} 永远是 null,
+ *       要做客户端表现<b>必须自己发一条包</b> —— 本模组用
+ *       {@code compat.healthbars.ExecuteMarkSyncPayload}（发送方
+ *       {@code registry.ExecuteMarkSyncHandler}，触发点 {@code LivingEntityExecuteMarkSyncMixin}）。
+ *       amplifier 这个编码方式本身仍然成立（服务端结算照常读它），只是不能指望它自动到达旁观者。</p></li>
  *   <li><b>斩杀者</b>：由 DS 自己的 {@code AdditionalEffectData} 机制记录。DS 的
  *       {@code EffectHandler#handleEffectApplication} 会把 {@code MobEffectEvent.Added}
  *       的 {@code effectSource} 写进 effect 实例，而 {@code LivingEntity#addEffect(instance, source)}
