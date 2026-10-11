@@ -1,8 +1,0 @@
-{
-  "required": true,
-  "package": "com.zonlong.beloong.mixin.healthbars",
-  "plugin": "com.zonlong.beloong.mixin.healthbars.HealthBarsMixinPlugin",
-  "client": ["HealthTrackerMixin"],
-  "compatibilityLevel": "JAVA_21",
-  "injectors": {"defaultRequire": 1}
-}

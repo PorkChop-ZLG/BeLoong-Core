@@ -143,10 +143,6 @@ configurations {
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.11.4')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
     // Dragon Survival - required dependency
     implementation "curse.maven:dragons-survival-420799:8973485"
     // GeckoLib
@@ -314,6 +310,17 @@ dependencies {
     compileOnly "curse.maven:raids-enhanced-1467121:7676063"
     localRuntime "curse.maven:raids-enhanced-1467121:7676063"
 
+    // Health Bars（血条显示）— 可选集成：屏蔽"龙成长导致最大生命变化"被当成治疗的绿色飘字。
+    // 按用户要求用 implementation + 联网下载（不走 local-repo），并在 neoforge.mods.toml 里
+    // 声明为 optional + versionRange（版本号取自实际 jar：modId=healthbars、version=21.1.0）。
+    implementation "curse.maven:health-bars-1367734:7122333"
+    // Puzzles Lib — Health Bars 在它自己的 mods.toml 里声明为 required 前置（[21.1.19,)）；
+    // implementation 会把 healthbars 带进 dev 运行时，缺这个前置 runClient 会直接报缺依赖。
+    // 版本取自整合包内实际 jar（modId=puzzleslib、version=21.1.52、file 8251525；
+    // 从 cursemaven 下载的件与整合包内文件大小逐字节一致：1425176 字节）。
+    // 整合包与各服务端自带它，因此这里只是 dev 运行时依赖（与 irons_lib / platform 同性质）。
+    localRuntime "curse.maven:puzzles-lib-495476:8251525"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -359,10 +366,6 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
-}
-
-tasks.named('test', Test).configure {
-    useJUnitPlatform()
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

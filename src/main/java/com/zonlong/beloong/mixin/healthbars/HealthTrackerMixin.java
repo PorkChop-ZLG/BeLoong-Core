@@ -22,7 +22,7 @@ public abstract class HealthTrackerMixin {
     @Unique private LivingEntity beloong$trackedEntity;
     @Unique private Level beloong$trackedLevel;
 
-    @Inject(method = "tick(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("TAIL"), remap = false)
+    @Inject(method = "tick(Lnet/minecraft/world/entity/LivingEntity;)V", at = @At("TAIL"), require = 0, remap = false)
     private void beloong$excludeGrowthFromHealing(LivingEntity entity, CallbackInfo ci) {
         if (!entity.level().isClientSide() || !(entity instanceof Player player)
                 || !DragonStateProvider.isDragon(player)) {

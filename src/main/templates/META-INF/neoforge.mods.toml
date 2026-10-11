@@ -59,9 +59,6 @@ description='''${mod_description}'''
 [[mixins]]
 config = "beloong.mixins.json"
 
-[[mixins]]
-config = "beloong.healthbars.mixins.json"
-
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.${mod_id}]] #optional
     # the modid of the dependency
@@ -254,6 +251,20 @@ config = "beloong.healthbars.mixins.json"
     versionRange="[2.1.2,)"
     ordering="AFTER"
     side="BOTH"
+
+# Health Bars（血条显示）— 可选集成：屏蔽"龙成长导致最大生命变化"被当成治疗而刷绿字。
+# 注入的是它内部的 HealthTracker#tick(LivingEntity) 与私有字段 lastHealthDelta；
+# 上游改名/改字段会硬崩或静默失效（本项目用 @Pseudo + require = 0 兜"类不存在 / 方法改名"），
+# 故同样写 versionRange 让「版本不匹配」在启动日志里可见。
+# 版本号取自实际 jar 的 META-INF/neoforge.mods.toml：modId=healthbars、version=21.1.0
+# （该 jar 自身带 displayTest="IGNORE_ALL_VERSION"）。
+# side=CLIENT：它是纯客户端 HUD 模组 —— 服务端不装也应能连（BeLoong-Server 就没装）。
+[[dependencies.${mod_id}]]
+    modId="healthbars"
+    type="optional"
+    versionRange="[21.1.0,)"
+    ordering="AFTER"
+    side="CLIENT"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't

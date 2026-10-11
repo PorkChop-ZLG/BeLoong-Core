@@ -28,31 +28,22 @@ This supersedes the old AsteorBar freeze/write-back design in `docs/superpowers/
 
 ## Verification
 
-Run `gradlew test build`. The unit tests cover full/partial health growth, both
-packet orders separated by 0–2 ticks, real damage/healing during growth, fractional
-healing, opposing ordinary changes, float noise, shrinking, death, duplicate
-ticks and entity/world resets. These tests do not establish in-game performance.
+本项目**不做自动化测试**（约定见 `memory/project-context.md`）：验收方式是 `gradlew build`
++ 静态 grep 探针 + 实机运行。原提交带的 JUnit 测试与 `src/test` 源集已于 2026-10-11 按该约定移除
+（同一套基础设施此前已由 `8a5cd7e chore: remove test source and configuration` 移除过一次）。
 
-### Build result on 2026-10-10
+### Build notes
 
-All **37** JUnit cases passed, and `test build` completed using JDK 21 and the
-current client's NeoForge **21.1.248**, Dragon Survival **2.0.71** and GeckoLib
-**4.9.3** dependencies. Health Bars is absent from the compile classpath; the
-optional hook uses a string target and `@Pseudo` instead of linking its classes.
+`build` completed using JDK 21 and the current client's NeoForge **21.1.248**,
+Dragon Survival **2.0.71** and GeckoLib **4.9.3** dependencies. Health Bars is now
+declared as an optional dependency (`implementation "curse.maven:health-bars-1367734:7122333"`
+plus an optional entry in `neoforge.mods.toml`); the hook still uses a string target
+together with `@Pseudo` and `require = 0` instead of linking its classes at compile time.
 The installed Health Bars 21.1.0 `tick(LivingEntity)` method and private
 `lastHealthDelta` field were checked against its bytecode.
 
-The normal NeoForm Minecraft recompilation failed in existing `package-info`
-sources before compiling the mod. This build recovered the exact cached
-NeoForge 21.1.248 mapped SDK after checking its version metadata and SHA-256,
-and skipped only `createMinecraftArtifacts`. A local init script moved build
-outputs to an ASCII path after Gradle's test worker could not load classes from
-the Chinese workspace path. The repository's default NeoForge version was not
-changed. The produced jar requires NeoForge 21.1.248 or later.
-
 Actual client startup, the optional-mod presence/absence cases, combat,
 dimension changes, respawn and visual/performance checks remain **unverified**.
-The unit reset tests simulate entity changes; they do not launch a game.
 Packet separation beyond two ticks and other max-health changes simultaneous
 with growth are not covered by the filter's proportional-change assumption.
 
