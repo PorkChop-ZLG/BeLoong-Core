@@ -98,3 +98,34 @@
    - `neoforge.mods.toml` 补 `modId="asteorbar" type="optional" versionRange="[1.5.3,)" ordering="AFTER" side="CLIENT"`（版本取自实际 jar 的 `META-INF/neoforge.mods.toml`）。
 
 **为什么最终不采用 PR 的方案**：PR 的动机（旧实现把渲染调用当 tick、拿上一实体缓存血量、在渲染路径写实体状态）确实指出了坏味道，但它把「实现方式有坏味道」当成「这个 BUG 不需要处理」，并假定「HUD 现在会正常读当前实体血量」——而根因（原版在最大生命变化时按新上限回写血量，压低之后没有任何机制抬回）**没有被动过** ⇒ 删掉唯一缓解手段就是回归（本轮实测确认）。
+
+## 十、Health Bars 侧的新修复（2026-10-11 追加，委托方批准）
+
+**背景**：§九 已按委托方裁定回退 PR 的修复实现（`GrowthHealthDeltaTracker` + `HealthTrackerMixin`），并复原 AsteorBar 修复。本节登记**替代 PR 的新修复**，来自 brainstorming（设计）与 planning（计划）两个技能的产出：
+
+- 设计：`docs/plans/2026-10-11-healthbars-growth-numbers-design.md`
+- 计划：`docs/plans/2026-10-11-healthbars-growth-numbers-plan.md`
+- 裁定记录：`memory/decisions-log.md`（2026-10-11「Health Bars『成长被当成治疗飘字』修复方案裁定」条目）
+
+**目标口径（委托方裁定 A）**：只保证「**纯成长不冒数字**」，不追求"成长 + 真实变化同刻"的精确扣减。
+
+**做法（方案 A：比例不变性判定，单 Mixin）**：
+
+- 新增 `mixin/healthbars/HealthTrackerHandlerMixin`（注册进 `beloong.mixins.json` 的 `client` 数组；项目约定：`@Pseudo` + 全部注入点 `require = 0` + `remap = false` + 中文 javadoc）。
+- **判定**（`HealthTrackerHandler#onEndEntityTick` 的 `HEAD`）：只在**最大生命发生变化的那一 tick** 比较血量**百分比**（容差 `1.0e-4`，推导见设计文档 §2.4），百分比不变即等比抬升/缩小 ⇒ 置"本 tick 抑制"标志；**判定对称**（覆盖龙之生存"偷成长"导致的等比缩小，避免假伤害红字）；只对**龙玩家**、只在客户端。
+- **抑制**（`@Redirect` 同一方法里的 `HealthTracker#getLastHealthDelta()`，javap 实测该方法内**仅 1 次**调用）⇒ 抑制时返回 `0` ⇒ Health Bars 自己的 `healthDelta != 0` 判断不成立 ⇒ **不生成飘字**。**不写 Health Bars 任何状态**（`lastHealthDelta` / `health` / `maxHealth` / `lastHealth` / 血条动画全不动），GUI 数字走的是另一个方法 `getHealthDelta()`，也不受影响。
+- **可观测性**：每次进程内**首次抑制**时打一条 `[BeLoong] healthbars: growth-rescale number suppressed (first hit this session)`（抑制的效果是"什么都不出现"，没有锚点无法区分"修好了"与"这次恰好没成长"）。
+- **为什么不需要 PR 的 2 tick 采样窗口**：服务端那次重算顺序固定（改属性 → `setHealth`，同连接顺序送达）⇒"max 变了 + 百分比没变"在同一 tick 即可判定。
+
+**与 §九 的关系**：本节**取代** §九 里"Health Bars 侧问题未处理 / 无替代"的状态；§九 的历史记录按惯例保留不改。
+
+**本轮静态验证（2026-10-11）**：`gradlew build --offline --no-configuration-cache` = 0；`gradlew compileJava --rerun-tasks --no-build-cache --offline` = 0（仅既有 3 条 `@Shadow/@Accessor` 映射告警）；javap 复核 `getLastHealthDelta()` 计数 = 1；产物 jar 内含 `HealthTrackerHandlerMixin.class` 与 `AsteorBarHealthFixMixin.class`，jar 内 `beloong.mixins.json` 的 `client` 含 `healthbars.HealthTrackerHandlerMixin`。
+
+**验收（待委托方实机执行）**：设计文档 §2.5 的 **V1–V9**；其中 **V8** 为关系对照 —— 注释掉 `beloong.mixins.json` 里 `"healthbars.HealthTrackerHandlerMixin"` 一行即可关闭本修复，用于确认 `+1` 会复现。
+
+**验证事故与更正（2026-10-11，本节的静态门自证不足）**：实现时把 `@Inject` 处理器的 `CallbackInfo` 参数删除，
+导致 `runClient` 阶段 `InvalidInjectionException: Invalid descriptor on … HealthTrackerHandlerMixin ->@Inject::beloong$evaluateRescale`
+⇒ NeoForge 判定模组加载失败、客户端无法启动（`crash-reports/*-client.txt` 的 Sodium "config could not be found; broken state" 为连锁现象，
+真因在 `*-fml.txt` 的 `Failure message:`）。已补回参数并在源码注释中标注"不可删"。
+**教训（已记入 `memory/learned-patterns.md`）**：`require = 0` 不放宽处理器签名校验；`build`/`compileJava` 等静态门**抓不到** mixin 应用期错误
+⇒ 改 Mixin 后**必须真正 `runClient` 一次**才算通过。
