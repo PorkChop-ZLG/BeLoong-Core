@@ -43,9 +43,11 @@
   —— 要**新证据**必须带这两个 flag，否则会拿到 `UP-TO-DATE` / `FROM-CACHE`。
   迭代期用 `.\gradlew.bat compileJava --rerun-tasks --no-build-cache` 更快（只编译、不打包）；
   两者都给**带时间戳**的证据块，否则分不清证据是新取的还是上次留下的。
-  ⚠️ **本机还要固定带两个 flag**：`--offline`（本机访问 `maven.neoforged.net` 会 `Connection timed out`；
-  依赖已全量缓存；**只有需要拉新依赖时才去掉**）与 `--no-configuration-cache`
-  （作者客户端在跑时会占用配置缓存锁 ⇒ `Timeout waiting to lock Configuration Cache … Owner PID`）。
+  ⚠️ **【本机】下面两个 flag 是"按报错加"，不是每次必带**（裸跑通常也能成功）：
+  - `--offline`：出现 `Connection timed out`（本机访问 `maven.neoforged.net`）时加；依赖已全量缓存，
+    **只有需要拉新依赖时才必须去掉它**。
+  - `--no-configuration-cache`：出现 `Timeout waiting to lock Configuration Cache … Owner PID`
+    （作者客户端在跑时占用配置缓存锁）时加。
 - 只编译：`.\gradlew.bat compileJava`；产物：`build/libs/beloong-<版本>.jar`。
 - **本项目没有测试套件**：验证 = 静态门 + `build` + **作者在实机上验收**。行为正确性不要用"应该没问题"结案。
 - ⚠️ **验证门是分层的：静态门 < `runClient` < 作者实机验收。** 构建 / 编译全绿**只说明能编译** ——
@@ -58,7 +60,7 @@
 - 静态门（**只活在本机工作区**；**各管一个子系统，别全跑也别全跳**）：`python tools\validate_execute.py`、
   `validate_execute_line.py`（execute / 斩杀类）、`validate_tornado.py`（龙卷风）、
   `check_lang_parity.py`（语言）。缺了就按抬头那条办。
-  ⚠️ **`D:\Minecraft\tools\YSMParser\` 整个目录一律不要跑。** 它是历史自动化工具链（约 250 个 `.py`，
+  ⚠️ **【本机】`D:\Minecraft\tools\YSMParser\` 整个目录一律不要跑。** 它是历史自动化工具链（约 250 个 `.py`，
   其中**约 165 个含文件写入调用**：`patch_*` / `fix_*` / `backfill_*` / `add_*_lang.py` …），
   根路径**硬编码**到旧副本 `D:\Minecraft\BeLoong-Core-NPC`。那个副本**仍在硬盘上**（只是不再登记为
   `git worktree`）⇒ 那些脚本今天照样跑得通、也照样给出"全绿"，但结果属于**另一个树**；
@@ -66,7 +68,7 @@
 - **性能类改动给 spark 前后对照**：`tools\spark_profile_analyze.py` / `spark_profile_decode.py` /
   `spark_profile_subtree.py`（报告样例见 `tools\spark-*.txt`）。判据是**帧时间**，
   **不要用 CPU 采样百分比推断 FPS 提升**。
-- ⚠️ **本机 PATH 上没有 `rg`**（`Get-Command rg` 为空）：文档里出现的 `rg` 命令**只在智能体内置的 grep 工具里能用**，
+- ⚠️ **【本机】PATH 上没有 `rg`**（`Get-Command rg` 为空）：文档里出现的 `rg` 命令**只在智能体内置的 grep 工具里能用**，
   写进 pwsh 会直接失败 ⇒ 命令行请用 `Get-ChildItem -Recurse -File -Filter *.java | Select-String -Pattern …` 等价式。
   （另：`rg -L` 是 `--follow` 跟符号链接，不是"列出无匹配文件"——后者是 `--files-without-match`。）
 - **临时探针要有收尾清单**：为验证临时加的数据包 / 进度 / 调试命令一律用可识别命名（如 `*_test`），
@@ -86,9 +88,10 @@
     机制：它读的是 `[Environment]::CurrentDirectory`，而 PowerShell 的 `cd` 只改 provider 位置、不改它。
   - **`build/libs` 里会同时躺着多个版本的 jar** ⇒ 取产物要**指名文件**或按 mtime 排序；
     `Select-Object -First 1` 会拿到旧版并当成证据。
-  - **`Get-Content <file> | Measure-Object -Line` 少算约 25%**（实测 2462→1843、1955→1503、445→410）
-    ⇒ 统计行数用 `(Get-Content <file>).Count`。它曾让行数写进文档、并据此误判"文件被别的分支改过"。
-    机制：`-Line` **不数空行** ⇒ 少掉的正好是空行占比（Javadoc 多的 Java 文件约 25%）。
+  - **`Get-Content <file> | Measure-Object -Line` 会少算，少掉的正是空行**（实测 9%~25%：
+    `AGENTS.md` 少 11.3%、`learned-patterns.md` 少 23.3%、纯 Java 文件少 9.2%；旧记录里的 25%/23%/8%
+    是同一现象的其他样本）⇒ 统计行数用 `(Get-Content <file>).Count`。它曾让行数写进文档、
+    并据此误判"文件被别的分支改过"。（机制：`-Line` **不数空行**。）
 - 需要实机验收时，给「**编号 + 场景 + 期望值 + 判据**」的清单，并标出哪个常量是旋钮、往哪边拧。
 
 ## 三、从哪读源码（不要每次重新寻找与提取）
@@ -291,8 +294,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 - 功能改动走 `docs/plans/YYYY-MM-DD-<slug>-design.md` + `-plan.md` **成对**；审查走 `docs/reviews/`；
   每个大系统另有 `docs/<系统>总设计.md`——**那是该系统的权威文档**。
-- **每轮修订追加一节（`## 修订 rev N（YYYY-MM-DD，委托方裁定）：…`）并标记被取代的旧章节，不删改历史**；
-  ⚠️ 标题**不要与正文章号（`## 七、`）混排**，否则读者分不清哪节是正文、哪节是修订。
+- **每轮修订追加一节并标记被取代的旧章节，不删改历史**（先例：`docs/plans/2026-09-27-glide-…-design.md` 的
+  `## 6. 修订 rev 2（2026-09-27）：…`、`docs/自制龙之生存技能总设计.md` 的 `## 十五、2026-10-10 修订（rev 1）：…`）。
+  **保留序号以维持阅读顺序，但标题里必须出现 `修订` 与 `rev N` 字样** —— 号段与正文连排时靠这两个词区分，
+  再配合下面的"现行状态指针"。
   决定要留"谁 / 何时 / 为何 + 被否的替代方案"。
 - **数值类改动的权威来源是 `src/main/resources/data/...` 的 JSON**；文档里的表要跟着更新，
   并写明口径（例如"打满 / 基础值 / 不含护甲"）。
@@ -321,6 +326,11 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 ## 十一、其它硬性约定
 
+> **本节是"结论层"，深度取证在 `memory/learned-patterns.md`**（116 条，一个坑一条）；两边冲突以本文件为准。
+> **新增的"单模块调试结论"请写进 learned-patterns**，只有"别的模块也会再踩到"的基础设施规则才上提到本文件
+> —— 否则两处真相源必然漂移，而本文件越长越不容易被遵守。压缩某条时**先确认细节已在 learned-patterns 里**，
+> 别把唯一副本删掉。
+
 - **日志一律英文 ASCII**，格式 `[BeLoong] <subsystem>: <message>`，用 SLF4J `{}` 占位；
   **中文只进注释与 javadoc**。⚠️ 多行日志的**中文续行**最容易漏，要按整条语句扫，不能只看第一行。
 - **复用第三方自己的量与判定**，不要复制算式、也不要造状态副本（项目历史两次踩坑都源于此）。
@@ -329,10 +339,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   对冲项（摩擦 / 拖曳 / 重力）全停 ⇒ 推力无对冲累积（实测：单机滑翔中按 Esc 数秒即到几十格/tick，
   恢复时瞬移，或被服务端判 `moved too quickly`）。
   ⚠️ 反直觉的一点：**HEAD 不能一律加这个守卫** —— HEAD 还承担"异常状态摘除"，暂停期间也必须跑。
-- **"零附近"的权重必须由绝对值决定，不能由符号门控**：`look.y = -sin(xRot)`，"完全平视"恰好落在
-  `look.y = 0` 这个边界上，符号门（`if (look.y <= 0)`）会让推力在 1e-6 的姿态差上从满值掉到 0
-  （实测 1.0 vs 0.26 格/tick，1 秒掉到 1/8）。写 `f(|x|)` 天然两侧连续；
-  只有**确认边界处本来就连续**的项才允许留在门内。（同一个文件上犯过两次：修好后又复发。）
+- **"零附近"的权重必须由绝对值决定，不能由符号门控**：写成 `f(|x|)`（天然以 0 为峰、两侧连续），
+  只有**确认该边界处本来就连续**的项才允许留在门内 —— 同一个文件上已犯过两次（症状：完全平视时
+  推力 1.0 → 0.26 格/tick；门的问题表现为**阶跃**，量级的问题表现为**偏弱**）。
+  ⇒ 完整机制与复查规则见 `memory/learned-patterns.md`「"零附近"的权重必须由绝对值决定」一条。
 - **搬第三方状态机要按五项对照：初始化 / 爬升 / 钳制 / 衰减 / 复位** —— 漏"复位"的后果是
   "需求听起来实现了、但不可复现"（实例：自建累加器跨滑翔存活 ⇒ 只有本次会话第一次滑翔有缓加速）。
   附带：**客户端 `private static` 状态会跨世界 / 存档 / 切形态存活**，要么给它复位点，
@@ -352,12 +362,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **"谁把谁当同伴"的唯一收口点是 `Entity#isAlliedTo`**：`TargetingConditions#test`（主动锁定）与
   `HurtByTargetGoal#canUse`（被打后还手）**两处都走它** ⇒ 改这一处就等于同时改"选不选它当目标"与
   "要不要还手"，比逐个 goal / 逐个 tag 去堵可靠得多。
-- **取消 / 拦截"移除类"事件时，判据必须按对象**，绝不能按"本次有没有处理过任何东西"。
-  反例：`if (checkAndApply(player)) event.setCanceled(true);` —— 全局标志会被**别的对象**污染，
-  当前对象就被无限取消；MobEffect 的表现是 **duration = 0 却永不消失、且属性修饰符仍在**，
-  并且**每 tick 自我触发**形成自持循环（未门禁效果每 tick 递减 1 ⇒ "补满"总返回 `true`）。
-  正确写法：让被调方法返回"处理了哪些对象"（`Set<Key>`），判定用 `contains(thisKey)`；
-  而**主动移除**路径的判据该问"这个对象**该不该在**"（两条判据不同，别合并）。
+- **取消 / 拦截"移除类"事件时，判据必须按对象**，绝不能按"本次有没有处理过任何东西"：全局标志会被别的
+  对象污染 ⇒ 当前对象被无限取消，并**每 tick 自我触发**形成自持循环。正确写法让被调方法返回 `Set<Key>`、
+  判定用 `contains(thisKey)`，且"**主动移除**（该不该在）"与"**自然到期**（有没有真的被重新加上）"
+  两条判据**不同、别合并**。⇒ 完整机制、症状与三层语义见 `memory/learned-patterns.md` 第 1 条。
 - 拉第三方依赖优先用 **curse maven 的 `fileId`**（`<slug>-<projectId>:<fileId>`）；Modrinth 按版本号解析
   **会选错 loader**。
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
