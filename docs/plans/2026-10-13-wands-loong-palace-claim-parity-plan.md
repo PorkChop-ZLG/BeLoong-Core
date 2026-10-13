@@ -2,7 +2,7 @@
 
 **日期：** 2026-10-13
 **设计：** `docs/plans/2026-10-13-wands-loong-palace-claim-parity-design.md`
-**状态：** 待实施
+**状态：** **已完成并实机验收**（2026-10-13）
 
 ## 前置（已完成）
 
@@ -78,3 +78,32 @@ $jar = "$env:USERPROFILE\.gradle\caches\modules-2\files-2.1\curse.maven\building
 ## 计划外/待裁定
 
 - design §9 的两处文档漂移（`enabled` 语义、FTB 缺席时的实际行为）需单独裁定后回填 `龙宫维度总设计.md`。
+
+## 实施回填（2026-10-13 收尾）
+
+**执行状态：全部完成，并经实机验收。**
+
+| Task | 结果 |
+|---|---|
+| 前置（参考源 / Gradle 依赖 / toml 声明） | ✅ jar = 465,238 B，与 `D:\Downloads\BuildingWands-neoforge-MC1.21.1-3.0.5.jar` **同大小** ⇒ 确认文件号 8207219 就是 3.0.5 |
+| Task 1 对等判定 | ✅ `LoongPalaceProtectionPolicy#shouldTreatAsClaimed` |
+| Task 2 Mixin | ✅ `mixin/wands/ClaimDispatchMixin`；锚点签名**逐字**核对：`public static boolean claimCanInteract(ServerLevel, BlockPos, Player)` |
+| Task 3 注册 | ✅ `beloong.mixins.json` 共 48 条（进 `mixins`，**非** `client`） |
+| Task 4 验证 | ✅ `build --rerun-tasks --no-build-cache` → BUILD SUCCESSFUL；产物含 mixin class、打包后的 toml 含 `modId="wands"` + `versionRange="[3.0.5,)"` |
+| Task 5 实机验收 | ✅ **用户实测通过** —— "建筑之杖会尊重龙宫的保护了" |
+
+**计划之外真实发生的事**
+
+1. **注入点不是原先设想的 `Wand#place_block`，而是更靠外的 `ClaimDispatch#claimCanInteract`。**
+   核对后发现 `place_block` 的**第一步**就是这道门，而门**全 jar 只有一个调用者** ⇒ 注入这一层覆盖面
+   完全相同，但语义更贴（"报称已被认领"），且不依赖 `place_block` 内部后续改写。
+2. **`WandScreen` 曾被误判为 `place_block` 的客户端调用者。** 那是我扫 jar 时**子串**命中了翻译键
+   `screen.wands.replace_blocks`。改用 `javap` 看字节码后确认：`place_block` 里是对 `level` 的
+   **硬 `checkcast` 到 `ServerLevel`、无 `instanceof` 门** ⇒ 它**只可能在服务端跑**，故 mixin 无需判 side。
+   （教训：字符串命中 ≠ 符号引用，必须 `javap` 复核。）
+3. **`util/ClaimProtectionHelper#isClaimed` 看似是现成入口，但不能直接用**：它会对**所有**位置套用
+   FTB 标准判定（`ALWAYS_BLOCK` 恒 `CHECK`），而建筑之杖用的是认 `ftbchunks:edit_whitelist` 白名单的
+   `Protection.EDIT_BLOCK` ⇒ 照搬会让本模组**在非龙宫维度比建筑之杖更严**。故新判据**只对龙宫生效**。
+4. **`enabled` 总开关没有接进新判据**，与既有 `shouldPreventEdit` 保持一致（见 design §9 漂移 A，待裁定）。
+5. **`--rerun-tasks --no-build-cache` 的构建耗时 12m 10s**（会连带重跑 NeoForge 整条管线），不是卡住；
+   另外 `build/libs` 里同时躺着 0.9.8~0.10.4 多个 jar，**取产物必须指名版本**。
