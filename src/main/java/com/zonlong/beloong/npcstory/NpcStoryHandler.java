@@ -148,12 +148,20 @@ public class NpcStoryHandler {
                 continue;
             }
 
-            NpcEntity npc = ensureDouble(player, level, entry.getKey(), story);
-            if (npc == null) {
+            Ensured ensured = ensureDouble(player, level, entry.getKey(), story);
+            if (ensured == null) {
+                continue;
+            }
+
+            // ⚠️ **只有这一次真的生成了分身**才播 CG。复用了既有分身 ⇒ 剧情并没有重新开始
+            // （起点进度被重新获得、但分身还在），登场演出不该重演。
+            // 这是 ensureDouble 那句"幂等：…不重播 CG"承诺的另一半 —— 原先只写了注释没有实现。
+            if (!ensured.spawned()) {
                 continue;
             }
 
             // CG 与"生成"解耦：名字解析不到只留 WARN，分身照常存在（设计 D12）。
+            NpcEntity npc = ensured.npc();
             story.cg().ifPresent(name -> CgRegistry.byName(name).ifPresentOrElse(
                     cg -> cg.play(player, npc),
                     () -> BeLoongCore.LOGGER.warn(
@@ -620,14 +628,25 @@ public class NpcStoryHandler {
 
 
     /**
-     * 幂等确保"该玩家的私有分身"存在，返回它。
+     * {@link #ensureDouble} 的结果：拿到的分身 + **它是不是这一次刚生成的**。
+     * <p>
+     * 调用方需要区分这两种情况 —— 只有"刚生成"才该播登场 CG（见 {@code onAdvancementEarned}）。
+     */
+    private record Ensured(NpcEntity npc, boolean spawned) {
+    }
+
+    /**
+     * 幂等确保"该玩家的私有分身"存在。
      * <p>
      * 一次 {@code getAllEntities()} 同时完成两件事：查重（已有 ⇒ 直接复用）与找锚点
      * （{@code owner == null} 的同类实例，多个取离玩家最近的那个）。事件路径很少触发，
      * 这里 O(实体数) 是可接受的；**每个追踪周期都会跑的 {@code visibleTo} 里绝不能这么做**。
+     *
+     * @return 分身 + 是否**这一次**刚生成（{@code spawned == false} 表示复用了既有的
+     *         ⇒ 调用方**不要**重播 CG）；建不出来时返回 {@code null}
      */
     @Nullable
-    private NpcEntity ensureDouble(ServerPlayer player, ServerLevel level, EntityType<?> type, NpcStory story) {
+    private Ensured ensureDouble(ServerPlayer player, ServerLevel level, EntityType<?> type, NpcStory story) {
         NpcEntity anchor = null;
         double anchorDistance = Double.MAX_VALUE;
         int anchors = 0;
@@ -637,7 +656,9 @@ public class NpcStoryHandler {
                 continue;
             }
             if (player.getUUID().equals(npc.owner())) {
-                return npc;                     // 幂等：已经有自己的分身了，复用它（不重复生成、不重播 CG）
+                // 幂等：已经有自己的分身了 ⇒ 复用它。spawned=false 让调用方**不重播 CG**
+                //（"重新获得起点进度但分身仍在"时剧情并没有重新开始，登场演出不该重演）。
+                return new Ensured(npc, false);
             }
             if (npc.owner() == null) {
                 anchors++;
@@ -691,6 +712,6 @@ public class NpcStoryHandler {
                         + " (lifetime: {}, expires at {})",
                 type, player.getGameProfile().getName(), npc.blockPosition(),
                 story.describeLifetime(), story.isPermanent() ? "never" : npc.expireAt());
-        return npc;
+        return new Ensured(npc, true);
     }
 }

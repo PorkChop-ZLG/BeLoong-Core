@@ -19,6 +19,8 @@ import com.zonlong.beloong.dialogue.NpcDialogueHandler;
 import com.zonlong.beloong.dialogue.NpcDialogueLoader;
 import com.zonlong.beloong.dialogue.NpcDialogueOpenPayload;
 import com.zonlong.beloong.dialogue.NpcDialogueReplyPayload;
+import com.zonlong.beloong.emote.NpcEmoteDurationPayload;
+import com.zonlong.beloong.emote.NpcEmoteExpiryHandler;
 import com.zonlong.beloong.fluid.BeloongWaterContactHandler;
 import com.zonlong.beloong.fluid.BeloongWaterRegionLoader;
 import com.zonlong.beloong.item.ModCreativeModeTabs;
@@ -125,6 +127,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
         NeoForge.EVENT_BUS.register(new NpcStoryHandler());              // NPC 剧情：获得起点进度 ⇒ 生成私有分身 + 由它播 CG
+        NeoForge.EVENT_BUS.register(new NpcEmoteExpiryHandler());        // 一次性表情：到期把 DATA_EMOTE 清回 ""（修"重新追踪就重播"）
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
         NeoForge.EVENT_BUS.register(new HellGateKeyWatcher());             // 地狱之门钥匙 tag 的加载期体检
@@ -175,6 +178,12 @@ public class BeLoongCore {
                 NpcDialogueReplyPayload.TYPE,
                 NpcDialogueReplyPayload.STREAM_CODEC,
                 NpcDialogueReplyPayload::handleServer);
+        // NPC 一次性表情的时长申报（同样是 playToServer）：服务端据此到期清 DATA_EMOTE。
+        // 长度是**客户端资产数据**，服务端无从知道 ⇒ 只能由客户端把结论送过来。
+        registrar.playToServer(
+                NpcEmoteDurationPayload.TYPE,
+                NpcEmoteDurationPayload.STREAM_CODEC,
+                NpcEmoteDurationPayload::handleServer);
     }
 
     /** FML 通用设置（双端都执行）。 */

@@ -9,6 +9,9 @@ import com.zonlong.beloong.entity.ai.NpcAttackGoal;
 import com.zonlong.beloong.npcstory.NpcStory;
 import com.zonlong.beloong.npcstory.NpcStoryLoader;
 import com.zonlong.beloong.dialogue.NpcDialogueStage;
+import com.zonlong.beloong.emote.NpcEmoteDurationPayload;
+import com.zonlong.beloong.emote.NpcEmoteExpiryHandler;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -374,6 +377,14 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * ⚠️ <b>刻意不落盘</b>（设计 D5）：表情是纯表现层，重登后直接回到状态动画。
      * 因此它<b>不出现在</b> {@link #addAdditionalSaveData} / {@link #readAdditionalSaveData} 里
      * —— 这一条由探针 {@code tools/YSMParser/probe_emote_java.py} 守着。
+     * <p>
+     * ⚠️ <b>一次性表情的"寿命"（2026-10-13 起）</b>：这个字段的语义是"**当前**表情"，
+     * 而"播完了没有"原先只记在客户端的瞬态字段上 ⇒ 客户端一旦**重建实体实例**
+     * （走出追踪半径 / 换维度 / 断线重连 / 别人中途加入），就会拿这个还留着的名字**从头再播一遍**。
+     * 现在由客户端在起表时把**动画长度**申报给服务端（{@code NpcEmoteDurationPayload}），
+     * 服务端到期把本字段清回 {@code ""}（{@code NpcEmoteExpiryHandler}）⇒ 播完即不再残留。
+     * <b>{@code LOOP} 姿态（{@code sit} / {@code dance}）不上报、也不被清</b>，这是刻意的。
+     * 到期时刻用 {@link #emoteSetAt()} 算，不是"现在" —— 理由见那个方法。
      */
     private static final EntityDataAccessor<String> DATA_EMOTE =
             SynchedEntityData.defineId(NpcEntity.class, EntityDataSerializers.STRING);
@@ -830,11 +841,42 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
+     * 服务端：**最后一次**把表情设成当前值的时刻（{@code gameTime}，单位 tick）。
+     * <p>
+     * <b>它存在的唯一理由是"让重复申报幂等"。</b>一次性表情的长度由客户端申报
+     * （见 {@code NpcEmoteDurationPayload}），而客户端在**每次重新追踪**时都会再申报一次
+     * （初始实体数据包也会触发它清瞬态、重新起表）。若用"现在 + 长度"算到期，
+     * 玩家在末旁边来回走就会把清除时刻**无限推后 ⇒ 永远清不掉**。
+     * 改用"设置时刻 + 长度"，同一轮申报的结果**恒等**。
+     * <p>
+     * 与 {@link #emote()} 一起、**只在 {@link #setEmote} 里写** ⇒ {@code emote()} 非空时它必然大于 0
+     * （表情不落盘，读档后两者同时归零）⇒ 受理申报时不需要额外判断。
+     * <p>
+     * 普通字段：不落盘、不同步 —— 它只是"服务端记的账"，客户端不需要知道。
+     */
+    private long emoteSetAt;
+
+    /** {@link #emoteSetAt} 的只读访问器（{@code emote} 包算到期时刻要用）。 */
+    public long emoteSetAt() {
+        return this.emoteSetAt;
+    }
+
+    /**
      * 设置表情。<b>只在服务端生效</b>（与 {@link #setState} 同构）。
      * <p>
      * ⚠️ <b>名字不做任何校验</b>：动画名是<b>客户端</b>的资产数据，服务端无从知道。
      * 客户端会在播放前预检、查不到就静默不播，因此拼错既不会报错也不会静默变成别的动画，
      * 但也不会有任何反馈 —— 这是设计 D4 明确接受的代价。
+     * <p>
+     * 除写字段外还做两件事，**每次调用都做**（含清空、含同名）：
+     * <ol>
+     *   <li>刷新 {@link #emoteSetAt()} —— 一次性表情的到期时刻由它算
+     *       （含义与"为什么不能用 now"见该方法的说明）；</li>
+     *   <li>作废该实体的待清计划（{@link NpcEmoteExpiryHandler#cancel}）——
+     *       换了表情就绝不能按旧计划把**新**表情清掉。</li>
+     * </ol>
+     * 为什么"每次都要做"：下面那次 {@code force = true} 的语义就是"**再播一次**"，同名也不例外
+     * ⇒ 每一次调用都必须拿到新的到期时刻。
      */
     public void setEmote(String animationName) {
         if (this.level().isClientSide()) {
@@ -846,6 +888,11 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         // 甚至 play attack → play stop → play attack）**正是值没变**的情形 ——
         // 不 force 的话客户端收不到通知，表现是**指令报成功、却什么都没发生**。
         this.entityData.set(DATA_EMOTE, animationName == null ? "" : animationName, true);
+
+        // ★ 与上面那次 set 配套：记时刻 + 作废旧计划。顺序无所谓，但两件都必须在这里做
+        //   （放在别处就会漏掉某条 setEmote 的调用路径）。详见本方法 javadoc。
+        this.emoteSetAt = this.level().getGameTime();
+        NpcEmoteExpiryHandler.cancel(this);
     }
 
     /**
@@ -855,7 +902,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * 客户端会**无条件**收到通知（{@code SynchedEntityData.assignValues} 对每个条目都调本方法、
      * 不比较新旧值）⇒ 下一个谓词帧就会重新走一遍"换名"分支、重新钉计时起点。
      * <p>
-     * 在服务端被调用也无害 —— 这三个字段只在客户端的谓词里被读。
+     * 在服务端被调用也无害 —— 这四个字段只在客户端的谓词里被读。
      */
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> accessor) {
@@ -864,6 +911,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             this.emoteSeen = "";
             this.emoteDone = false;
             this.emoteStartTick = 0;
+            // 也清"申报过"的记账：服务端每次 setEmote（含同名重播）都该让客户端重新申报一次长度。
+            this.emoteReported = "";
         }
     }
 
@@ -1618,7 +1667,7 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
 
     // ===================== 表情的客户端瞬态状态（不同步、不落盘）=====================
-    // 这三个字段只被 emote 控制器在**客户端**读写，因此不进同步数据、也不进存档。
+    // 这四个字段只被 emote 控制器在**客户端**读写，因此不进同步数据、也不进存档。
     // 服务端只知道 DATA_EMOTE（那个名字），"播完了没有"只有客户端能判断
     // —— 因为"这支动画有多长、是不是循环动画"都是**资产数据**（见 EmoteAnimationLookup）。
 
@@ -1636,6 +1685,18 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
 
     /** 一次性表情的**计时起点**（单位 tick，取自 {@link #tickCount}）。 */
     private int emoteStartTick;
+
+    /**
+     * 已经向服务端**申报过长度**的那条表情名（空串 = 还没申报）。
+     * <p>
+     * 存在的唯一理由：{@code emote} 控制器谓词**每帧**都跑，而"申报长度"是**起表时做一次**的动作
+     * —— 没有这条守卫就会每秒发 60 个包。
+     * <p>
+     * 随 {@link #onSyncedDataUpdated} 一起被清 ⇒ 服务端每次 {@code setEmote}（含同名重播）
+     * 与每次**重新追踪**都会让本客户端重新申报一次；重复申报由服务端按
+     * {@code emoteSetAt + 长度} 幂等吸收（见 {@code NpcEmoteDurationPayload} 的类注释）。
+     */
+    private String emoteReported = "";
 
     /**
      * 主控制器：**按状态**选动画 —— 非待机状态播该状态那一条；待机时才走 idle/walk/run 三选一。
@@ -1724,6 +1785,34 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 // **不做负缓存** —— 下一帧还会再查，于是 F3+T 重载资源后能自愈。
                 return PlayState.STOP;
             }
+
+            // ★ 一次性表情 ⇒ 把"长度"申报给服务端（服务端据此到期把 DATA_EMOTE 清回 ""）。
+            //   位置有讲究（详见 NpcEmoteDurationPayload 的类注释）：
+            //     ① 必须在 find **成功之后** —— 只有查到资产才知道"是不是一次性""多长"；
+            //        放在它之前的话，资源未加载时会**静默永不申报**；
+            //     ② LOOP 姿态**根本不申报** ⇒ sit / dance 永远不会被清除（刻意保护"它坐在那里"）。
+            //   emoteReported 守卫是必须的：本谓词**每帧**都跑，没有它就会每秒发 60 个包。
+            if (animation.loopType() != Animation.LoopType.LOOP && !name.equals(npc.emoteReported)) {
+                // ⚠️ length() 返回的是 **double**（单位 tick，= animation_length × 20d，见上面那句的说明），
+                //    而载荷要 int。用 ceil 而不是强转/round：控制器判定"播完"用的是
+                //    `tickCount - emoteStartTick >= animation.length()` ⇒ **实际播放时长正是 ceil(length)**
+                //    （120.4 会在第 121 tick 才停）⇒ 这样服务端的到期时刻与客户端真正停下的那一 tick 对齐。
+                int ticks = (int) Math.ceil(animation.length());
+                // ⚠️ 这里是**渲染路径**，异常冒出去会一路到渲染循环 ⇒ 必须自己接住。
+                //    **刻意不重试**：本谓词每帧都跑，重试会把日志刷成每秒 60 条。
+                //    申报是 best-effort —— 失败只是退化成"修复前的行为"（这条一次性表情
+                //    仍会在重新追踪时重播一次），不会有更糟的后果，所以一条 WARN 足够定位。
+                try {
+                    PacketDistributor.sendToServer(new NpcEmoteDurationPayload(npc.getId(), name, ticks));
+                } catch (Throwable t) {
+                    BeLoongCore.LOGGER.warn(
+                            "[BeLoong] failed to report the duration of emote '{}' on {}: {}",
+                            name, npc.getType(), t.toString());
+                }
+                // 无论成败都记账 ⇒ 同一条表情只申报一次（不重试、不刷屏）。
+                npc.emoteReported = name;
+            }
+
             if (animation.loopType() == Animation.LoopType.LOOP) {
                 return state.setAndContinue(RawAnimation.begin().thenLoop(name));
             }

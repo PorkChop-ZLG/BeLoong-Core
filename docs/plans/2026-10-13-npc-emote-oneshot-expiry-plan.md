@@ -26,7 +26,7 @@
 
 **两条必须记住的既有设计取向**（本次不违反）：
 1. **动画名/长度/loop 类型都是客户端资产数据，判断全放客户端**（`NpcEntity:1704`）⇒ 服务端**只接收客户端上报的结论**，不自己解析资产。
-2. 既有的 6 个 `clearEmote()` 调用点**语义不变**，本次只**新增**一条"到期自动清"。
+2. 既有的 8 个 `clearEmote()` 调用点**语义不变**，本次只**新增**一条"到期自动清"。
 
 ## 非目标
 
@@ -166,7 +166,7 @@ python -X utf8 D:\Minecraft\tools\YSMParser\npc_emote_expiry_invariants.py      
 python -X utf8 D:\Minecraft\tools\YSMParser\cg_invariants.py                    # 不回归
 python -X utf8 D:\Minecraft\tools\YSMParser\cg_lang_keys.py                     # 不回归（语言键未动）
 ```
-提交信息要写清：根因（四环）、用户的三条裁定、`emoteReported` 守卫的作用、以及"本次只新增一条清理路径、未动既有 6 个 `clearEmote()` 调用点"。
+提交信息要写清：根因（四环）、用户的三条裁定、`emoteReported` 守卫的作用、以及"本次只新增一条清理路径、未动既有 8 个 `clearEmote()` 调用点"。
 
 ---
 
@@ -180,9 +180,22 @@ python -X utf8 D:\Minecraft\tools\YSMParser\cg_lang_keys.py                     
 
 **Files:**
 - Modify `docs/NPC系统总设计.md`（表情一节：补"一次性表情播完即清"与"长度由客户端申报"）
-- Modify `docs/plans/2026-10-13-npc-emote-oneshot-expiry-design.md`（两处回填：① §3.2 的 C4 处补 `emoteReported` 守卫；② §4 的溢出那句收紧为"`long + int` 不可能溢出"）
+- Modify `docs/plans/2026-10-13-npc-emote-oneshot-expiry-design.md`（回填：① §3.2 的 C4 处补 `emoteReported` 守卫；② §4 的溢出那句收紧为"`long + int` 不可能溢出"；③ §6.2 那条已改成"T5 已修"；④ 验收第 1 项的期望已改成"≤120（通常 116~119）"；⑤ §2.1/§3.1 引用的 `NpcEntity` 行号是**改动前快照**，刷成新值；⑥ §3.1 那条"不依赖视线"**只对 CG 成立** —— 谓词仅在渲染时跑且有视锥剔除，措辞改准）
+- Modify `docs/plans/2026-09-29-npc-emote-system-design.md`（`:214` / `:385` 那条"中途加入会重播（已接受）"**已被本次修复推翻**，加 supersession 注）
+- Modify `src/main/java/com/zonlong/beloong/emote/{NpcEmoteExpiryHandler,NpcEmoteDurationPayload}.java` + `NpcEntity.java`（收尾审查留下的**注释类** Minor）
 - Modify `memory/decisions-log.md`（第二十六则的状态从"待实施"改为"已实施"，补提交号与实机结论）
 - Modify `memory/learned-patterns.md`（若实施期有新教训；**没有就不写**）
+
+**T7 审查留下、推迟到这里处理的 Minor**（都是注释/措辞类，审查者已确认不阻塞提交）：
+1. **M-2** 长度边界：`Animation#length()` 可能为 `0`（显式 0 ⇒ 被 `durationTicks <= 0` 拒收 ⇒ 永不清）
+   或 `Double.MAX_VALUE`（哨兵 ⇒ 饱和成 int 最大值 ≈ 3.4 年）⇒ 在 `NpcEntity` 申报处与
+   `NpcEmoteDurationPayload` 的类注释各补一句边界（当前 15 条资产全带 `animation_length`，不可达）。
+2. **M-6** D6 的"已接受风险"**真实入口比注释更宽**：改**资源包**（不必改装客户端）即可改动画长度，
+   且 `PENDING.put` 是**后到者胜** ⇒ 注释补这条（结论不变）。
+3. **M-3** "不依赖视线"只对 CG 成立（见上面 Files 的第 ⑥ 条）。
+4. **M-4** 计划文本与实际实现不符的两处：计划写了 `ServerLevel` 检查（未实现、当前不可达）、
+   写了"私有构造 + static 方法"（实际是 public 构造 + 实例方法，javadoc 已解释理由）⇒ 改计划文本或补一行。
+5. **M-5** 行号快照刷新（见上面 Files 的第 ⑤ 条）。
 
 **Steps:** 照本项目惯例派**独立审查**（只审 `src/`，报告写入 `docs/reviews/2026-10-13-npc-emote-expiry-review.md`），修完再写 memory 与活文档。
 **Verification:** 四套验证全绿 + 审查报告落盘 + 实机清单通过
@@ -204,7 +217,7 @@ python -X utf8 D:\Minecraft\tools\YSMParser\cg_lang_keys.py                     
 
 | # | 操作 | 期望 |
 |---|---|---|
-| 1 | 触发一次 CG（或 `/beloong npc @e[type=beloong:mo,limit=1] play descend`） | 日志出现**一条** `emote 'descend' on entity.beloong.mo will be cleared in 120 ticks` |
+| 1 | 触发一次 CG（或 `/beloong npc @e[type=beloong:mo,limit=1] play descend`） | 日志出现**一条** `emote 'descend' on entity.beloong.mo will be cleared in N ticks`，其中 **N ≤ 120（通常 116~119）** —— 日志打的是 `deadline − now`，而申报到达时已经过了几 tick，所以**不会正好是 120**（按"正好 120"去核会假失败） |
 | 2 | **走远 >160 格再回来** | **不再重播 descend** ← **核心验收** |
 | 3 | 换维度 / 传送后回来 | 不再重播 |
 | 4 | 断线重连 | 不再重播 |
