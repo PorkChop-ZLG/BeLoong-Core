@@ -44,6 +44,12 @@
 - **本项目没有测试套件**：验证 = 静态门 + `build` + **作者在实机上验收**。行为正确性不要用"应该没问题"结案。
 - 静态门（**只活在本机工作区**）：`python tools\validate_execute.py`、`validate_execute_line.py`、
   `validate_tornado.py`、`check_lang_parity.py`。缺了就按抬头那条办。
+  ⚠️ **跑门之前先确认它校验的是当前检出**：工作区级 `D:\Minecraft\tools\YSMParser\` 下另有一批同名门
+  （`route_invariants.py` / `cg_invariants.py` / `stage_invariants.py`），根路径**硬编码**到已从
+  `git worktree` 移除的 `D:\Minecraft\BeLoong-Core-NPC` 旧副本 ⇒ 照原样跑会校验**另一个树**、
+  并可能给出"全绿"的假信号。**不要据它们宣称门全绿。**
+- **临时探针要有收尾清单**：为验证临时加的数据包 / 进度 / 调试命令一律用可识别命名（如 `*_test`），
+  因为**它们会随 jar 发布**。收尾时必须删除，并**验证 jar 内无残留**（列 zip 条目确认，别只看源码目录）。
 - 交付时给**证据块**（命令 + 退出码 + 警告数 + 产物复核），并遵守两条：
   - **核验产物要解析、不要字符串匹配** —— 子串匹配在"多个字段共用同一字面量"时必然给出误导结论；
   - **构建失败时 jar 是旧的、且不会报错** ⇒ 一看到 `FAILED`，随后所有针对产物的结论都作废，先修构建。
@@ -62,6 +68,23 @@
 
 纪律：**锁定版本的第三方 API 要 `javap` 打实际 jar**，不要只读源码克隆。
 
+⚠️ **同名不同物（会白跑好几轮）**：要读源码就用上表那份 `build/review-src/` —— 它含**完整的、已打补丁的原版源码**
+（`net/minecraft/**` 有 5000+ 个 `.java`）。**Gradle 缓存里那份同名 `neoforge-<版本>-sources.jar` 只有
+NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` / `HurtByTargetGoal` 之类会一路 MISS。
+⇒ 要核对"源码里到底怎么写的"，**先读源码树；`javap` 是最后手段**（只在需要确认**编译产物**里有没有某成员时才用）。
+
+**平台行为 / 事件语义：读补丁，不要按名字推断。** NeoForge 的补丁源码在
+`neoforge-<版本>-userdev.jar` 的 `patches/**.java.patch`（`build/` 被清掉后，从 Gradle 缓存的
+`modules-2/.../neoforge-<版本>-userdev.jar` 取）。**事件类存在 ≠ 它会发**，两个实测案例：
+
+- `MobEffectEvent.Expired` **只在** `LivingEntity.tickEffects`（自然到期）发；`MobEffectEvent.Remove`
+  **只在 3 处**发：`removeAllEffects()` / `removeEffect(...)` / NeoForge 新增的
+  `removeEffectsCuredBy(EffectCure)`（牛奶与死亡走它）。⇒ **自然到期不发 `Remove`**，想守住"到期"
+  只有 `Expired` 一条路（代码注释里"`Remove` 覆盖自然过期"的说法是错的）。
+- `AdvancementEarnEvent` 被 post 在 `PlayerAdvancements.award` 的 **`display().ifPresent(...)` lambda 内部**
+  ⇒ **省略 `display` 的隐形进度永不触发它**。要覆盖隐形进度得用 `AdvancementProgressEvent`
+  （在 `display` 之外发），并自筛 `ProgressType.GRANT` + `isDone()`。
+
 **相关模组：**
 
 - 开源参考（**只读**）：`D:\Minecraft\开源模组参考文件\`（本项目依赖的关键项：`DragonSurvival` ——
@@ -76,9 +99,17 @@
 
 - **分包按「目标」命名空间**：vanilla → `mixin/minecraft/`；第三方 → `mixin/<modid>/`；
   `beloong.mixins.json` 的条目带同前缀；**客户端专属** mixin 放进 `client` 数组。
-- **必选目标（原版 + 硬依赖模组）**：注入 vanilla 时 `@Inject` / `@Redirect` **连同它的 `@At`** 都要写
-  `remap = false`（NeoForge 跑官方名，dev 命名空间 == 运行时命名空间）——漏写会让 annotation processor
+- **必选目标（原版 + 硬依赖模组）**：注入 vanilla 时 `@Inject` / `@Redirect` 要写 `remap = false`
+  （NeoForge 跑官方名，dev 命名空间 == 运行时命名空间）——漏写会让 annotation processor
   **构建期硬报错**（不是警告）。全局默认是 `injectors.defaultRequire = 1`。
+  **`@At` 只在它自身带成员引用时（`INVOKE` / `FIELD` 的 `target=`）才同样需要 `remap = false`**；
+  `@At("HEAD")` / `("TAIL")` / `("RETURN")` 之类不用（先例：`PossibleBiomesFilterMixin` 只写在 `@Inject` 上；
+  `DreadKingRitualTriggerMixin` 的 `@At` 写了，因为它的 `target=` 指向 `unlock(...)`）。
+- **注入点必须是目标类「自己声明」的方法/字段**。要影响一个**继承来的**方法，就注入**声明它的那个祖先**，
+  再用 `instanceof` 把作用域收窄 —— `@Pseudo` 兜的是"类不存在"，**兜不住"方法不在这个类里"**。
+  ⚠️ **用 `javap -p` 打实际 jar 的完整成员表确认"到底谁声明了它"**，别只凭源码里的继承链印象。
+  先例：`Raider` 自己**没有**声明 `isAlliedTo`（继承自 `Entity`），所以同伴判定要注入 `Entity`
+  再用 `instanceof Raider` 收窄；`Hunter` 同理（`LivingEntity`/`Mob`/`PathfinderMob` 都没覆写它）。
 - **可选目标（可选模组 / 未在 `mods.toml` 声明的模组）**：**必须 `@Pseudo` + `require = 0`**，否则该模组
   缺席或改名 = **启动期硬崩**。注意 `@Pseudo` 只兜"类不存在"，**兜不住"方法改名"**。
 - 命名：`*Mixin`；访问器 `*Accessor`。
@@ -101,10 +132,14 @@
 ## 六、负责范围（越界前先问）
 
 - **本仓库只负责模组侧**。**整合包侧的文件一律不修改，除非用户明确授权。**
-- 整合包实例位置：`D:\BeLoong\.minecraft\versions\BeLoong`。那里的 `logs/` 是**实机验收的证据来源**，
-  但 ⚠️ **日志是 GBK / CP936 编码**，要按 CP936 读。
-- 惯例：模组侧只提供**触发器 / 判据 / 配置项 / 数据驱动入口**，真实进度与最终配置由整合包侧编写；
-  **不要改**整合包实例内的 `config/beloong-server.toml`。
+- **两条路径要分清，别混：**
+  - **本机 dev 实测（可写）**：要复现**配置驱动**的功能就得改 `run\config\*.toml`（dev 运行目录；
+    `run/` 是构建产物、不进版本管理）。日志读 `run\logs\latest.log`（INFO）与 `run\logs\debug.log`
+    —— ⚠️ **只有 `debug.log` 含 DEBUG 行**；两者都是 **UTF-8，可直接读**。
+  - **整合包实例（只读）**：`D:\BeLoong\.minecraft\versions\BeLoong`。那里的 `logs/` 是**实机验收的证据来源**，
+    但 ⚠️ **日志是 GBK / CP936 编码**，要按 CP936 读；**不要改**它里面的 `config/beloong-server.toml`。
+- 惯例：模组侧只提供**触发器 / 判据 / 配置项 / 数据驱动入口**，真实进度与最终配置由整合包侧编写。
+- **收尾时把为测试改过的本地配置还原**（`run/config/*.toml`），别把测试态留在工作区。
 
 ## 七、类放置位置
 
@@ -119,6 +154,9 @@
 
 ## 八、代码审查规范
 
+- **本文件优先于 `memory/*`**：两边冲突时按本文件办，并顺手把 memory 那条改掉
+  —— `memory/` 不进版本管理，**干净克隆只看得见本文件**。（先例：`memory/user-preferences.md` 曾写
+  "审查编号用 `C-x` / `I-x` / `S-x`"，与下面的连续编号冲突，已按本节更正。）
 - 落盘 `docs/reviews/YYYY-MM-DD-<slug>-*.md`。
 - **用子代理做审查，但数量不要多**：**2–3 名**，按互不重叠的切片分工（如 服务端链路 / 客户端与同步 / 数据与门），
   每名给一份明确的"范围 + 要什么"说明书。**最终整合成一份文档**。
@@ -165,6 +203,19 @@
 - **崩溃面优先**：`injectors.defaultRequire = 1` 下，注入点 / `@Shadow` / lambda 序号漂移 = **启动期硬崩**。
   改到原版或 DS 的私有面时，在设计文档里登记「**升级必查项**」。
 - 数据包 tag 里引用**可选模组**的 id，必须写 `"required": false`，否则缺该模组的整合包**整个加载不了**。
+  同源的三条：**同一路径**的 tag 文件按资源包优先级**覆盖**、**不同路径**的**并集**；
+  `"replace": false` 不能随便省（原版 `minecraft:illager_friends` 的值就是 `{"values":["#minecraft:illager"]}`，
+  写成 `true` 会把 `#illager` 一起清空）；引用原版已有的聚合 tag 前**先开实际 jar 看它的内容**
+  （`#minecraft:raiders` 与 `#minecraft:illager` 名字像，成员并不相同）。
+- **"谁把谁当同伴"的唯一收口点是 `Entity#isAlliedTo`**：`TargetingConditions#test`（主动锁定）与
+  `HurtByTargetGoal#canUse`（被打后还手）**两处都走它** ⇒ 改这一处就等于同时改"选不选它当目标"与
+  "要不要还手"，比逐个 goal / 逐个 tag 去堵可靠得多。
+- **取消 / 拦截"移除类"事件时，判据必须按对象**，绝不能按"本次有没有处理过任何东西"。
+  反例：`if (checkAndApply(player)) event.setCanceled(true);` —— 全局标志会被**别的对象**污染，
+  当前对象就被无限取消；MobEffect 的表现是 **duration = 0 却永不消失、且属性修饰符仍在**，
+  并且**每 tick 自我触发**形成自持循环（未门禁效果每 tick 递减 1 ⇒ "补满"总返回 `true`）。
+  正确写法：让被调方法返回"处理了哪些对象"（`Set<Key>`），判定用 `contains(thisKey)`；
+  而**主动移除**路径的判据该问"这个对象**该不该在**"（两条判据不同，别合并）。
 - 拉第三方依赖优先用 **curse maven 的 `fileId`**（`<slug>-<projectId>:<fileId>`）；Modrinth 按版本号解析
   **会选错 loader**。
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
