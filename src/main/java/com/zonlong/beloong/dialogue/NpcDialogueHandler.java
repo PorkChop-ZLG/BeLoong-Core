@@ -23,8 +23,16 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * <b>为什么只认主手</b>：原版一次右键通常只派发主手事件（副手仅在主手 PASS 时才轮到），
  * 限定主手可保证"一次右键最多打开一次对话"。
  * <p>
- * <b>刻意不取消事件</b>（首版 D4 不变）：空手右键本无任何原版行为，取消没有收益，
- * 却会抢掉将来第三方模组的交互。
+ * <b>刻意取消事件</b>（2026-10-13 反转首版 D4）：
+ * 旧理由是"空手右键本无任何原版行为，取消没有收益，却会抢掉第三方模组的交互"——
+ * 但它只对**普通生物**成立；对<b>剧情 NPC</b> 恰恰相反：原版交互在它身上是 bug 而非收益
+ * （栓绳能牵走它 —— 牵引会 {@code disableControlFlag(Goal.Flag.MOVE)}，直接掐死路线系统；
+ * 公共锚点被牵走更会连累所有玩家的剧情）。
+ * <p>
+ * <b>有意接受的代价</b>：第三方模组想通过"右键本 NPC"触发的交互也会一并失效。
+ * 若日后确有这种需求，再引入"白名单物品/条件"的口子（<b>现在不做</b> —— YAGNI）。
+ * 注意取消**不影响我们自己的对话**：本处理器完全自己做主（读事件 → 查表 → 下发 payload），
+ * 从不依赖原版交互的返回值。
  * <p>
  * <b>刻意不手写距离校验</b>：原版服务端在交互包处理里已做交互距离校验，
  * 这里再加一层是重复的。
@@ -37,6 +45,16 @@ public class NpcDialogueHandler {
     @SubscribeEvent
     public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         Player player = event.getEntity();
+
+        // ⚠️ 对本模组的 NPC **取消一切原版/第三方右键交互**（2026-10-13 的反转决定，见类注释）：
+        // 原版交互在它身上不是"收益"而是 bug —— 栓绳能把它牵走（牵引会 disableControlFlag(MOVE)，
+        // 直接掐死路线系统；公共锚点被牵走更会连累所有玩家的剧情）。
+        // ⚠️ 必须放在**下面的客户端早退之前**：该事件两侧都会派发，只取消服务端那侧的话，
+        // 客户端仍会跑一遍原版逻辑（例：栓绳在客户端被 shrink(1)，造成短暂不同步）。
+        // ⚠️ 只取消**我们的** NPC，别去动别人的实体。
+        if (event.getTarget() instanceof NpcEntity) {
+            event.setCanceled(true);
+        }
         // 该事件两侧都会派发（首版 §8.10）：本功能只受理服务端那一次。
         // **这一条必须排在读配置之前** —— enabled 现在是**服务端配置**，在物理客户端上读它
         // 等于依赖配置同步的时机（未加载时 get() 会抛 IllegalStateException），而客户端

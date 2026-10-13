@@ -66,6 +66,9 @@ import java.util.UUID;
  *       （{@code /kill} 与虚空）—— 刻意留的管理后路；</li>
  *   <li><b>不可推动</b>：{@link #isPushable()} 恒 false；</li>
  *   <li><b>永不消失</b>：{@link #requiresCustomPersistence()} 恒 true；</li>
+ *   <li><b>不可牵引</b>：{@link #canBeLeashed()} 恒 false；</li>
+ *   <li><b>不被传送门送走</b>：{@link #canUsePortal(boolean)} 恒 false（创造/指令不受影响）；</li>
+ *   <li><b>不被投射物命中</b>：{@link #canBeHitByProjectile()} 恒 false（钓竿因此失效）；</li>
  *   <li><b>按玩家可见</b>：{@link #broadcastToPlayer} 一律走 {@link #visibleTo}
  *       （见下面「多人兼容」一节）。**没有剧情的 NPC 恒为可见** ⇒ 现有子类行为一字不变。</li>
  * </ul>
@@ -557,6 +560,59 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     @Override
     public boolean requiresCustomPersistence() {
         return true;
+    }
+
+    /**
+     * <b>不可牵引</b> —— 玩家手持栓绳右键无效，且绳子不会被消耗。
+     * <p>
+     * 依据：原版"用绳子点生物"的唯一入口是 {@code Entity#interact}（{@code Entity.java:2014-2037}），
+     * 它的条件只有 {@code canHaveALeashAttachedToIt()}（{@code :2026}），而后者
+     * = {@code canBeLeashed() && !isLeashed()}（{@code Leashable.java:33-35}）；
+     * {@code Mob} 的默认实现是 {@code !(this instanceof Enemy)}（{@code Mob.java:1404-1407}）
+     * —— 我们不是 {@code Enemy} ⇒ **必须显式覆写才能拒绝**。
+     * <p>
+     * ⚠️ 被牵的后果远不止"被挪走"：{@code Mob#leashTooFarBehaviour()} 会调
+     * {@code goalSelector.disableControlFlag(Goal.Flag.MOVE)}（{@code Mob.java:1398-1402}），
+     * 直接掐死路线系统赖以移动的 flag；而且牵引状态会**存进实体存档**。
+     * ⚠️ 本类刻意**不做**"每 tick 自愈"（发现被牵就 dropLeash）—— 存量由使用者手动处理（用户裁定）。
+     */
+    @Override
+    public boolean canBeLeashed() {
+        return false;
+    }
+
+    /**
+     * <b>不被传送门送走</b> —— 站在下界/末地传送门方块里也不会被传送。
+     * <p>
+     * 依据：{@code Entity#handlePortal()}（{@code Entity.java:2270-2290}）在 {@code :2274} 用
+     * {@code canUsePortal(false)} 决定要不要走传送流程；默认实现在 {@code :2781-2783} 是
+     * {@code (allowPassengers || !isPassenger()) && isAlive()} ⇒ 我们满足 ⇒ 必须显式覆写。
+     * <p>
+     * ⚠️ <b>刻意不动 {@code canChangeDimensions}</b>：它在同一段里位于 {@code :2281}，
+     * 在**目标解析之后**才被问 ⇒ 覆写它会把创造模式、{@code /execute in … run tp} 之类
+     * **指令与模组的强制传送一并挡掉**，而用户明确要求"指令仍可移动 NPC"。
+     */
+    @Override
+    public boolean canUsePortal(boolean allowPassengers) {
+        return false;
+    }
+
+    /**
+     * <b>不被投射物命中</b> —— 箭、雪球、鸡蛋、风弹、**钓鱼竿的浮标**都穿它而过。
+     * <p>
+     * 依据：{@code Projectile#canHitEntity} 的**第一句**就是
+     * {@code if (!target.canBeHitByProjectile()) return false;}（{@code Projectile.java:257-258}）；
+     * 而钓竿钩中实体那一步**没有任何排除条件**（{@code FishingHook#onHitEntity:270-275} 直接
+     * {@code setHookedEntity(result.getEntity())}）⇒ 挡在这一层最准。
+     * <p>
+     * ⚠️ <b>不要改用 {@code isPickable()}</b>：它同时是**客户端准星选取**的依据
+     * （{@code Entity.java:1663-1667}，{@code canBeHitByProjectile} 的默认实现也用到它）
+     * ⇒ 改成 false 之后玩家**根本点不到这个 NPC**，右键对话会直接失效。
+     * 本覆写只影响"投射物能否命中"，准星与右键交互完全不受影响。
+     */
+    @Override
+    public boolean canBeHitByProjectile() {
+        return false;
     }
 
     // ===================== 基础 AI（全部是原版 goal）=====================
