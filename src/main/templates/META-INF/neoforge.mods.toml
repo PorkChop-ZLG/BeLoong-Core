@@ -291,6 +291,17 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# Building Wands（建筑之杖）— 可选依赖，龙宫保护的第 3 方 FTB 兼容注入点。
+# 版本号取自实际下载的 jar（CF 文件 8207219）：mod id = wands、version = 3.0.5。
+# 注入的是该模组内部的 FTB 兼容调用链（net.nicguzzo.compat.claims.*），上游改名会静默失效，
+# 因此写 versionRange 让「版本不匹配」在启动日志里可见。
+[[dependencies.${mod_id}]]
+    modId="wands"
+    type="optional"
+    versionRange="[3.0.5,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

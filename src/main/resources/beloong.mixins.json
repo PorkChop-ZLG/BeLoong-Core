@@ -57,7 +57,8 @@
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
     "raidsenhanced.RaidBlimpTargetMixin",
-    "darkdoppelganger.DarkDoppelgangerPhaseGoalRebuildMixin"
+    "darkdoppelganger.DarkDoppelgangerPhaseGoalRebuildMixin",
+    "wands.ClaimDispatchMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {

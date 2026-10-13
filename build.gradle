@@ -330,6 +330,18 @@ dependencies {
     compileOnly "curse.maven:dark-doppelganger-1110803:9121808"
     localRuntime "curse.maven:dark-doppelganger-1110803:9121808"
 
+    // Building Wands（建筑之杖）— 可选依赖（mod id = wands），龙宫保护的第 3 方 FTB 兼容注入点。
+    // 背景：它的兼容类 net.nicguzzo.compat.claims.FTBChunks.canInteract 只问 FTB Chunks：
+    //   !FTBChunksAPI.api().getManager().shouldPreventInteraction(PLAYER, MAIN_HAND, POS, Protection.EDIT_BLOCK, NULL)
+    // （javap 该 jar 的字节码核对）；龙宫未认领时 FTB 的判定链走
+    //   「未认领 + no_wilderness 关 ⇒ 放行」，故它会绕过本模组基于 NeoForge 方块事件的保护。
+    // 本模组用 @Pseudo + require = 0 的 Mixin 在它的编辑路径上补一道龙宫判定（未安装时整体跳过）。
+    // 参考源：开源模组参考文件\wands（⚠️ 上游 main 是 v3.2.1，与本坐标版本不一定一致，
+    //        注入点一律以本文件号解析出来的 jar 为准）。
+    // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
+    compileOnly "curse.maven:building-wands-363392:8207219"
+    localRuntime "curse.maven:building-wands-363392:8207219"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
