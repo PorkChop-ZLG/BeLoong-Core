@@ -280,6 +280,17 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# Dark Doppelganger（黑暗二重身）— 可选集成目标：**暂无 mixin**，先备依赖与声明。
+# 已知崩溃面：它的 hurt() 里同步重建 goalSelector，若这次 hurt 发生在它自己的 goal 迭代内
+# （荆棘反伤 / 自伤 TNT / 闪电）⇒ 下一 tick 原版 GoalSelector.tickRunningGoals 读到 null 槽而 NPE。
+# 两版 jar 的 javap 对照与"作者未修"的结论见 memory/decisions-log.md 2026-10-13 那条。
+# side=BOTH：实体 + 渲染器双端。
+[[dependencies.${mod_id}]]
+    modId="darkdoppelganger"
+    type="optional"
+    ordering="AFTER"
+    side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

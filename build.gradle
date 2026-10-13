@@ -321,6 +321,15 @@ dependencies {
     // 整合包与各服务端自带它，因此这里只是 dev 运行时依赖（与 irons_lib / platform 同性质）。
     localRuntime "curse.maven:puzzles-lib-495476:8251525"
 
+    // Dark Doppelganger（黑暗二重身）— 可选依赖，暂无 mixin（先备依赖与声明）。
+    // 已知崩溃面：它的 hurt() 里同步重建 goalSelector，若这次 hurt 发生在它自己的 goal 迭代内
+    // （荆棘反伤 / 自伤 TNT / 闪电），fastutil 的 ObjectLinkedOpenHashSet 会被结构性修改，
+    // 下一 tick 原版 GoalSelector.tickRunningGoals 读到 null 槽 ⇒ NPE（Ticking entity）。
+    // 整合包在跑的版本与当前最新版**都有**这个问题（两版 jar 的 javap 对照见
+    // memory/decisions-log.md 2026-10-13 那条）；将来写修复时锚点选四个 set*Goals 方法。
+    compileOnly "curse.maven:dark-doppelganger-1110803:9121808"
+    localRuntime "curse.maven:dark-doppelganger-1110803:9121808"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
