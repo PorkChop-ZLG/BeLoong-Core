@@ -16,6 +16,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.HangingEntity;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.HangingEntityItem;
 import net.minecraft.world.item.Item;
@@ -67,6 +68,7 @@ public final class LoongPalaceProtectionHandler {
         if (actor instanceof ServerPlayer player) {
             if (shouldPreventEdit(player, event.getLevel())) {
                 event.setCanceled(true);
+                syncHeldItemSlots(player);
                 notifyPlayer(player);
             }
         } else if (shouldPreventEnvironment(
@@ -297,6 +299,46 @@ public final class LoongPalaceProtectionHandler {
                     Component.translatable("ftbchunks.action_prevented").withStyle(ChatFormatting.GOLD),
                     true);
         }
+    }
+
+    /**
+     * 回滚客户端对"放置消耗"的预测（双手一起，见下）。
+     *
+     * <h2>为什么必须回滚</h2>
+     * NeoForge 取消放置时**只回滚方块、不回滚玩家物品栏**：{@code CommonHooks#onPlaceItemIntoWorld}
+     * 在发事件前先跑了一遍 {@code Item#useOn}（其中 {@code BlockItem#place} 会
+     * {@code itemstack.consume(1, player)}），取消分支只做
+     * {@code snap.restore(flags | Block.UPDATE_CLIENTS)}（所以方块侧客户端会被自动纠正），
+     * 而数量是靠事件前那句 {@code itemstack.setCount(size)} 还原的 —— 那**只作用于服务端那份 ItemStack，
+     * 不产生任何网络包**。
+     *
+     * <p>与此同时，客户端走的是 {@code ItemStack#useOn} 的**另一条分支**
+     * （{@code ItemStack.java:366} 只在 {@code !isClientSide} 时才进 {@code onPlaceItemIntoWorld}），
+     * 它直接执行原版 {@code BlockItem#place}，而那里的 {@code consume(1, player)}
+     * 只看 {@code hasInfiniteMaterials()}（创造模式）、**不判 side**。
+     * ⇒ 客户端少 1、服务端不少，且没有任何一方会自动纠正，只有重登时的整体同步才恢复。
+     * 堆叠为 1 且带数据组件的物品（如龙之生存的**龙魂**）会让整个槽位视觉上消失。
+     *
+     * <h2>为什么是双手</h2>
+     * {@link BlockEvent.EntityPlaceEvent} **不携带 hand**（其 API 只有 {@code getEntity} /
+     * {@code getBlockSnapshot} / {@code getPlacedBlock} / {@code getPlacedAgainst}）
+     * ⇒ 无法知道是哪只手发起的放置，因此主手当前槽与副手一起同步。
+     *
+     * <p>时机上不必自己 +1：事件触发**之前** NeoForge 已把服务端那份还原为放置前的数量，
+     * 所以这里读到的 {@code getItem(slot)} 就是"应有"的正确值。
+     */
+    private static void syncHeldItemSlots(ServerPlayer player) {
+        if (player instanceof FakePlayer) {
+            // 假玩家没有真实客户端（与 notifyPlayer 同一先例）。
+            return;
+        }
+        syncSlot(player, player.getInventory().selected);
+        syncSlot(player, Inventory.SLOT_OFFHAND);
+    }
+
+    private static void syncSlot(ServerPlayer player, int slot) {
+        player.connection.send(new ClientboundContainerSetSlotPacket(
+                -2, 0, slot, player.getInventory().getItem(slot)));
     }
 
     private static void denyPlayerInteraction(
