@@ -144,3 +144,30 @@ Modify `memory/decisions-log.md`
 - 不给上游 jar 打补丁、不修改整合包实例文件、不新增配置项。
 - 不修该模组的其它缺陷；不改 `registerGoals()`（构造期）与 `restorePhaseGoals()`（入世界期）两条安全路径。
 - 给上游的 issue/PR 文本**不属于本次实施**（委托方已确认在修复完成后再出）。
+
+---
+
+## 执行状态（2026-10-13 收尾回填）
+
+| Task | 状态 | 证据 |
+|---|---|---|
+| 1 静态预检 | ✅ | 两版 `hurt` 内 4 处 INVOKE + 常量池 owner + `protected void ()V` + `tick` return 数 3/2 |
+| 2 新建 mixin | ✅ | `compileJava` exit 0、警告 3（基线）、类已编译 |
+| 3 注册 | ✅ | 源码与包内 json 均 47/6、新条目在 `mixins`、`client` 未动 |
+| 4 产物复核 | ✅ | 包内 mixin 类存在、`darkdoppelganger type=optional` 仍在 |
+| 5 启动门 | ✅ | `debug.log` 有 `Mixing …`；本次运行无新 `*-fml.txt` |
+| 6 实机验收 | ✅ | 三轮共 **14 次延后、0 崩溃**（第三轮困难模式覆盖 phase-3/phase-4） |
+| 7 收尾回填 | ✅ | 本节 + 设计文档 §10 + memory；测试配置已还原 |
+
+### 计划之外真实发生的事
+
+1. **验收跑了三轮**（计划只安排一轮）：第 2 轮在裁剪法术列表后复测；第 3 轮委托方改为**困难模式 + 皮甲 + 木剑**
+   ⇒ 第 2、3 个 `@Redirect`（困难模式路径）额外拿到实机覆盖，**比原计划覆盖更完整**。
+2. **Task 1 第一次验证失败是我命令的 bug**：把 `[regex]::Escape()` 与 `-SimpleMatch` 一起用，实际去搜"带反斜杠的字面量"
+   ⇒ 0 命中；改用裸字面量后立即通过。**注入点本身从未有问题**（这一点已写进设计文档的取证记录，避免后人误读）。
+3. **改配置文件时踩了项目已登记的坑**：`[System.IO.File]::WriteAllText('run\config\…')` 用的是
+   `[Environment]::CurrentDirectory`（工作区根），PowerShell 的 `cd` 不影响它 ⇒ 报
+   `Could not find a part of the path 'D:\Minecraft\run\…'`；改用 `Resolve-Path` 的绝对路径后成功
+   （那次失败**没有破坏文件**，SHA256 与备份一致可证）。
+4. **启动门那次 `runClient` 以 exit 1 结束**：不是启动失败，是取证后**主动强杀**客户端（Gradle 把子进程非零退出视为任务失败）。
+5. 为测试临时改过 `run/config/darkdoppelganger-common.toml`（法术列表 / 默认装备 / `hard_mode`），**收尾已还原**。

@@ -1,7 +1,7 @@
 # 黑暗二重身：阶段切换时同步重建 goalSelector 导致 `GoalSelector` 遍历 NPE —— 修复设计
 
 **日期**：2026-10-13
-**状态**：已批准（委托方确认 §1 架构与语义、§2 边界与验收）→ **待实施**
+**状态**：**已实施并实机验收**（2026-10-13；三轮实机，见 §10）
 **方案**：Approach A —— 把 `hurt()` 里那次 goal 重建**挪到本次 tick 末尾**；**只在本仓库做兼容 mixin**
 **委托方裁定**：先做 A（本仓库修）；修完可另出上游 issue/PR 文本（见 §9）
 **参考源码分支**：`D:\Minecraft\开源模组参考文件\DarkDoppelganger` 的 **`1.21` 分支**（HEAD `7341a10` = 4.1.0）。
@@ -214,3 +214,42 @@ DarkDoppelgangerEntity.tick() 的 RETURN 注入
 1. 由 `planning` 技能产出配套实施计划（`docs/plans/2026-10-13-darkdoppelganger-phase-goal-rebuild-plan.md`）。
 2. 实施后回填本文件状态行与计划文档的执行状态（含"计划之外真实发生的事"）。
 3. 修复完成并实机验收后，另出**给上游的 issue/PR 文本**（委托方已确认此顺序，但**不属于本次实施范围**）。
+
+---
+
+## 10. 实施与验收结果（2026-10-13 追加；本节取代 §9 的执行部分）
+
+**实施**：新增 `src/main/java/com/zonlong/beloong/mixin/darkdoppelganger/DarkDoppelgangerPhaseGoalRebuildMixin.java`，
+并在 `beloong.mixins.json` 的 `mixins` 数组加一行；**未改第三方、未改整合包**。逐任务执行与证据见
+`docs/plans/2026-10-13-darkdoppelganger-phase-goal-rebuild-plan.md` 的执行状态节。
+
+**静态与产物门**
+- 两版 jar 静态预检：`hurt` 内 **4 处 INVOKE**（`setSecondPhaseGoals`×1 / `setThirdPhaseGoals`×2 / `setFinalPhaseGoals`×1）、
+  常量池 Methodref 的 owner 均为 `net/bandit/darkdoppelganger/entity/DarkDoppelgangerEntity`、三个方法均
+  `protected void ()V`；`tick()` 的 return 指令数 3（4.1.0）/ 2（3.4.0）⇒ 证实 §2.2 的"必须用 `RETURN` 而非 `TAIL`"。
+- `compileJava --rerun-tasks --no-build-cache --offline --no-configuration-cache` → exit **0**，警告 **3**（既有基线，无新增）。
+- `build`（同 flag）→ exit **0**；包内 `beloong.mixins.json` 47/6 且含新条目、新 mixin 类在包内、`darkdoppelganger type=optional` 仍在。
+
+**启动门**：`runClient` → `debug.log` 出现
+`Mixing darkdoppelganger.DarkDoppelgangerPhaseGoalRebuildMixin from beloong.mixins.json … into net.bandit.darkdoppelganger.entity.DarkDoppelgangerEntity`；
+本次运行无新的 `*-fml.txt`。
+
+**实机验收（委托方执行，三轮，共 14 次延后、0 崩溃）**
+
+| 轮次 | 配置 | 锚点 | 崩溃 |
+|---|---|---|---|
+| 1（17:39–17:43） | 普通模式 `hard_mode=false` | phase-2 ×2、phase-3 ×1 | **0** |
+| 2（17:54–17:58） | 同上（裁剪法术列表后） | phase-2 ×2、phase-3 ×1 | **0** |
+| 3（18:10–18:12） | **困难模式** + 皮甲 + 木剑 | **phase-3 ×5、phase-4 ×3**（phase-2 = 0） | **0** |
+
+- 三轮 `run\crash-reports` 均**无**新增 `*-server.txt`（最新仍是 pre-fix 的 `crash-2026-10-13_16.54.16-server.txt`）。
+- 第 3 轮的锚点形态（只有 phase-3 / phase-4）**本身就是"跑在困难模式"的证据**，并额外覆盖了第 2、3 个 `@Redirect`
+  （困难模式 40% 走 `setThirdPhaseGoals`、20% 走 `setFinalPhaseGoals`）；第 1 个 `@Redirect`（`setSecondPhaseGoals`，
+  普通模式路径）由前两轮覆盖。
+- 日志里唯一提到该模组的 ERROR 行是 FTB Chunks 的 `Missing entity icon settings for darkdoppelganger:…` ——
+  与本修复无关（三轮都在，属既有噪声）。
+
+**测试用配置（已还原）**：为便于复现曾临时改过 `run\config\darkdoppelganger-common.toml`（裁剪法术列表、默认装备改皮甲、
+武器改木剑、`hard_mode=true`）；收尾时已从备份 `darkdoppelganger-common.toml.bak-20261013`（SHA256 `D6D13F62…`）**还原**。
+
+**仍未验证（保持 §8 口径）**：3.4.0 的实机复现、专用服务器实机表现 —— 两者结论仍只来自静态/字节码对照与推断。
