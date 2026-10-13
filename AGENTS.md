@@ -21,7 +21,7 @@
 |---|---|
 | `mixin/` | 最大的一块；**按目标模组命名空间**分子目录（见 §四） |
 | `client/` | 渲染器、天空、HUD、模型/动画，以及**客户端专属的处理逻辑**（从 `BeLoongCoreClient` 注册） |
-| `compat/` | 跨模组兼容层（ftbchunks / lockdown / betterendisland / ironsspellbooks / dragonsurvival / healthbars …） |
+| `compat/` | 跨模组兼容层（**示例、非穷举，以现场 `ls` 为准**）：ftbchunks / lockdown / betterendisland / ironsspellbooks / dragonsurvival / healthbars … |
 | `registry/` | 物品、方块+BE、实体、音效、粒子、属性、效果、页签、判据、tag |
 | `block/` `item/` `entity/` `fluid/` | 各类游戏对象本体 |
 | `ability/` | Dragon Survival 技能效果（斩杀 / 龙卷风 / 空袭…） |
@@ -43,15 +43,32 @@
   —— 要**新证据**必须带这两个 flag，否则会拿到 `UP-TO-DATE` / `FROM-CACHE`。
   迭代期用 `.\gradlew.bat compileJava --rerun-tasks --no-build-cache` 更快（只编译、不打包）；
   两者都给**带时间戳**的证据块，否则分不清证据是新取的还是上次留下的。
+  ⚠️ **本机还要固定带两个 flag**：`--offline`（本机访问 `maven.neoforged.net` 会 `Connection timed out`；
+  依赖已全量缓存；**只有需要拉新依赖时才去掉**）与 `--no-configuration-cache`
+  （作者客户端在跑时会占用配置缓存锁 ⇒ `Timeout waiting to lock Configuration Cache … Owner PID`）。
 - 只编译：`.\gradlew.bat compileJava`；产物：`build/libs/beloong-<版本>.jar`。
 - **本项目没有测试套件**：验证 = 静态门 + `build` + **作者在实机上验收**。行为正确性不要用"应该没问题"结案。
-- 静态门（**只活在本机工作区**）：`python tools\validate_execute.py`、`validate_execute_line.py`、
-  `validate_tornado.py`、`check_lang_parity.py`。缺了就按抬头那条办。
+- ⚠️ **验证门是分层的：静态门 < `runClient` < 作者实机验收。** 构建 / 编译全绿**只说明能编译** ——
+  mixin 的**应用期**错误（处理器签名、注入点不存在、`@Shadow` 漂移）**编译与构建都发现不了**，只在启动时抛。
+  ⇒ **动过 mixin 就必须自己真跑一次客户端**，否则不得声称完成
+  （本项目已复发过：`ModifierMixin` 2026-08-30、`HealthTrackerHandlerMixin` 2026-10-11 三次）。
+- **启动期失败的唯一真因入口**：`run\crash-reports\*-fml.txt` 里的 `Failure message:` 行
+  （`latest.log` 尾部会被 `Cowardly refusing to send event … to a broken mod` 刷屏，别在那儿找根因；
+  统计 `ERROR/FATAL` 要用 `[线程/LEVEL]` 口径，用 `\[(ERROR|FATAL)\]` 会误得 0 条）。
+- 静态门（**只活在本机工作区**；**各管一个子系统，别全跑也别全跳**）：`python tools\validate_execute.py`、
+  `validate_execute_line.py`（execute / 斩杀类）、`validate_tornado.py`（龙卷风）、
+  `check_lang_parity.py`（语言）。缺了就按抬头那条办。
   ⚠️ **`D:\Minecraft\tools\YSMParser\` 整个目录一律不要跑。** 它是历史自动化工具链（约 250 个 `.py`，
   其中**约 165 个含文件写入调用**：`patch_*` / `fix_*` / `backfill_*` / `add_*_lang.py` …），
   根路径**硬编码**到旧副本 `D:\Minecraft\BeLoong-Core-NPC`。那个副本**仍在硬盘上**（只是不再登记为
   `git worktree`）⇒ 那些脚本今天照样跑得通、也照样给出"全绿"，但结果属于**另一个树**；
   改名或换根重跑 = 重放过期的自动编辑。**项目级门只在 `tools/`（本仓库）。**
+- **性能类改动给 spark 前后对照**：`tools\spark_profile_analyze.py` / `spark_profile_decode.py` /
+  `spark_profile_subtree.py`（报告样例见 `tools\spark-*.txt`）。判据是**帧时间**，
+  **不要用 CPU 采样百分比推断 FPS 提升**。
+- ⚠️ **本机 PATH 上没有 `rg`**（`Get-Command rg` 为空）：文档里出现的 `rg` 命令**只在智能体内置的 grep 工具里能用**，
+  写进 pwsh 会直接失败 ⇒ 命令行请用 `Get-ChildItem -Recurse -File -Filter *.java | Select-String -Pattern …` 等价式。
+  （另：`rg -L` 是 `--follow` 跟符号链接，不是"列出无匹配文件"——后者是 `--files-without-match`。）
 - **临时探针要有收尾清单**：为验证临时加的数据包 / 进度 / 调试命令一律用可识别命名（如 `*_test`），
   因为**它们会随 jar 发布**。收尾时必须删除，并**验证 jar 内无残留**（列 zip 条目确认，别只看源码目录）。
 - 交付时给**证据块**（命令 + 退出码 + 警告数 + 产物复核），并遵守两条：
@@ -66,10 +83,12 @@
   - **`.NET` 静态文件 API 不受 PowerShell `cd` 影响**：`[System.IO.File]::ReadAllBytes('run/logs/latest.log')`
     会去读**工作区根**、报 `Could not find a part of the path` ⇒ 用 `Resolve-Path` 或绝对路径
     （`Get-Content` 不受影响；`ZipFile` 之类同理）。
+    机制：它读的是 `[Environment]::CurrentDirectory`，而 PowerShell 的 `cd` 只改 provider 位置、不改它。
   - **`build/libs` 里会同时躺着多个版本的 jar** ⇒ 取产物要**指名文件**或按 mtime 排序；
     `Select-Object -First 1` 会拿到旧版并当成证据。
   - **`Get-Content <file> | Measure-Object -Line` 少算约 25%**（实测 2462→1843、1955→1503、445→410）
     ⇒ 统计行数用 `(Get-Content <file>).Count`。它曾让行数写进文档、并据此误判"文件被别的分支改过"。
+    机制：`-Line` **不数空行** ⇒ 少掉的正好是空行占比（Javadoc 多的 Java 文件约 25%）。
 - 需要实机验收时，给「**编号 + 场景 + 期望值 + 判据**」的清单，并标出哪个常量是旋钮、往哪边拧。
 
 ## 三、从哪读源码（不要每次重新寻找与提取）
@@ -89,6 +108,10 @@
 （`net/minecraft/**` 有 5000+ 个 `.java`）。**Gradle 缓存里那份同名 `neoforge-<版本>-sources.jar` 只有
 NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` / `HurtByTargetGoal` 之类会一路 MISS。
 ⇒ 要核对"源码里到底怎么写的"，**先读源码树；`javap` 是最后手段**（只在需要确认**编译产物**里有没有某成员时才用）。
+
+**第三处源码位置（零准备成本，读原版最省事）**：`%USERPROFILE%\.gradle\caches\neoformruntime\intermediate_results\`
+下的 `sourcesWithNeoForge_*_output.zip` —— 它含 **vanilla + NeoForge 完整源码**（`net/minecraft/**` 齐全），
+解压即读。会有多份（按 hash 命名、各约 9 MB）⇒ **按 mtime 取最新**（对应当前 `neo_version`）。
 
 **平台行为 / 事件语义：读补丁，不要按名字推断。** NeoForge 的补丁源码在
 `neoforge-<版本>-userdev.jar` 的 `patches/**.java.patch`（`build/` 被清掉后，从 Gradle 缓存的
@@ -115,23 +138,47 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   **是 fork、不是上游**、`Cataclysm`、`Legendary-Monsters-1.21.1-NeoForge`、`MowziesMobs-Public`、
   `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`、
   `AsteorBar`、`block_factorys_bosses`）。
-  ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`、`yuushya` ——
+  ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`（**真缺口**，它的 mixin 也还没补
+  `@Pseudo` / `require = 0`）、`yuushya`（**用户明确要求不做依赖声明** ⇒ 别"顺手补"）——
   定位它们的 jar / 源码只能靠 `build.gradle` 的 curse 坐标。
 - 闭源反编译：`D:\Minecraft\闭源模组解压文件\`。
-- 读法：先 `rg` 定位再精读；结论**附来源路径**。
+- 读法：先定位再精读（用智能体的 grep 工具，或 pwsh 里的 `Select-String`——本机没有 `rg`，见 §二）；
+  结论**附来源路径**。
 - 两个坑：① 源码树常常**只有 Java、没有资源**（贴图 / 音效 / `sounds.json` 要开实际 jar）；
   ② 参考版本**可能与应用版本不一致** ⇒ 关键结论按 `build.gradle` 的 curse `fileId` 对账。
+
+**第三方模组调研 / 崩溃复现（参考仓库只读，绝不修改）：**
+
+- 克隆规范：完整克隆到 `D:\Minecraft\开源模组参考文件\<名字>`（保留**全部分支**；要本地分支就
+  `git branch <b> origin/<b>`）。读历史用 `git show <ref>:<path>` / `git grep <ref> -- <pattern>`，
+  不要为了读一个文件去 checkout。
+- **这类仓库常常没有 tag** ⇒ 版本边界用 `gradle.properties` 的 `mod_version` 配 `git log -S '<版本>'` 定位。
+- **把崩溃 jar 对回源码状态**（否则容易拿错版本分析）：`javap -p -l -c -cp <jar> <类>` 读 `LineNumberTable`，
+  用崩溃报告里的行号反查"哪个提交的这一行是这一句"。先例：3.4.0 崩溃在
+  `DarkDoppelgangerEntity.tick:438` ⇒ 该行是 `super.tick();` ⇒ 据此锁定源码状态。
+- 判"新版是否修复"用**定向 diff**（只比与崩溃相关的行 / 方法），不要通读整个 diff。
+- 复现方案四要素：**配置键（TOML 路径）+ 游戏内命令 + 对照实验 + 判定标准（崩溃报告特征）**，
+  并写明"为什么难触发"（触发条件的巧合链）。
 
 ## 四、Mixin 规范
 
 - **分包按「目标」命名空间**：vanilla → `mixin/minecraft/`；第三方 → `mixin/<modid>/`；
   `beloong.mixins.json` 的条目带同前缀；**客户端专属** mixin 放进 `client` 数组。
-- **必选目标（原版 + 硬依赖模组）**：注入 vanilla 时 `@Inject` / `@Redirect` 要写 `remap = false`
-  （NeoForge 跑官方名，dev 命名空间 == 运行时命名空间）——漏写会让 annotation processor
-  **构建期硬报错**（不是警告）。全局默认是 `injectors.defaultRequire = 1`。
+- **`remap = false`**：**vanilla 目标是硬要求** —— `@Inject` / `@Redirect` 漏写会让 annotation processor
+  **构建期硬报错**（`Unable to locate obfuscation mapping for @Inject target …`，不是警告）。
+  **模组目标按约定也一律写**（NeoForge 跑官方名，dev 命名空间 == 运行时命名空间）；实测漏写**不报错**、
+  属既有不一致，但**新代码必须写**。（`@Shadow` / `@Accessor` 漏写只出**警告**，见 §二 的警告基线。）
+  全局默认是 `injectors.defaultRequire = 1`。
   **`@At` 只在它自身带成员引用时（`INVOKE` / `FIELD` 的 `target=`）才同样需要 `remap = false`**；
   `@At("HEAD")` / `("TAIL")` / `("RETURN")` 之类不用（先例：`PossibleBiomesFilterMixin` 只写在 `@Inject` 上；
   `DreadKingRitualTriggerMixin` 的 `@At` 写了，因为它的 `target=` 指向 `unlock(...)`）。
+- **处理器签名是硬约束**（比注入点更容易踩）：`@Inject` 的处理器**必须**以 `CallbackInfo` 结尾
+  （注入到有返回值的方法时用 `CallbackInfoReturnable<T>`），**即使不使用也不能省**；
+  `@Redirect` / `@ModifyArg` / `@ModifyVariable` 的签名按"目标调用 / 方法的参数（静态处理器还要带接收者）
+  与返回类型"对齐。**`require = 0` 只放宽注入点匹配，不放宽签名校验** —— 写错 =
+  `InvalidInjectionException: Invalid descriptor` = **模组加载失败、客户端起不来**。
+  诊断入口见 §二（`run\crash-reports\*-fml.txt` 的 `Failure message:`），并**必须真跑一次 `runClient`**
+  （或 IDEA 里对应的运行配置）。
 - **注入点必须是目标类「自己声明」的方法/字段**。要影响一个**继承来的**方法，就注入**声明它的那个祖先**，
   再用 `instanceof` 把作用域收窄 —— `@Pseudo` 兜的是"类不存在"，**兜不住"方法不在这个类里"**。
   ⚠️ **用 `javap -p` 打实际 jar 的完整成员表确认"到底谁声明了它"**，别只凭源码里的继承链印象。
@@ -139,15 +186,34 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   再用 `instanceof Raider` 收窄；`Hunter` 同理（`LivingEntity`/`Mob`/`PathfinderMob` 都没覆写它）。
 - **可选目标（可选模组 / 未在 `mods.toml` 声明的模组）**：**必须 `@Pseudo` + `require = 0`**，否则该模组
   缺席或改名 = **启动期硬崩**。注意 `@Pseudo` 只兜"类不存在"，**兜不住"方法改名"**。
+  **同时要在 `neoforge.mods.toml` 里补声明**（`type="optional"` + `versionRange`，必要时带
+  `ordering` / `side`）—— 否则"装了但版本不对"这条信息在启动日志里看不见；Gradle 侧常规搭配是
+  `compileOnly` + `localRuntime`（需要它在 dev 里真实加载时用 `implementation`）。
+  **三段（Gradle 依赖 / toml 声明 / mixin 注解）缺一，兼容都不完整。**
 - 命名：`*Mixin`；访问器 `*Accessor`。
 - **Mixin 文件移动 / 改名时，`beloong.mixins.json` 的条目（含目录前缀）必须同步移动**
   （先例：`AsteorBarHealthFixMixin` 从根级搬到 `mixin/asteorbar/`，条目也改成 `asteorbar.…` 并进了 `client` 数组）。
   `mixin/bomd/` 目前是**空目录**（不是漏放文件）。
 - ⚠️ **现状有残留**（2026-10-11 实测）：`FSweepButtonControlMixin`（目标模组**不在** `mods.toml` 里，
   风险最高）、`NetMagnetItemMixin`、`mixin/betterendisland/` 下两个，尚未补 `@Pseudo` / `require = 0`。
-  **改到这些文件时顺手修正**。这条是**会漂移的现状**（那批文件会变），复查命令（期望：只剩上面这几个）：
-  `rg -L "@Pseudo" src/main/java/com/zonlong/beloong/mixin`。
-- **只认当前树**：至少 12 个 mixin 已被删除，历史路径与旧文档都不可信。
+  **改到这些文件时顺手修正**。这条是**会漂移的现状**（那批文件会变）。复查是**两步**，⚠️ **期望值不是
+  "只剩上面这几个"** —— 当前树有 **34 个** `@Mixin` 文件不带 `@Pseudo`，其中绝大多数目标是 `required`
+  （本就不需要 `@Pseudo`）⇒ **必须与 `mods.toml` 求交**才有意义：
+
+  ```powershell
+  # ① 列出没有 @Pseudo 的 mixin 文件（本机没有 rg，见 §二）
+  Get-ChildItem -Recurse -File -Filter *.java src/main/java/com/zonlong/beloong/mixin |
+    Where-Object { (Select-String -LiteralPath $_.FullName -Pattern '@Mixin' -Quiet) -and
+                   -not (Select-String -LiteralPath $_.FullName -Pattern '@Pseudo' -Quiet) } |
+    Select-Object -ExpandProperty FullName
+  # ② 只有"目标模组未声明 / 声明为 optional"的那部分才需要 @Pseudo + require = 0
+  Select-String -LiteralPath src/main/templates/META-INF/neoforge.mods.toml -Pattern 'modId=|type='
+  ```
+
+- **确认 mixin 真的挂上了**（成功侧）：`run\logs\debug.log`（⚠️ 只有它含 DEBUG 行）里找
+  `Mixing <Mixin> from beloong.mixins.json into <目标类>`。⚠️ **Mixin 不会把每个注入器都写进日志** ——
+  本次只见 `@Inject::…` 行、`@Redirect` 没写但功能正常 ⇒ **不要以"日志缺某一行"判定注入失败**。
+- **只认当前树**：mixin 目录历史上删过不少文件，**历史路径、旧文档与 memory 里的清单都不可信**。
 
 ## 五、语言文件与配置翻译
 
@@ -225,11 +291,16 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 - 功能改动走 `docs/plans/YYYY-MM-DD-<slug>-design.md` + `-plan.md` **成对**；审查走 `docs/reviews/`；
   每个大系统另有 `docs/<系统>总设计.md`——**那是该系统的权威文档**。
-- **每轮修订追加一节（rev 2/3/4…）并标记被取代的旧章节，不删改历史**；决定要留"谁 / 何时 / 为何 + 被否的替代方案"。
+- **每轮修订追加一节（`## 修订 rev N（YYYY-MM-DD，委托方裁定）：…`）并标记被取代的旧章节，不删改历史**；
+  ⚠️ 标题**不要与正文章号（`## 七、`）混排**，否则读者分不清哪节是正文、哪节是修订。
+  决定要留"谁 / 何时 / 为何 + 被否的替代方案"。
 - **数值类改动的权威来源是 `src/main/resources/data/...` 的 JSON**；文档里的表要跟着更新，
   并写明口径（例如"打满 / 基础值 / 不含护甲"）。
 - `memory/decisions-log.md` 是权威决定记录，**动你没设计过的子系统前先读**。
 - **动作前先确认分支**：`memory/` 是 gitignored、**与本分支无关**，它可能描述的是兄弟分支的状态。
+- ⚠️ **`memory/` 的改动在 `git status` 里看不见**（被 ignore）⇒ "工作树干净"**不代表** memory 没变。
+  分工要清楚：**`memory/` 是本机加速层，`docs/` 才是留痕层** —— 需要跨克隆 / 跨分支 / 交给别人看的结论
+  必须落 `docs/`（设计文档的新 rev 节 / `docs/reviews/`），memory 里顶多再放一份副本。
 - **收尾要回填状态**：设计文档的状态行改成「已实施并实机验收」；计划文档补执行状态与
   **"计划之外真实发生的事"**（先例提交：`docs(npc): 收尾之实施期回填`）。
 - **rev 链很长的文档要在顶部给"现行状态"指针**（例如"以 §9 为准；§2–§8 中 X / Y / Z 已被取代"），
@@ -243,6 +314,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **实测口径优先于理论**：他一句"经过测试…"可以覆盖任何文档推断。
 - 报告里认可"**推翻自己先前结论**"的诚实记录；详细偏好见 `memory/user-preferences.md`（若存在）。
 - 他会**改主意**（先要 A、过几天要反过来的 B）⇒ 以**最新裁定**为准，并把它写进设计文档的新 rev 节。
+- **默认不加配置项**：他要的是"**默认生效**"。新增配置节必须先得到明确点头，并连带完成 §五 的翻译键。
+- **关键假设先做一次"零代码实测"再写代码**：能用游戏内命令 / 配置开关证伪的，先证伪再动手
+  （先例：把"绿字来自原版自然回血"当结论前，他一条 `/gamerule naturalRegeneration false` 就否掉了，
+  省下一轮返工）。
 
 ## 十一、其它硬性约定
 
@@ -287,6 +362,11 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   **会选错 loader**。
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
   代价是"门全绿"只在工作区可复现——所以交付时要连命令一起给。
+- **`local-repo/`（本机离线兜底仓库）**：它必须排在 `cursemaven` **之前**（`build.gradle` 的
+  `repositories` 顺序），否则大体积产物（如 28 MB 的 yuushya）会走网络；它同样被 ignore ⇒
+  **兄弟工作树会重新下载**。IDEA 显示"正在下载 xxx"通常是
+  `idea { module { downloadSources/downloadJavadoc = true } }` 在探测 `-sources.jar` / `-javadoc.jar`
+  （cursemaven 对它们返回 404），**不是真的在拉 jar**。
 - **提交由用户做，智能体不 commit**；他的提交信息很短，**不要替他规范化**。
 
 ## 十二、明确不写进本文件的东西
