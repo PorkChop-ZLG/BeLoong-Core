@@ -218,7 +218,7 @@ python -X utf8 D:\Minecraft\tools\YSMParser\cg_lang_keys.py                     
 | # | 操作 | 期望 |
 |---|---|---|
 | 1 | 触发一次 CG（或 `/beloong npc @e[type=beloong:mo,limit=1] play descend`） | 日志出现**一条** `emote 'descend' on entity.beloong.mo will be cleared in N ticks`，其中 **N ≤ 120（通常 116~119）** —— 日志打的是 `deadline − now`，而申报到达时已经过了几 tick，所以**不会正好是 120**（按"正好 120"去核会假失败） |
-| 2 | **走远 >160 格再回来** | **不再重播 descend** ← **核心验收** |
+| 2 | **走远 >160 格再回来** | **不再重播 descend** ← **核心验收**。日志侧的关键判据：一旦字段被清掉，玩家走远回来**不会**再出现新的 `will be cleared in …` 行（若字段没清，每次重新追踪都会再报一次 ⇒ 会多出**对不上 CG 触发**的申报行） |
 | 3 | 换维度 / 传送后回来 | 不再重播 |
 | 4 | 断线重连 | 不再重播 |
 | 5 | 第二客户端中途加入 | 不重播 |

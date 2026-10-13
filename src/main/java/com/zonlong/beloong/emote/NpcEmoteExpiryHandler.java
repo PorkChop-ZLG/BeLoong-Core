@@ -129,6 +129,12 @@ public final class NpcEmoteExpiryHandler {
             PENDING.remove(npc);
             if (npc.emote().equals(entry.name())) {
                 npc.clearEmote();
+                // ★ 这一行是"修复真的生效"的**唯一直接证据** —— 清除本身不会引发任何其它日志。
+                //   它与 schedule() 那条配对（"will be cleared in N ticks" → "cleared"），
+                //   让"走远回来不再重播"这件事也能从日志交叉验证，而不只靠眼睛看。
+                BeLoongCore.LOGGER.info(
+                        "[BeLoong] emote '{}' on {} cleared (one-shot finished)",
+                        entry.name(), npc.getType());
             }
         }
     }
