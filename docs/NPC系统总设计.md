@@ -1328,6 +1328,44 @@ ChatBox 的选项 `click` 是以**玩家**身份执行命令的，而地图作�
 两份 `npc_story/mo.json` 都把**可写字段显式写出**（不依赖缺省），差别只在有意为之的那一项：
 模组自带的那份 `lease.keep_after_finish: true`（保住 D6），整合包那份为 `false`（参与离线结算）。
 
+### 12.8 NPC 不可被移动（2026-10-13）
+
+**设计目的**：NPC **绝对不能被玩家移动** —— 只能站桩，或按设定好的路线走。
+限定条件：**生存模式、无作弊**；创造模式与指令**允许**移动它（剧情/管理需要）。
+做法全部是**纯模组侧覆写/事件**，**零 Mixin**（用户明确要求不改原版代码）。
+
+| 入口 | 实现 | 依据 |
+|---|---|---|
+| 原版/第三方**右键交互** | `NpcDialogueHandler` 对 `NpcEntity` 目标 `setCanceled(true)`（**早于**客户端早退、**两侧**都取消）| `Player.java:1720`/`:1765` 检查取消 |
+| **牵引** | `NpcEntity#canBeLeashed()` 恒 false | 上绳唯一闸门 `Entity#interact`（`Entity.java:2026`）→ `canHaveALeashAttachedToIt()` = `canBeLeashed() && !isLeashed()`（`Leashable.java:33-35`）|
+| **传送门** | `NpcEntity#canUsePortal(boolean)` 恒 false | `handlePortal`（`Entity.java:2274`）|
+| **投射物**（含钓竿）| `NpcEntity#canBeHitByProjectile()` 恒 false | `Projectile#canHitEntity` 第一句（`Projectile.java:257-258`）|
+
+⚠️⚠️ **两个"千万别碰"**（后续维护者最容易顺手"修"错的地方，守卫 ⑱ 已钉住）：
+
+1. **不要改用 `isPickable()` 去挡投射物** ✗ —— 它同时是**客户端准星选取**的依据
+   （`Entity.java:1663-1667`）⇒ 改成 false 之后玩家**根本点不到 NPC**，右键对话直接废掉。
+   要用 `canBeHitByProjectile()`（它只影响投射物能否命中）。
+2. **不要用 `canChangeDimensions()` 去挡传送门** ✗ —— 它在 `handlePortal` 的 `:2281`，
+   位于**目标解析之后** ⇒ 覆写它会把**创造模式、`/execute in … run tp` 之类指令、以及模组的强制传送
+   一起挡掉**，而需求明确要求"指令仍可移动 NPC"。只需覆写 `canUsePortal()`。
+
+**已经被既有防护覆盖的**（无需改动）：走进去撞/被 mob 推（`isPushable()=false`）· 近战击退
+（`KNOCKBACK_RESISTANCE=1.0`）· 爆炸位移含风弹（`EXPLOSION_KNOCKBACK_RESISTANCE=1.0`）·
+箭与三叉戟的击退（击退写在 `if (entity.hurt(...))` 之内 + 我们无敌）· **船与矿车**
+（两者都用 `EntitySelector.pushableBy`，而它第一句就是 `if (!entity.isPushable()) return false;`）·
+徘徊/被食物引诱/受惊逃跑（目标表里没有这些 goal）。
+
+**明确未处理**（排查过、评估后暂不做，留档）：
+
+| 项 | 现状 / 若要做需要的钩子 |
+|---|---|
+| **药水效果** | `addEffect` 与 `forceAddEffect` 都走 NeoForge 的 `MobEffectEvent.Applicable`（`CommonHooks.java:1548-1550`，带 source）⇒ 用它 `setResult(DENY)` + 给自家指令开一个**单 tick 许可**（全局唯一加效果处在 `MynpcCommand.java:270`）。⚠️ 硬约束：原版 `/effect give` 与"玩家扔喷溅药水"在该事件里**无法区分** ⇒ 只能二选一。✅ 残留风险低：本轮挡掉投射物后，原版唯一的漂浮来源（潜影贝子弹）与风弹的风充能**一并被挡** |
+| **活塞/粘性活塞** | `PistonMovingBlockEntity#moveCollidedEntities`（`:152-195`）**不看任何实体标志** ⇒ 原版**没有**官方钩子，要挡只能自己发明（"被活塞位移后复位"），代价需单独设计 |
+| **流水/岩浆流** | `Entity#isPushedByFluid()` 默认 `true`（`:2848-2850`）⇒ 覆写即可挡（注意同一条判定可能也管气泡柱，待确认）|
+| **`FloatGoal` 的水中自我游动** | 与本类的"站桩"目标冲突；去掉该 goal 会让落水沉底（观感变化）|
+| **挖掉脚下导致的掉落** | 纯世界机制，是否算"被玩家移动"待定 |
+
 ## 附：本文与旧文档的编号对照
 
 旧文档的决策编号（D1–D57、对话系统 D1–D33、风险 R0–R18）**不在本文中续用**。
