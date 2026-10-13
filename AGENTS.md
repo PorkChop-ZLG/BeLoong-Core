@@ -114,7 +114,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 **第三处源码位置（零准备成本，读原版最省事）**：`%USERPROFILE%\.gradle\caches\neoformruntime\intermediate_results\`
 下的 `sourcesWithNeoForge_*_output.zip` —— 它含 **vanilla + NeoForge 完整源码**（`net/minecraft/**` 齐全），
-解压即读。会有多份（按 hash 命名、各约 9 MB）⇒ **按 mtime 取最新**（对应当前 `neo_version`）。
+解压即读。会有多份（按 hash 命名、各约 9 MB），⚠️ **别按 `.zip` 自己的 mtime 取"最新"** ——
+实测两份 `.zip` 的 mtime 是 2026-08-14 / 2026-08-13，而**当前一代其实是 mtime 更旧的那份**
+（它的同名 sidecar `.txt` 才是最新的，且与最新的 `sourcesAndCompiledWithNeoForge_*_output.jar` 同代）
+⇒ **按同名 sidecar `.txt` 的 mtime 取最新**，或直接与最新的 `sourcesAndCompiledWithNeoForge_*_output.jar` 配对。
 
 **平台行为 / 事件语义：读补丁，不要按名字推断。** NeoForge 的补丁源码在
 `neoforge-<版本>-userdev.jar` 的 `patches/**.java.patch`（`build/` 被清掉后，从 Gradle 缓存的
@@ -137,10 +140,12 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 **相关模组：**
 
-- 开源参考（**只读**）：`D:\Minecraft\开源模组参考文件\`（本项目依赖的关键项：`DragonSurvival` ——
+- 开源参考（**只读**）：`D:\Minecraft\开源模组参考文件\`。⚠️ **目录名不总等于 modid，动手前先 `ls` 确认**
+  （实测：`AsteorBar` 的目录实际叫 **`AsteorBarMod`**）。本项目依赖的关键项：`DragonSurvival` ——
   **是 fork、不是上游**、`Cataclysm`、`Legendary-Monsters-1.21.1-NeoForge`、`MowziesMobs-Public`、
-  `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`、
-  `AsteorBar`、`block_factorys_bosses`）。
+  `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`、`AsteorBarMod`。
+  ⚠️ **有的依赖没有源码树**（实测：`block_factorys_bosses` / Bosses'Rise 只以 jar 存在于
+  `local-repo\curse\maven\bossesrise-<projectId>\…`）⇒ 这类别在参考区里找，只能 `javap` 打那个 jar。
   ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`（**真缺口**，它的 mixin 也还没补
   `@Pseudo` / `require = 0`）、`yuushya`（**用户明确要求不做依赖声明** ⇒ 别"顺手补"）——
   定位它们的 jar / 源码只能靠 `build.gradle` 的 curse 坐标。
@@ -326,7 +331,9 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 
 ## 十一、其它硬性约定
 
-> **本节是"结论层"，深度取证在 `memory/learned-patterns.md`**（116 条，一个坑一条）；两边冲突以本文件为准。
+> **本节是"结论层"，深度取证在 `memory/learned-patterns.md`**（一个坑一条；⚠️ **条数别写死**，
+> 它会随会话增长 —— 需要时现场 `(Get-Content memory/learned-patterns.md | Select-String '^## ').Count`）；
+> 两边冲突以本文件为准。
 > **新增的"单模块调试结论"请写进 learned-patterns**，只有"别的模块也会再踩到"的基础设施规则才上提到本文件
 > —— 否则两处真相源必然漂移，而本文件越长越不容易被遵守。压缩某条时**先确认细节已在 learned-patterns 里**，
 > 别把唯一副本删掉。
@@ -365,7 +372,9 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **取消 / 拦截"移除类"事件时，判据必须按对象**，绝不能按"本次有没有处理过任何东西"：全局标志会被别的
   对象污染 ⇒ 当前对象被无限取消，并**每 tick 自我触发**形成自持循环。正确写法让被调方法返回 `Set<Key>`、
   判定用 `contains(thisKey)`，且"**主动移除**（该不该在）"与"**自然到期**（有没有真的被重新加上）"
-  两条判据**不同、别合并**。⇒ 完整机制、症状与三层语义见 `memory/learned-patterns.md` 第 1 条。
+  两条判据**不同、别合并**。⇒ 完整机制、症状与三层语义见 `memory/learned-patterns.md` 的
+  「取消移除类事件的判据必须按对象」一条。⚠️ **引用那一律引标题原文、不要引序号** ——
+  那文件会不断在顶部插入新条目，序号指针随时会指错。
 - 拉第三方依赖优先用 **curse maven 的 `fileId`**（`<slug>-<projectId>:<fileId>`）；Modrinth 按版本号解析
   **会选错 loader**。
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
