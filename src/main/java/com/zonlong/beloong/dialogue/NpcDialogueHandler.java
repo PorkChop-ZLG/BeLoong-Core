@@ -29,8 +29,12 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * （栓绳能牵走它 —— 牵引会 {@code disableControlFlag(Goal.Flag.MOVE)}，直接掐死路线系统；
  * 公共锚点被牵走更会连累所有玩家的剧情）。
  * <p>
- * <b>有意接受的代价</b>：第三方模组想通过"右键本 NPC"触发的交互也会一并失效。
- * 若日后确有这种需求，再引入"白名单物品/条件"的口子（<b>现在不做</b> —— YAGNI）。
+ * <b>有意接受的代价</b>（⚠️ 范围比"第三方模组"大得多）：
+ * {@code Player#interactOn} 一旦发现事件被取消就**直接 return**（{@code Player.java:1095}）
+ * ⇒ 该实体上的 {@code ItemStack#interactLivingEntity}（{@code :1114}）**永不执行**
+ * ⇒ **命名牌、鞍、剪羊毛，以及任何第三方模组物品的右键交互，在本 NPC 身上全部失效**。
+ * 这是"NPC 绝对不能被玩家摆弄"这一设计目的的必然代价（用户裁定接受）。
+ * 若日后确有需要，再引入"白名单物品/条件"的口子（<b>现在不做</b> —— YAGNI）。
  * 注意取消**不影响我们自己的对话**：本处理器完全自己做主（读事件 → 查表 → 下发 payload），
  * 从不依赖原版交互的返回值。
  * <p>
@@ -50,7 +54,11 @@ public class NpcDialogueHandler {
         // 原版交互在它身上不是"收益"而是 bug —— 栓绳能把它牵走（牵引会 disableControlFlag(MOVE)，
         // 直接掐死路线系统；公共锚点被牵走更会连累所有玩家的剧情）。
         // ⚠️ 必须放在**下面的客户端早退之前**：该事件两侧都会派发，只取消服务端那侧的话，
-        // 客户端仍会跑一遍原版逻辑（例：栓绳在客户端被 shrink(1)，造成短暂不同步）。
+        // 客户端仍会跑一遍原版 Entity#interact（Entity.java:2014-2037）—— 其中**解绳分支**
+        // （:2016-2022 的 dropLeash）是**会同步到服务端的副作用**，会出现"客户端解了、服务端没解"
+        // 之类的错位。
+        // （注：物品消耗**不**在此列 —— 客户端 startUseItem 先走 interactAt，它对本类恒返回 PASS
+        //   （Entity.java:3074），之后才派发 interact ⇒ 物品的客户端 shrink 本来就不会发生。）
         // ⚠️ 只取消**我们的** NPC，别去动别人的实体。
         if (event.getTarget() instanceof NpcEntity) {
             event.setCanceled(true);

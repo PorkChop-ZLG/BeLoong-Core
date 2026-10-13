@@ -598,7 +598,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
-     * <b>不被投射物命中</b> —— 箭、雪球、鸡蛋、风弹、**钓鱼竿的浮标**都穿它而过。
+     * <b>不被投射物命中</b> —— 箭、雪球、鸡蛋、风弹、**钓鱼竿的浮标**、**末影珍珠等投掷物**
+     * （{@code ThrowableProjectile} 同样只查 {@code canHitEntity}）都穿它而过。
      * <p>
      * 依据：{@code Projectile#canHitEntity} 的**第一句**就是
      * {@code if (!target.canBeHitByProjectile()) return false;}（{@code Projectile.java:257-258}）；
