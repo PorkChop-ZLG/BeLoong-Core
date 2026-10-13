@@ -56,7 +56,8 @@
     "yuushya.YuushyaJoinDeclarationMixin",
     "minecraft.DreadKingRitualTriggerMixin",
     "minecraft.RaiderHunterAllyMixin",
-    "raidsenhanced.RaidBlimpTargetMixin"
+    "raidsenhanced.RaidBlimpTargetMixin",
+    "darkdoppelganger.DarkDoppelgangerPhaseGoalRebuildMixin"
   ],
   "compatibilityLevel": "JAVA_21",
   "injectors": {
