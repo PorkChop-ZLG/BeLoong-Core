@@ -33,26 +33,43 @@
 
 资源侧：`assets/beloong/`（lang / models / textures / particles / sounds）、`data/beloong/`（维度、伤害类型、
 技能定义、数据驱动内容），并覆盖 `minecraft` / `cataclysm` / `curios` / `dragonsurvival` / `terrablender`
-命名空间的数据。datagen 输出到 `src/generated/resources`。
+命名空间的数据。datagen 的配置输出目录是 `src/generated/resources`——⚠️ 它**只有跑过 `runData` 之后才存在**，
+当前检出里没有它是正常的，不代表漏了文件。
 ⚠️ 资源清单的真实位置是 **`src/main/templates/META-INF/neoforge.mods.toml`**（不是 README 描述的样子）。
 
 ## 二、构建与验证（命令必须可直接执行）
 
 - 构建：`.\gradlew.bat build --rerun-tasks --no-build-cache`
   —— 要**新证据**必须带这两个 flag，否则会拿到 `UP-TO-DATE` / `FROM-CACHE`。
+  迭代期用 `.\gradlew.bat compileJava --rerun-tasks --no-build-cache` 更快（只编译、不打包）；
+  两者都给**带时间戳**的证据块，否则分不清证据是新取的还是上次留下的。
 - 只编译：`.\gradlew.bat compileJava`；产物：`build/libs/beloong-<版本>.jar`。
 - **本项目没有测试套件**：验证 = 静态门 + `build` + **作者在实机上验收**。行为正确性不要用"应该没问题"结案。
 - 静态门（**只活在本机工作区**）：`python tools\validate_execute.py`、`validate_execute_line.py`、
   `validate_tornado.py`、`check_lang_parity.py`。缺了就按抬头那条办。
-  ⚠️ **跑门之前先确认它校验的是当前检出**：工作区级 `D:\Minecraft\tools\YSMParser\` 下另有一批同名门
-  （`route_invariants.py` / `cg_invariants.py` / `stage_invariants.py`），根路径**硬编码**到已从
-  `git worktree` 移除的 `D:\Minecraft\BeLoong-Core-NPC` 旧副本 ⇒ 照原样跑会校验**另一个树**、
-  并可能给出"全绿"的假信号。**不要据它们宣称门全绿。**
+  ⚠️ **`D:\Minecraft\tools\YSMParser\` 整个目录一律不要跑。** 它是历史自动化工具链（约 250 个 `.py`，
+  其中**约 165 个含文件写入调用**：`patch_*` / `fix_*` / `backfill_*` / `add_*_lang.py` …），
+  根路径**硬编码**到旧副本 `D:\Minecraft\BeLoong-Core-NPC`。那个副本**仍在硬盘上**（只是不再登记为
+  `git worktree`）⇒ 那些脚本今天照样跑得通、也照样给出"全绿"，但结果属于**另一个树**；
+  改名或换根重跑 = 重放过期的自动编辑。**项目级门只在 `tools/`（本仓库）。**
 - **临时探针要有收尾清单**：为验证临时加的数据包 / 进度 / 调试命令一律用可识别命名（如 `*_test`），
   因为**它们会随 jar 发布**。收尾时必须删除，并**验证 jar 内无残留**（列 zip 条目确认，别只看源码目录）。
 - 交付时给**证据块**（命令 + 退出码 + 警告数 + 产物复核），并遵守两条：
   - **核验产物要解析、不要字符串匹配** —— 子串匹配在"多个字段共用同一字面量"时必然给出误导结论；
+    同一原则适用于**残留扫描**：命中项必须**逐条人工确认**（实例：用 `temp` 扫 jar 里的临时探针残留，
+    命中的全是 `TemplateUpdate` / `TemplateVersionStore` / `LockdownTemplateMigration`），
+    并注意注释 / javadoc 里**叙述已删除方案**的散文会稳定误报；
   - **构建失败时 jar 是旧的、且不会报错** ⇒ 一看到 `FAILED`，随后所有针对产物的结论都作废，先修构建。
+  - 警告数要与**基线**比较：基线是 `ParameterListAccessor` / `PossibleBiomesFilterMixin` 造成的
+    Annotation-Processor 警告（remap 缺失），**只有新增的才算问题**（数字本身会随文件增删而漂移）。
+- 写"可直接执行"的命令前，记住三条**实测踩过的坑**：
+  - **`.NET` 静态文件 API 不受 PowerShell `cd` 影响**：`[System.IO.File]::ReadAllBytes('run/logs/latest.log')`
+    会去读**工作区根**、报 `Could not find a part of the path` ⇒ 用 `Resolve-Path` 或绝对路径
+    （`Get-Content` 不受影响；`ZipFile` 之类同理）。
+  - **`build/libs` 里会同时躺着多个版本的 jar** ⇒ 取产物要**指名文件**或按 mtime 排序；
+    `Select-Object -First 1` 会拿到旧版并当成证据。
+  - **`Get-Content <file> | Measure-Object -Line` 少算约 25%**（实测 2462→1843、1955→1503、445→410）
+    ⇒ 统计行数用 `(Get-Content <file>).Count`。它曾让行数写进文档、并据此误判"文件被别的分支改过"。
 - 需要实机验收时，给「**编号 + 场景 + 期望值 + 判据**」的清单，并标出哪个常量是旋钮、往哪边拧。
 
 ## 三、从哪读源码（不要每次重新寻找与提取）
@@ -85,11 +102,21 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   ⇒ **省略 `display` 的隐形进度永不触发它**。要覆盖隐形进度得用 `AdvancementProgressEvent`
   （在 `display` 之外发），并自筛 `ProgressType.GRANT` + `isDone()`。
 
+**"代码抄自哪个分支" ≠ "运行在那个分支内"。** 实例：Dragon Survival 的滑翔数学与原版
+`LivingEntity.travel` 的 `isFallFlying()` 分支**逐行同构**（它自己在源码注释里写"抄自 vanilla Elytra flying"），
+但滑翔中的玩家**并没有** elytra 旗标 ⇒ 实际走的是普通空中分支 ⇒ `f3 = 0.91` 与 `-g` **全都生效**。
+⇒ 判断"某段逻辑在哪个分支里跑"，要查**该分支入口条件所依赖的状态由谁写**（`isFallFlying()` 只是
+`getSharedFlag(7)`，而旗标只由"胸甲槽里有滑翔装备"的 `startFallFlying()` 置位），不要凭"代码长得像谁"推断；
+算错一次就差 2.8 倍。
+
 **相关模组：**
 
 - 开源参考（**只读**）：`D:\Minecraft\开源模组参考文件\`（本项目依赖的关键项：`DragonSurvival` ——
   **是 fork、不是上游**、`Cataclysm`、`Legendary-Monsters-1.21.1-NeoForge`、`MowziesMobs-Public`、
-  `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`）。
+  `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`、
+  `AsteorBar`、`block_factorys_bosses`）。
+  ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`、`yuushya` ——
+  定位它们的 jar / 源码只能靠 `build.gradle` 的 curse 坐标。
 - 闭源反编译：`D:\Minecraft\闭源模组解压文件\`。
 - 读法：先 `rg` 定位再精读；结论**附来源路径**。
 - 两个坑：① 源码树常常**只有 Java、没有资源**（贴图 / 音效 / `sounds.json` 要开实际 jar）；
@@ -113,9 +140,13 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **可选目标（可选模组 / 未在 `mods.toml` 声明的模组）**：**必须 `@Pseudo` + `require = 0`**，否则该模组
   缺席或改名 = **启动期硬崩**。注意 `@Pseudo` 只兜"类不存在"，**兜不住"方法改名"**。
 - 命名：`*Mixin`；访问器 `*Accessor`。
+- **Mixin 文件移动 / 改名时，`beloong.mixins.json` 的条目（含目录前缀）必须同步移动**
+  （先例：`AsteorBarHealthFixMixin` 从根级搬到 `mixin/asteorbar/`，条目也改成 `asteorbar.…` 并进了 `client` 数组）。
+  `mixin/bomd/` 目前是**空目录**（不是漏放文件）。
 - ⚠️ **现状有残留**（2026-10-11 实测）：`FSweepButtonControlMixin`（目标模组**不在** `mods.toml` 里，
   风险最高）、`NetMagnetItemMixin`、`mixin/betterendisland/` 下两个，尚未补 `@Pseudo` / `require = 0`。
-  **改到这些文件时顺手修正**。
+  **改到这些文件时顺手修正**。这条是**会漂移的现状**（那批文件会变），复查命令（期望：只剩上面这几个）：
+  `rg -L "@Pseudo" src/main/java/com/zonlong/beloong/mixin`。
 - **只认当前树**：至少 12 个 mixin 已被删除，历史路径与旧文档都不可信。
 
 ## 五、语言文件与配置翻译
@@ -128,16 +159,24 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   显式 `.translation()` > 节级翻译 > `modid.configuration.<最后一段>`；**语义通用的平铺键要显式加前缀**
   （先例 `dragonSummonBlock`）以避免跨节冲突；dev 下缺键会报 `Untranslated configuration keys`。
   这是"新增配置项"的一部分，不是可选的收尾润色。
+- **颜色与可点击项**：可点击的回复 / 选项默认金色 `§e`；⚠️ **只有 `§` 有效，`&` 不会被转换**（两端都不认）。
+- **数据驱动文本（对话等）只存翻译键、不存正文**（JSON 里形如 `"text": "beloong.dialogue.mo.p1"`）。
 
 ## 六、负责范围（越界前先问）
 
 - **本仓库只负责模组侧**。**整合包侧的文件一律不修改，除非用户明确授权。**
-- **两条路径要分清，别混：**
+- **三条路径要分清，别混；结论必须写明是在哪一侧量的：**
   - **本机 dev 实测（可写）**：要复现**配置驱动**的功能就得改 `run\config\*.toml`（dev 运行目录；
     `run/` 是构建产物、不进版本管理）。日志读 `run\logs\latest.log`（INFO）与 `run\logs\debug.log`
     —— ⚠️ **只有 `debug.log` 含 DEBUG 行**；两者都是 **UTF-8，可直接读**。
   - **整合包实例（只读）**：`D:\BeLoong\.minecraft\versions\BeLoong`。那里的 `logs/` 是**实机验收的证据来源**，
-    但 ⚠️ **日志是 GBK / CP936 编码**，要按 CP936 读；**不要改**它里面的 `config/beloong-server.toml`。
+    但 ⚠️ **日志是 GBK / CP936 编码**，要按 CP936 读；⚠️ **它自己的行首时间戳在 CP936 下仍是乱码**
+    ⇒ **按关键词 grep，不要按时间戳解析**；**不要改**它里面的 `config/beloong-server.toml`。
+  - **本机的服务端副本（同样算"整合包侧"）**：`D:\Minecraft\BeLoong-Server\`、`D:\Minecraft\【化龍】服务端\`
+    —— 它们的 `config/` 常被当成"整合包配置"来读，但不是同一份实例，取值可能不同。
+  ⚠️ **平台版本也可能不同**：整合包日志里是 `--fml.neoForgeVersion 21.1.248`，而本仓库 `gradle.properties`
+  的 `neo_version` 是另一个数 ⇒ **"dev 里验过"不等于"实机成立"**。涉及门控 / 数值的设计，
+  先读**你实际要跑的那一侧**的配置，并在报告里注明是哪一侧。
 - 惯例：模组侧只提供**触发器 / 判据 / 配置项 / 数据驱动入口**，真实进度与最终配置由整合包侧编写。
 - **收尾时把为测试改过的本地配置还原**（`run/config/*.toml`），别把测试态留在工作区。
 
@@ -157,9 +196,12 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **本文件优先于 `memory/*`**：两边冲突时按本文件办，并顺手把 memory 那条改掉
   —— `memory/` 不进版本管理，**干净克隆只看得见本文件**。（先例：`memory/user-preferences.md` 曾写
   "审查编号用 `C-x` / `I-x` / `S-x`"，与下面的连续编号冲突，已按本节更正。）
+  ⚠️ **`docs/reviews/` 里的旧文档仍带着 `一、C-x（严重）` 这类节标题 —— 那是历史写法，不作为范例。**
 - 落盘 `docs/reviews/YYYY-MM-DD-<slug>-*.md`。
 - **用子代理做审查，但数量不要多**：**2–3 名**，按互不重叠的切片分工（如 服务端链路 / 客户端与同步 / 数据与门），
   每名给一份明确的"范围 + 要什么"说明书。**最终整合成一份文档**。
+  ⚠️ **子代理会静默失败**（跑挂了且不返回任何结论）：汇报时必须如实说明"本轮依据是自审 /
+  上一轮独立审查覆盖了什么"，不要把自审说成独立审查。
 - 文档必须**简洁**，**按严重程度分节**（严重 / 重要 / 可选 / 已知取舍）。**问题编号用 `1. 2. 3. 4.` 连续编排：
   严重程度只决定它落在哪一节，不重新起编，也不加 `C-` / `I-` / `S-` 前缀。** 例如：
 
@@ -175,6 +217,8 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **缺陷与「已知取舍」必须分开列**；报告要便于逐条勾选 ⇒ **先出报告、由用户逐条裁定，不要默认开修**。
 - 派审查者时把「**已裁定、不许当缺陷报**」的清单交给他们，否则每轮都会重报同一批刻意设计。
 - **审查者的结论必须自己复核**：与源码 / 实测不符时以复核为准，并在报告里注明更正了什么。
+  复核要落到**可证伪的事实**上（分支入口条件由谁置位、`javap` 打出来的实际成员表），不能只看"像不像"
+  —— 实例：某轮子代理主张"滑翔不受 `0.91` 摩擦影响"，被源码推翻。
 - 报告末尾要有「**未能验证**」一节，明确写出哪些结论没有取证。
 
 ## 九、文档与留痕
@@ -186,6 +230,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   并写明口径（例如"打满 / 基础值 / 不含护甲"）。
 - `memory/decisions-log.md` 是权威决定记录，**动你没设计过的子系统前先读**。
 - **动作前先确认分支**：`memory/` 是 gitignored、**与本分支无关**，它可能描述的是兄弟分支的状态。
+- **收尾要回填状态**：设计文档的状态行改成「已实施并实机验收」；计划文档补执行状态与
+  **"计划之外真实发生的事"**（先例提交：`docs(npc): 收尾之实施期回填`）。
+- **rev 链很长的文档要在顶部给"现行状态"指针**（例如"以 §9 为准；§2–§8 中 X / Y / Z 已被取代"），
+  否则读者分不清哪一节是现状。
 
 ## 十、协作方式（用户偏好）
 
@@ -194,12 +242,31 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **要机制，不要结论**：源码行号 + 数值推导 + "为什么表现为这个手感"。
 - **实测口径优先于理论**：他一句"经过测试…"可以覆盖任何文档推断。
 - 报告里认可"**推翻自己先前结论**"的诚实记录；详细偏好见 `memory/user-preferences.md`（若存在）。
+- 他会**改主意**（先要 A、过几天要反过来的 B）⇒ 以**最新裁定**为准，并把它写进设计文档的新 rev 节。
 
 ## 十一、其它硬性约定
 
 - **日志一律英文 ASCII**，格式 `[BeLoong] <subsystem>: <message>`，用 SLF4J `{}` 占位；
   **中文只进注释与 javadoc**。⚠️ 多行日志的**中文续行**最容易漏，要按整条语句扫，不能只看第一行。
 - **复用第三方自己的量与判定**，不要复制算式、也不要造状态副本（项目历史两次踩坑都源于此）。
+- **注入"每 tick 加一点能量"的 mixin 必须自带暂停守卫**：`ClientTickEvent` 在 `Minecraft.tick()` 开头
+  **无条件**触发，而 `level.tickEntities()` / `travel` / 目标模组自己的方法体都被暂停挡住 ⇒ 暂停期间注入照跑、
+  对冲项（摩擦 / 拖曳 / 重力）全停 ⇒ 推力无对冲累积（实测：单机滑翔中按 Esc 数秒即到几十格/tick，
+  恢复时瞬移，或被服务端判 `moved too quickly`）。
+  ⚠️ 反直觉的一点：**HEAD 不能一律加这个守卫** —— HEAD 还承担"异常状态摘除"，暂停期间也必须跑。
+- **"零附近"的权重必须由绝对值决定，不能由符号门控**：`look.y = -sin(xRot)`，"完全平视"恰好落在
+  `look.y = 0` 这个边界上，符号门（`if (look.y <= 0)`）会让推力在 1e-6 的姿态差上从满值掉到 0
+  （实测 1.0 vs 0.26 格/tick，1 秒掉到 1/8）。写 `f(|x|)` 天然两侧连续；
+  只有**确认边界处本来就连续**的项才允许留在门内。（同一个文件上犯过两次：修好后又复发。）
+- **搬第三方状态机要按五项对照：初始化 / 爬升 / 钳制 / 衰减 / 复位** —— 漏"复位"的后果是
+  "需求听起来实现了、但不可复现"（实例：自建累加器跨滑翔存活 ⇒ 只有本次会话第一次滑翔有缓加速）。
+  附带：**客户端 `private static` 状态会跨世界 / 存档 / 切形态存活**，要么给它复位点，
+  要么在注释里写明为什么不用清。
+- **读第三方守卫要连 lambda 内部一起读**：只看方法头会漏掉方法体 lambda 里的门（实例：`javap` 只看方法头
+  ⇒ 漏掉 `ClientFlightHandler:343` 的 `if (handler.isDragon())` ⇒ 判定"注入点对非龙无害"，
+  最终变成"人类能 Ctrl 飞行"）。守卫清单要覆盖**方法体内与 lambda 内每一层**。
+- **读属性可能 NPE**：`getAttributeValue(attr)` 在属性未挂载时返回 `null` ⇒ 落在客户端 tick 里就是崩。
+  项目已有防御式先例（`registry/ModAttributes.getFlightLevel`：null 检查 + 一次性 WARN + 缓存），照此办理。
 - **崩溃面优先**：`injectors.defaultRequire = 1` 下，注入点 / `@Shadow` / lambda 序号漂移 = **启动期硬崩**。
   改到原版或 DS 的私有面时，在设计文档里登记「**升级必查项**」。
 - 数据包 tag 里引用**可选模组**的 id，必须写 `"required": false`，否则缺该模组的整合包**整个加载不了**。
@@ -228,3 +295,5 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   需要时**现场取**（`git log` / `gradle.properties` / `git ls-files`）。
 - 与工作区级 `..\AGENTS.md` 重复的内容（10 个项目清单、沙箱边界、PowerShell 策略）：**只给指针**。
 - 大段架构叙述：那是 `memory/project-context.md` 与 `docs/*总设计.md` 的活。
+- **例外**：带日期的现状清单（如 §四 的 `@Pseudo` 残留）是**刻意的**——它是行动项，
+  但必须配一条能复查它的命令。
