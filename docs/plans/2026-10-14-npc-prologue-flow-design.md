@@ -22,13 +22,15 @@
 | D3 | **播 CG 的闸门 = `¬1_0`**（有 `1_0` 就不再播）—— 与对话系统的"开始/结束进度"同一套思路 |
 | D4 | **第一段对话的窗口 = `[1_0, 1_1)`**（有 `1_0` 才能右键触发；chatbox 结束授予 `1_1`，这一段**不变**）|
 | D5 | **序章由系统授予 `root`**：进入游戏 + 等**可配置**时间 ⇒ 授予（`root.json` 触发改 `impossible` ⇒ 只能由代码给）|
-| D6 | **不做传送**：lockdown 已保证出生在龙宫固定坐标且必有锚点 |
+| D6 | **新人登录不传送**（lockdown 已保证出生在龙宫固定坐标且必有锚点）；**剧情重置后若人在龙宫外 ⇒ 用现成传送 API 送回龙宫**（否则序章会一直推迟，玩家在主世界看不到任何 NPC）|
 | D7 | ★ **CG 只要"被开始过"就一定拿到 `1_0`**：正常播完自然给；**中断/换维度/掉线/服务器重启/预检失败**也**补授 + 一条英文 WARN** ⇒ 流程永不卡死 |
 | D8 | **锚点永不显示给任何玩家**；**开启 debug 的玩家例外** ⇒ debug 的目的就是让整合包作者看见锚点 |
 | D9 | **`beloong npc debug`**：只让玩家**看见**（**不可交互**）· **持久化** · **不检查权限** · 即时生效 |
 | D10 | 序章**只对"人在 `beloong:loong_palace`"时生效**（否则 `ensureDouble` 会在别的维度找不到锚点，凭空造一只）|
 | D11 | 重播（重置后回龙宫）**不额外等待** —— 只有"新人登录"才等 N 秒 |
 | D12 | 不动 `npc_story` 的 `start_advancement = root` / `end = 5_1`（这样 D1 的"撤到 root"才成立）|
+| D13 | **传送复用现成 API**：`TeleportTarget.LOONG_PALACE_LEVEL` + `TeleportTarget.toLoongPalace(level)` + `DimensionTeleport.toTarget(...)` ⇒ `player.changeDimension(transition)`（与 `TpLoongPalaceEffect:94-103`、`LoongPalacePortalBlock:218-226` 同一套，**不自己造轮子**）；**落点就用它的落点**（lockdown 加载的固定地图保证落点必定是实地、且就是初次创建存档的出生点）|
+| D14 | ★ **顺序铁律**：**先确认分身已建成，再授予 `root`**（同一 tick 内完成）。否则"有 `root` 却无分身"会被对账器的 D21 分支反复撤回 ⇒ **授予/撤回抖动** + 日志刷屏 |
 
 ## 进度拓扑（父链必须真的这么连，否则撤回走不到 `1_0`）
 
@@ -41,11 +43,40 @@ root ─┬─ 1_0 ★新增（CG 内授予：登场已放完）
 依据：撤回是沿 `parent()` 上溯逐级执行的（`NpcStoryHandler.java:582-600`）⇒ `1_0` 不在链上就**撤不掉** ⇒
 玩家将永远"看过 CG"、再也看不到（与 D1 矛盾）。
 
+## 分身与 CG 的机制（2026-10-14 **读代码**确认，勿凭记忆改）
+
+**`NpcStoryHandler#ensureDouble`（`:648-716`）**
+1. 扫 **`level.getAllEntities()`** —— `level` 是调用方传入的 **`player.serverLevel()`** ⇒ **只在玩家当前维度找锚点**；
+2. 已有 `owner == 我` 的分身 ⇒ **复用**（`Ensured(npc, spawned=false)`）；
+3. 找 `owner == null` 的同类（锚点）⇒ **取离玩家最近者**（多于一个打 WARN）；
+4. **新建实体** `type.create(level)`，只**拷位置与朝向**（`:689-690` 的 `moveTo(anchor…)` + `setYHeadRot`）；
+5. ⚠️ **锚点找不到不是失败**：**兜底在玩家身前 4 格生成** + WARN（`:691-703`）；唯一返回 `null` 的情形是
+   `type.create` 出来不是 `NpcEntity`（`:674-679`，实际不可能）；
+6. `setOwner(我)` → `setLease(生成时刻, 到期时刻)` → `addFreshEntity` → INFO。
+
+**CG 的"由分身播放"具体是什么（`CgAnimation:140-181` + `CgContext:108-115`）**
+- `CgContext.of(viewer, target)` ⇒ `anchor = target.position()`；`anchorToViewer` = `(viewer.pos − anchor)` 水平单位向量；
+- 镜头公式：`相机 = 目标.pos + (观察者.pos − 目标.pos).normalize() × N`（`CgContext:33`）；
+- `animationName()`（如 `descend`）由 `NpcEntity#setEmote` **播在 target 身上**（`CgAnimation:176-181`）；
+- ⇒ **分身 = CG 的 target** ⇒ 它必须存在、且必须**站在锚点位置**（`ensureDouble` 精确 `moveTo` 到锚点坐标与朝向，
+  正是为了让镜头有正确的锚点）；`CgContext.of` 在"观察者水平方向压在目标头顶"时返回 `null` ⇒ `play` 返回 0（D7 兜底）。
+
+### 原子顺序（D14，全在同一 tick）
+
+```
+① 前置条件（活着 / 非旁观 / 未骑乘 / 不在 CG 中）不过 ⇒ 本 tick 跳过，下 tick 再看
+② 未获得 root ∧ tickCount ≥ 配置秒数
+③ 不在龙宫 ⇒ 按 D13 用现成 API 传送回龙宫
+④ 同一 tick：ensureDouble(player, player.serverLevel(), …)   ← 传送后 serverLevel() 已是龙宫 ⇒ 找到锚点
+⑤ 确认拿到分身 ⇒ 才授予 root（走"身前 4 格"兜底也继续，绝不卡住玩家）
+⑥ ¬1_0 ⇒ cg.play(player, 分身)
+```
+
 ## 流程
 
 ```
 进入游戏 → 等 N 秒（配置项）→〔序章〕授予 root（人在龙宫 ∧ 未获得 root）
-  → 确保锚点处分身存在 → 分身播 mo_entrance（闸门：¬1_0）
+  → 分身已建成（见上"机制"一节）→ 分身播 mo_entrance（闸门：¬1_0）
   → CG 播完/中断/失败 ⇒ CG 自己授予 1_0（+ 失败时 WARN）
   → 玩家右键分身（窗口 [1_0, 1_1)）→ 第一段对话 → 跳 chatbox
   → chatbox 完成 ⇒ 授予 1_1（+ 启动 mo_route_1，这一段不变）→ 后续不变
@@ -55,7 +86,7 @@ root ─┬─ 1_0 ★新增（CG 内授予：登场已放完）
 
 | 用途 | 判据 |
 |---|---|
-| 序章触发（授予 `root`）| `tickCount ≥ 配置秒数` ∧ 未获得 `root` ∧ 人在 `beloong:loong_palace` |
+| 序章触发（授予 `root`）| `tickCount ≥ 配置秒数` ∧ 未获得 `root` ∧ **分身已建成**（人在龙宫外则先按 D6/D13 传送回龙宫）|
 | 播 CG | 未获得 `1_0` |
 | 第一段对话可见 | `[1_0, 1_1)` |
 | 私有分身可见 | 已获得 `root`（且未进入"通关且要回收"态）|

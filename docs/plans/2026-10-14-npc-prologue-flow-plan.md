@@ -43,10 +43,14 @@
 
 ### T6 序章处理器
 **Files:** Create `src/main/java/com/zonlong/beloong/npcstory/NpcPrologueHandler.java`；Modify `BeLoongCore.java`（注册）
-**Steps:** 挂 `ServerTickEvent.Post`；对每个 `ServerPlayer`：
-① `player.tickCount >= secondsToTicks(配置)` ∧ ② **未获得** `root` ∧ ③ 人在 `beloong:loong_palace`
-⇒ 授予 `root`（`player.getAdvancements().award(...)`）⇒ **确保分身**（复用 `ensureDouble` 的语义；
-⚠️ 必须与授予**同一 tick**，否则"有 root 无分身"会被 D21 误撤）⇒ 交给 CG（若 `¬1_0`）。
+**Steps:** 挂 `ServerTickEvent.Post`；对每个 `ServerPlayer`，按 **D14 的原子顺序**（全在同一 tick，绝不跨 tick）：
+① **前置条件**（活着 / 非旁观 / 未骑乘 / 不在 CG 中）不过 ⇒ 本 tick 跳过、下 tick 再看；
+② 未获得 `root` ∧ `player.tickCount >= secondsToTicks(配置)`；
+③ **不在龙宫 ⇒ 按 D13 用现成 API 传送回龙宫**（`TeleportTarget.toLoongPalace` + `DimensionTeleport.toTarget` + `changeDimension`）；
+④ **同一 tick**：`ensureDouble(player, player.serverLevel(), …)` —— 传送后 `serverLevel()` 已是龙宫 ⇒ 找到锚点 ⇒ 分身精确落在锚点位置与朝向；
+⑤ **确认拿到分身之后**才 `player.getAdvancements().award(root)`；若走了"身前 4 格"兜底（自带 WARN）**也照常继续**（绝不卡住玩家）；
+⑥ `¬1_0` ⇒ `cg.play(player, 分身)`。
+**附带：** 顺手改掉 `TpLoongPalaceEffect` 类注释里那处"落点在虚空"的错误结论（留 2026-10-14 更正说明，防被写回）。
 **Verification:** `gradlew build`；日志能看到"授予 root / 播 CG"两条 INFO；守卫断言存在该处理器且闸门齐全。
 
 ### T7 ⚠️ CG 侧：完成时授予进度（**需与 CG 会话协调** ✗）
@@ -92,7 +96,8 @@
 ② 链是 `root → 1_0 → 1_1`；
 ③ `root` 的 trigger **只能是** `impossible`（收紧旧断言）；
 ④ 两份 `npc_dialogue/mo.json` 第一条窗口 = `[1_0, 1_1)`；
-⑤ `NpcPrologueHandler` 存在且闸门三件齐全（tickCount / ¬root / 龙宫维度）；
+⑤ `NpcPrologueHandler` 存在，且**顺序铁律**成立：`ensureDouble` 的调用**早于**授予 `root` 的那一行（**按行号比较**）；
+   并断言"授予 `root` 之前有传送回龙宫的调用"；
 ⑥ `NpcStoryHandler` 里**不再**出现 `cg.play`（CG 唯一播放者是序章）；
 ⑦ `visibleTo` 里锚点分支恒 false 且 debug 分支存在；
 ⑧ `NpcCommand` 里有 `debug` 子命令。
@@ -115,7 +120,18 @@
 1. **新存档**：进游戏 → 等 N 秒 → 自动开场 + 登场 CG → 拿到 `1_0`；
 2. CG 结束 ⇒ 右键末 ⇒ 第一段对话 ⇒ chatbox ⇒ 拿到 `1_1`；
 3. **走远再回来**：不重播动画（已修）· **不重播 CG**（有 `1_0`）；
-4. **完整重置**：把 `dimension.grace_ticks` 临时调小 ⇒ 出龙宫等它撤回 ⇒ 回龙宫 ⇒ **重播登场 CG**（D1 期望 ✓）；
+4. **完整重置（人在龙宫外）**：把 `dimension.grace_ticks` 临时调小 ⇒ **出龙宫到主世界**等它撤回 ⇒
+   **应被自动传送回龙宫**（D6/D13）⇒ **重播登场 CG**（D1 期望 ✓）⇒ 全程不需要玩家自己走回去；
+4b. **完整重置（人在龙宫内）**：同样撤到 `root` 后 ⇒ 应**当场**重新开场（无需传送）；
 5. `/beloong npc debug` 开 ⇒ 看得见**锚点**与**所有分身**、**点不动别人的分身**；关 ⇒ 恢复；
 6. **开场前看不见锚点**（D8）；
 7. 回归：路线 / 表情 / 通关回收 / 租约 / 离线结算 一切照旧。
+
+---
+
+## 备注：本轮顺带修正的一处**错误注释**（2026-10-14）
+
+`ability/TpLoongPalaceEffect` 的类注释原先声称"龙宫侧落点在虚空里、玩家落在空中，
+可站立面 `x[-54,8] y[68,77] z[-312,-272]` 与默认 `z = 0.5` 不相交"——**该结论是错的**：
+龙宫的固定地图由 **lockdown 模组**加载，落点**必定是实地**，且就是**玩家初次创建存档的出生点**。
+已改为正确描述，并保留一条"更正说明 + 勿写回"的提示（本项目惯例）。

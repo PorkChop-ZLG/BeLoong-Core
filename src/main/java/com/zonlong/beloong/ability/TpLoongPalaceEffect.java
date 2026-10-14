@@ -22,17 +22,20 @@ import org.slf4j.Logger;
  * <b>落点与传送流程全部交给 {@code teleport} 包</b>（与天灾传送门同一套 API）：
  * <ul>
  *   <li><b>去龙宫</b>：{@link TeleportTarget#toLoongPalace} —— 落点读
- *       {@code [dimension_transport.overworldToLoongPalace]} 的 {@code targetX/targetZ/fallbackY}
- *       （龙宫是纯虚空维度，高度图必然取不到，实际落点恒为 {@code fallbackY}）；</li>
+ *       {@code [dimension_transport.overworldToLoongPalace]} 的 {@code targetX/targetZ/fallbackY}。
+ *       <b>该落点必定是实地</b>：龙宫的固定地图由 <b>lockdown 模组</b>加载，
+ *       而这个落点就是<b>玩家初次创建存档时的出生点</b> ⇒ 玩家不会掉进虚空；</li>
  *   <li><b>回主世界</b>：{@link TeleportTarget.Spawn} —— <b>恒为世界出生点</b>，
  *       不再优先玩家重生点（床）；</li>
  *   <li><b>冷却</b>：{@link TeleportCooldown}（与天灾门、龙宫 Y&lt;0 兜底共用同一份 NBT 冷却）。</li>
  * </ul>
  * 本类只负责"按当前维度选方向、做冷却检查、给出玩家提示"。
  * <p>
- * ⚠️ <b>已知缺陷（待做龙宫传送门那轮解决，勿当成设计）</b>：龙宫侧落点 {@code (targetX, ?, targetZ)}
- * 处没有方块 ⇒ 总是走 {@code fallbackY}，玩家落在空中。龙宫实际可站立面（水体区域）在
- * {@code x[-54,8] y[68,77] z[-312,-272]}，与默认的 {@code z = 0.5} 完全不相交。
+ * ⚠️ <b>2026-10-14 更正（勿把下面这条旧结论写回来）</b>：本节原先写着
+ * "龙宫侧落点 {@code (targetX, ?, targetZ)} 处没有方块 ⇒ 总是走 {@code fallbackY}，玩家落在空中；
+ * 可站立面 {@code x[-54,8] y[68,77] z[-312,-272]} 与默认的 {@code z = 0.5} 完全不相交"。
+ * <b>那是错的</b>：龙宫的固定地图由 lockdown 模组加载，落点<b>必定存在</b>，
+ * 且就是玩家初次创建存档的出生点。故删除该"已知缺陷"，仅保留此说明。
  */
 public record TpLoongPalaceEffect() implements AbilityEntityEffect {
 
