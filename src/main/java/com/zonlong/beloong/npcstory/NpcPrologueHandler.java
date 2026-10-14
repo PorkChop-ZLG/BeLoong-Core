@@ -119,17 +119,28 @@ public class NpcPrologueHandler {
                 continue;
             }
 
-            // ③ 已经看过登场 ⇒ 这一轮序章结束（剧情被完整重置会把 root/1_0 一起撤掉 ⇒ 到时自然会重新开场）
-            if (isEarned(player, ENTRANCE_DONE)) {
+            // ③ ⚠️ fail-closed（与对账器一致）：这条剧情引用的进度 id 不存在 ⇒ 它是 dead on arrival ⇒
+            //    既不生成分身也不播 CG。否则坏数据下这里每 20 tick 就会造一只实体并重播一次 CG
+            //    （root 与 1_0 同时缺失时是**无限循环**）—— 审查 I5。
+            if (player.server.getAdvancements().get(ROOT) == null
+                    || player.server.getAdvancements().get(ENTRANCE_DONE) == null) {
+                continue;
+            }
+
+            // ④ 已经**完整**开场过（root 与 1_0 都在）⇒ 这一轮序章结束。
+            //    ⚠️ 只认"1_0 在"是不够的：手动只撤 root（或撤到一半）会留下"有 1_0、无 root"，
+            //    那时必须让它**从头开场**，否则玩家停在"无 root、无分身、锚点又不显示"的状态里永不自愈
+            //    （审查 I6；同理也兜住了"租约比登场 CG 还短"这种极端配置 —— 审查 S6）。
+            if (isEarned(player, ENTRANCE_DONE) && isEarned(player, ROOT)) {
                 return;
             }
 
-            // ④ 新人先等（让客户端把世界加载完）；判据是玩家自身的 tickCount
+            // ⑤ 新人先等（让客户端把世界加载完）；判据是玩家自身的 tickCount
             if (player.tickCount < delayTicks) {
                 return;
             }
 
-            // ⑤ 有 root 却没有 1_0 ⇒ 上次那条"CG 播完授予 1_0"没走完（多半是关服丢了待授予项）。
+            // ⑥ 有 root 却没有 1_0 ⇒ 上次那条"CG 播完授予 1_0"没走完（多半是关服丢了待授予项）。
             //    ⚠️ 用户裁定：补授**也必须在剧情声明的维度里**（与"离开即跳过"一致）。
             if (isEarned(player, ROOT)) {
                 // ⚠️ 若这条 1_0 的"完成结算"还挂在待授予表里，说明**登场 CG 正在播**（正常播完会按时长授予）
@@ -146,13 +157,13 @@ public class NpcPrologueHandler {
                 return;
             }
 
-            // ⑥ 从头开场的**清场**：走到这里说明玩家**没有起点进度**（含补授分支在内的上面几条都已排除），
+            // ⑦ 从头开场的**清场**：走到这里说明玩家**没有起点进度**（含补授分支在内的上面几条都已排除），
             //    因此任何 owner == 我、类型就是本剧情的分身**必然是上一轮留下的孤儿**（撤进度后没被删掉）。
             //    必须先删掉它 —— 否则下面的 ensureDoubleFor 会**复用**它，于是"玩家被送回原点、CG 却拍在
             //    留在半路的那只分身身上"⇒ 不同步（实机 BUG 的第二种形态）。这个竞态是真实存在的：
             //    序章 20 tick 一次、对账器 100 tick 一次 ⇒ 序章可能抢在对账器的孤儿清理之前。
             discardOrphanDoubles(player, entry.getKey());
-            // ⑦ ★ 从头开场 ⇒ 先把玩家送回**同维度内的入场落点**（类注释第 2 条）。
+            // ⑧ ★ 从头开场 ⇒ 先把玩家送回**同维度内的入场落点**（类注释第 2 条）。
             //    目标维度取 player.serverLevel()（玩家当前维度）⇒ 结构上不可能跨维度拉人。
             TeleportTarget landing = TeleportTarget.toLoongPalace(player.serverLevel());
             if (!isAtStart(player, landing)) {
@@ -166,7 +177,7 @@ public class NpcPrologueHandler {
                 return;
             }
 
-            // ⑧ 同一 tick：先确保分身，成功了才授予 root（顺序不能反，见类注释）
+            // ⑨ 同一 tick：先确保分身，成功了才授予 root（顺序不能反，见类注释）
             NpcEntity npc = NpcStoryHandler.ensureDoubleFor(player, entry.getKey(), story);
             if (npc == null) {
                 BeLoongCore.LOGGER.error(
@@ -181,7 +192,7 @@ public class NpcPrologueHandler {
                     "[BeLoong] npc prologue: granted root to '{}' and ensured their double of '{}' at {}",
                     player.getGameProfile().getName(), entry.getKey(), npc.blockPosition());
 
-            // ⑨ 播登场 CG（闸门：此刻必然还没有 1_0 —— ③ 已经挡掉了有的情况）
+            // ⑩ 播登场 CG（闸门：此刻必然还没有 1_0 —— ④ 已经挡掉了"完整开场过"的情况）
             story.cg().ifPresent(name -> CgRegistry.byName(name).ifPresentOrElse(
                     cg -> cg.play(player, npc),
                     () -> BeLoongCore.LOGGER.warn(

@@ -170,3 +170,40 @@
 **瘦身**：`NpcStoryHandler` 726 → 567 行（−159）。
 
 **验证**：`gradlew build` ✓ · stage 148 PASS / 0 FAIL ✓ · route 全绿 ✓ · cg PASS ✓ · 四个探针 GREEN ✓
+
+---
+
+## 批次① 独立审查（2026-10-14）与处置
+
+派了独立审查（只读）⇒ 结论 **Critical 1 / Important 6 / Suggestion 7**，总体判断"能进入下一批（有条件）"。
+
+### 已当场修完（审查修复提交）
+
+| 编号 | 问题 | 处置 |
+|---|---|---|
+| **C1 ★** | `removeDouble` 忽略 `revokeStory` 的 `false` 返回 ⇒ **撤失败仍删分身**，中心不变量在失败路径破洞（触发：链中间环缺失）| fail-closed：`if (revoke && !revokeStory(...)) { ERROR; return; }` —— **不删分身**，留 ERROR 让人修数据 |
+| I1 | "在线玩家没分身也巡检"整段空转，且每轮在玩家存档里写**空进度记录** | 整段删除（对账器只处理"此刻有分身的主人"）|
+| I2 | 四处注释仍在描述已删的两条清理路径（说假话）| 全部改写为当前事实 |
+| I3 | "唯一会撤进度的路径是租约到期"是假的（`clear_on_logout` 也会撤）| 改为"能撤进度的调用点**全部**位于 `removeDouble` 内，而它同时删分身" |
+| I4 | "删掉分身后公共锚点会重新对他可见"是假的（`visibleTo` 对有剧情声明的无主实体**恒 false**）| 按设计 D8 改注释（锚点永不显示 ⇒ 通关回收后玩家看到的是**空场**）；若将来想要"通关后锚点补位"，那要改 `visibleTo`，属另一件事（已提请用户确认）|
+| I5（简化版）| 序章不读 fail-closed ⇒ 坏数据下每 20 tick 造实体 + 重播 CG（root 与 1_0 同缺时**无限循环**）| 序章先判 `ROOT`/`ENTRANCE_DONE` 的 holder 是否存在 ⇒ 不存在直接 `continue` |
+| I6 | 文档里的人工兜底（只撤 `root`）会把玩家**永久卡死** | 序章的"已开场过"判据改为 **`1_0` ∧ `root` 都在** ⇒ "有 `1_0` 无 `root`"也会**从头开场**（自愈 ✓ 顺带兜住 S6 的极端配置）|
+| S1 | `NpcStoryHandler` 里 `CgRegistry` import 已无使用 | 删除 |
+| S5 | 守卫只因注释里出现"D21"三字而通过（给已删功能背书）| 翻成**否定断言**：`'restarted from the beginning' not in _HDL` |
+
+### 并入后续批次的任务（新增）
+
+| 编号 | 内容 | 归入 |
+|---|---|---|
+| **T5b** | **整链校验**：`checkStoryIdsOnce` 目前只校验 start/end 两个 id ⇒ 改为沿 `parent()` 逐环校验（缺任一环即 DOA）；并让**序章也跳过 DOA 剧情**（I5 完整版；简化版已随本批落地）| 批次② |
+| **T8-extra** | S4：`NpcStory` 里 `DEFAULT_WARN_BEFORE_TICKS` 已无消费者、`enforced()` / `dimensionGraceTicks()` 无调用者、`mo.json` 的 `dimension{}` 与两个 `outside_dimension` 语言键成死数据/死键 | 批次③（T8）|
+| **T8-extra2** | S6：加载期给 `lease.ticks` 加**下限**校验（≥ 登场 CG 时长，避免"租约比 CG 还短"）；S7：提醒判据改用 `npc.expireAt()`（不用 `story.isPermanent()`），避免"限时改永久"时存量分身被静默删除且跳过提醒 | 批次③（T8）|
+| **T10-extra** | S2：序章硬编码 `ROOT`/`ENTRANCE_DONE` 且用 `return` 跳整个玩家检查 ⇒ 只支持一条剧情（当前只有 `mo.json`，属潜在）；S3：`discardOrphanDoubles` 是对账器之外唯一绕过 `removeDouble` 的删实体路径（判据经审查确认**正确、不宽不窄**），加注释点明它是唯一安全旁路 | 批次③ 文档 / 批次④ 守卫 |
+
+### 审查确认无恙的部分（要点）
+
+- **成对原则**：全仓 `revokeStory` 只有 1 处调用（`removeDouble` 内）⇒ 正常路径上不存在"能撤却删不掉"，唯一破洞是 C1（已修）
+- **`discard()` 是同步的**（审查去读了原版 `Entity.setRemoved` → `PersistentEntitySectionManager.Callback.onRemove` → `EntityLookup.remove`）⇒ T4 的"同 tick 清场后再生成绝不会拿到旧那只"成立
+- **`hasPending` 语义正确**：关服/崩溃导致静态表丢失 ⇒ `hasPending` 为 false ⇒ "CG 被关停打断"这种**该补授**的情形不会被挡
+- **`getGameTime()` 各维度同源**（`DerivedLevelData` 委托 overworld）⇒ 换维度不影响租约与 CG 截止时间
+- **`getAllEntities()` 只覆盖已追踪实体** ⇒ "扫不到 ≠ 不存在"这条语义在删掉 D21 之后依然成立，**别再把缺失当事实**

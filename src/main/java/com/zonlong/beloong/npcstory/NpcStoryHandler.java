@@ -1,7 +1,6 @@
 package com.zonlong.beloong.npcstory;
 
 import com.zonlong.beloong.BeLoongCore;
-import com.zonlong.beloong.cg.CgRegistry;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.Config;
 import com.zonlong.beloong.dialogue.NpcDialogueStage;
@@ -66,18 +65,21 @@ import java.util.Map;
  * <h2>对账器的判定表（2026-10-14 重写后：重写设计 D1–D3）</h2>
  * <pre>
  *   start 未获得 ∧ 有分身                    ⇒ 孤儿 ⇒ 删除 + WARN
- *   start 已获得 ∧ 无分身                    ⇒ **什么都不做**（唯一会撤进度的路径是"租约到期"，
- *                                              而它手里一定有实体 ⇒ 撤与删永远成对）
+ *   start 已获得 ∧ 无分身                    ⇒ **什么都不做**（能撤进度的调用点**全部**位于
+ *                                              {@code removeDouble} 之内，而它同时删分身 ⇒ 撤与删永远成对）
  *   start 已获得 ∧ 有 ∧ 已过期              ⇒ 清理；**未完成才撤回**，已完成只清理
- *   start 已获得 ∧ 有 ∧ 离开有效维度超过宽限 ⇒ 清理 + 未完成则撤回（宽限内给倒计时提示）
+ *   离开有效维度                            ⇒ **没有任何行为**（该规则已随设计 D1 于 2026-10-14 删除）
  *   clear_on_logout ∧ 玩家退出             ⇒ 清理 + 未完成则撤回
- *   已完成 ∧ keep_after_finish=false        ⇒ **只删不撤**（通关即回收；锚点随即重新可见，观感连续）
+ *   已完成 ∧ keep_after_finish=false        ⇒ **只删不撤**（通关即回收；玩家此后在同一位置看到**空场**，
+ *                                             因为锚点对有剧情声明的实体恒不可见 —— 见下方 ⚠️）
  *   已完成 ∧ keep_after_finish=true         ⇒ **一律保留、不清理**（D6：结尾"它坐在那里"对主人有意义）
  *   同一玩家有多个分身                        ⇒ 保留最近出生（并列时最近）的、其余删除 + WARN
  * </pre>
- * ⚠️ <b>"扫不到分身"不等于"分身丢了"</b>：实体查询只覆盖**已加载区块**。
- * 因此只有在"**那一轮扫到了无主锚点**"（= 那片区块确实加载着）时才把缺失当真，
- * 且要**连续若干轮**都缺才动手 —— 否则会出现"登录就被撤回进度"这类事故（D19 的宽限在登录路径上失效）。
+ * ⚠️ <b>绝不拿"扫不到"当"不存在"</b>：实体查询只覆盖**已加载区块**
+ * （{@code getAllEntities()} 只看已追踪实体，被区块卸载的实体不在其中）。
+ * 本对账器因此**不对"缺失"做任何推断**（设计 D2）—— 一切清理与撤回都只在**手里真有那只实体**时发生。
+ * ⚠️ 同理：{@code NpcEntity#visibleTo} 对"有剧情声明的无主实体"**恒返回 false**（设计 D8"锚点永不显示"），
+ * 所以"删掉分身之后玩家会看到锚点"是**错的** —— 他看到的是空场。
  * ⚠️ <b>"无分身"不再触发任何重置</b>（设计 D2，2026-10-14）：起点进度由**序章**
  * （{@code NpcPrologueHandler}）在"玩家已在剧情维度内"时授予，并**同一 tick 先确保分身、再授予** ⇒
  * 对账器不会看到"已开始却没有分身"的窗口；即便看到，本类也**什么都不做** ——
@@ -225,7 +227,7 @@ public class NpcStoryHandler {
             if (level == null) {
                 continue;
             }
-            // 通关闭环：未通关才撤回（与超时/维度规则同款，D16）。
+            // 通关闭环：未通关才撤回（与"租约到期"同款，D16；维度规则已于 2026-10-14 删除）。
             boolean finished = NpcDialogueStage.isEarned(player, story.endAdvancement());
             for (NpcEntity npc : doublesOf(player, level, entry.getKey())) {
                 removeDouble(npc, story, player, "logout", !finished);
@@ -320,13 +322,11 @@ public class NpcStoryHandler {
             // 已知取舍：玩家永不再上线时，那只过期分身会一直留着 —— 但它**只对主人可见**，
             // 不影响其他玩家；管理员可用 /kill 收尾。见设计 §三与 §九。
         }
-        // 在线玩家**没有**分身时也要巡检（走 mine.isEmpty() 分支：那里现在什么都不做）——
-        // 上一循环只覆盖了"表里有的 owner"。
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (!byOwner.containsKey(player.getUUID())) {
-                reconcilePlayer(player, story, List.of());
-            }
-        }
+        // ⚠️ 审查 I1：这里原来还有一段"在线玩家**没有**分身时也要巡检"——
+        // 它对应的是已删除的 D21 分支，而 {@code mine.isEmpty()} 现在什么都不做，
+        // 于是它每 100 tick × 每条剧情 × 每个无分身玩家白跑两次进度查询，
+        // 还会因为 {@code getOrStartProgress} 的懒建行为在这些玩家存档里写下**空进度记录**（隐藏死状态）。
+        // 整段已删除：本对账器只处理"此刻**有**分身的主人"。
     }
 
     private void reconcilePlayer(ServerPlayer player, NpcStory story, List<NpcEntity> mine) {
@@ -374,9 +374,11 @@ public class NpcStoryHandler {
 
         // 已通关 ⇒ 是否保留由声明决定（{@code keep_after_finish}，缺省 false = 通关即回收）：
         //   · false ⇒ 删掉分身。**只删不撤** —— 剧情已完成，撤回会毁掉玩家的通关记录。
-        //     删掉之后 {@code NpcEntity#visibleTo} 会让公共锚点重新对他可见
-        //     ⇒ 玩家看到的仍是"同一位置的同一只"（整合包的结尾正好把 NPC 送回锚点处）⇒ 观感连续；
-        //   · true  ⇒ 保留（设计 D6：短剧情结尾"它坐在那里"对主人有意义），此后不再按租约/维度清理它。
+        //     ⚠️ 审查 I4：删掉之后玩家在该位置看到的是**空场** —— {@code NpcEntity#visibleTo} 对
+        //     "有剧情声明的无主实体"**恒返回 false**（设计 D8"锚点永不显示"），不存在"公共锚点补上来、
+        //     观感连续"这回事（那句旧注释描述的是 D8 之前的行为）。若希望通关后那里仍站着它，
+        //     正确做法是 keep_after_finish=true（下一分支）。
+        //   · true  ⇒ 保留（设计 D6：短剧情结尾"它坐在那里"对主人有意义），此后不再按租约清理它。
         // 代价：true 时通关玩家的分身会一直留着 —— 数量被"通关人数"限住，且只对本人可见。
         if (finished) {
             if (!story.keepAfterFinish()) {
@@ -443,8 +445,17 @@ public class NpcStoryHandler {
      * @param revoke 是否同时撤回整条剧情链
      */
     private void removeDouble(NpcEntity npc, NpcStory story, ServerPlayer player, String reason, boolean revoke) {
-        if (revoke) {
-            revokeStory(player, story);
+        if (revoke && !revokeStory(player, story)) {
+            // ★ 审查 C1：撤回**失败**（父链走不到起点，通常意味着数据被改坏）时绝不能继续删分身。
+            // revokeStory 失败前已经撤掉了链尾那一半 ⇒ 此时再删分身，玩家就留下半截进度 + 没有分身，
+            // 而"有 1_0、无 root"又会让序章以为"已经开场过" ⇒ 永不自愈 —— 正是本次重写要消灭的分家。
+            // 因此 fail-closed：不删、留 ERROR 让人去修数据（改好后租约到期会重新走到这里）。
+            BeLoongCore.LOGGER.error(
+                    "[BeLoong] npc story '{}': could not revoke the story for player '{}' (reason: {})"
+                            + " — the double was KEPT so the player is not left half-revoked without an NPC;"
+                            + " this almost always means the advancement chain is broken — fix the data",
+                    story.startAdvancement(), player.getGameProfile().getName(), reason);
+            return;
         }
         npc.discard();
         BeLoongCore.LOGGER.info(
