@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -99,14 +100,20 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
      * @param warnText         <b>可选</b>：提醒用的**字面文本**（优先）。写 {@code %s} 则填入剩余秒数。
      * @param warnKey          <b>可选</b>：提醒用的**翻译键**（次之）。都不写 ⇒ 用模组内置默认键。
      *                         ⚠️ 键是否存在**无法在服务端校验**（{@code lang} 是客户端资源）⇒
-     *                         写错时玩家屏幕上会直接出现原始键名（这是唯一无法硬报错的一类）。
+     *                         写错时玩家屏幕上直接出现原始键名（这是唯一无法硬报错的一类）。
+     * @param renewal         <b>可选，缺省 true</b>：玩家获得"里程碑进度"时是否**续约**（把租约重置为一整段）。
+     *                        见 {@link #renewAdvancements()} 与 handler 的续约实现。
+     * @param renewAdvancements <b>可选</b>：显式指定哪些进度算里程碑。**不写**时由代码推导为
+     *                        "剧情链上 {@code start} 与 {@code end} **之间**的全部进度"（两端点不算；
+     *                        推导要走 {@code parent()} 链，故是**惰性**的）。写了就覆盖推导结果。
      */
     public record Lease(long ticks, boolean clearOnLogout, boolean keepAfterFinish,
-                        Optional<Long> warnBeforeTicks, Optional<String> warnText, Optional<String> warnKey) {
+                        Optional<Long> warnBeforeTicks, Optional<String> warnText, Optional<String> warnKey,
+                        boolean renewal, Optional<List<ResourceLocation>> renewAdvancements) {
 
         public static final Lease DEFAULT = new Lease(
                 DEFAULT_LIFETIME_TICKS, false, false,
-                Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), Optional.empty(), true, Optional.empty());
 
         public static final Codec<Lease> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.LONG.optionalFieldOf("ticks", DEFAULT_LIFETIME_TICKS).forGetter(Lease::ticks),
@@ -114,7 +121,11 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
                 Codec.BOOL.optionalFieldOf("keep_after_finish", Boolean.FALSE).forGetter(Lease::keepAfterFinish),
                 Codec.LONG.optionalFieldOf("warn_before_ticks").forGetter(Lease::warnBeforeTicks),
                 Codec.STRING.optionalFieldOf("warn_text").forGetter(Lease::warnText),
-                Codec.STRING.optionalFieldOf("warn_key").forGetter(Lease::warnKey)
+                Codec.STRING.optionalFieldOf("warn_key").forGetter(Lease::warnKey),
+                // ★ 租约续约（D10/D11，2026-10-14）：缺省**开**；模组侧 mo.json 显式写。
+                Codec.BOOL.optionalFieldOf("renewal", Boolean.TRUE).forGetter(Lease::renewal),
+                ResourceLocation.CODEC.listOf().optionalFieldOf("renew_advancements")
+                        .forGetter(Lease::renewAdvancements)
         ).apply(instance, Lease::new));
 
         /** 是否永久（不做任何基于时长的清理，也不提醒到期）。 */

@@ -12,7 +12,11 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraft.server.MinecraftServer;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -116,6 +120,9 @@ public class NpcStoryHandler {
 
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
             NpcStory story = entry.getValue();
+            // ★ 租约续约（D10/D11，2026-10-14）：这条进度若算"里程碑"，就把**该剧情那只分身**的租约
+            // 重置为完整一段。它在"是不是起点"的判断**之前** —— 里程碑与起点是两回事。
+            renewLeaseIfMilestone(player, entry.getKey(), story, earned);
             if (!story.startAdvancement().equals(earned)) {
                 continue;
             }
@@ -498,6 +505,131 @@ public class NpcStoryHandler {
             }
         }
         return new AnchorScan(existing, anchor, anchors);
+    }
+
+    // ===================== 租约续约（设计 D10 / D11，2026-10-14）=====================
+
+    /** 里程碑集合的惰性缓存（键 = 剧情 start id）；随 loader 的 reload stamp 失效。 */
+    private static int milestonesStamp = Integer.MIN_VALUE;
+    private static final Map<ResourceLocation, Set<ResourceLocation>> MILESTONES = new HashMap<>();
+
+    /**
+     * 该进度若算"里程碑"⇒ 把**该剧情那只分身**的租约重置为完整一段。
+     * <p>
+     * 时长取自该剧情自己的 {@code lease.ticks}（{@code story.expiryAt(now)}）—— **绝不硬编码**。
+     * 只续"该剧情那只分身"（不得给该玩家的所有分身续约：那会掩盖其它剧情的超期）。
+     */
+    private static void renewLeaseIfMilestone(ServerPlayer player, EntityType<?> type, NpcStory story,
+                                               ResourceLocation earned) {
+        if (!story.lease().renewal()) {
+            return;
+        }
+        if (!milestonesOf(player.server, story).contains(earned)) {
+            return;
+        }
+        // 里程碑只可能通过与分身交互拿到 ⇒ 它就在玩家当前维度里。先查索引（S1），再回退一次全量扫描。
+        NpcEntity target = findOwnDouble(player, type, player.serverLevel());
+        if (target == null) {
+            target = findOwnDoubleInScan(player, type);
+        }
+        if (target == null) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] npc story '{}': milestone '{}' earned by '{}' but their double was not found"
+                            + " — the lease was NOT renewed (it may expire while the story is still going)",
+                    story.startAdvancement(), earned, player.getGameProfile().getName());
+            return;
+        }
+        long now = player.serverLevel().getGameTime();
+        long before = target.expireAt();
+        target.setLease(now, story.expiryAt(now));
+        BeLoongCore.LOGGER.info(
+                "[BeLoong] npc story '{}': lease renewed for player '{}' after milestone '{}' ({} -> {})",
+                story.startAdvancement(), player.getGameProfile().getName(), earned, before,
+                target.expireAt());
+    }
+
+    /** 该玩家在该维度里、该类型的私有分身（索引优先，S1）。 */
+    private static NpcEntity findOwnDouble(ServerPlayer player, EntityType<?> type, ServerLevel level) {
+        for (NpcEntity npc : LoadedNpcIndex.loadedIn(level)) {
+            if (npc.getType() == type && player.getUUID().equals(npc.owner())) {
+                return npc;
+            }
+        }
+        return null;
+    }
+
+    /** 索引没命中时的回退：扫玩家当前维度（罕用，见调用点注释）。 */
+    private static NpcEntity findOwnDoubleInScan(ServerPlayer player, EntityType<?> type) {
+        for (Entity entity : player.serverLevel().getAllEntities()) {
+            if (entity.getType() == type && entity instanceof NpcEntity npc
+                    && player.getUUID().equals(npc.owner())) {
+                return npc;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 这条剧情的"里程碑"集合：显式列表优先；否则推导为**剧情链上 start 与 end 之间**的全部进度。
+     * <p>
+     * ⚠️ 端点（{@code start} / {@code end}）**都不算**里程碑（用户裁定）：只有"推进"才续约。
+     * 推导要走 {@code parent()} 链，故惰性做一次并按 reload stamp 缓存。
+     * ⚠️ 链走不通（缺环/父关系被改）⇒ **返回空集**（fail-closed，宁可漏续约也不误续）。
+     */
+    private static Set<ResourceLocation> milestonesOf(MinecraftServer server, NpcStory story) {
+        if (story.lease().renewAdvancements().isPresent()) {
+            Set<ResourceLocation> chain = chainBetween(server, story);
+            Set<ResourceLocation> kept = new LinkedHashSet<>();
+            for (ResourceLocation id : story.lease().renewAdvancements().get()) {
+                if (chain.contains(id)) {
+                    kept.add(id);
+                } else {
+                    BeLoongCore.LOGGER.warn(
+                            "[BeLoong] npc story '{}': renew_advancements lists '{}' which is not on the chain"
+                                    + " between start and end — ignored", story.startAdvancement(), id);
+                }
+            }
+            return kept;
+        }
+        int stamp = NpcStoryLoader.INSTANCE.reloadStamp();
+        if (stamp != milestonesStamp) {
+            MILESTONES.clear();
+            milestonesStamp = stamp;
+        }
+        Set<ResourceLocation> cached = MILESTONES.get(story.startAdvancement());
+        if (cached != null) {
+            return cached;
+        }
+        Set<ResourceLocation> computed = chainBetween(server, story);
+        MILESTONES.put(story.startAdvancement(), computed);
+        return computed;
+    }
+
+    /**
+     * 剧情链上 {@code start} 与 {@code end} **之间**的全部进度 id（两端点**不含**）。
+     * <p>
+     * 从 {@code end} 的父进度开始沿 {@code parent()} 上溯，直到遇到 {@code start}；走不到 ⇒ 返回空集。
+     * 这正是 {@link #revokeStory} 走的那条链，只是方向相反（撤回是 end→start，这里是 end.parent→start）。
+     */
+    private static Set<ResourceLocation> chainBetween(MinecraftServer server, NpcStory story) {
+        Set<ResourceLocation> between = new LinkedHashSet<>();
+        AdvancementHolder holder = server.getAdvancements().get(story.endAdvancement());
+        if (holder == null) {
+            return between;
+        }
+        holder = holder.value().parent().map(server.getAdvancements()::get).orElse(null);
+        while (holder != null && between.size() < MAX_CHAIN_STEPS) {
+            if (holder.id().equals(story.startAdvancement())) {
+                return between;         // 正常走通：端点被排除在外
+            }
+            between.add(holder.id());
+            holder = holder.value().parent().map(server.getAdvancements()::get).orElse(null);
+        }
+        BeLoongCore.LOGGER.warn(
+                "[BeLoong] npc story '{}': could not walk the parent chain from '{}' back to '{}'"
+                        + " — offering NO lease-renewal milestones (fail-closed)",
+                story.startAdvancement(), story.endAdvancement(), story.startAdvancement());
+        return new LinkedHashSet<>();
     }
 
     /** 某玩家在某维度里、某类型的私有分身（退出清理用）。 */

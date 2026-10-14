@@ -70,7 +70,7 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
             "", Set.of("start_advancement", "end_advancement", "spawn", "cg",
                     "lease", "dimension", "_comment"),
             // 租约组
-            "lease", Set.of("ticks", "clear_on_logout", "keep_after_finish",
+            "lease", Set.of("ticks", "clear_on_logout", "keep_after_finish", "renewal", "renew_advancements",
                     "warn_before_ticks", "warn_text", "warn_key", "_comment"),
             // 维度组
             "dimension", Set.of("host", "_comment"));

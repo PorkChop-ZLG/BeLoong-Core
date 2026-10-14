@@ -82,7 +82,7 @@
 及 `Dimension.enforced()` 与相关校验、语言键；`mo.json` 同步瘦身。（**无需考虑旧存档**：整合包未使用新格式）
 **Verification:** build 通过；`stage` 相关断言同步更新后全绿。
 
-### T8b 租约续约（D10 / D11）
+### T8b 租约续约（D10 / D11）—— **T8b 已完成（2026-10-14）**
 **Files:** `npcstory/NpcStory.java`（`Lease.renewal` 布尔 + `Lease.renew_advancements` 可选列表 + codec/校验）、
 `npcstory/NpcStoryLoader.java`（KNOWN_FIELDS + 惰性链解析 + 校验）、
 `npcstory/NpcStoryHandler.java`（`onAdvancementEarned` 里续约；链遍历器复用）、
@@ -229,3 +229,17 @@
 - `mo.json`：`dimension{}` 只剩 `host`；语言键删 2×2 个死键 ⇒ 中英各 **301** 键
 - 顺带订正 `NpcStory` 三处"离线结算"与一处"玩家会重新看到公共锚点"（后者 = 审查 I4 同类假话）
 - 守卫：删"离开维度的宽限缺省 = 6000"，换成 **15.9**（`dimension{}` 只允许 host/_comment + host 值）
+
+### 批次③ T8b 执行记录（2026-10-14）
+
+- `Lease` 新增：`renewal`（`optionalFieldOf("renewal", Boolean.TRUE)` ⇒ **缺省开**）与
+  `renewAdvancements`（`ResourceLocation.CODEC.listOf().optionalFieldOf(...)`，可选）
+- 加载器 `lease` 组已知键加入这两个名字
+- `NpcStoryHandler`：
+  · `onAdvancementEarned` 在"是不是起点"判断**之前**调 `renewLeaseIfMilestone`
+  · `chainBetween`：从 **`end` 的父**开始沿 `parent()` 上溯、**遇到 `start` 收工** ⇒ 端点天然排除；走不通 ⇒ 空集
+  · `milestonesOf`：显式列表优先（逐条校验"必须在链上"，违规 WARN 忽略）；否则推导结果按 `reloadStamp` 惰性缓存
+  · 续约对象 = 该剧情那只分身（索引优先、未命中回退扫一次玩家当前维度）；时长 = `story.expiryAt(now)`；
+    未找到分身时 WARN（不静默）
+- `mo.json`：`lease{}` 显式写 `"renewal": true`
+- 守卫 15.10（5 组）：从 end 的父开始 / codec 缺省 TRUE / mo.json 显式写 / 走 `expiryAt` 且不得硬编码 / 只续该剧情那只
