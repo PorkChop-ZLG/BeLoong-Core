@@ -35,6 +35,15 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * 也一并修好、没有特例。**已接受**的代价：改装过的客户端可以谎报一个长度，
  * 去**提前清掉某个共享 NPC 的表情**（例如让末提前站起来）—— 纯观感，无存档或数据影响，
  * 且名字必须报对。**因此这里不做防伪栅栏**，只做"无效输入不产生行为"。
+ * <p>
+ * ⚠️ <b>这条已接受风险的入口比"改装客户端"更宽</b>（2026-10-13 收尾审查 M-6 指出，结论不变但要写全）：
+ * <ol>
+ *   <li>长度来自**客户端资产** ⇒ 一个**资源包**（不必改装任何客户端代码）就能改掉某条动画的
+ *       {@code animation_length}，从而影响它的到期时刻；</li>
+ *   <li>{@code NpcEmoteExpiryHandler} 的 {@code PENDING.put} 是**后到者胜** ——
+ *       同一条表情被重复申报时以最后一次为准。**这正是 I1 幂等所依赖的性质**
+ *       （重新追踪会引发重复申报，而重复申报必须得出同一个到期时刻）。</li>
+ * </ol>
  *
  * <p><b>失败一律静默</b>（照 {@link com.zonlong.beloong.dialogue.NpcDialogueReplyPayload} 的口径）：
  * 载荷是**客户端可控输入**，下面四种不过关的情形都是良性情况，没有可提示的对象，
@@ -49,6 +58,14 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
  * </ol>
  * 溢出：{@code long + int} 在本时基下（gameTime 远小于 {@code Long.MAX_VALUE}）**不可能溢出**
  * ⇒ 不需要 {@code Math.addExact} 之类的额外防护。
+ *
+ * <p>⚠️ <b>两个长度边界（当前不可达，但要知道）</b>（审查 M-2）：
+ * {@code Animation#length()} 可能返回
+ * {@code 0}（显式声明 0）或 {@code Double.MAX_VALUE}（缺 {@code animation_length} 时
+ * {@code BakedAnimationsAdapter} 用的哨兵）。前者会被上面第 4 条**拒收** ⇒ 服务端没有计划 ⇒
+ * **永不清除**；后者经 {@code (int) Math.ceil(...)} **饱和成 int 最大值**（≈3.4 年）⇒ 等于永不到期。
+ * 两者都只是**退化成"修复前的行为"**（这条一次性表情仍会在重新追踪时重播），不会更糟。
+ * 且**当前不可达**：仓里 15 条动画**全部显式带 `animation_length`**（已核）。
  *
  * <p>计划文档：{@code docs/plans/2026-10-13-npc-emote-oneshot-expiry-plan.md}。
  *

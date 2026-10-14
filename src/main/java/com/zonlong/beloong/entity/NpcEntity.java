@@ -1797,6 +1797,8 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
                 //    而载荷要 int。用 ceil 而不是强转/round：控制器判定"播完"用的是
                 //    `tickCount - emoteStartTick >= animation.length()` ⇒ **实际播放时长正是 ceil(length)**
                 //    （120.4 会在第 121 tick 才停）⇒ 这样服务端的到期时刻与客户端真正停下的那一 tick 对齐。
+                //    ⚠️ 两个长度边界（length() 为 0 或 Double.MAX_VALUE 哨兵）见
+                //       NpcEmoteDurationPayload 的类注释 —— 当前 15 条资产全带 animation_length ⇒ 不可达。
                 int ticks = (int) Math.ceil(animation.length());
                 // ⚠️ 这里是**渲染路径**，异常冒出去会一路到渲染循环 ⇒ 必须自己接住。
                 //    **刻意不重试**：本谓词每帧都跑，重试会把日志刷成每秒 60 条。

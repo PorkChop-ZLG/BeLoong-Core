@@ -281,6 +281,19 @@ registerGoals() {
 顺序由探针 `tools/YSMParser/probe_emote_bytecode.py` 的 C1 守着（`main` < `emote` < `attack`）。
 过渡均为 `animationTransitionTicks()` = 5 tick（0 = 硬切）。
 
+> 📌 **2026-10-14：一次性表情的"寿命"改由服务端管。** `DATA_EMOTE` 的语义是"**当前**表情"，
+> 而"播完了没有"原先只记在**客户端的瞬态字段**上 ⇒ 客户端一旦**重建实体实例**
+> （走出 `clientTrackingRange` —— `beloong:mo` 是 10 区块 = **160 格** / 换维度 / 断线重连 /
+> 别人中途加入），就会拿这个还留着的名字**从头再播一遍**。表现："走远再回来，
+> 末又演了一遍登场动画，**但没有运镜**"。
+> <br>现在：客户端在**起表时**（`EmoteAnimationLookup.find` 成功之后）把**动画长度**申报给服务端
+> （`NpcEmoteDurationPayload`）→ 服务端记一条到期计划（`deadline = emoteSetAt + 长度`，
+> 用**服务端记的设置时刻**而*不是*"现在" —— 否则重新追踪引发的重复申报会把清除**无限推后**）
+> → 到期把字段清回 `""`（`NpcEmoteExpiryHandler`；挂在**与区块加载无关**的服务端 tick 上，
+> 因为玩家走远时那个区块**不再 tick**，而恰恰是那时需要清）。
+> **`LOOP` 姿态（`sit`/`dance`）不上报、永不被清**，照旧保持"它坐在那里"。
+> 见 `docs/plans/2026-10-13-npc-emote-oneshot-expiry-{design,plan}.md`。
+
 **`main` 的 IDLE 三选一**：
 
 | 条件 | 动画 |
@@ -1103,6 +1116,7 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | **状态系统**（09-27） | 状态收敛为**单一互斥枚举**并**落盘**；指令面统一为"目标在前、动作在后" | `docs/plans/2026-09-27-npc-state-system-{design,plan}.md` |
 | **表情系统**（09-29） | 新增「表情轴」：`DATA_EMOTE` + `emote` 控制器（后注册覆盖）；`sit`/`dance` 迁出状态轴改由 `play` 播；末用 `getAnimationResourceFallbacks` 合并 extra 动画文件 | `docs/plans/2026-09-29-npc-emote-system-design.md` |
 | **表情语义修订** | **`state`/`move`/`attack`/`reset` 都会清表情**（推翻初版"完全正交"）；表情**不落盘** | 同上 §3.1 / §四 D3、D5 |
+| **一次性表情"播完即清"**（10-14） | 修掉"走远再回来就重播登场动画"：非循环表情的长度由**客户端申报**给服务端，服务端到期把 `DATA_EMOTE` 清回 `""`（到期用 `emoteSetAt + 长度`，**不是** `now`）；`LOOP` 姿态不申报、永不被清 | `docs/plans/2026-10-13-npc-emote-oneshot-expiry-{design,plan}.md` |
 | **攻击动画** | 每**挥砍**播一遍，挂在**原版 `swing` 事件**上（零新增同步）；攻击控制器**最后注册** ⇒ 攻击优先，并顺带清表情 | 同上 §3.8 / D7 |
 | **资产体量** | Mo 的两个动画文件按**分档容差**抽稀：4.38 MiB → 2.86 MiB（`descend` 整条不动） | 提交 `a28e865` |
 
@@ -1126,6 +1140,7 @@ op 级（`hasPermission(2)`）；`targets` 过滤 `NpcEntity`，因此对本模�
 | — | `run` 动画缺 3 根骨骼（`Drip1-3`） | **不修**。GeckoLib 优雅忽略，观感缺失轻微；改模型资产的风险大于收益。 |
 | — | `pages[].sound` 只解析不播放 | 有意为之（决策 41）。 |
 | — | 第二个 NPC 子类 | 通用基类的价值要靠第二个子类才能验证；目前只有地黄龙一个，它是"基类能否只剩 50 行"的证据，但还不能证明"复制成本低"。 |
+| — | 一次性表情的两个**已接受残留**（10-14） | ① 生命周期内**没人渲染过**的那条一次性表情会残留 ⇒ 下次有人靠近时重播一次、随后自愈（CG 场景不成立：CG 期间相机锁在末身上且锁输入）；② 已接受风险的入口比"改装客户端"更宽 —— **资源包**即可改 `animation_length` 从而影响到期时刻，且 `PENDING` 是后到者胜。**两条都不影响存档数据，不修**。 |
 
 ### 10.3 明确不做的事
 
