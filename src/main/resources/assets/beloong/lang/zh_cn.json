@@ -313,6 +313,7 @@
   "message.beloong.execute.refused": "§6斩杀被挡下：%s",
   "message.beloong.execute.triggered": "§6斩杀触发：%s",
   "message.beloong.flight_banned": "§c此地禁止飞行！",
+  "message.beloong.loong_palace.spell_banned": "§c龙宫之内禁止施法！",
   "message.beloong.loong_palace_portal.not_a_dragon": "§c只有龙族才能使用龙宫传送门",
   "message.beloong.loong_palace_portal.teleport_failed": "§c传送失败，请稍后再试",
   "message.beloong.loong_palace_portal.wrong_dimension": "§c龙宫传送门只连接主世界与龙宫",

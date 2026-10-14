@@ -13,6 +13,7 @@ import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.cg.MoEntranceTrigger;
 import com.zonlong.beloong.compat.healthbars.ExecuteMarkSyncPayload;
 import com.zonlong.beloong.compat.ironsspellbooks.DeadKingAdvancementHandler;
+import com.zonlong.beloong.compat.ironsspellbooks.LoongPalaceSpellBanHandler;
 import com.zonlong.beloong.compat.lockdown.LockdownTemplateMigration;
 
 import com.zonlong.beloong.dialogue.NpcDialogueHandler;
@@ -127,6 +128,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new LoongPalaceSpellBanHandler());    // 龙宫：禁铁魔法常规施法（放行 /cast 龙技能）
         NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
         NeoForge.EVENT_BUS.register(new NpcDialogueHandler());            // NPC 对话：服务端受理右键
