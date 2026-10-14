@@ -22,20 +22,32 @@ import org.slf4j.Logger;
  * <b>落点与传送流程全部交给 {@code teleport} 包</b>（与天灾传送门同一套 API）：
  * <ul>
  *   <li><b>去龙宫</b>：{@link TeleportTarget#toLoongPalace} —— 落点读
- *       {@code [dimension_transport.overworldToLoongPalace]} 的 {@code targetX/targetZ/fallbackY}。
- *       <b>该落点必定是实地</b>：龙宫的固定地图由 <b>lockdown 模组</b>加载，
- *       而这个落点就是<b>玩家初次创建存档时的出生点</b> ⇒ 玩家不会掉进虚空；</li>
+ *       {@code [dimension_transport.overworldToLoongPalace]} 的 {@code targetX/targetZ/fallbackY}
+ *       （龙宫是纯虚空维度，高度图必然取不到，实际落点恒为 {@code fallbackY}）；
+ *       ⚠️ 该落点在<b>空中</b>（默认 {@code (0.5, 65.5, 0.5)}）—— <b>这是设计</b>：入口本就要求玩家飞行
+ *       （与序章"学习飞行"的教学目标一致，见 {@code docs/龙宫维度总设计.md}）。
+ *       <b>它不是</b>"玩家初次创建存档的出生点"：后者由 <b>LockDown</b> 模组加载的固定地图提供，在实地上
+ *       ⇒ 需要"把人安全送回龙宫地面"时请用 {@link TeleportTarget.Spawn}（取该维度出生点自身）；</li>
  *   <li><b>回主世界</b>：{@link TeleportTarget.Spawn} —— <b>恒为世界出生点</b>，
  *       不再优先玩家重生点（床）；</li>
  *   <li><b>冷却</b>：{@link TeleportCooldown}（与天灾门、龙宫 Y&lt;0 兜底共用同一份 NBT 冷却）。</li>
  * </ul>
  * 本类只负责"按当前维度选方向、做冷却检查、给出玩家提示"。
  * <p>
- * ⚠️ <b>2026-10-14 更正（勿把下面这条旧结论写回来）</b>：本节原先写着
- * "龙宫侧落点 {@code (targetX, ?, targetZ)} 处没有方块 ⇒ 总是走 {@code fallbackY}，玩家落在空中；
- * 可站立面 {@code x[-54,8] y[68,77] z[-312,-272]} 与默认的 {@code z = 0.5} 完全不相交"。
- * <b>那是错的</b>：龙宫的固定地图由 lockdown 模组加载，落点<b>必定存在</b>，
- * 且就是玩家初次创建存档的出生点。故删除该"已知缺陷"，仅保留此说明。
+ * ⚠️ <b>2026-10-14 说明（避免误读；本条曾被我误删为"错误结论"，现恢复并写清）</b>：
+ * 龙宫侧落点 {@code (targetX, ?, targetZ)} 处没有方块 ⇒ 总是走 {@code fallbackY}，玩家落在空中；
+ * 可站立面 {@code x[-54,8] y[68,77] z[-312,-272]} 与默认的 {@code z = 0.5} 完全不相交。
+ * <b>这不是笔误，是设计</b>（见 {@code docs/龙宫维度总设计.md}："所有落点都没有地面可站，玩家必须靠飞行
+ * —— 这与序章『学习飞行』的教学目标一致"；以及
+ * {@code 2026-09-16-loong-palace-teleport-api-design.md} §7："龙宫是 flat + layers: [] 纯虚空维度…"）。
+ * <p>
+ * ⚠️ 但要分清<b>两个不同的点</b>，否则会得出相反结论：
+ * <ul>
+ *   <li><b>本技能/门的配置落点</b>：{@code (targetX, fallbackY, targetZ)} —— <b>空中</b>，玩家靠飞行；</li>
+ *   <li><b>玩家初次创建存档的出生点</b>：由 <b>LockDown</b> 模组加载的固定地图提供 —— <b>实地</b>。</li>
+ * </ul>
+ * 需要"把人安全送回龙宫地面"（例如剧情把玩家送回来）时，用 {@link TeleportTarget.Spawn}。
+ * 龙宫侧<b>门</b>的精确落点仍待定（见 API 设计 §7），那是门那一轮的事。
  */
 public record TpLoongPalaceEffect() implements AbilityEntityEffect {
 

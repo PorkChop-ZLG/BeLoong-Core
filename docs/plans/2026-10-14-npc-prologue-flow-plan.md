@@ -46,11 +46,12 @@
 **Steps:** 挂 `ServerTickEvent.Post`；对每个 `ServerPlayer`，按 **D14 的原子顺序**（全在同一 tick，绝不跨 tick）：
 ① **前置条件**（活着 / 非旁观 / 未骑乘 / 不在 CG 中）不过 ⇒ 本 tick 跳过、下 tick 再看；
 ② 未获得 `root` ∧ `player.tickCount >= secondsToTicks(配置)`；
-③ **不在龙宫 ⇒ 按 D13 用现成 API 传送回龙宫**（`TeleportTarget.toLoongPalace` + `DimensionTeleport.toTarget` + `changeDimension`）；
+③ **不在龙宫 ⇒ 按 D13 用 `teleport` 包送回龙宫**：`TeleportTarget.Spawn(player.server.getLevel(TeleportTarget.LOONG_PALACE_LEVEL))` + `DimensionTeleport.toTarget(...)` + `changeDimension` —— ⚠️ **不用 `toLoongPalace`**（那是空中落点 ⇒ 会掉虚空 ⇒ 触发 Y&lt;0 兜底送回主世界 ⇒ 与序章形成无限往返 ✗）；API 返回 `null` ⇒ 本 tick 不传送、下 tick 重试；
 ④ **同一 tick**：`ensureDouble(player, player.serverLevel(), …)` —— 传送后 `serverLevel()` 已是龙宫 ⇒ 找到锚点 ⇒ 分身精确落在锚点位置与朝向；
 ⑤ **确认拿到分身之后**才 `player.getAdvancements().award(root)`；若走了"身前 4 格"兜底（自带 WARN）**也照常继续**（绝不卡住玩家）；
 ⑥ `¬1_0` ⇒ `cg.play(player, 分身)`。
-**附带：** 顺手改掉 `TpLoongPalaceEffect` 类注释里那处"落点在虚空"的错误结论（留 2026-10-14 更正说明，防被写回）。
+**附带：** 更正/补明 `TpLoongPalaceEffect` 的类注释 —— 把"入口落点在空中"讲成**设计**（飞行教学），并**分清两个点**：配置落点（空中）≠ LockDown 固定地图提供的出生点（实地）；需要"送回龙宫地面"用 `TeleportTarget.Spawn`。
+⚠️ 本条曾被我误判为"错误结论"而删改（见 `docs/龙宫维度总设计.md:62/155-156` 与 API 设计 §7 都写着"落点在空中/必须给 fallbackY"）⇒ 现已恢复原意并写清，**勿再当作笔误删掉**。
 **Verification:** `gradlew build`；日志能看到"授予 root / 播 CG"两条 INFO；守卫断言存在该处理器且闸门齐全。
 
 ### T7 ⚠️ CG 侧：完成时授予进度（**需与 CG 会话协调** ✗）
@@ -129,9 +130,23 @@
 
 ---
 
-## 备注：本轮顺带修正的一处**错误注释**（2026-10-14）
+## 备注：关于"龙宫落点在空中"这件事（2026-10-14，含一次我自己造成的返工）
 
-`ability/TpLoongPalaceEffect` 的类注释原先声称"龙宫侧落点在虚空里、玩家落在空中，
-可站立面 `x[-54,8] y[68,77] z[-312,-272]` 与默认 `z = 0.5` 不相交"——**该结论是错的**：
-龙宫的固定地图由 **lockdown 模组**加载，落点**必定是实地**，且就是**玩家初次创建存档的出生点**。
-已改为正确描述，并保留一条"更正说明 + 勿写回"的提示（本项目惯例）。
+**结论：那条注释原本是对的，不要删。**
+`docs/龙宫维度总设计.md:62`：「所有落点都**没有地面可站，玩家必须靠飞行**——这与序章「学习飞行」的教学目标一致」；
+`:155-156`：「龙宫的落点**不可能**靠高度图求得…这就是 `fallbackY` 存在的原因」；
+`2026-09-16-loong-palace-teleport-api-design.md:136-138`：「龙宫是 `flat + layers: []` 纯虚空维度，
+默认落点 `(0.5, 65.5, 0.5)` 在**空中**…做门那轮必须一并定下龙宫侧落点」。
+
+⚠️ 容易混淆的是**两个不同的点**（这才是问题的根源）：
+| 点 | 是否实地 | 来源 |
+|---|---|---|
+| 技能/门的**配置落点** `(targetX, fallbackY, targetZ)` | **空中** | `[dimension_transport.overworldToLoongPalace]` |
+| **玩家初次创建存档的出生点** | **实地** | **LockDown** 模组加载的固定地图（见总设计依赖表 `:70`）|
+
+⇒ 因此"序章把玩家送回龙宫"必须用 **`TeleportTarget.Spawn(palaceLevel)`**（Y 取出生点自身），
+**不能用 `toLoongPalace`**（空中 ⇒ 掉虚空 ⇒ 触发 Y&lt;0 兜底送返主世界 ⇒ 与序章无限往返）。
+
+**返工记录（教训）**：本轮我曾据"落点必定存在"的口头说明，把上述注释判为错误并删改 ✗ ——
+**在没有查权威设计文档之前就改了一条被两处文档佐证的注释** ✗ 后发现并恢复。
+⇒ 规矩：**改注释/改结论前，先查该主题的设计文档是否为权威出处**。
