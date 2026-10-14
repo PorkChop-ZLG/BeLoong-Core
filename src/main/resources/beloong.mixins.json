@@ -4,6 +4,7 @@
   "refmap": "beloong.refmap.json",
   "client": [
     "dragonsurvival.ClientFlightHandlerMixin",
+    "dragonsurvival.DragonEmoteScreenMixin",
     "fdbosses.BossClientEventsMixin",
     "FSweepButtonControlMixin",
     "asteorbar.AsteorBarHealthFixMixin",
