@@ -105,7 +105,7 @@
     "texture_entries": [
       {
         "from_level": 0,
-        "texture_resource": "beloong:abilities/life_heal_1"
+        "texture_resource": "beloong:abilities/life_heal_0"
       },
       {
         "from_level": 1,
