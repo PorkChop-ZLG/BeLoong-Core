@@ -254,3 +254,40 @@
 - **T10** ✅ 守卫现状：15.5b/c（序章位置规则 + 续约不得硬编码占位）、15.6（对账器两条路径归零 + 成对原则 + 纯乙）、
   15.7（S1 死锁红线 + isRemoved 过滤）、15.8（S2 缓存 + 三处写侧失效 + UNKNOWN 不入缓存）、
   15.9（dimension 只允许 host/_comment）、15.10（续约 5 组）、**15.11（序章清场早于授予 root + 补授前问 hasPending）**
+
+---
+
+## 收尾审查（2026-10-14）与处置
+
+派了独立收尾审查（只读）⇒ **Critical 2 / Important 14 / Suggestion 8**，总体"不能直接交实机验收"。
+**注意**：它自己也明确声明"未跑 gradle 与守卫脚本"（只读约束），所以它的 Critical 2 是从控制流读出来的 ——
+复核后确认成立。
+
+### 已当场修完
+
+| 编号 | 问题 | 处置 |
+|---|---|---|
+| **C1 ★** | `LoadedNpcIndex.onEntityLeave` **缺 `isClientSide` 闸门**：注册在公共总线上，而单机/局域网就是集成服务端 ⇒ 客户端线程会删掉**服务端仍在加载**的条目（对账器看不到分身 ⇒ 租约清理静默失效；序章清场漏 ⇒ 可能再生一只），并与服务端线程争用同一个 HashMap | leave 首句加 `if (event.getLevel().isClientSide()) return;`（与 join 对称）；并把"leave 未必触发"这句**过度保守**的措辞按审查给出的事实更正（卸载路径**确实**会派发 leave，`isRemoved()` 过滤仍是最终保证）|
+| **C2 ★★** | `stage_invariants.py:528` 的模块级 `sys.exit` 在新增守卫之前 ⇒ **15.9 / 15.10 / 15.11 从未执行**，我上报的"三组全绿"是**空证据** | 汇总 `print`/`sys.exit` 移到文件末尾；顺带把 `:315` 那条**恒真占位断言**（`... or True`）换成说明（真断言在 15.10）。修复后 stage 由 **163 → 172 PASS**，增量**恰好等于那三组**，且各自文案都出现在输出里 ⇒ 这次是真证据 |
+| **I3** | S2 失效点没覆盖"**数据授予**的进度"（`1_1` / `2_1` 来自 ChatBox 的 `advancement grant`）⇒ `reconcilePlayer` 读到的 `finished` 最长陈旧 20 tick，若那一刻租约到期会把**刚通关**的记录整条撤掉 | `onAdvancementEarned` **首行**调 `NpcDialogueStage.invalidate(player)`（最全的一处失效点）|
+
+### 待办（按归属登记，不静默丢弃）
+
+| # | 条目 | 归属 |
+|---|---|---|
+| I7 | `NpcStory.java`：`@param keepAfterFinish` 被改没、文本并进 `clearOnLogout`；`:63-67`/`:69` 两处**悬空 javadoc**（常量已删）仍在讲已删的维度宽限 6000/1200；`:54`"下面四个常量"只剩两个 | 批次⑤ 注释批量订正 |
+| I10 | `NpcStoryLoader` 的 `LEGACY_KEYS` 迁移提示仍在教人写 `dimension.enforce` / `dimension.grace_ticks` ⇒ 照做会被 unknownKeys **整文件拒绝** | 批次⑤ |
+| I11 | `NpcStoryHandler:197-203` 注释自相矛盾（先说"自检放在 enabled 闸门之后"，又说"总开关关着时也该报出来"）| 批次⑤ |
+| I4/I5/I6 | 计划 **T5b 整链校验**静默漏做（`checkStoryIdsOnce` 仍只校验 start/end）· **S6** `lease.ticks` 无下限（短于登场 CG 会"删+撤 → 重开场 → 重播 CG"死循环）· **S7** 提醒判据仍用 `story.isPermanent()` 而非 `npc.expireAt()` | 批次⑤（代码类）|
+| I8/I9/I12 | `NpcPrologueHandler` 类注释四句里三句与"离开=暂停"相反 · `NpcEntity:1307-1311` 仍在说"通关回收后看到公共锚点、观感连续" · 活文档 §12.10 把 I3 的假话写回来了（"租约到期是唯一会撤进度的路径"，而 `clear_on_logout` 也撤）+ 同节仍有"每 100 tick getAllEntities"、引用 T8 已删的语言键、"参与离线结算" | 批次⑤ 文档/注释 |
+| I13/I14 | 序章结构上只支持一条剧情（硬编码 ROOT/ENTRANCE_DONE + 用 `return` 跳整个玩家检查）且 §12.10 未登记该约束 · 续约回退只扫"玩家当前维度"（设计写的是"该剧情维度"）· 显式列表分支不缓存（链坏时每获得任意进度都重打 WARN）| 批次⑤ |
+| S15–S22 | 新死代码（`rawSize` / `contains` / `lifetimeTicks`）· 重复 import · `MILESTONES` 以 startAdvancement 为键（两剧情同起点会串）· 静态索引无生命周期钩子（同 JVM 换存档会持有旧 ServerLevel —— 功能安全但属泄漏）· `renew_advancements: []` 易误读 · 计划 T6 的"getAllEntities 只允许出现在 ensureFallback"已被续约回退突破 · 守卫还在查已删语言键 · **验收第 8 条让你核对端点 `5_1`，而仓库链只到 `2_1`**（活文档 §12.10 的拓扑图里 3_0/3_1/4_1/5_1 都不存在）| 批次⑤ |
+
+⚠️ **可测性修正**（审查指出，把验收清单里空转的判据换掉）：
+- 第 1/7 条原写"日志里**不该再出现** `has the start advancement but no double`" —— 该字符串已随 D21 从代码删除，
+  **永不出现** ⇒ 等于没测。改为：**不该**出现 `moved player … to the story start` 与 `spawned private double` 这两条 INFO，
+  且进度仍在（`/advancement` 自查）。
+- 第 3/4/8 条可靠日志判定：`removed double … reason: timeout … revoked: true` 与 `lease renewed … (旧 -> 新)`；
+  "端点不续约"靠**没有** `lease renewed` 那一行。
+- 建议补两条可观测性：续约推导集合在 reload 后打一条 INFO；序章 ④/⑥ 的短路原因各留一条 INFO
+  （区分"已开场过"与"被 hasPending 挡住"）。

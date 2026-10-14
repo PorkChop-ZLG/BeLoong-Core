@@ -44,7 +44,13 @@ import java.util.UUID;
  */
 public final class LoadedNpcIndex {
 
-    /** 已加载的 NPC，键为实体 UUID。只在服务端主线程访问，故用普通 HashMap。 */
+    /**
+     * 已加载的 NPC，键为实体 UUID。
+     * <p>
+     * ⚠️ 只在**服务端**被读写：join/leave 两个处理器都先闸掉客户端（{@code isClientSide}），
+     * 客户端线程因此永远不会碰它（单机 = 集成服务端，两端同进程，这一点必须守住 —— 审查 C1）。
+     * 在服务端内部只有主线程访问，故用普通 HashMap。
+     */
     private static final Map<UUID, NpcEntity> LOADED = new HashMap<>();
 
     /** 实体加入世界（含**从存档恢复**：那条路同样会派发本事件，已核对原版与 NeoForge 源码）。 */
@@ -59,11 +65,23 @@ public final class LoadedNpcIndex {
     /**
      * 实体离开世界 —— <b>仅作加速</b>，不作为正确性依赖（见类注释）。
      * <p>
-     * 注意：区块卸载走的是 {@code setRemoved(UNLOADED_TO_CHUNK)}，本事件未必触发；
-     * {@link #loaded()} 的 {@code isRemoved()} 过滤才是保证。
+     * 注意：区块卸载走的是 {@code setRemoved(UNLOADED_TO_CHUNK)}，这条路**会**派发本事件
+     * （{@code Entity#setRemoved} → {@code PersistentEntitySectionManager.Callback#onRemove}），
+     * 但 {@link #loaded()} 的 {@code isRemoved()} 过滤仍是**正确性的最终保证**（事件只是加速：
+     * 例如世界/维度卸载、异常路径都可能让某次 remove 落空）。
+     * <p>
+     * ⚠️ <b>必须闸掉客户端</b>（见方法体首句的注释）——这是审查 C1 抓到的真实缺陷。
      */
     @SubscribeEvent
     public void onEntityLeave(EntityLeaveLevelEvent event) {
+        // ★ 审查 C1：必须与 join 同样闸掉客户端。BeLoongCore 把本类注册在**公共**总线上，
+        // 而单机/局域网就是"集成服务端"——客户端会在自己的线程上派发同一个事件，
+        // 且客户端实体的 UUID 与服务端一致 ⇒ 不闸的话，客户端区块卸载会删掉**服务端仍在加载**的条目：
+        // 表现为"对账器看不到分身"（租约到期这条唯一的删+撤永不触发）、退出清理漏掉、序章清场漏掉
+        // （于是 ensureDouble 可能再生一只），并且客户端线程的 remove 与服务端线程的遍历争用同一个 HashMap。
+        if (event.getLevel().isClientSide()) {
+            return;
+        }
         if (event.getEntity() instanceof NpcEntity npc) {
             LOADED.remove(npc.getUUID());
         }

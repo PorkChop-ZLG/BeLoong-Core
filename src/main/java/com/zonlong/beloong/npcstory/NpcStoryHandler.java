@@ -118,6 +118,12 @@ public class NpcStoryHandler {
         ResourceLocation earned = event.getAdvancement().id();
         ServerLevel level = player.serverLevel();
 
+        // ★ 审查 3：进度一被授予就让 S2 状态缓存立刻失效。这里是**最全**的一处失效点 ——
+        // ChatBox 的 `advancement grant`（1_1 / 2_1 就是数据授予的）与原版触发器等**不经过我们的包装**，
+        // 若只靠那三处显式失效，`reconcilePlayer` 读到的 finished(=2_1) 最长会陈旧 20 tick；
+        // 而那一刻若恰好租约到期，就会把**刚刚通关**的记录整条撤掉（正是要避免的事）。
+        NpcDialogueStage.invalidate(player);
+
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
             NpcStory story = entry.getValue();
             // ★ 租约续约（D10/D11，2026-10-14）：这条进度若算"里程碑"，就把**该剧情那只分身**的租约
