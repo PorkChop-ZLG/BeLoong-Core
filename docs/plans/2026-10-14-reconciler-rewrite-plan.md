@@ -207,3 +207,13 @@
 - **`hasPending` 语义正确**：关服/崩溃导致静态表丢失 ⇒ `hasPending` 为 false ⇒ "CG 被关停打断"这种**该补授**的情形不会被挡
 - **`getGameTime()` 各维度同源**（`DerivedLevelData` 委托 overworld）⇒ 换维度不影响租约与 CG 截止时间
 - **`getAllEntities()` 只覆盖已追踪实体** ⇒ "扫不到 ≠ 不存在"这条语义在删掉 D21 之后依然成立，**别再把缺失当事实**
+
+## 批次② 性能优化（2026-10-14 完成）
+
+| 任务 | 结果 | 要点 |
+|---|---|---|
+| T5 S1 实体注册表 | ✅ | 新增 `npcstory/LoadedNpcIndex`：`EntityJoinLevelEvent` 登记 / `EntityLeaveLevelEvent` 移除（**仅加速**）/ 读取时过滤 `isRemoved()`（卸载路径打的就是这个标记 ⇒ leave 不触发也正确）；join 处理器**零世界交互**（死锁红线，守卫 15.7 钉住）|
+| T6 S1 接入（含 A1）| ✅ | 对账器实体来源换成索引（一次遍历覆盖所有剧情 ⇒ **A1 达成**）；`doublesOf` 同步；`ensureDouble` **优先索引、索引里没有锚点时回退一次全量扫描**（并留 INFO）；序章清场用索引。全仓 `getAllEntities()` 只剩这一处回退（另有 `MynpcCommand` 一条指令里的，超出本批范围）|
+| T7 S2 进度缓存 | ✅ | 缓存放进 `NpcDialogueStage.stateOf`（`isEarned` 与 `visible` 的共同收口）：TTL 20 tick + `UNKNOWN` 不入缓存 + 超 4096 条顺手清过期；**写侧三处显式失效**（序章授予 / CG 授予 / 撤回）—— 否则序章会读到过期值而重复清场与重复传送 |
+
+**验证**：`gradlew build` ✓ · stage **159 PASS / 0 FAIL**（含新增 15.7/15.8 组）· route 全绿 · cg PASS · 四探针 GREEN

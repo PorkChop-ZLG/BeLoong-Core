@@ -1,6 +1,7 @@
 package com.zonlong.beloong.cg;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.dialogue.NpcDialogueStage;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -81,6 +82,8 @@ public final class CgCompletionHandler {
         for (String criterion : holder.value().criteria().keySet()) {
             player.getAdvancements().award(holder, criterion);
         }
+        // 性能 S2：发放后让进度状态缓存立刻失效（否则序章/对账器/可见性最长会看到 1 秒前的旧值）。
+        NpcDialogueStage.invalidate(player);
     }
 
     @SubscribeEvent

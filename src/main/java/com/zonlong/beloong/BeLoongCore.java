@@ -9,6 +9,7 @@ import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.cg.CgCompletionHandler;
 import com.zonlong.beloong.entity.NpcDebugView;
+import com.zonlong.beloong.npcstory.LoadedNpcIndex;
 import com.zonlong.beloong.npcstory.NpcPrologueHandler;
 import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
@@ -132,6 +133,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new WaystonePlacementHandler());
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new LoadedNpcIndex());               // 已加载 NPC 索引（S1：join/leave 事件维护，替代全实体扫描）
         NeoForge.EVENT_BUS.register(new NpcStoryHandler());              // NPC 剧情：获得起点进度 ⇒ 生成私有分身 + 由它播 CG
         NeoForge.EVENT_BUS.register(new NpcEmoteExpiryHandler());        // 一次性表情：到期把 DATA_EMOTE 清回 ""（修"重新追踪就重播"）
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射

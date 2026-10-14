@@ -2,6 +2,7 @@ package com.zonlong.beloong.npcstory;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.dialogue.NpcDialogueStage;
 import com.zonlong.beloong.cg.CgCompletionHandler;
 import com.zonlong.beloong.cg.CgRegistry;
 import com.zonlong.beloong.entity.NpcEntity;
@@ -213,9 +214,10 @@ public class NpcPrologueHandler {
      */
     private static void discardOrphanDoubles(ServerPlayer player, EntityType<?> type) {
         List<NpcEntity> orphans = new ArrayList<>();
-        for (Entity entity : player.serverLevel().getAllEntities()) {
-            if (entity.getType() == type && entity instanceof NpcEntity npc
-                    && player.getUUID().equals(npc.owner())) {
+        // 性能 S1（2026-10-14）：走"已加载 NPC 索引"，不再遍历该维度全部已加载实体。
+        // 语义等价：索引与 getAllEntities() 一样只含已加载实体（卸载中的孤儿本来也删不到，不必回退）。
+        for (NpcEntity npc : LoadedNpcIndex.loadedIn(player.serverLevel())) {
+            if (npc.getType() == type && player.getUUID().equals(npc.owner())) {
                 orphans.add(npc);
             }
         }
@@ -268,5 +270,8 @@ public class NpcPrologueHandler {
         for (String criterion : holder.value().criteria().keySet()) {
             player.getAdvancements().award(holder, criterion);
         }
+        // 性能 S2：我们自己发放的进度必须让状态缓存立刻失效，否则下一轮扫到的是过期值
+        //（那会导致序章重复清场、重复传送）。
+        NpcDialogueStage.invalidate(player);
     }
 }

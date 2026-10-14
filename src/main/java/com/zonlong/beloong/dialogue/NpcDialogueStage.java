@@ -5,9 +5,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * 「原版进度 NPC 阶段系统」的**唯一判定处** —— 一条回复选项当前是否该显示。
@@ -54,15 +58,74 @@ public final class NpcDialogueStage {
     /** 已经报过"进度不存在"的 id —— 每个 id 只报一次，避免右键连点刷屏。 */
     private static final Set<ResourceLocation> WARNED = new HashSet<>();
 
-    /** 查一个进度的状态（照 {@code StructureEffectHandler} 的既有先例：先取 holder 再判 isDone）。 */
+    /**
+     * <b>进度状态的短 TTL 缓存</b>（性能 S2，2026-10-14）。
+     * <p>
+     * 为什么需要：{@link #stateOf} 会被 {@link #isEarned}（NPC 可见性 —— **每个追踪周期、对范围内每个玩家**
+     * 都会调）与 {@link #visible}（打开对话）反复调用，每次都是"一次 id 查 + 一次进度状态查"，
+     * 而底层 {@code getOrStartProgress} 还会为未追踪的进度顺手登记空记录。
+     * 剧情进度在**一秒之内不会变**，缓存它可以把这条热路径压成一次 Map 查。
+     * <p>
+     * ⚠️ <b>写侧必须显式失效</b>：我们自己发放/撤回进度后必须调 {@link #invalidate}，
+     * 否则序章"授予 root 后下一轮再判"会读到过期值，从而重复清场与重复传送。
+     * TTL 只是对**第三方**改动（例如管理员用 {@code /advancement} 命令）的兜底。
+     * <p>
+     * ⚠️ 只缓存 DONE / NOT_DONE，**不缓存 UNKNOWN**：未知 id 意味着数据写错，
+     * 每次都应重新查（也就是每次都会走 {@link #warnUnknown} 的"只报一次"逻辑）。
+     */
+    private record Cached(StageState state, long checkedAt) {}
+
+    private static final int STATE_CACHE_TTL_TICKS = 20;      // 1 秒
+    private static final int STATE_CACHE_MAX_ENTRIES = 4096;  // 超过就顺手清一遍过期项
+
+    private static final Map<String, Cached> STATE_CACHE = new HashMap<>();
+
+    /**
+     * 查一个进度的状态（照 {@code StructureEffectHandler} 的既有先例：先取 holder 再判 isDone）。
+     * <p>
+     * 性能 S2：结果进 {@link #STATE_CACHE}（短 TTL）；UNKNOWN 不入缓存（见缓存字段的注释）。
+     */
     private static StageState stateOf(ServerPlayer player, ResourceLocation id) {
+        long now = player.serverLevel().getGameTime();
+        String key = player.getUUID() + "@" + id;
+        Cached cached = STATE_CACHE.get(key);
+        if (cached != null && now - cached.checkedAt() < STATE_CACHE_TTL_TICKS) {
+            return cached.state();
+        }
+
         var holder = player.server.getAdvancements().get(id);
         if (holder == null) {
+            STATE_CACHE.remove(key);
             return StageState.UNKNOWN;
         }
-        return player.getAdvancements().getOrStartProgress(holder).isDone()
+        StageState state = player.getAdvancements().getOrStartProgress(holder).isDone()
                 ? StageState.DONE
                 : StageState.NOT_DONE;
+        if (STATE_CACHE.size() >= STATE_CACHE_MAX_ENTRIES) {
+            pruneStateCache(now);
+        }
+        STATE_CACHE.put(key, new Cached(state, now));
+        return state;
+    }
+
+    /** 丢掉过期项（只在缓存膨胀时调用，避免它无限增长）。 */
+    private static void pruneStateCache(long now) {
+        for (Iterator<Map.Entry<String, Cached>> it = STATE_CACHE.entrySet().iterator(); it.hasNext(); ) {
+            if (now - it.next().getValue().checkedAt() >= STATE_CACHE_TTL_TICKS) {
+                it.remove();
+            }
+        }
+    }
+
+    /**
+     * 让该玩家的进度状态缓存<b>立刻</b>失效。
+     * <p>
+     * ⚠️ 我们自己发放或撤回进度之后**必须**调它（见 {@link #STATE_CACHE} 的注释）：
+     * 序章"授予 {@code root} ⇒ 下一轮再判"、对账器"撤回后再判"都依赖读到的值是最新的。
+     */
+    public static void invalidate(ServerPlayer player) {
+        String prefix = player.getUUID() + "@";
+        STATE_CACHE.keySet().removeIf(key -> key.startsWith(prefix));
     }
 
     /**
@@ -73,7 +136,8 @@ public final class NpcDialogueStage {
      * ⇒ 锚点保持可见 ⇒ 事情仍然可做，而不是把玩家关在门外。
      * <p>
      * ⚠️ 调用方注意：NPC 可见性判定会在**每个追踪周期、对范围内每个玩家**调到这里
-     * ⇒ 本方法必须**廉价**（现在是"一次 id 查 + 一次进度状态查"）。
+     * ⇒ 本方法必须**廉价**：自 2026-10-14（性能 S2）起结果走 {@link #STATE_CACHE} 短 TTL 缓存，
+     * 热路径退化成一次 Map 查；我们自己发放/撤回进度后要调 {@link #invalidate}（见该缓存注释）。
      * <p>
      * ⚠️ 它**并不是"不写任何东西"**：底层走原版 {@code getOrStartProgress}，对尚未被追踪的进度
      * 会**顺手登记一条空记录**（{@code PlayerAdvancements.java:293-299}）。这是原版查询的固有行为、

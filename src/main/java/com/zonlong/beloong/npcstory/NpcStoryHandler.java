@@ -296,16 +296,16 @@ public class NpcStoryHandler {
             return;
         }
 
+        // 性能 S1（2026-10-14）：实体来源改为"已加载 NPC 索引"，不再遍历该维度的**全部**已加载实体
+        // （掉落物、弹射物、成群怪物都不在索引里）。顺带达成 A1：一次遍历覆盖所有剧情，
+        // 不再"每条剧情各扫一遍"（原来两条同维度剧情就是两次全维度扫描）。
+        // ⚠️ 索引与 getAllEntities() 一样只含**已加载**实体 ⇒ "没扫到"依旧不等于"不存在"（设计 D2）。
         Map<UUID, List<NpcEntity>> byOwner = new LinkedHashMap<>();
-        for (ServerLevel level : levels) {
-            for (Entity entity : level.getAllEntities()) {
-                if (entity.getType() != type || !(entity instanceof NpcEntity npc)) {
-                    continue;
-                }
-                if (npc.owner() != null) {
-                    byOwner.computeIfAbsent(npc.owner(), key -> new ArrayList<>()).add(npc);
-                }
+        for (NpcEntity npc : LoadedNpcIndex.loaded()) {
+            if (npc.getType() != type || npc.owner() == null || !levels.contains(npc.level())) {
+                continue;
             }
+            byOwner.computeIfAbsent(npc.owner(), key -> new ArrayList<>()).add(npc);
         }
 
         // ⚠️ 先**快照** owner 集合：下面会删实体，边遍历边改会踩 ConcurrentModificationException。
@@ -463,12 +463,49 @@ public class NpcStoryHandler {
                 story.startAdvancement(), player.getGameProfile().getName(), reason, revoke);
     }
 
+    /**
+     * 一次"找自己的分身 / 找最近锚点"的扫描结果（S1：候选可由索引或全量实体提供）。
+     *
+     * @param existing 该玩家已有的分身（幂等复用；非 null 时优先）
+     * @param anchor   最近的无主锚点（新分身生成在它处）
+     * @param anchors  锚点个数（&gt;1 说明世界被摆错，调用方会 WARN）
+     */
+    private record AnchorScan(NpcEntity existing, NpcEntity anchor, int anchors) {
+    }
+
+    /** 在给定候选里找"我的分身"（优先）与"最近的锚点"。 */
+    private static AnchorScan scanForDouble(ServerPlayer player, EntityType<?> type,
+                                            Iterable<? extends Entity> candidates) {
+        NpcEntity existing = null;
+        NpcEntity anchor = null;
+        double anchorDistance = Double.MAX_VALUE;
+        int anchors = 0;
+        for (Entity entity : candidates) {
+            if (entity.getType() != type || !(entity instanceof NpcEntity npc)) {
+                continue;
+            }
+            if (player.getUUID().equals(npc.owner())) {
+                existing = npc;
+                break;      // 幂等优先：找到自己的分身就不必再找锚点了
+            }
+            if (npc.owner() == null) {
+                anchors++;
+                double distance = player.distanceToSqr(npc);
+                if (distance < anchorDistance) {
+                    anchorDistance = distance;
+                    anchor = npc;
+                }
+            }
+        }
+        return new AnchorScan(existing, anchor, anchors);
+    }
+
     /** 某玩家在某维度里、某类型的私有分身（退出清理用）。 */
     private List<NpcEntity> doublesOf(ServerPlayer player, ServerLevel level, EntityType<?> type) {
         List<NpcEntity> found = new ArrayList<>();
-        for (Entity entity : level.getAllEntities()) {
-            if (entity.getType() == type && entity instanceof NpcEntity npc
-                    && player.getUUID().equals(npc.owner())) {
+        // 性能 S1：走索引（原来遍历该维度全部已加载实体）。
+        for (NpcEntity npc : LoadedNpcIndex.loadedIn(level)) {
+            if (npc.getType() == type && player.getUUID().equals(npc.owner())) {
                 found.add(npc);
             }
         }
@@ -513,6 +550,7 @@ public class NpcStoryHandler {
 
     /** 撤回一个进度的全部已完成 criterion（原版 {@code /advancement revoke} 同款）。 */
     private static void revokeWholeAdvancement(ServerPlayer player, AdvancementHolder holder) {
+        // 性能 S2：撤回后必须让进度状态缓存立刻失效（同 reason 见 NpcDialogueStage#invalidate）。
         AdvancementProgress progress = player.getAdvancements().getOrStartProgress(holder);
         if (!progress.hasProgress()) {
             return;
@@ -520,6 +558,7 @@ public class NpcStoryHandler {
         for (String criterion : progress.getCompletedCriteria()) {
             player.getAdvancements().revoke(holder, criterion);
         }
+        NpcDialogueStage.invalidate(player);
     }
 
 
@@ -556,28 +595,25 @@ public class NpcStoryHandler {
      */
     @Nullable
     private static Ensured ensureDouble(ServerPlayer player, ServerLevel level, EntityType<?> type, NpcStory story) {
-        NpcEntity anchor = null;
-        double anchorDistance = Double.MAX_VALUE;
-        int anchors = 0;
-
-        for (Entity entity : level.getAllEntities()) {
-            if (entity.getType() != type || !(entity instanceof NpcEntity npc)) {
-                continue;
-            }
-            if (player.getUUID().equals(npc.owner())) {
-                // 幂等：已经有自己的分身了 ⇒ 复用它。spawned=false 让调用方**不重播 CG**
-                //（"重新获得起点进度但分身仍在"时剧情并没有重新开始，登场演出不该重演）。
-                return new Ensured(npc, false);
-            }
-            if (npc.owner() == null) {
-                anchors++;
-                double distance = player.distanceToSqr(npc);
-                if (distance < anchorDistance) {
-                    anchorDistance = distance;
-                    anchor = npc;
-                }
-            }
+        // 性能 S1（2026-10-14）：先用"已加载 NPC 索引"（通常个位数）——
+        // 这里原来一次遍历该维度**全部**已加载实体，而只为找两只 NPC。
+        AnchorScan scan = scanForDouble(player, type, LoadedNpcIndex.loadedIn(level));
+        if (scan.existing() != null) {
+            // 幂等：已经有自己的分身了 ⇒ 复用它。spawned=false 让调用方**不重播 CG**
+            //（"重新获得起点进度但分身仍在"时剧情并没有重新开始，登场演出不该重演）。
+            return new Ensured(scan.existing(), false);
         }
+        if (scan.anchor() == null) {
+            // ⚠️ 回退：索引只含**已加载**实体，而"锚点"决定新分身生成在哪里 ⇒ 宁可慢一次，也不许漏锚点。
+            // 只在"索引里一个锚点都没找到"时执行（正常世界锚点就在入口，索引里一定有）。
+            BeLoongCore.LOGGER.info(
+                    "[BeLoong] npc story: no anchor for '{}' in the loaded-npc index — falling back to a full"
+                            + " entity scan of {} (expected only right after a world/chunk reload)",
+                    type, level.dimension().location());
+            scan = scanForDouble(player, type, level.getAllEntities());
+        }
+        NpcEntity anchor = scan.anchor();
+        int anchors = scan.anchors();
 
         Entity created = type.create(level);
         if (!(created instanceof NpcEntity npc)) {
