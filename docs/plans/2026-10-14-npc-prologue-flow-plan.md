@@ -154,3 +154,32 @@
    属于用过头的判断去覆盖）。
 4. **不要用"新一轮更正"去覆盖"上一轮更正"时不留痕迹** —— 本次三轮变动全部留了日期与理由，
    最终版能看出每一轮的判断与依据（含我两次误判的来源），这样下一个人不会被带偏。
+
+---
+
+# 执行记录（2026-10-14 全部完成）
+
+| 任务 | 结果 | 关键点 |
+|---|---|---|
+| T1 新增 `1_0` | ✅ | trigger `impossible` · parent `root` · 无提示 · 图标沿用 `beloong:beloong_logo`（不敢用没见过的 item id —— 会让整个进度加载失败）· 中英各两条语言键「末的登场 / Mo's Entrance」|
+| T2 `1_1` 的父 → `1_0` | ✅ | 撤回沿 `parent()` 上溯 ⇒ `1_0` 必须真在链上 |
+| T3 `root` 触发 → `impossible` | ✅ | 删除坐标盒 + 附 `_comment` 说明 |
+| T4 两份对话窗口 → `[1_0,1_1)` | ✅ | 模组侧 + 整合包侧（整合包侧写盘前已备份到 `_backup_20261014/`）|
+| T5 配置 `prologueDelaySeconds` | ✅ | 默认 5 秒 · 中英两条配置界面键（该族共 8 条）|
+| T6 序章处理器 | ✅ | `npcstory/NpcPrologueHandler`：前置 → 等秒数 → 补授兜底 → 不在龙宫先传送 → **同一 tick 先分身再授予 root** → 播 CG |
+| T7 CG 完成授予 `1_0` | ✅ | `CgAnimation#completionAdvancement`（只声明）+ `CgCompletionHandler`（计时/掉线补授）+ `play` 里 6 处结算 + `MoEntrance` 声明 |
+| T8 事件路径交出 CG | ✅ | `onAdvancementEarned` 只留"确保分身"；`ensureDouble` 改 static + 加 `ensureDoubleFor` |
+| T9 可见性 | ✅ | 调试视角短路 + **有剧情声明的锚点永不显示**；无剧情声明的 NPC（地黄龙）仍恒可见 |
+| T10 `beloong npc debug` | ✅ | `NpcDebugView`（内存缓存 + `getPersistentData()` 持久化）· 只改可见性不改交互 · 无权限检查 |
+| T11 守卫 | ✅ | stage：链插入 `1_0`、六条新断言、对话窗口三条、"CG 唯一播放者"改指序章；route ⑧：`root` 触发改 `impossible`、作废触发盒防呆、改指 `1_0` 防呆 |
+| T12 文档 | ✅ | 活文档新增 **§12.9 开场流程**（拓扑/流程/闸门/两条铁律/调试指令）|
+| T13 验证与提交 | ✅ | `gradlew build` ✓ · stage 131 PASS/0 FAIL ✓ · route 53 PASS/0 FAIL ✓ · cg PASS ✓ · 四个探针 GREEN ✓ · jar 重建并装机（4 个新件已在包内）|
+
+## 实施期的两处设计细化（与本文档原稿的差异）
+
+1. **CG 的"完成计时"没放进 `CgAnimation`** —— 那个类的契约是"刻意不持有任何运行期状态"，
+   而"等 CG 放完"是定时状态 ⇒ 计时与授予放到新的 `CgCompletionHandler`，
+   CG 类只保留 `completionAdvancement()` 这个**声明式**钩子。用户的原始要求（"写在 CG 那个类里面"）
+   在**声明**这一层完全满足；计时放在外面是为了不违反既有契约。
+2. **授权范围**：用户 2026-10-14 授权直接改 `cg/CgAnimation.java` 与 `cg/instances/MoEntrance.java`
+   （原计划标注为"需与 CG 会话协调"）⇒ 已按授权实施，**需事后告知 CG 会话**。
