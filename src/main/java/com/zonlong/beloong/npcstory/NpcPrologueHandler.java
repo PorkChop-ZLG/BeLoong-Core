@@ -2,6 +2,7 @@ package com.zonlong.beloong.npcstory;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;
+import com.zonlong.beloong.cg.CgCompletionHandler;
 import com.zonlong.beloong.cg.CgRegistry;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.teleport.DimensionTeleport;
@@ -9,11 +10,14 @@ import com.zonlong.beloong.teleport.TeleportTarget;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.portal.DimensionTransition;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,7 +48,7 @@ import java.util.Map;
  *
  * <h2>为什么"先分身、后授予"</h2>
  * 对账器把"已获得 {@code root} 却没有分身"判为"剧情该重新开始"并**撤回整条链**
- * （{@code NpcStoryHandler#reconcilePlayer} 的 D21 分支）⇒ 若先授予、分身还没建出来，
+ * （该分支已于 2026-10-14 重写时删除，见重写设计 D2）⇒ 若先授予、分身还没建出来，
  * 就会出现**授予/撤回抖动**（状态乱跳 + 日志刷屏）。故两件事必须在同一 tick 内、按此顺序完成。
  *
  * <h2>性能（2026-10-14）</h2>
@@ -128,6 +132,12 @@ public class NpcPrologueHandler {
             // ⑤ 有 root 却没有 1_0 ⇒ 上次那条"CG 播完授予 1_0"没走完（多半是关服丢了待授予项）。
             //    ⚠️ 用户裁定：补授**也必须在剧情声明的维度里**（与"离开即跳过"一致）。
             if (isEarned(player, ROOT)) {
+                // ⚠️ 若这条 1_0 的"完成结算"还挂在待授予表里，说明**登场 CG 正在播**（正常播完会按时长授予）
+                // ⇒ 这一刻绝不能补授，否则 CG 才开一秒 1_0 就到手了（实机日志 5 次）。
+                // 本分支只该救"CG 被服务器关停打断"的情形。
+                if (CgCompletionHandler.hasPending(player, ENTRANCE_DONE)) {
+                    return;
+                }
                 award(player, ENTRANCE_DONE);
                 BeLoongCore.LOGGER.info(
                         "[BeLoong] npc prologue: player '{}' had root but not 1_0 while in {} — granted 1_0 "
@@ -136,7 +146,13 @@ public class NpcPrologueHandler {
                 return;
             }
 
-            // ⑥ ★ 从头开场 ⇒ 先把玩家送回**同维度内的入场落点**（类注释第 2 条）。
+            // ⑥ 从头开场的**清场**：走到这里说明玩家**没有起点进度**（含补授分支在内的上面几条都已排除），
+            //    因此任何 owner == 我、类型就是本剧情的分身**必然是上一轮留下的孤儿**（撤进度后没被删掉）。
+            //    必须先删掉它 —— 否则下面的 ensureDoubleFor 会**复用**它，于是"玩家被送回原点、CG 却拍在
+            //    留在半路的那只分身身上"⇒ 不同步（实机 BUG 的第二种形态）。这个竞态是真实存在的：
+            //    序章 20 tick 一次、对账器 100 tick 一次 ⇒ 序章可能抢在对账器的孤儿清理之前。
+            discardOrphanDoubles(player, entry.getKey());
+            // ⑦ ★ 从头开场 ⇒ 先把玩家送回**同维度内的入场落点**（类注释第 2 条）。
             //    目标维度取 player.serverLevel()（玩家当前维度）⇒ 结构上不可能跨维度拉人。
             TeleportTarget landing = TeleportTarget.toLoongPalace(player.serverLevel());
             if (!isAtStart(player, landing)) {
@@ -150,7 +166,7 @@ public class NpcPrologueHandler {
                 return;
             }
 
-            // ⑦ 同一 tick：先确保分身，成功了才授予 root（顺序不能反，见类注释）
+            // ⑧ 同一 tick：先确保分身，成功了才授予 root（顺序不能反，见类注释）
             NpcEntity npc = NpcStoryHandler.ensureDoubleFor(player, entry.getKey(), story);
             if (npc == null) {
                 BeLoongCore.LOGGER.error(
@@ -165,13 +181,39 @@ public class NpcPrologueHandler {
                     "[BeLoong] npc prologue: granted root to '{}' and ensured their double of '{}' at {}",
                     player.getGameProfile().getName(), entry.getKey(), npc.blockPosition());
 
-            // ⑧ 播登场 CG（闸门：此刻必然还没有 1_0 —— ③ 已经挡掉了有的情况）
+            // ⑨ 播登场 CG（闸门：此刻必然还没有 1_0 —— ③ 已经挡掉了有的情况）
             story.cg().ifPresent(name -> CgRegistry.byName(name).ifPresentOrElse(
                     cg -> cg.play(player, npc),
                     () -> BeLoongCore.LOGGER.warn(
                             "[BeLoong] npc prologue: story for '{}' names unknown cg '{}' — the double exists, "
                                     + "but no entrance cg was played", entry.getKey(), name)));
             return;
+        }
+    }
+
+    /**
+     * 删掉"属于该玩家、且类型就是本剧情"的分身（从头开场前的清场，见调用点注释）。
+     * <p>
+     * ⚠️ 判据是"玩家**没有**起点进度"（调用点已保证）⇒ 存在的必然是孤儿 ⇒ 这里只是"删"、
+     * 不涉及撤回进度 ⇒ 与"撤与删必须成对"不冲突（撤回只发生在租约到期那条路径里）。
+     * <p>
+     * ⚠️ 先**快照**再删：直接边遍历 {@code getAllEntities()} 边 {@code discard()} 会踩
+     * ConcurrentModificationException（对账器里同样的坑有注释记着）。
+     */
+    private static void discardOrphanDoubles(ServerPlayer player, EntityType<?> type) {
+        List<NpcEntity> orphans = new ArrayList<>();
+        for (Entity entity : player.serverLevel().getAllEntities()) {
+            if (entity.getType() == type && entity instanceof NpcEntity npc
+                    && player.getUUID().equals(npc.owner())) {
+                orphans.add(npc);
+            }
+        }
+        for (NpcEntity orphan : orphans) {
+            orphan.discard();
+            BeLoongCore.LOGGER.info(
+                    "[BeLoong] npc prologue: discarded a leftover double of '{}' for player '{}'"
+                            + " (leftover of a revoked story — a fresh one will be created at the anchor)",
+                    type, player.getGameProfile().getName());
         }
     }
 

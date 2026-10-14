@@ -48,7 +48,7 @@ import java.util.Map;
  * 路线指派是靠 {@code LastDialogueNpc}（玩家**最近对话过的那个实体**）解析目标的
  * ⇒ 必须保证"玩家将来对话的那个实体就是他的分身" ⇒ 分身的生成必须**早于**第一次对话。
  * 而起点进度（{@code beloong:npc/root}）由位置触发自动发放 ⇒ 它正好是"玩家走进场景、
- * 还没开口"的那个时刻（设计 D5/D21 的补充）。
+ * 还没开口"的那个时刻（设计 D5；其中的 D21 已于 2026-10-14 重写时删除，见重写设计 D2）。
  *
  * <h2>为什么在锚点的位置与朝向生成</h2>
  * 玩家视角里那只 mo **一直在原地没动** ⇒ 从"看到公共锚点"切到"看到自己的分身"毫无感知。
@@ -63,10 +63,11 @@ import java.util.Map;
  * 而且分身出现后还可能挑到**别人的**分身。现在演员是**按需构造**的、引用就在手里
  * ⇒ 那两类问题一起消失（设计 D9）。
  *
- * <h2>对账器的判定表（设计 §3.3 + D21）</h2>
+ * <h2>对账器的判定表（2026-10-14 重写后：重写设计 D1–D3）</h2>
  * <pre>
  *   start 未获得 ∧ 有分身                    ⇒ 孤儿 ⇒ 删除 + WARN
- *   start 已获得 ∧ 无分身                    ⇒ **D21 重置**：撤回整条链 + WARN（不生成、不播 CG）
+ *   start 已获得 ∧ 无分身                    ⇒ **什么都不做**（唯一会撤进度的路径是"租约到期"，
+ *                                              而它手里一定有实体 ⇒ 撤与删永远成对）
  *   start 已获得 ∧ 有 ∧ 已过期              ⇒ 清理；**未完成才撤回**，已完成只清理
  *   start 已获得 ∧ 有 ∧ 离开有效维度超过宽限 ⇒ 清理 + 未完成则撤回（宽限内给倒计时提示）
  *   clear_on_logout ∧ 玩家退出             ⇒ 清理 + 未完成则撤回
@@ -77,9 +78,10 @@ import java.util.Map;
  * ⚠️ <b>"扫不到分身"不等于"分身丢了"</b>：实体查询只覆盖**已加载区块**。
  * 因此只有在"**那一轮扫到了无主锚点**"（= 那片区块确实加载着）时才把缺失当真，
  * 且要**连续若干轮**都缺才动手 —— 否则会出现"登录就被撤回进度"这类事故（D19 的宽限在登录路径上失效）。
- * ⚠️ <b>"无分身"与"刚获得起点"不会打架</b>：起点进度由位置触发器在玩家 tick 内发放，
- * {@code AdvancementEarnEvent} 是**同步**派发的 ⇒ 等本对账器所在的 {@code ServerTickEvent.Post}
- * 跑起来时，分身已经生成完了。若生成真的失败，对账器就走 D21 重置 —— 这正是想要的失败模式。
+ * ⚠️ <b>"无分身"不再触发任何重置</b>（设计 D2，2026-10-14）：起点进度由**序章**
+ * （{@code NpcPrologueHandler}）在"玩家已在剧情维度内"时授予，并**同一 tick 先确保分身、再授予** ⇒
+ * 对账器不会看到"已开始却没有分身"的窗口；即便看到，本类也**什么都不做** ——
+ * 撤进度必须与删分身成对（见 {@code reconcilePlayer} 的注释与设计 D2）。
  */
 public class NpcStoryHandler {
 
@@ -101,34 +103,6 @@ public class NpcStoryHandler {
      * **不给它们生成分身**（计划 T9 要求的 fail-closed），只留那条 ERROR 让人去修数据。
      */
     private final Set<EntityType<?>> storiesWithMissingIds = new java.util.HashSet<>();
-
-    /** 连续多少轮"扫不到分身"才认定它真的丢了。防的是区块未加载造成的误判。 */
-    private static final int MISSES_BEFORE_RESET = 3;
-
-    /**
-     * "疑似缺失"计数（键 = 玩家 + 剧情）。
-     * <p>
-     * ⚠️ **只在内存里**：它是"连续观察到几次"的瞬时判断，不是状态 ⇒ 不落盘、不违反设计 D4
-     * （"事实来源是原版进度，不新增每玩家持久状态"）。重启后重新数即可。
-     */
-    private final Map<String, Integer> missingCounts = new java.util.HashMap<>();
-
-    /** 玩家 + 剧情 的复合键（内存计数的键）。 */
-    private static String missingKey(java.util.UUID player, NpcStory story) {
-        return player + "@" + story.startAdvancement();
-    }
-
-    private int missesOf(java.util.UUID player, NpcStory story) {
-        return this.missingCounts.getOrDefault(missingKey(player, story), 0);
-    }
-
-    private void addMiss(java.util.UUID player, NpcStory story) {
-        this.missingCounts.put(missingKey(player, story), missesOf(player, story) + 1);
-    }
-
-    private void clearMiss(java.util.UUID player, NpcStory story) {
-        this.missingCounts.remove(missingKey(player, story));
-    }
 
     @SubscribeEvent
     public void onAdvancementEarned(AdvancementEvent.AdvancementEarnEvent event) {
@@ -216,7 +190,7 @@ public class NpcStoryHandler {
         // ⚠️ 自检放在**这里**（enabled 闸门之后、巡检间隔之前，每 tick 一次 O(1) 判 stamp）：
         //   ① 它是数据诊断 ⇒ 总开关关着时也该把"引用了不存在的进度"报出来（否则作者永远看不到）；
         //   ② 重载后 **1 tick 内**就会重算 storiesWithMissingIds —— 否则在下一轮巡检（≤100 tick）之前，
-        //      刚被修好的剧情仍被当成缺失 ⇒ 玩家拿到起点却不生成分身，接着被 D21 误撤。
+        //      刚被修好的剧情仍被当成缺失 ⇒ 玩家拿到起点却不生成分身（过去还会被 D21 误撤，该机制已删）。
         checkStoryIdsOnce(event.getServer());
         int interval = Math.max(1, Config.NpcStory.reconcileIntervalTicks.get());
         if (++this.tickCounter < interval) {
@@ -297,7 +271,7 @@ public class NpcStoryHandler {
      */
     private void reconcileStory(MinecraftServer server, EntityType<?> type, NpcStory story) {
         // 进度 id 缺失的剧情**整条跳过**：它已是 dead on arrival（见 storiesWithMissingIds 的注释）。
-        // 若只挡生成，D21 分支会每轮都打"已撤回"WARN 并去走一条**走不完的撤回链**（终点进度根本不存在
+        // 若只挡生成，对账器会每轮都去走一条**走不完的撤回链**（终点进度根本不存在
         // ⇒ 必然再报 ERROR），玩家则停在"已开始 + 无分身"里看着空场景 —— 什么都不做反而更干净。
         if (this.storiesWithMissingIds.contains(type)) {
             return;
@@ -321,101 +295,53 @@ public class NpcStoryHandler {
         }
 
         Map<UUID, List<NpcEntity>> byOwner = new LinkedHashMap<>();
-        int anchors = 0;
         for (ServerLevel level : levels) {
             for (Entity entity : level.getAllEntities()) {
                 if (entity.getType() != type || !(entity instanceof NpcEntity npc)) {
                     continue;
                 }
-                if (npc.owner() == null) {
-                    anchors++;
-                } else {
+                if (npc.owner() != null) {
                     byOwner.computeIfAbsent(npc.owner(), key -> new ArrayList<>()).add(npc);
                 }
             }
         }
 
-        // ⚠️ "搜索可信"的判据：**扫到了无主锚点**。锚点是分身出生的地方，它扫不到就说明那片区块
-        // 根本没加载（玩家在别的维度、或离得太远）—— 此时"没找到分身"不代表"分身丢了"，
-        // 任何清理/重置都不许做（否则会出现"登录就被撤回进度"这种事故）。
-        boolean searchTrustworthy = anchors > 0;
-
-        // ⚠️ keep_after_finish=true 的剧情**整条跳过离线结算**（设计 D6）：离线判不出"主人是否已通关"，
-        // 而 true 的意义正是"通关后永久保留" ⇒ 宁可不清理，也不误删。这类剧情的中途分身
-        // 仍会在主人**下次登录**时被正常判定并清理。
-        boolean skipOfflineSettlement = story.keepAfterFinish();
-
         // ⚠️ 先**快照** owner 集合：下面会删实体，边遍历边改会踩 ConcurrentModificationException。
         for (UUID owner : List.copyOf(byOwner.keySet())) {
             ServerPlayer online = server.getPlayerList().getPlayer(owner);
             if (online != null) {
-                reconcilePlayer(online, story, byOwner.get(owner), searchTrustworthy);
-            } else if (!skipOfflineSettlement) {
-                settleOffline(story, owner, byOwner.get(owner));
+                reconcilePlayer(online, story, byOwner.get(owner));
             }
+            // ⚠️ 主人**离线** ⇒ 什么都不做（设计 D6"纯乙"，2026-10-14）。
+            // 理由：撤回进度需要在线玩家（PlayerAdvancements 只存在于 ServerPlayer 上），而删分身不需要 ——
+            // 若趁离线把分身删掉，就会**只有删除、没有撤回** ⇒ 玩家下次登录停在"已开始、无分身、
+            // 锚点又不显示"的卡死态，正是被删掉的 D21 要救的那种状态。
+            // 所以离线一律不动：等他下次上线、且分身被加载时，由"租约到期"这条路径一次性完成"删 + 撤"（成对）。
+            // 已知取舍：玩家永不再上线时，那只过期分身会一直留着 —— 但它**只对主人可见**，
+            // 不影响其他玩家；管理员可用 /kill 收尾。见设计 §三与 §九。
         }
-        // 在线玩家**没有**分身时也要巡检（走 mine.isEmpty() 分支：D21 重置）——
+        // 在线玩家**没有**分身时也要巡检（走 mine.isEmpty() 分支：那里现在什么都不做）——
         // 上一循环只覆盖了"表里有的 owner"。
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (!byOwner.containsKey(player.getUUID())) {
-                reconcilePlayer(player, story, List.of(), searchTrustworthy);
+                reconcilePlayer(player, story, List.of());
             }
         }
     }
 
-    /**
-     * <b>离线结算</b>：主人不在线时，只做"租约到期"这一件事 —— 删分身，**不撤进度**。
-     * <p>
-     * 为什么不撤：离线读不到玩家进度（{@code PlayerAdvancements} 只存在于在线的 {@code ServerPlayer} 上）。
-     * 撤进度留给该玩家**下次登录**：那时 {@link #reconcilePlayer} 会看到"已开始 ∧ 无分身"，
-     * 走 D21 撤回整条链；而"已通关者永不重置"（上轮 C1 的修复）保证通关玩家的进度不会被误撤。
-     * <p>
-     * 为什么不判其它四项（维度 / 孤儿 / 通关回收 / 重复）：它们分别需要"玩家此刻在哪"或"进度"，离线都没有。
-     */
-    private void settleOffline(NpcStory story, UUID owner, List<NpcEntity> mine) {
-        for (NpcEntity npc : mine) {
-            long now = npc.level() instanceof ServerLevel level ? level.getGameTime() : 0L;
-            if (npc.hasExpired(now)) {
-                npc.discard();
-                BeLoongCore.LOGGER.info(
-                        "[BeLoong] npc story '{}': removed double of OFFLINE player '{}'"
-                                + " (reason: timeout_offline)",
-                        story.startAdvancement(), owner);
-            }
-        }
-    }
-
-    private void reconcilePlayer(ServerPlayer player, NpcStory story, List<NpcEntity> mine,
-                                 boolean searchTrustworthy) {
+    private void reconcilePlayer(ServerPlayer player, NpcStory story, List<NpcEntity> mine) {
         boolean started = NpcDialogueStage.isEarned(player, story.startAdvancement());
         boolean finished = NpcDialogueStage.isEarned(player, story.endAdvancement());
 
         if (mine.isEmpty()) {
-            // ⚠️ 通关玩家**永不**在这里被重置（D6 终态保留 / D16）：他们的分身到期或被清掉之后，
-            // 剧情就是"已经结束了"，不该再被撤回。
-            if (!started || finished || !searchTrustworthy) {
-                if (started && !finished && !searchTrustworthy) {
-                    // 搜索不可信 ⇒ 记一次"疑似缺失"，连续若干轮才动手（避免区块加载造成的误撤）。
-                    this.addMiss(player.getUUID(), story);
-                    int misses = this.missesOf(player.getUUID(), story);
-                    if (misses < MISSES_BEFORE_RESET) {
-                        return;
-                    }
-                } else {
-                    return;
-                }
-            }
-            this.clearMiss(player.getUUID(), story);
-            // D21：已开始却没有分身 ⇒ 统一按"剧情重新开始"（撤回整条链，回入口重获起点进度）。
-            // ⚠️ 刻意**不**就地补生成：中期阶段补一只站在入口的分身，会让两条回复都不显示 ⇒ 玩家卡死。
-            BeLoongCore.LOGGER.warn(
-                    "[BeLoong] npc story '{}': player '{}' has the start advancement but no double"
-                            + " — revoking the story so it can be restarted from the beginning",
-                    story.startAdvancement(), player.getGameProfile().getName());
-            revokeStory(player, story);
+            // ⚠️ **这里刻意什么都不做**（设计 D2，2026-10-14）。曾有一条"扫不到分身 ⇒ 撤回整条链"的
+            // D21 分支，实机证明它必然造成"进度与分身分家"：区块未加载时 {@code getAllEntities()}
+            // 看不到那只实体，于是它**撤得掉进度、却删不掉分身**（日志里 6 次误撤的直接成因）。
+            // 现在唯一会撤回进度的路径是"租约到期"，而它**手里一定有实体** ⇒ 撤与删永远成对。
+            // 代价：分身若真的消失（例如被 /kill），玩家会停在"已开始、无分身、锚点不显示"的状态，
+            // 需人工处理（撤回进度让他重新开场）—— 见设计 §九"保留风险"。
             return;
         }
-        this.clearMiss(player.getUUID(), story);
 
         // 重复分身：保留最近出生的那个；bornAt 并列（含旧实体的 0）时保留**离玩家最近**的那个，
         // 避免把玩家真正在用的那一只删掉。
@@ -469,45 +395,7 @@ public class NpcStoryHandler {
             return;
         }
 
-        // 有效维度（宽限期内不动它 —— 在龙宫死一次重生的那种短暂离开不该被判成弃坑）
-        // ⚠️ 闸门是 **dimension.enforced()**（= enforce && host 存在），**不是**"有 host 就清"：
-        // host 的职责只是"告诉对账器去哪个维度巡检"（离线结算靠它），要不要"离开就清"
-        // 由 enforce 单独决定（设计 D4）—— 两件事合成一个字段会让长流程被迫二选一。
-        if (story.dimension().enforced()) {
-            boolean inside = player.level().dimension().location().equals(story.dimension().host().get());
-            if (inside) {
-                if (npc.outsideSince() != 0L) {
-                    npc.setOutsideSince(0L);
-                }
-            } else if (npc.outsideSince() == 0L) {
-                npc.setOutsideSince(now);
-            } else if (now - npc.outsideSince() > story.dimensionGraceTicks()) {
-                removeDouble(npc, story, player, "outside_dimension", true);
-                return;
-            } else {
-                warnDimensionGrace(player, story, npc, now);
-            }
-        } else if (npc.outsideSince() != 0L) {
-            // 规则被关掉（enforce=false）时把计时清零：否则玩家在规则关闭期间一直待在维度外，
-            // 等哪天重新启用时会"立即到期"、不给任何宽限 —— 那是很难理解的行为。
-            npc.setOutsideSince(0L);
-        }
-
         warnBeforeExpiry(player, story, npc, now);
-    }
-
-    /** 离开有效维度期间的提示（进入提醒窗口后每次巡检都发，充当倒计时）。 */
-    private void warnDimensionGrace(ServerPlayer player, NpcStory story, NpcEntity npc, long now) {
-        long remaining = story.dimensionGraceTicks() - (now - npc.outsideSince());
-        if (remaining <= 0L) {
-            return;
-        }
-        long warn = story.dimension().warnBeforeTicks().orElse(NpcStory.DEFAULT_WARN_BEFORE_TICKS);
-        if (warn <= 0L || remaining > warn) {
-            return;
-        }
-        remind(player, story.dimension().warnText(), story.dimension().warnKey(),
-                remaining, "beloong.npc.story.outside_dimension");
     }
 
     /** 到期前的提示（actionbar）。进入提醒窗口后每次巡检都发，充当倒计时。 */
@@ -636,7 +524,8 @@ public class NpcStoryHandler {
      * 供<b>序章处理器</b>用：确保该玩家的私有分身存在并返回它（建不出来时 {@code null}）。
      * <p>
      * ⚠️ 序章必须在**同一 tick 内**先确保分身、再授予 {@code root} —— 否则"已开始却没有分身"
-     * 会被 {@link #reconcilePlayer} 的 D21 分支反复撤回（授予/撤回抖动）。
+     * 会被短暂置于"剧情已开始、却没有分身可看"的空窗（曾由已删除的 D21 放大成授予/撤回抖动；
+     * 现在不再抖动，但这个空窗本身仍应避免 —— 玩家会看到锚点被隐藏而场上什么都没有）。
      */
     @Nullable
     static NpcEntity ensureDoubleFor(ServerPlayer player, EntityType<?> type, NpcStory story) {

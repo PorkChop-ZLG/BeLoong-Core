@@ -46,6 +46,22 @@ public final class CgCompletionHandler {
         PENDING.add(new Pending(player.getUUID(), advancement, deadline, cg));
     }
 
+    /**
+     * 该玩家此刻是否有一条**待授予**的完成结算（用于序章判断"CG 是不是正在播"）。
+     * <p>
+     * ⚠️ 序章的 {@code 1_0} 补授分支必须先用它挡一下：那条分支本意是救"CG 被服务器关停打断"，
+     * 而"CG 正常播放中"也满足 {@code 有 root ∧ 无 1_0} ⇒ 不挡就会在 CG 开始后 1 秒就把 {@code 1_0}
+     * 发出去（实机日志里出现过 5 次）。
+     */
+    public static boolean hasPending(ServerPlayer player, ResourceLocation advancement) {
+        for (Pending p : PENDING) {
+            if (p.player().equals(player.getUUID()) && p.advancement().equals(advancement)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 当场授予（没播成、或掉线补授）。永不抛异常 —— 调用方在 {@code play} 的关键路径上。 */
     public static void grantNow(ServerPlayer player, ResourceLocation advancement, String cg, String why) {
         award(player, advancement);

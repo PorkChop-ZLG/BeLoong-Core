@@ -147,3 +147,26 @@
 7. 观察日志：对账不再打印任何"扫不到分身"类警告；S1 生效后无新增报错；
 8. **续约**：连着拿几个里程碑（含 `1_0`）⇒ 每次日志都有"续约（旧到期 → 新到期）"且到期时间被推后**一整段该剧情配置的租约时长**；
    随后停止推进（例如待在龙宫不动）⇒ 租约到期后（缺省 1 小时）被"删 + 撤"；端点进度（`root` / `5_1`）本身**不**触发续约。
+
+---
+
+# 执行记录
+
+## 批次① 对账器重写（2026-10-14 完成）
+
+| 任务 | 结果 | 要点 |
+|---|---|---|
+| T1 删除"离开维度 ⇒ 重置 + 销毁" | ✅ | 连同 `warnDimensionGrace` 与 `NpcEntity.outsideSince`（字段 / 两个存取器 / NBT 键 / 存 / 读 共 6 处死状态）一并清除 |
+| T2 删除 D21 及其计数机制 | ✅ | `MISSES_BEFORE_RESET` / `missingCounts` / `missingKey` / `addMiss` / `missesOf` / `clearMiss` / `searchTrustworthy` / 锚点计数全部归零；`mine.isEmpty()` 分支改为**什么都不做**并写明理由 |
+| T3 删除离线结算（纯乙） | ✅ | `settleOffline` / `skipOfflineSettlement` / `timeout_offline` 全部移除；离线主人一律不动 |
+| T4 序章两处修正 | ✅ | ① 从头开场前 `discardOrphanDoubles` 清场（先快照再删，避免 CME）；② `1_0` 补授前 `CgCompletionHandler.hasPending` 闸门 |
+
+**结构收获**：`revokeStory` 现在全仓只有 **1 处调用**，且位于 `removeDouble` 内部 ⇒
+「撤回进度」与「删除分身」从"约定"变成**结构上不可违反**（已写成守卫 15.6-③）。
+
+**闸门更新**：检查点如实报红 6 条（都是针对已删功能的旧断言）⇒ 已全部删除，
+并新增 15.6 组 17 条新断言（两条路径必须归零 / 成对原则 / 纯乙不得有离线结算）。
+
+**瘦身**：`NpcStoryHandler` 726 → 567 行（−159）。
+
+**验证**：`gradlew build` ✓ · stage 148 PASS / 0 FAIL ✓ · route 全绿 ✓ · cg PASS ✓ · 四个探针 GREEN ✓

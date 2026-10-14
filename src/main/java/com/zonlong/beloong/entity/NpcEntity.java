@@ -426,9 +426,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     /** 绝对到期时刻；0 = 无租约，{@code Long.MAX_VALUE} = 永久。 */
     private long expireAt;
 
-    /** 首次被观察到不在有效维度的时刻；0 = 在有效维度内。 */
-    private long outsideSince;
-
     /** 迄今离目标最近的水平距离平方；用于"卡住就放弃"的有界失败判断。 */
     private double moveBestDistSqr = Double.MAX_VALUE;
 
@@ -1382,11 +1379,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         return this.expireAt;
     }
 
-    /** 首次被观察到不在有效维度的时刻；0 = 在有效维度内。 */
-    public long outsideSince() {
-        return this.outsideSince;
-    }
-
     /**
      * 写入租约。**只在服务端生效**（与 {@link #setOwner} 同构）。
      * <p>
@@ -1399,14 +1391,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         }
         this.bornAt = bornAt;
         this.expireAt = expireAt;
-    }
-
-    /** 更新"离开有效维度"的计时起点；传 0 表示回到了有效维度内。 */
-    public void setOutsideSince(long outsideSince) {
-        if (this.level().isClientSide()) {
-            return;
-        }
-        this.outsideSince = outsideSince;
     }
 
     /** 按给定时刻判断租约是否已到期（无租约或永久 ⇒ 永不到期）。 */
@@ -1457,13 +1441,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     private static final String EXPIRE_AT_NBT_KEY = "BeloongExpireAt";
 
     /**
-     * 玩家**首次被观察到不在有效维度**的时刻（0 = 当前在有效维度内）。
-     * <p>
-     * 放在实体上而不是玩家或全局：宽限是**这一个分身的**状态，且随实体一起存档，与租约其余部分同源。
-     */
-    private static final String OUTSIDE_SINCE_NBT_KEY = "BeloongOutsideSince";
-
-    /**
      * 状态落盘。
      * <p>
      * <b>写名字而不是 ordinal</b>：枚举顺序将来变了也不会把旧存档读错
@@ -1486,7 +1463,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             compound.putUUID(OWNER_NBT_KEY, this.owner);
             compound.putLong(BORN_AT_NBT_KEY, this.bornAt);
             compound.putLong(EXPIRE_AT_NBT_KEY, this.expireAt);
-            compound.putLong(OUTSIDE_SINCE_NBT_KEY, this.outsideSince);
         }
     }
 
@@ -1522,7 +1498,6 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
         // 租约同理向后兼容：旧存档没有这几个键 ⇒ getLong 返回 0 ⇒ 无租约（不会被误判成已过期）。
         this.bornAt = compound.getLong(BORN_AT_NBT_KEY);
         this.expireAt = compound.getLong(EXPIRE_AT_NBT_KEY);
-        this.outsideSince = compound.getLong(OUTSIDE_SINCE_NBT_KEY);
         // 下标 clamp：路线数据是**热的**（/reload 可改），两次加载之间它可能变短。
         // 此刻若该路线已加载 ⇒ 直接 clamp 并提示；尚未加载 ⇒ 原样保留，等它可用时
         // routeFinished() 会按"越界即已完成"处理（坏数据不崩）。
