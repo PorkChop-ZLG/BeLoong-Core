@@ -1,34 +1,8 @@
 {
+  "_comment": "2026-10-14 起 trigger 由 minecraft:location 改为 minecraft:impossible：root 只能由序章处理器（NpcPrologueHandler）用代码授予（玩家进入游戏并等待配置的秒数后）。原先的坐标盒写法已删除 —— 环境副作用（走进某区域就获得）不可控，且会让登场 CG 在意料之外的地方触发。",
   "criteria": {
     "root": {
-      "trigger": "minecraft:location",
-      "conditions": {
-        "player": [
-          {
-            "condition": "minecraft:entity_properties",
-            "entity": "this",
-            "predicate": {
-              "location": {
-                "dimension": "beloong:loong_palace",
-                "position": {
-                  "x": {
-                    "min": -8,
-                    "max": 8
-                  },
-                  "y": {
-                    "min": 56,
-                    "max": 72
-                  },
-                  "z": {
-                    "min": -16,
-                    "max": 0
-                  }
-                }
-              }
-            }
-          }
-        ]
-      }
+      "trigger": "minecraft:impossible"
     }
   },
   "display": {

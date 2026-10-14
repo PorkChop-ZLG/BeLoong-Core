@@ -295,5 +295,7 @@
   "beloong.command.mynpc.tp": "Teleported %s to %s, %s, %s",
   "beloong.command.mynpc.not_a_player": "This command must be run as a player — it resolves the npc owned by the executing player",
   "beloong.npc.story.mo.expiring": "§eThis story expires in %s s — restart from the palace entrance",
-  "beloong.npc.story.mo.outside_dimension": "§eYou left the palace — story resets in %s s (restart at the entrance)"
+  "beloong.npc.story.mo.outside_dimension": "§eYou left the palace — story resets in %s s (restart at the entrance)",
+  "beloong.advancement.npc/1_0": "Mo's Entrance",
+  "beloong.advancement.npc/1_0.desc": "Witness Mo's entrance in the Dragon Palace"
 }

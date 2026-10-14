@@ -1,5 +1,5 @@
 {
-  "parent": "beloong:npc/root",
+  "parent": "beloong:npc/1_0",
   "criteria": {
     "1_1": {
       "trigger": "minecraft:impossible"
