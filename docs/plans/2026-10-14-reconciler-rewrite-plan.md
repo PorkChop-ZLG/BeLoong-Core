@@ -77,24 +77,26 @@
 **Files:** `npcstory/NpcStory.java`、`npcstory/NpcStoryLoader.java`、
 `src/main/resources/data/beloong/beloong/npc_story/mo.json`、`assets/beloong/lang/*.json`
 **Steps:** `dimension{}` 只留 `host` 与 `_comment`；删 `enforce` / `grace_ticks` / `warn_before_ticks` / `warn_key`
+⚠️ **只动 `dimension{}` 组**：`lease{}` 组（`ticks` / `warn_before_ticks` / `clear_on_logout` / `keep_after_finish` …）
+一个字都不要动 —— `lease` 组里也有个同名 `warn_before_ticks`，误删会静默改变租约提醒行为
 及 `Dimension.enforced()` 与相关校验、语言键；`mo.json` 同步瘦身。（**无需考虑旧存档**：整合包未使用新格式）
 **Verification:** build 通过；`stage` 相关断言同步更新后全绿。
 
 ### T8b 租约续约（D10 / D11）
-**Files:** `npcstory/NpcStory.java`（`leaseRenewal` 布尔 + `leaseRenewAdvancements` 可选列表 + codec/校验）、
+**Files:** `npcstory/NpcStory.java`（`Lease.renewal` 布尔 + `Lease.renew_advancements` 可选列表 + codec/校验）、
 `npcstory/NpcStoryLoader.java`（KNOWN_FIELDS + 惰性链解析 + 校验）、
 `npcstory/NpcStoryHandler.java`（`onAdvancementEarned` 里续约；链遍历器复用）、
 `src/main/resources/data/beloong/beloong/npc_story/mo.json`（**显式写** `"lease_renewal": true`；列表缺省不写，用规则）
 **Steps:**
-① 解析字段：`lease_renewal`（缺省 true）、`lease_renew_advancements`（可选数组）；
+① 解析字段：`lease.renewal`（缺省 true）、`lease.renew_advancements`（可选数组）；
 ② 惰性解析缺省列表：沿 `parent()` 从 `end` 上溯到 `start`，取**两端之间**的进度 id 集合（含 `1_0`）；
    用 reload stamp 作失效判据；解析时校验"每个 id 都在链上"，违规记录并剔除；
 ③ `onAdvancementEarned`：若该进度属于某剧情的续约集合 ⇒ 找到**该剧情的分身**（注册表优先、回退全量扫描）
    ⇒ `setLease(now, story.expiryAt(now))` + INFO（旧到期 → 新到期）；
 ④ 已通关剧情直接跳过；
-⑤ 模组 `mo.json` 显式写开关。
+⑤ 模组 `mo.json` 的 `lease{}` 里显式写 `"renewal": true`。
 **Verification:** build 通过；`stage` 断言 ⑩–⑫ 全绿；实机：连续拿里程碑 ⇒ 租约不断刷新（日志可见），
-停止推进 ⇒ 一小时后被"删 + 撤"。
+停止推进 ⇒ 租约到期后（缺省 1 小时，实际由 `lease.ticks` 决定）被"删 + 撤"。
 
 ### T9 文档
 **Files:** `docs/NPC系统总设计.md`（§12.7/§12.9）、本设计/计划回填执行记录、
@@ -121,7 +123,9 @@
 ⑩ 续约只认"链上两端之间"：断言续约判定处**不**使用 `startAdvancement()` / `endAdvancement()` 作为**可续约**项
 （端点必须被排除），且缺省列表的推导走 `parent()` 链遍历；
 ⑪ `NpcStory` 有 `leaseRenewal` 字段且**缺省 true**（断言 codec 里的默认值写法存在）；
-⑫ 模组 `mo.json` **显式**包含 `lease_renewal`（断言该键存在，不是靠缺省）。
+⑫ 模组 `mo.json` 的 `lease{}` 里**显式**包含 `renewal`（断言该键存在，不是靠缺省）。
+⑬ ★ **续约不得硬编码时长**：断言续约调用点用的是 `story.expiryAt(...)`（读该剧情的 `lease.ticks`），
+且 `NpcStoryHandler` 里不出现 `72000` / `3600` / `一小时` 之类字面量。
 （一律查**方法/键名**，不查注释文字 —— 本项目已栽过多次。）
 **Verification:** `python stage_invariants.py` 全绿（含新增 9 类断言）。
 
@@ -141,5 +145,5 @@
 5. 通关 ⇒ 分身按 `keep_after_finish` 处理（`false` 删除 / `true` 保留）；
 6. 回归：对话 / 路线 / 表情 / 调试指令 / 不可被移动 / 新人开场（等配置秒数 ⇒ 送回原点 ⇒ 全新分身 ⇒ CG）；
 7. 观察日志：对账不再打印任何"扫不到分身"类警告；S1 生效后无新增报错；
-8. **续约**：连着拿几个里程碑（含 `1_0`）⇒ 每次日志都有"续约（旧到期 → 新到期）"且到期时间被推后一小时；
-   随后停止推进（例如待在龙宫不动）⇒ 一小时后被"删 + 撤"；端点进度（`root` / `5_1`）本身**不**触发续约。
+8. **续约**：连着拿几个里程碑（含 `1_0`）⇒ 每次日志都有"续约（旧到期 → 新到期）"且到期时间被推后**一整段该剧情配置的租约时长**；
+   随后停止推进（例如待在龙宫不动）⇒ 租约到期后（缺省 1 小时）被"删 + 撤"；端点进度（`root` / `5_1`）本身**不**触发续约。
