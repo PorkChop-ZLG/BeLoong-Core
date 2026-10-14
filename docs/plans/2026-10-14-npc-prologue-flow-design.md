@@ -29,7 +29,7 @@
 | D10 | 序章**只对"人在 `beloong:loong_palace`"时生效**（否则 `ensureDouble` 会在别的维度找不到锚点，凭空造一只）|
 | D11 | 重播（重置后回龙宫）**不额外等待** —— 只有"新人登录"才等 N 秒 |
 | D12 | 不动 `npc_story` 的 `start_advancement = root` / `end = 5_1`（这样 D1 的"撤到 root"才成立）|
-| D13 | **传送必须走 `teleport` 包**（`docs/龙宫维度总设计.md:50` 的硬约束："所有跨维度传送必须走 `teleport` 包"）：`TeleportTarget.LOONG_PALACE_LEVEL` + **`TeleportTarget.Spawn(palaceLevel)`** + `DimensionTeleport.toTarget(...)` ⇒ `player.changeDimension(transition)`。<br>⚠️ **落点必须用 `Spawn`**（XZ 取出生点中心、**Y 取出生点自身**、不查高度图、不会失败）—— **不能用 `toLoongPalace`** ✗：它的配置落点 `(0.5, 65.5, 0.5)` 在**空中**（那是"入口要求玩家飞行"的设计，见 `docs/龙宫维度总设计.md` 与 `2026-09-16-loong-palace-teleport-api-design.md` §7）⇒ 序章时玩家可能还不会飞 ⇒ 掉下去触发 Y&lt;0 兜底被送回主世界 ⇒ **序章再传送 ⇒ 无限往返** ✗✗<br>⚠️ 依据 API 契约：仅服务端主线程 · 非阻塞 · **`null` = 本 tick 不传送、由调用方重试** · API 不写任何状态 ⇒ 重试与日志都归序章自己 |
+| D13 | **传送必须走 `teleport` 包**（`docs/龙宫维度总设计.md:50` 的硬约束："所有跨维度传送必须走 `teleport` 包"）：`TeleportTarget.LOONG_PALACE_LEVEL` + **`TeleportTarget.toLoongPalace(palaceLevel)`** + `DimensionTeleport.toTarget(...)` ⇒ `player.changeDimension(transition)`。<br>✅ **落点安全**：龙宫的**实际地图由 LockDown 加载**（整合包预建地图）⇒ 配置落点就是**实地**（且就是玩家初次创建存档的出生点），不会掉虚空；`Spawn(palaceLevel)` 同样可用（两者等价，本计划用语义更贴切的 `toLoongPalace`）。<br>⚠️ 依据 API 契约：仅服务端主线程 · 非阻塞 · **`null` = 本 tick 不传送、由调用方重试** · API 不写任何状态 ⇒ 重试与日志都归序章自己；**不 `mark` 共用冷却**（与 `transport/DimensionTransportHandler` 的抢救性传送同例）|
 | D14 | ★ **顺序铁律**：**先确认分身已建成，再授予 `root`**（同一 tick 内完成）。否则"有 `root` 却无分身"会被对账器的 D21 分支反复撤回 ⇒ **授予/撤回抖动** + 日志刷屏 |
 
 ## 进度拓扑（父链必须真的这么连，否则撤回走不到 `1_0`）
