@@ -22,14 +22,14 @@
 | D3 | **播 CG 的闸门 = `¬1_0`**（有 `1_0` 就不再播）—— 与对话系统的"开始/结束进度"同一套思路 |
 | D4 | **第一段对话的窗口 = `[1_0, 1_1)`**（有 `1_0` 才能右键触发；chatbox 结束授予 `1_1`，这一段**不变**）|
 | D5 | **序章由系统授予 `root`**：进入游戏 + 等**可配置**时间 ⇒ 授予（`root.json` 触发改 `impossible` ⇒ 只能由代码给）|
-| D6 | **新人登录不传送**（lockdown 已保证出生在龙宫固定坐标且必有锚点）；**剧情重置后若人在龙宫外 ⇒ 用现成传送 API 送回龙宫**（否则序章会一直推迟，玩家在主世界看不到任何 NPC）|
+| D6 | **序章绝不移动玩家**（2026-10-14 实机后改判）：玩家**本就在**剧情声明的维度里才开场；不在 ⇒ 什么都不做。**剧情可跳过** —— 离开龙宫等于跳过，宽限期过后由维度规则清理（删分身 + 撤整条链）；玩家自己走回来才会重新开场 |
 | D7 | ★ **CG 只要"被开始过"就一定拿到 `1_0`**：正常播完自然给；**中断/换维度/掉线/服务器重启/预检失败**也**补授 + 一条英文 WARN** ⇒ 流程永不卡死 |
 | D8 | **锚点永不显示给任何玩家**；**开启 debug 的玩家例外** ⇒ debug 的目的就是让整合包作者看见锚点 |
 | D9 | **`beloong npc debug`**：只让玩家**看见**（**不可交互**）· **持久化** · **不检查权限** · 即时生效 |
 | D10 | 序章**只对"人在 `beloong:loong_palace`"时生效**（否则 `ensureDouble` 会在别的维度找不到锚点，凭空造一只）|
 | D11 | 重播（重置后回龙宫）**不额外等待** —— 只有"新人登录"才等 N 秒 |
 | D12 | 不动 `npc_story` 的 `start_advancement = root` / `end = 5_1`（这样 D1 的"撤到 root"才成立）|
-| D13 | **传送必须走 `teleport` 包**（`docs/龙宫维度总设计.md:50` 的硬约束："所有跨维度传送必须走 `teleport` 包"）：`TeleportTarget.LOONG_PALACE_LEVEL` + **`TeleportTarget.toLoongPalace(palaceLevel)`** + `DimensionTeleport.toTarget(...)` ⇒ `player.changeDimension(transition)`。<br>✅ **落点安全**：龙宫的**实际地图由 LockDown 加载**（整合包预建地图）⇒ 配置落点就是**实地**（且就是玩家初次创建存档的出生点），不会掉虚空；`Spawn(palaceLevel)` 同样可用（两者等价，本计划用语义更贴切的 `toLoongPalace`）。<br>⚠️ 依据 API 契约：仅服务端主线程 · 非阻塞 · **`null` = 本 tick 不传送、由调用方重试** · API 不写任何状态 ⇒ 重试与日志都归序章自己；**不 `mark` 共用冷却**（与 `transport/DimensionTransportHandler` 的抢救性传送同例）|
+| ~~D13~~ | **【已作废｜2026-10-14 实机后】** 原定"重置后用现成传送 API 把玩家送回龙宫" —— 用户改判"剧情应当可跳过、不该强行拉回" ⇒ **序章不再有任何传送调用**（守卫 `stage_invariants.py` 有断言钉住：序章不得出现 `DimensionTeleport`/`changeDimension`/`teleportTo`/`TeleportTarget`）。以下保留原文仅作历史记录：**传送复用现成 API**：`TeleportTarget.LOONG_PALACE_LEVEL` + `TeleportTarget.Spawn`/`toLoongPalace` + `DimensionTeleport.toTarget(...)` ⇒ `player.changeDimension(transition)` |
 | D14 | ★ **顺序铁律**：**先确认分身已建成，再授予 `root`**（同一 tick 内完成）。否则"有 `root` 却无分身"会被对账器的 D21 分支反复撤回 ⇒ **授予/撤回抖动** + 日志刷屏 |
 
 ## 进度拓扑（父链必须真的这么连，否则撤回走不到 `1_0`）
