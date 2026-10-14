@@ -13,11 +13,7 @@
     "clear_on_logout": false
   },
   "dimension": {
-    "_comment": "维度：剧情在龙宫 ⇒ 对账器扫这里（离线结算靠它）；离开超过宽限（缺省 5 分钟）就清理 + 撤回。",
-    "host": "beloong:loong_palace",
-    "enforce": true,
-    "warn_before_ticks": 600,
-    "warn_key": "beloong.npc.story.mo.outside_dimension",
-    "grace_ticks": 6000
+    "_comment": "维度：剧情在龙宫 ⇒ 对账器在此巡检、序章也只在玩家位于此维度时开场。⚠️ 2026-10-14 起本组只剩 host：enforce / grace_ticks / 两个维度提醒字段已随「离开维度就重置」这条规则的删除而移除，写上会被 loader 当未知字段整文件拒绝。",
+    "host": "beloong:loong_palace"
   }
 }

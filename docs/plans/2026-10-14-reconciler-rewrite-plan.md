@@ -73,7 +73,7 @@
 
 ## 批次 ③ 数据与文档
 
-### T8 `dimension{}` 瘦身（D8 选甲，只改模组数据）
+### T8 `dimension{}` 瘦身（D8 选甲，只改模组数据）—— **T8 已完成（2026-10-14）**
 **Files:** `npcstory/NpcStory.java`、`npcstory/NpcStoryLoader.java`、
 `src/main/resources/data/beloong/beloong/npc_story/mo.json`、`assets/beloong/lang/*.json`
 **Steps:** `dimension{}` 只留 `host` 与 `_comment`；删 `enforce` / `grace_ticks` / `warn_before_ticks` / `warn_key`
@@ -217,3 +217,15 @@
 | T7 S2 进度缓存 | ✅ | 缓存放进 `NpcDialogueStage.stateOf`（`isEarned` 与 `visible` 的共同收口）：TTL 20 tick + `UNKNOWN` 不入缓存 + 超 4096 条顺手清过期；**写侧三处显式失效**（序章授予 / CG 授予 / 撤回）—— 否则序章会读到过期值而重复清场与重复传送 |
 
 **验证**：`gradlew build` ✓ · stage **159 PASS / 0 FAIL**（含新增 15.7/15.8 组）· route 全绿 · cg PASS · 四探针 GREEN
+
+### 批次③ T8 执行记录（2026-10-14）
+
+- `NpcStory.Dimension`：(host, enforce, graceTicks, warnBeforeTicks, warnText, warnKey) ⇒ **(host)**
+  · 顺带删除两个已无消费者的缺省常量 `DEFAULT_DIMENSION_GRACE_TICKS` / `DEFAULT_WARN_BEFORE_TICKS`
+  · 删除 `enforced()` 与 `dimensionGraceTicks()`；`Dimension` 的 javadoc **整体重写**（说明为何只剩 host，
+    并点明 `Lease` 的 `warn_*` 仍有效 —— 两个组有同名字段，别删错组）
+- `NpcStoryLoader`：删掉 `dimension.grace_ticks` / `dimension.warn_before_ticks` / `dimension.enforce` 三段校验；
+  `warn_text` / `warn_key` 收窄为**只查租约组**；`dimension` 的已知键集合移除那 5 个键名
+- `mo.json`：`dimension{}` 只剩 `host`；语言键删 2×2 个死键 ⇒ 中英各 **301** 键
+- 顺带订正 `NpcStory` 三处"离线结算"与一处"玩家会重新看到公共锚点"（后者 = 审查 I4 同类假话）
+- 守卫：删"离开维度的宽限缺省 = 6000"，换成 **15.9**（`dimension{}` 只允许 host/_comment + host 值）

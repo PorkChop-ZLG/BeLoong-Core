@@ -73,8 +73,7 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
             "lease", Set.of("ticks", "clear_on_logout", "keep_after_finish",
                     "warn_before_ticks", "warn_text", "warn_key", "_comment"),
             // 维度组
-            "dimension", Set.of("host", "enforce", "grace_ticks",
-                    "warn_before_ticks", "warn_text", "warn_key", "_comment"));
+            "dimension", Set.of("host", "_comment"));
 
     /**
      * 旧版**平铺**写法 → 新位置。命中时 ERROR 里附上提示 ——
@@ -190,37 +189,16 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
                             file.getKey());
                     return;
                 }
-                if (story.dimension().graceTicks() < 0L) {
-                    BeLoongCore.LOGGER.error(
-                            "npc story file '{}': dimension.grace_ticks must be >= 0, file rejected",
-                            file.getKey());
-                    return;
-                }
-                if (story.dimension().warnBeforeTicks().orElse(0L) < 0L) {
-                    BeLoongCore.LOGGER.error(
-                            "npc story file '{}': dimension.warn_before_ticks must be >= 0, file rejected",
-                            file.getKey());
-                    return;
-                }
-                if (story.lease().warnText().filter(String::isBlank).isPresent()
-                        || story.dimension().warnText().filter(String::isBlank).isPresent()) {
+                if (story.lease().warnText().filter(String::isBlank).isPresent()) {
                     BeLoongCore.LOGGER.error(
                             "npc story file '{}': warn_text must not be blank (remove the field to use the"
                                     + " default key), file rejected", file.getKey());
                     return;
                 }
-                if (story.lease().warnKey().filter(k -> !isValidKey(k)).isPresent()
-                        || story.dimension().warnKey().filter(k -> !isValidKey(k)).isPresent()) {
+                if (story.lease().warnKey().filter(k -> !isValidKey(k)).isPresent()) {
                     BeLoongCore.LOGGER.error(
                             "npc story file '{}': warn_key must be a valid resource location"
                                     + " (e.g. 'beloong.npc.story.expiring'), file rejected", file.getKey());
-                    return;
-                }
-                if (story.dimension().enforce() && story.dimension().host().isEmpty()) {
-                    BeLoongCore.LOGGER.error(
-                            "npc story file '{}': dimension.enforce=true requires dimension.host"
-                                    + " (otherwise there is no dimension to leave), file rejected",
-                            file.getKey());
                     return;
                 }
                 if (story.lease().isPermanent() && story.lease().warnBeforeTicks().orElse(0L) > 0L) {

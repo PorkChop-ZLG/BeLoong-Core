@@ -56,7 +56,7 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
     /** 租约缺省：72000 tick = 1 小时。 */
     public static final long DEFAULT_LIFETIME_TICKS = 72000L;
 
-    /** 租约取这个值表示**永久**（此时"到期提醒"与离线结算都无意义）。 */
+    /** 租约取这个值表示**永久**（此时"到期提醒"无意义 —— 离线结算已随重写设计 D6 于 2026-10-14 删除）。 */
     public static final long PERMANENT_LIFETIME_TICKS = -1L;
 
     /**
@@ -64,10 +64,8 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
      * <p>
      * ⚠️ 2026-10-01 由 1200（60 秒）改为 6000：60 秒太紧，玩家在龙宫里死一次重生到主世界就会被判成弃坑。
      */
-    public static final long DEFAULT_DIMENSION_GRACE_TICKS = 6000L;
 
     /** 提醒提前量的缺省（tick）= 600（30 秒）。租约那侧缺省时改用全局配置 {@code Config.NpcStory.expiryWarningTicks}。 */
-    public static final long DEFAULT_WARN_BEFORE_TICKS = 600L;
 
     public static final Codec<NpcStory> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             ResourceLocation.CODEC.fieldOf("start_advancement").forGetter(NpcStory::startAdvancement),
@@ -89,12 +87,11 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
      *                         以后改这里的值**不会**追溯影响已存在的分身（设计 D14 的承诺）。
      * @param clearOnLogout    玩家退出服务器时是否直接清理，缺省 {@code false} = **不清理** ——
      *                         意外断线（崩溃、掉线）之后还能接着走。真正的兜底是 {@code ticks}：
-     *                         离线期间计时照走（游戏时间），超时由巡检清掉（见下）。
-     * @param keepAfterFinish  剧情**完成之后**是否保留分身，缺省 {@code false} = **不保留**（通关即回收，
-     *                         玩家会重新看到公共锚点）。默认 false 是刻意的：**新剧情默认干净**。
+ *                         离线期间计时照走（游戏时间），但要等主人**上线且分身被加载**时才清（D6 纯乙：离线一律不动）。
+     * 玩家看到的是**空场**（锚点对有剧情声明的实体恒不可见，设计 D8）。默认 false 是刻意的
      *                         短剧情若需要"结尾它坐在那里"的观感（设计 D6），**显式写 true**。
-     *                         ⚠️ 取 {@code true} 时该剧情**不参与离线结算** —— 离线判不出"他是否已通关"，
-     *                         而 true 的意义正是"通关后永久保留"⇒ 宁可不清理，也不误删（设计 D6）。
+     * 取 {@code true} 时该剧情的分身在**通关后永久保留**（离线结算已删除，不再有此含义）。
+     * 而 true 的意义正是"通关后永久保留"（离线结算已随 D6 于 2026-10-14 删除，这里的取舍只剩"要不要留着它"）。
      * @param warnBeforeTicks  <b>可选</b>：到期前多久开始提醒；缺省（不写）⇒ 用全局配置
      *                         {@code Config.NpcStory.expiryWarningTicks}。写 {@code 0} = 不提醒。
      *                         ⚠️ 声明成 Optional 而不是"带缺省值"：否则无法区分"没写"与"显式写 600"，
@@ -127,50 +124,27 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
     }
 
     /**
-     * <b>维度组</b>：剧情在哪个维度、离开要不要清、离开时怎么提醒。
+     * <b>维度声明</b>（2026-10-14 瘦身：只剩 {@code host}）。
      * <p>
-     * ⚠️ 两个字段各管一件事，**刻意拆开**（2026-10-01）：
-     * <ul>
-     *   <li>{@code host} 决定<b>对账器去哪个维度巡检</b> —— 离线结算能不能扫到分身全靠它；
-     *       省略 ⇒ 退化为"扫在线玩家所在维度" ⇒ <b>0 人在线时该剧情的离线结算不生效</b>（合法退化）。</li>
-     *   <li>{@code enforce} 才决定"**离开这个维度就算弃坑**"（清分身 + 撤进度）。缺省 {@code false}。</li>
-     * </ul>
-     * 合成一个字段时会出现"要巡检目标就必须接受超时清理"的两难 —— 长流程剧情恰好是
-     * "需要 host、不能要 enforce"。
-     *
-     * @param host            剧情所在维度（<b>可选</b>）。见上。
-     * @param enforce         是否启用"离开 host 就清理"，缺省 {@code false}。⚠️ 为 true 时必须写 host
-     *                        （否则不知道该"离开谁"）—— 加载期会拒绝这种组合。
-     * @param graceTicks      离开到清理之间的**宽限**（tick），缺省
-     *                        {@value NpcStory#DEFAULT_DIMENSION_GRACE_TICKS}（5 分钟）。
-     * @param warnBeforeTicks <b>可选</b>：清理前多久开始提醒。**不写**时由 handler 用常量
-     *                        {@value NpcStory#DEFAULT_WARN_BEFORE_TICKS}（30 秒）兜底
-     *                        —— 与 {@link Lease#warnBeforeTicks()} 同一个口径：缺省值在**消费端**，
-     *                        codec 里刻意不带缺省（否则无法区分"没写"与"显式写"）。写 0 = 不提醒。
-     * @param warnText        <b>可选</b>：字面文本（优先）；{@code %s} 填剩余秒数。
-     * @param warnKey         <b>可选</b>：翻译键（次之）；都不写 ⇒ 内置默认键。
+     * {@code host} 是**唯一**还活着的字段，用途只有一个：告诉对账器/序章"这条剧情发生在哪个维度"
+     * （对账器只在该维度里巡检；序章也只在玩家位于该维度时才开场）。
+     * <p>
+     * ⚠️ 曾经还有 {@code enforce} / {@code grace_ticks} / 两个提醒字段，对应"玩家离开该维度超过宽限 ⇒
+     * 清理 + 撤回"这条规则 —— 它已随重写设计 **D1** 于 2026-10-14 整体删除（离开 = 暂停，不再有任何即时清理；
+     * 清理只由**租约到期**负责）。那些字段因此一并移除：配置里再写它们会被 loader 当作未知字段整文件拒绝。
+     * <p>
+     * ⚠️ <b>没有 {@code host} 时</b>对账器退化为"扫在线玩家当前所在维度"（合法退化，见类注释）。
+     * <p>
+     * ⚠️ 提醒相关的字段（{@code warn_*}）在 {@link Lease} 里**仍然存在且有效** ——
+     * 那是"租约将要到期"的提醒，与已删除的维度提醒是两回事，别删错。
      */
-    public record Dimension(Optional<ResourceLocation> host, boolean enforce, long graceTicks,
-                            Optional<Long> warnBeforeTicks, Optional<String> warnText, Optional<String> warnKey) {
+    public record Dimension(Optional<ResourceLocation> host) {
 
-        public static final Dimension DEFAULT = new Dimension(
-                Optional.empty(), false, DEFAULT_DIMENSION_GRACE_TICKS,
-                Optional.empty(), Optional.empty(), Optional.empty());
+        public static final Dimension DEFAULT = new Dimension(Optional.empty());
 
         public static final Codec<Dimension> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                ResourceLocation.CODEC.optionalFieldOf("host").forGetter(Dimension::host),
-                Codec.BOOL.optionalFieldOf("enforce", Boolean.FALSE).forGetter(Dimension::enforce),
-                Codec.LONG.optionalFieldOf("grace_ticks", DEFAULT_DIMENSION_GRACE_TICKS)
-                        .forGetter(Dimension::graceTicks),
-                Codec.LONG.optionalFieldOf("warn_before_ticks").forGetter(Dimension::warnBeforeTicks),
-                Codec.STRING.optionalFieldOf("warn_text").forGetter(Dimension::warnText),
-                Codec.STRING.optionalFieldOf("warn_key").forGetter(Dimension::warnKey)
+                ResourceLocation.CODEC.optionalFieldOf("host").forGetter(Dimension::host)
         ).apply(instance, Dimension::new));
-
-        /** 这条维度规则是否真的会生效（`enforce` 且写了 `host`）。 */
-        public boolean enforced() {
-            return this.enforce && this.host.isPresent();
-        }
     }
 
     // ===================== 便捷访问器 =====================
@@ -196,12 +170,7 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
         return this.dimension.host();
     }
 
-    /** @see Dimension#graceTicks() */
-    public long dimensionGraceTicks() {
-        return this.dimension.graceTicks();
-    }
-
-    /** 是否永久（不做任何基于时长的清理）。 */
+        /** 是否永久（不做任何基于时长的清理）。 */
     public boolean isPermanent() {
         return this.lease.isPermanent();
     }
