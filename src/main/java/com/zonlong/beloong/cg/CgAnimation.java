@@ -4,6 +4,7 @@ import com.finderfeed.fdlib.FDLibCalls;
 import com.finderfeed.fdlib.systems.cutscenes.CutsceneData;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.entity.NpcEntity;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -127,6 +128,46 @@ public abstract class CgAnimation {
     }
 
     /**
+     * <b>本条 CG 播放完成时要授予的进度</b>；缺省 {@code null} = 不授予。
+     * <p>
+     * 语义（用户 2026-10-14 裁定，方案"甲"）：<b>只要这段 CG 被"开始过"，这个进度就一定会被授予</b> ——
+     * 正常播完在 {@code cutsceneTime} 之后授予；<b>没播成</b>（预检未过 / 发包失败）**当场**授予；
+     * 播放途中玩家掉线/换维度也授予（见 {@link CgCompletionHandler}）。
+     * 这样「剧情流程」永远不会卡在"有起点进度、却没有完成标志"上。
+     * <p>
+     * ⚠️ 本方法只**声明**要授予什么；**计时与授予**由 {@link CgCompletionHandler} 负责 ——
+     * 本系统刻意不持有任何运行期状态（见类注释），而"等 CG 放完"恰恰是一个定时状态。
+     */
+    protected ResourceLocation completionAdvancement() {
+        return null;
+    }
+
+    /**
+     * 结算本条 CG 的完成进度：{@code delayTicks <= 0} ⇒ 当场授予，否则交给
+     * {@link CgCompletionHandler} 在 {@code delayTicks} 之后授予。
+     * <p>
+     * ⚠️ 它**绝不能**影响 {@link #play} 的返回值、更不能抛异常（否则会把失败路径的 {@code return 0}
+     * 变成异常，命令层就看不到"没播成"了）⇒ 这里自己吞掉异常并留一条 WARN。
+     */
+    private void settleCompletion(ServerPlayer viewer, int delayTicks, String why) {
+        ResourceLocation id = this.completionAdvancement();
+        if (id == null) {
+            return;
+        }
+        try {
+            if (delayTicks <= 0) {
+                CgCompletionHandler.grantNow(viewer, id, this.name(), why);
+            } else {
+                CgCompletionHandler.grantLater(viewer, id, delayTicks, this.name());
+            }
+        } catch (Throwable t) {
+            BeLoongCore.LOGGER.warn(
+                    "[BeLoong] cg '{}': could not settle its completion advancement '{}' for {}: {}",
+                    this.name(), id, viewer.getGameProfile().getName(), t.toString());
+        }
+    }
+
+    /**
      * **唯一的副作用出口**。顺序：预检 → 触发动画 → 上隐身 → 发过场包。
      * <p>
      * ⚠️ 这三步**不是原子的**：发包若抛异常，前两步已经生效（动画在播、人隐着），
@@ -146,6 +187,7 @@ public abstract class CgAnimation {
                     "[BeLoong] cg '{}' aborted: viewer {} is horizontally on top of target {} "
                             + "(the camera direction is undefined)",
                     this.name(), viewer.getGameProfile().getName(), target.getType());
+            this.settleCompletion(viewer, 0, "aborted: undefined camera direction");
             return 0;
         }
 
@@ -157,6 +199,7 @@ public abstract class CgAnimation {
             BeLoongCore.LOGGER.warn(
                     "[BeLoong] cg '{}' aborted: building the cutscene threw (treating as unplayable): {}",
                     this.name(), t.toString());
+            this.settleCompletion(viewer, 0, "aborted: building the cutscene threw");
             return 0;
         }
 
@@ -169,6 +212,7 @@ public abstract class CgAnimation {
                             + "makes fdlib's progress NaN; CutsceneCameraHandler also does "
                             + "getCameraPositions().getFirst() without a check)",
                     this.name());
+            this.settleCompletion(viewer, 0, "aborted: unusable CutsceneData");
             return 0;
         }
 
@@ -179,6 +223,7 @@ public abstract class CgAnimation {
                 BeLoongCore.LOGGER.warn(
                         "[BeLoong] cg '{}' aborted: it declares animation '{}' but target {} is not an NpcEntity",
                         this.name(), animation, target.getType());
+                this.settleCompletion(viewer, 0, "aborted: declared animation but target is not an NpcEntity");
                 return 0;
             }
             npc.setEmote(animation);
@@ -229,6 +274,7 @@ public abstract class CgAnimation {
                     "[BeLoong] cg '{}' failed to send the cutscene to {} (the animation/effect, if any, is already "
                             + "running and is NOT rolled back): {}",
                     this.name(), viewer.getGameProfile().getName(), t.toString());
+            this.settleCompletion(viewer, 0, "aborted: failed to send the cutscene");
             return 0;
         }
 
@@ -239,6 +285,7 @@ public abstract class CgAnimation {
                 this.name(), viewer.getGameProfile().getName(), target.getType(), animation,
                 ctx.anchor(), ctx.anchorToViewer(), data.getCameraPositions().getFirst().getPos(),
                 data.getCameraPositions().size(), data.getCutsceneTime());
+        this.settleCompletion(viewer, data.getCutsceneTime(), "played");
         return 1;
     }
 }

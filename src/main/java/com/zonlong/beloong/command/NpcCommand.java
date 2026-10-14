@@ -7,6 +7,8 @@ import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.route.NpcRoute;
 import com.zonlong.beloong.route.NpcRouteLoader;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import com.zonlong.beloong.entity.NpcDebugView;
 import com.zonlong.beloong.entity.NpcEntity;
 import com.zonlong.beloong.entity.NpcState;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
@@ -171,7 +173,9 @@ public final class NpcCommand {
                                         .executes(ctx -> queryRoute(
                                                 EntityArgument.getEntities(ctx, "targets"),
                                                 ctx.getSource())))
-                                .then(Commands.literal("reset")
+                                .then(Commands.literal("debug")
+                        .executes(ctx -> toggleDebug(ctx.getSource())))
+                .then(Commands.literal("reset")
                                         .executes(ctx -> reset(
                                                 EntityArgument.getEntities(ctx, "targets"),
                                                 ctx.getSource()))))));
@@ -400,6 +404,24 @@ public final class NpcCommand {
         source.sendSuccess(() -> Component.translatable(
                 "beloong.command.npc.play_stop", npcs.size()), true);
         return npcs.size();
+    }
+
+    /**
+     * {@code /beloong npc debug}：切换**执行者自己**的调试视角（看得见所有 NPC，含永不显示的公共锚点）。
+     * <p>
+     * 持久化在玩家的 {@code getPersistentData()} 里（登出重登仍生效）；**不做权限检查**（用户裁定）；
+     * 关掉后可见性在下一个追踪周期自动恢复（不是同一 tick 立刻消失）。
+     */
+    private static int toggleDebug(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            // 复用本项目既有的失败助手（与 reset 等处同款），避免为一个签名再引 CommandSyntaxException。
+            return fail(source);
+        }
+        boolean now = NpcDebugView.toggle(player);
+        source.sendSuccess(() -> Component.translatable(
+                now ? "beloong.command.npc.debug.on" : "beloong.command.npc.debug.off"), false);
+        return 1;
     }
 
     /** 恢复到默认状态：状态→待机、无移动、无攻击、**无表情**（等于刚被召唤出来的样子）。 */

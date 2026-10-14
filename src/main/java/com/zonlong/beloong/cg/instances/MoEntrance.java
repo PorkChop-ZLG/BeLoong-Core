@@ -1,5 +1,6 @@
 package com.zonlong.beloong.cg.instances;
 
+import net.minecraft.resources.ResourceLocation;
 import com.finderfeed.fdlib.systems.cutscenes.CameraPos;
 import com.finderfeed.fdlib.systems.cutscenes.CutsceneData;
 import com.finderfeed.fdlib.systems.cutscenes.CurveType;
@@ -181,6 +182,18 @@ public final class MoEntrance extends CgAnimation {
     @Override
     public String name() {
         return NAME;
+    }
+
+    /**
+     * 登场 CG 播完 ⇒ 授予 {@code beloong:npc/1_0}（"末的登场"）。
+     * <p>
+     * 它是第一段对话的窗口起点（{@code npc_dialogue/mo.json} 第一条回复写在 {@code [1_0, 1_1)}），
+     * 也是"还要不要再播这段 CG"的判据（见 {@code NpcPrologueHandler}）。
+     * 失败/中断的语义见 {@link com.zonlong.beloong.cg.CgAnimation#completionAdvancement()}。
+     */
+    @Override
+    protected ResourceLocation completionAdvancement() {
+        return ResourceLocation.parse("beloong:npc/1_0");
     }
 
     @Override

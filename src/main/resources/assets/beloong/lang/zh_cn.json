@@ -297,5 +297,9 @@
   "beloong.npc.story.mo.expiring": "§e这段剧情还剩 %s 秒，超时后需从龙宫入口重新开始",
   "beloong.npc.story.mo.outside_dimension": "§e你已离开龙宫，%s 秒后剧情重置，需回入口重新开始",
   "beloong.advancement.npc/1_0": "末的登场",
-  "beloong.advancement.npc/1_0.desc": "在龙宫目睹末的登场"
+  "beloong.advancement.npc/1_0.desc": "在龙宫目睹末的登场",
+  "beloong.configuration.npcStoryPrologueDelaySeconds": "开场等待（秒）",
+  "beloong.configuration.npcStoryPrologueDelaySeconds.tooltip": "玩家进入游戏后等这么久，序章才授予 root 并播放登场 CG（默认 5 秒）；剧情被完整重置后回到龙宫会立即重新开场，不等这个时间",
+  "beloong.command.npc.debug.on": "调试视角：已开启（你能看见所有 NPC，含公共锚点；他人的分身仍不可交互）",
+  "beloong.command.npc.debug.off": "调试视角：已关闭"
 }

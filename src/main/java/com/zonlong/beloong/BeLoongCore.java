@@ -7,6 +7,9 @@ import com.zonlong.beloong.command.MynpcCommand;
 import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
+import com.zonlong.beloong.cg.CgCompletionHandler;
+import com.zonlong.beloong.entity.NpcDebugView;
+import com.zonlong.beloong.npcstory.NpcPrologueHandler;
 import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
@@ -119,6 +122,9 @@ public class BeLoongCore {
         // === 事件处理器 ===
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new DimensionTransportHandler());
+        NeoForge.EVENT_BUS.register(new CgCompletionHandler());           // CG 播完 ⇒ 授予进度（含掉线补授）
+        NeoForge.EVENT_BUS.register(new NpcDebugView());                 // 调试视角：登录装载/登出清理
+        NeoForge.EVENT_BUS.register(new NpcPrologueHandler());            // 序章：进游戏等一会儿 ⇒ 送回龙宫 ⇒ 生成分身 ⇒ 授予 root ⇒ 播登场 CG
         NeoForge.EVENT_BUS.register(new LoongPalacePortalActivation());   // 龙宫门：注水激活 + 提示节流清理
         NeoForge.EVENT_BUS.register(new StructureEffectHandler());
         NeoForge.EVENT_BUS.register(new ManaLossHandler());

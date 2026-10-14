@@ -1318,6 +1318,11 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
      * ⚠️ 不可在这里写缓存/发通知/查实体：它每追踪周期对范围内每个玩家都被调用。
      */
     protected boolean visibleTo(ServerPlayer player) {
+        // 调试视角（2026-10-14，D8/D9）：开着就看得见**所有** NPC —— 包括永不显示的公共锚点与别人的分身。
+        // 它只改可见性、不改交互（私有分身的交互闸门仍在 NpcDialogueHandler 里）。
+        if (NpcDebugView.isOn(player)) {
+            return true;
+        }
         NpcStory story = NpcStoryLoader.INSTANCE.get(this.getType());
         if (this.owner != null) {
             if (!player.getUUID().equals(this.owner)) {
@@ -1340,11 +1345,15 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
             return NpcDialogueStage.isEarned(player, story.startAdvancement())
                     && !finishedAndReaped(player, story);
         }
+        // 无主人：公共锚点。
+        // ⚠️ 2026-10-14（设计 D8）起，**有剧情声明的锚点永不显示给任何玩家** ——
+        // 它只作为"私有分身生成的位置模板"（{@code NpcStoryHandler#ensureDouble} 拿它的坐标与朝向），
+        // 以及调试视角下的校对对象。玩家该看到的永远是自己那只分身。
+        // 没有剧情声明的 NPC（地黄龙等）**保持恒可见** —— 既有行为一字不变。
         if (story == null) {
             return true;
         }
-        return !NpcDialogueStage.isEarned(player, story.startAdvancement())
-                || finishedAndReaped(player, story);
+        return false;
     }
 
     /**

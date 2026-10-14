@@ -160,13 +160,10 @@ public class NpcStoryHandler {
                 continue;
             }
 
-            // CG 与"生成"解耦：名字解析不到只留 WARN，分身照常存在（设计 D12）。
-            NpcEntity npc = ensured.npc();
-            story.cg().ifPresent(name -> CgRegistry.byName(name).ifPresentOrElse(
-                    cg -> cg.play(player, npc),
-                    () -> BeLoongCore.LOGGER.warn(
-                            "[BeLoong] npc story for '{}' names unknown cg '{}' — the double was spawned"
-                                    + " but no cg was played", entry.getKey(), name)));
+            // ⚠️ 2026-10-14 起**这里不再播 CG** —— 唯一播放者是 NpcPrologueHandler（序章）。
+            // 原因：进入游戏/剧情被完整重置后的"开场"是**受控流程**（等配置秒数 + 人在龙宫 + 分身已建成
+            // 才开场），而事件路径还会被"管理员手动授予 root"等旁路触发 ⇒ 两条路各播一次就会重播。
+            // 本路径只负责"确保分身存在"（旁路授予 root 时也不至于让玩家没有分身可看）。
         }
     }
 
@@ -636,6 +633,18 @@ public class NpcStoryHandler {
     }
 
     /**
+     * 供<b>序章处理器</b>用：确保该玩家的私有分身存在并返回它（建不出来时 {@code null}）。
+     * <p>
+     * ⚠️ 序章必须在**同一 tick 内**先确保分身、再授予 {@code root} —— 否则"已开始却没有分身"
+     * 会被 {@link #reconcilePlayer} 的 D21 分支反复撤回（授予/撤回抖动）。
+     */
+    @Nullable
+    static NpcEntity ensureDoubleFor(ServerPlayer player, EntityType<?> type, NpcStory story) {
+        Ensured ensured = ensureDouble(player, player.serverLevel(), type, story);
+        return ensured == null ? null : ensured.npc();
+    }
+
+    /**
      * 幂等确保"该玩家的私有分身"存在。
      * <p>
      * 一次 {@code getAllEntities()} 同时完成两件事：查重（已有 ⇒ 直接复用）与找锚点
@@ -646,7 +655,7 @@ public class NpcStoryHandler {
      *         ⇒ 调用方**不要**重播 CG）；建不出来时返回 {@code null}
      */
     @Nullable
-    private Ensured ensureDouble(ServerPlayer player, ServerLevel level, EntityType<?> type, NpcStory story) {
+    private static Ensured ensureDouble(ServerPlayer player, ServerLevel level, EntityType<?> type, NpcStory story) {
         NpcEntity anchor = null;
         double anchorDistance = Double.MAX_VALUE;
         int anchors = 0;

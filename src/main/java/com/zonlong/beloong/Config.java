@@ -57,6 +57,17 @@ public class Config {
 
         /** 到期前多久开始提示玩家（tick，默认 600 = 30 秒；0 = 不提示）。 */
         public static ModConfigSpec.IntValue expiryWarningTicks;
+
+        /**
+         * <b>开场等待</b>（秒，默认 5）：玩家进入游戏后等这么久，序章才授予 {@code beloong:npc/root}
+         * （随后锚点处分身生成、播登场 CG）。
+         * <p>
+         * 只对"尚未获得 {@code root}"的玩家生效：新人登录要等它；剧情被**完整重置**后回到龙宫
+         * 则**立即**重新开场（<b>不等</b> —— 那是"看完又回来"而不是"刚进游戏"）。
+         * <p>
+         * 留这段时间是为了让客户端把世界加载完 —— 否则开场 CG 会在加载画面里白白播掉。
+         */
+        public static ModConfigSpec.IntValue prologueDelaySeconds;
     }
 
 
@@ -349,6 +360,13 @@ public class Config {
                         "分身到期前多久提示玩家（tick），默认 600 = 30 秒；0 = 不提示")
                 .translation("beloong.configuration.npcStoryExpiryWarningTicks")
                 .defineInRange("expiryWarningTicks", 600, 0, 72000);
+
+        // 开场等待（2026-10-14 新增）：只影响"新人登录"这条路径；完整重置后回龙宫立即重开场。
+        NpcStory.prologueDelaySeconds = SERVER_BUILDER
+                .comment("Seconds to wait after a player joins before the prologue grants beloong:npc/root",
+                        "开场等待秒数：玩家进入游戏后等这么久，序章才授予 root（默认 5 秒）")
+                .translation("beloong.configuration.npcStoryPrologueDelaySeconds")
+                .defineInRange("prologueDelaySeconds", 5, 0, 3600);
 
         SERVER_BUILDER.pop(); // npc_story
 

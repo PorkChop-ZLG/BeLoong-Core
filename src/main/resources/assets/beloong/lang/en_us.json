@@ -297,5 +297,9 @@
   "beloong.npc.story.mo.expiring": "§eThis story expires in %s s — restart from the palace entrance",
   "beloong.npc.story.mo.outside_dimension": "§eYou left the palace — story resets in %s s (restart at the entrance)",
   "beloong.advancement.npc/1_0": "Mo's Entrance",
-  "beloong.advancement.npc/1_0.desc": "Witness Mo's entrance in the Dragon Palace"
+  "beloong.advancement.npc/1_0.desc": "Witness Mo's entrance in the Dragon Palace",
+  "beloong.configuration.npcStoryPrologueDelaySeconds": "Prologue Delay (seconds)",
+  "beloong.configuration.npcStoryPrologueDelaySeconds.tooltip": "Wait this long after a player joins before the prologue grants root and plays the entrance CG (default 5s). After a full story reset it replays immediately on returning to the palace.",
+  "beloong.command.npc.debug.on": "Debug view ON (you can see all NPCs, including the public anchor; the doubles of other players stay non-interactive)",
+  "beloong.command.npc.debug.off": "Debug view OFF"
 }
