@@ -299,5 +299,7 @@
   "beloong.configuration.npcStoryPrologueDelaySeconds": "开场等待（秒）",
   "beloong.configuration.npcStoryPrologueDelaySeconds.tooltip": "玩家进入游戏后等这么久，序章才授予 root 并播放登场 CG（默认 5 秒）；剧情被完整重置后回到龙宫会立即重新开场，不等这个时间",
   "beloong.command.npc.debug.on": "调试视角：已开启（你能看见所有 NPC，含公共锚点；他人的分身仍不可交互）",
-  "beloong.command.npc.debug.off": "调试视角：已关闭"
+  "beloong.command.npc.debug.off": "调试视角：已关闭",
+  "beloong.configuration.npcStoryReadyFallbackGraceSeconds": "客户端就绪兜底宽限（秒）",
+  "beloong.configuration.npcStoryReadyFallbackGraceSeconds.tooltip": "客户端始终没上报\"已就绪\"时的兜底宽限（秒）。老客户端/模组冲突/被改的客户端可能永远不报 —— 没有兜底玩家就永远没有剧情；到点会照旧开场并留一条 WARN。"
 }

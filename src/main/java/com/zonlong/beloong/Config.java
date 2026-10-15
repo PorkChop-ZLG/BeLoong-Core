@@ -68,6 +68,14 @@ public class Config {
          * 留这段时间是为了让客户端把世界加载完 —— 否则开场 CG 会在加载画面里白白播掉。
          */
         public static ModConfigSpec.IntValue prologueDelaySeconds;
+
+        /**
+         * 客户端**始终没上报"已就绪"**时的兜底宽限（秒）。
+         * <p>
+         * ⚠️ 必须有：老客户端 / 模组冲突 / 被改的客户端都可能永远不报 ⇒ 没有兜底玩家就永远没有剧情。
+         * 到点照旧开场并留一条 WARN。仅当收到就绪信号时，等待才是纯粹的 {@link #prologueDelaySeconds}。
+         */
+        public static ModConfigSpec.IntValue readyFallbackGraceSeconds;
     }
 
 
@@ -367,6 +375,14 @@ public class Config {
                         "开场等待秒数：玩家进入游戏后等这么久，序章才授予 root（默认 5 秒）")
                 .translation("beloong.configuration.npcStoryPrologueDelaySeconds")
                 .defineInRange("prologueDelaySeconds", 5, 0, 3600);
+
+
+        NpcStory.readyFallbackGraceSeconds = SERVER_BUILDER
+                .comment("Fallback grace (seconds) when the client never reports \"ready\"",
+                        "客户端始终没上报「已就绪」时的兜底宽限（秒）：老客户端/模组冲突/被改的客户端",
+                        "可能永远不报 —— 没有兜底玩家就永远没有剧情；到点照旧开场并留一条 WARN")
+                .translation("beloong.configuration.npcStoryReadyFallbackGraceSeconds")
+                .defineInRange("readyFallbackGraceSeconds", 60, 1, 3600);
 
         SERVER_BUILDER.pop(); // npc_story
 

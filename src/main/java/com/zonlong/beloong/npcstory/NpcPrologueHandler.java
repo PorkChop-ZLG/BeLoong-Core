@@ -112,12 +112,15 @@ public class NpcPrologueHandler {
     }
 
     /**
-     * 收不到就绪信号时的兜底宽限（tick）= 60 秒。
+     * 收不到就绪信号时的兜底宽限（tick）—— 取自 SERVER 配置 {@code readyFallbackGraceSeconds}（缺省 60 秒）。
      * <p>
      * ⚠️ 必须有：老客户端 / 模组冲突 / 被改的客户端都可能永远不报 ⇒ 没有兜底玩家就**永远没有剧情**。
-     * 到点照旧开场，并留一条 WARN。
+     * 到点照旧开场，并留一条 WARN。**只有收到就绪信号时**，等待才是纯粹的
+     * {@code prologueDelaySeconds}（这是正常路径）。
      */
-    private static final int READY_FALLBACK_GRACE_TICKS = 1200;
+    private static int readyFallbackGraceTicks() {
+        return Math.max(1, Config.NpcStory.readyFallbackGraceSeconds.get()) * 20;
+    }
 
     /** 已经为"没收到就绪信号"报过 WARN 的玩家（每人一条，避免刷屏）。 */
     private static final Set<UUID> WARNED_READY_FALLBACK = new HashSet<>();
@@ -193,7 +196,7 @@ public class NpcPrologueHandler {
             Long readyAt = clientReadyAt(player);
             if (readyAt == null) {
                 // ⚠️ 兜底：一直收不到就绪信号也要开场，否则玩家永远没有剧情。
-                if (player.tickCount < delayTicks + READY_FALLBACK_GRACE_TICKS) {
+                if (player.tickCount < delayTicks + readyFallbackGraceTicks()) {
                     return;
                 }
                 if (WARNED_READY_FALLBACK.add(player.getUUID())) {

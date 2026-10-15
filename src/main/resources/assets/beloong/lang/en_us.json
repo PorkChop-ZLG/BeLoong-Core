@@ -299,5 +299,7 @@
   "beloong.configuration.npcStoryPrologueDelaySeconds": "Prologue Delay (seconds)",
   "beloong.configuration.npcStoryPrologueDelaySeconds.tooltip": "Wait this long after a player joins before the prologue grants root and plays the entrance CG (default 5s). After a full story reset it replays immediately on returning to the palace.",
   "beloong.command.npc.debug.on": "Debug view ON (you can see all NPCs, including the public anchor; the doubles of other players stay non-interactive)",
-  "beloong.command.npc.debug.off": "Debug view OFF"
+  "beloong.command.npc.debug.off": "Debug view OFF",
+  "beloong.configuration.npcStoryReadyFallbackGraceSeconds": "Client-ready fallback grace (seconds)",
+  "beloong.configuration.npcStoryReadyFallbackGraceSeconds.tooltip": "Fallback grace (seconds) when the client never reports \"ready\". Old, conflicting or modified clients may never report - without this the player would never get the story; the prologue starts anyway and logs a WARN."
 }
