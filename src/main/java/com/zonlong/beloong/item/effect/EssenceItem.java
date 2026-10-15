@@ -278,7 +278,7 @@ public class EssenceItem extends Item {
 
         // ⑧ 魔源变空 + 把新的技能数据同步给客户端
         //    ⚠️ addAbility **不自动同步**；不发这个包，技能不会出现在客户端的技能列表里
-        stack.remove(ModDataComponents.ESSENCE_SKILL.get());
+        clearStoredSkill(serverPlayer, stack);
         PacketDistributor.sendToPlayer(serverPlayer,
                 new SyncMagicData(magic.serializeNBT(serverPlayer.registryAccess())));
 
@@ -319,6 +319,41 @@ public class EssenceItem extends Item {
     /** 给玩家一条 actionbar 提示（不刷聊天栏）。 */
     private static void hint(Player player, String translationKey) {
         player.displayClientMessage(Component.translatable(translationKey), true);
+    }
+
+    /**
+     * 用掉<b>一个</b>魔源：把封存的技能从<b>手里那一个</b>上移除。
+     *
+     * <h3>⚠️ 为什么不能直接对整摞移除组件</h3>
+     *
+     * 数据组件是<b>整摞 {@code ItemStack} 共有</b>的，不是逐个物品独立的。所以直接
+     * {@code stack.remove(ESSENCE_SKILL)} 会把一摞 64 个里封存的技能<b>全部清掉</b>，
+     * 而玩家只该用掉一个 —— 实测踩过：一摞装着技能的魔源用一次，**整摞都变空**。
+     * <p>
+     * 正确做法：手里只有一个就就地移除；多于一个就<b>拆出 1 个</b>、只移除它，再把那 1 个空的放回背包
+     * （背包满则掉在脚下，<b>不静默吞掉玩家物品</b>）。
+     *
+     * @param player 使用者（服务端）
+     * @param stack  触发这次交互的那一摞（主手或副手）
+     */
+    private static void clearStoredSkill(ServerPlayer player, ItemStack stack) {
+        // 创造模式不消耗：技能照样习得，魔源照旧是满的（与其它"可无限使用"的原版物品一致）
+        if (player.hasInfiniteMaterials()) {
+            return;
+        }
+
+        if (stack.getCount() <= 1) {
+            stack.remove(ModDataComponents.ESSENCE_SKILL.get());
+            return;
+        }
+
+        ItemStack emptied = stack.copyWithCount(1);
+        emptied.remove(ModDataComponents.ESSENCE_SKILL.get());
+        stack.shrink(1);
+
+        if (!player.getInventory().add(emptied)) {
+            player.drop(emptied, false);
+        }
     }
 
     // ==================== 展示 ====================
