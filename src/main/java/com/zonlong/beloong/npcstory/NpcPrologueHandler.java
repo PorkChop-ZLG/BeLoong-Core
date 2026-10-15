@@ -262,6 +262,9 @@ public class NpcPrologueHandler {
                     "[BeLoong] npc prologue: granted root to '{}' and ensured their double of '{}' at {}",
                     player.getGameProfile().getName(), entry.getKey(), npc.blockPosition());
 
+            // ⑩ 播登场 CG 前**钉朝向**（用户 2026-10-14 要求）：这条路径可能没走传送
+            //    （玩家本来就站在落点上）⇒ 这里补一次，保证任何路径下 CG 的机位都一致。
+            faceNorth(player);
             // ⑩ 播登场 CG（闸门：此刻必然还没有 1_0 —— ④ 已经挡掉了"完整开场过"的情况）
             story.cg().ifPresent(name -> CgRegistry.byName(name).ifPresentOrElse(
                     cg -> cg.play(player, npc),
@@ -310,6 +313,24 @@ public class NpcPrologueHandler {
     }
 
     /**
+     * 把玩家强制转向<b>正北</b>（=-Z ⇒ yaw 180）。
+     * <p>
+     * 为什么需要：登场 CG 的机位是"<b>从玩家指向分身</b>"算出来的（{@code CgContext.of} 的 anchorToViewer），
+     * 玩家朝向不定 ⇒ 同一段 CG 每次的机位都不同（实机日志里正常那几次恒为 {@code (0,0,1)}，
+     * 即玩家在分身南侧朝北看 —— 正是这里要钉住的姿态）。
+     * <p>
+     * ⚠️ <b>只调 {@code setYRot} 是不够的</b>：玩家自身的朝向在客户端属于<b>本地权威</b>，
+     * 服务端改字段客户端不会照做 ⇒ 必须用 {@code connection.teleport(...)} 发一次位置包把朝向带过去。
+     * 坐标原样传（不移动玩家，只钉朝向）。
+     */
+    private static void faceNorth(ServerPlayer player) {
+        player.setYRot(180.0F);
+        player.setXRot(0.0F);
+        player.setYHeadRot(180.0F);
+        player.connection.teleport(player.getX(), player.getY(), player.getZ(), 180.0F, 0.0F);
+    }
+
+    /**
      * 用 {@code teleport} 包把玩家送到落点（{@code docs/龙宫维度总设计.md} 的硬约束：跨维度传送必须走它；
      * 这里虽然同维度，也复用同一套以避免第二份实现）。
      * <p>
@@ -322,6 +343,9 @@ public class NpcPrologueHandler {
             return false;
         }
         player.changeDimension(transition);
+        // 落地即朝正北（用户 2026-10-14 要求）：CG 的机位由"玩家→分身"的方向决定，
+        // 这里先钉住姿态，免得落点与开场之间隔着一轮巡检时朝向还是旧的。
+        faceNorth(player);
         return true;
     }
 
