@@ -130,6 +130,22 @@ public class NpcPrologueHandler {
         return CLIENT_READY_AT.get(player.getUUID());
     }
 
+    /**
+     * <b>登录即重置</b>就绪记号。
+     * <p>
+     * ⚠️ 为什么必须在这里也清一次：就绪是"**本次会话**客户端什么时候能看见世界"的事实。
+     * 上一次会话若因崩溃 / 被踢 / 异常断开而<b>没走到登出事件</b>，旧值会残留 ⇒
+     * 下一次登录时 {@code clientReadyAt} 一读就是"早在上次就绪过" ⇒ 延迟立刻到期 ⇒
+     * <b>序章在客户端还在加载地形时就传送 + 开播 CG</b>。
+     * 实机 3 次离线清理测试里第 1 次的形态正是它（上线即被传送到起点 · CG 与客户端不同步 ·
+     * 过场结束后模型坍缩成 T-POSE）。
+     */
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        CLIENT_READY_AT.remove(event.getEntity().getUUID());
+        WARNED_READY_FALLBACK.remove(event.getEntity().getUUID());
+    }
+
     /** 登出即清：就绪是"本次会话"的事实，重登必须重新上报。 */
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {

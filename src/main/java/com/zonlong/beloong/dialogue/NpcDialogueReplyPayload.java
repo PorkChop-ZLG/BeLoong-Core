@@ -73,6 +73,11 @@ public record NpcDialogueReplyPayload(int entityId, int replyIndex) implements C
         if (entity == null) {
             return;
         }
+        // ★ 交互闸门（与右键路径同一条规则，2026-10-14 修）：改包/去同步的客户端可以凭实体 id
+        //   直接发回复包 ⇒ 服务端必须自己再判一次。**有剧情声明的公共锚点永不**可对话。
+        if (entity instanceof NpcEntity gateNpc && !gateNpc.isTalkableBy(player)) {
+            return;
+        }
 
         NpcDialogueEntry entry = NpcDialogueLoader.INSTANCE.get(entity.getType());
         if (entry == null) {

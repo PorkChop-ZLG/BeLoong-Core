@@ -1293,6 +1293,27 @@ public abstract class NpcEntity extends PathfinderMob implements GeoEntity {
     }
 
     /**
+     * <b>交互闸门</b>：该玩家此刻能不能与这只 NPC **对话**（右键 / 回复包两条路径共用）。
+     * <p>
+     * ⚠️ 它与 {@link #visibleTo} <b>刻意不同</b>：调试视角只改"看得见"，<b>不改"能交互"</b>
+     * （用户 2026-10-14 的 D9 裁定）。规则：
+     * <ul>
+     *   <li><b>无主</b>：只有**没有剧情声明**的公共 NPC（地黄龙等）可对话；
+     *       有剧情声明的<b>公共锚点永不</b>可对话 —— 它只是"私有分身生成的位置模板"（设计 D8）。</li>
+     *   <li><b>有主</b>：只有主人本人可对话（别人的私有分身一律拒绝）。</li>
+     * </ul>
+     * <p>
+     * ⚠️ 2026-10-14 修：原实现只在右键路径拒绝"非本人私有分身"，于是**开启调试视角后可以右键
+     * 公共锚点**并打开它的对话（用户实机发现）—— 与 D9"只看不动"矛盾。现在两条路径统一走本方法。
+     */
+    public boolean isTalkableBy(net.minecraft.world.entity.player.Player player) {
+        if (this.owner == null) {
+            return NpcStoryLoader.INSTANCE.get(this.getType()) == null;
+        }
+        return player.getUUID().equals(this.owner);
+    }
+
+    /**
      * 该玩家能不能看见本实体。**纯函数：不写实体字段、不发包、不查实体。**
      * <p>
      * 判定顺序**刻意是"先归属、后数据"**：
