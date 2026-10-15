@@ -30,5 +30,11 @@
     "sounds": [
       "beloong:ability/execute"
     ]
+  },
+  "item.beloong.essence_learn": {
+    "subtitle": "subtitles.beloong.item.essence_learn",
+    "sounds": [
+      "beloong:item/essence_learn"
+    ]
   }
 }

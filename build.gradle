@@ -27,15 +27,6 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // 本机离线兜底仓库：手动下载的 curse.maven 产物按 maven 目录布局放在 local-repo/ 下
-    // （目前只有 legendary-monsters-944035/8902342 的 jar+pom）。
-    // ⚠️ 必须声明在 cursemaven **之前**：cursemaven 不可达时它会先被访问，
-    //    否则 Gradle 要先联网超时数分钟才轮到本地仓库，IDEA 同步也会一并卡死。
-    // 该目录已在 .gitignore 中；网络可达后可删除本声明与 local-repo/ 目录。
-    maven {
-        url = uri("local-repo")
-    }
-
     maven {
         url = "https://cursemaven.com"
         content {
@@ -278,10 +269,8 @@ dependencies {
     // 用途：屏蔽它自 2.3.0 起的行为 —— 每次玩家进入存档都会发一条很长的系统消息
     // （"免费/反盗版声明"）。该消息写在 com/yuushya/Yuushya 的 lambda$init$4(ServerPlayer) 里，
     // 由 PlayerEvent.PLAYER_JOIN 触发（字节码核对：init() 偏移 45-53）。
-    // ⚠️ 该模组体积约 27 MB、在线下载不便，故与 GeckoLib 一样**优先本地**：local-repo/ 的声明
-    //    在 cursemaven 之前，命中本地就不再联网；只有本地缺失时才回退到 cursemaven。
-    // ⚠️ 本地放的是 yuushya-1.21.0-neoforge-2.3.0.jar（SHA256 C410C51E…，26.9 MB）；
-    //    若文件号 7976670 实际对应别的版本，回退联网时会与本地编译版本不一致。
+    // ⚠️ 该模组体积约 27 MB，统一从 cursemaven 联网下载（本项目不使用本地 jar 仓库）；
+    //    Gradle 会把它缓存进 `~/.gradle/caches/modules-2`，此后构建不再重新下载。
     // 按用户要求**不**在 src/main/templates/META-INF/neoforge.mods.toml 里声明该依赖，
     // 因此代码侧一律按"软依赖"处理（@Pseudo + require = 0，未安装时整体静默跳过）。
     // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
@@ -314,7 +303,7 @@ dependencies {
     localRuntime "curse.maven:raids-enhanced-1467121:7676063"
 
     // Health Bars（血条显示）— 可选集成：屏蔽"龙成长导致最大生命变化"被当成治疗的绿色飘字。
-    // 按用户要求用 implementation + 联网下载（不走 local-repo），并在 neoforge.mods.toml 里
+    // 按用户要求用 implementation + 联网下载，并在 neoforge.mods.toml 里
     // 声明为 optional + versionRange（版本号取自实际 jar：modId=healthbars、version=21.1.0）。
     implementation "curse.maven:health-bars-1367734:7122333"
     // Puzzles Lib — Health Bars 在它自己的 mods.toml 里声明为 required 前置（[21.1.19,)）；

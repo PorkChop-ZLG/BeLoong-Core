@@ -58,8 +58,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * </ol>
  * 也就是说：每局游戏只发生一次拦截（注册期），之后零开销、无 per-join 判断。
  *
- * <p>Mowzie / 首领崛起之外的第三个"可选依赖"目标；该模组依赖通过 {@code local-repo/}
- * 优先本地解析（体积约 27 MB，见 build.gradle）。
+ * <p>Mowzie / 首领崛起之外的第三个"可选依赖"目标；该模组依赖（体积约 27 MB）统一从
+ * cursemaven 联网下载并缓存在 Gradle 缓存中，见 build.gradle。
  */
 @Pseudo
 @Mixin(value = Yuushya.class, remap = false)

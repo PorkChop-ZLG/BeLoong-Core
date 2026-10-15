@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "beloong:metal_essence",
+    "beloong:wood_essence",
+    "beloong:water_essence",
+    "beloong:fire_essence",
+    "beloong:earth_essence",
+    "beloong:wind_essence",
+    "beloong:thunder_essence",
+    "beloong:ice_essence",
+    "beloong:light_essence",
+    "beloong:dark_essence"
+  ]
+}

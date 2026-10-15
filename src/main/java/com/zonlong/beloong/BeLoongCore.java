@@ -7,6 +7,7 @@ import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.command.CgCommand;
+import com.zonlong.beloong.command.EssenceCommand;
 import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
@@ -31,6 +32,7 @@ import com.zonlong.beloong.registry.ModAttributes;
 import com.zonlong.beloong.registry.ModAttachments;
 import com.zonlong.beloong.registry.ModBlocks;
 import com.zonlong.beloong.registry.ModCriteria;
+import com.zonlong.beloong.registry.ModDataComponents;
 import com.zonlong.beloong.registry.ModEntities;
 import com.zonlong.beloong.registry.ModMobEffects;
 import com.zonlong.beloong.registry.ModParticles;
@@ -109,6 +111,7 @@ public class BeLoongCore {
 
         // === 注册阶段 ===
         ModItems.register(modEventBus);              // 物品
+        ModDataComponents.register(modEventBus);     // 数据组件（魔源封存技能）
         ModBlocks.register(modEventBus);             // 方块 + BlockEntity
         ModEntities.register(modEventBus);           // 实体
         ModSounds.register(modEventBus);             // 音效
@@ -238,19 +241,24 @@ public class BeLoongCore {
      * {@code RegisterCommandsEvent} 在每次服务端启动（含单人世界的内置服务端）时触发，
      * 命令注册在**该次**的 dispatcher 上，因此每次都要重新注册。
      * <p>
-     * 两条命令：{@link NpcCommand}（通用 NPC 的验收与摆位工具）与 {@link CgCommand}（过场动画播放）。
+     * 四条命令：{@link NpcCommand}（通用 NPC 的验收与摆位工具）、{@link CgCommand}（过场动画播放）、
+     * {@link RouteCommand}（按玩家定位的路线指派）、{@link EssenceCommand}（把技能注入主手魔源）。
      * 它们共享 {@code /beloong} 这个根字面量 —— 各自 {@code register} 一个同名 literal 是**可以**的：
      * Brigadier 会按下标名把子树合并（依据见 {@link CgCommand} 类注释里引的
      * {@code CommandNode.addChild} 源码）。
      * <p>
-     * ⚠️ 合并**不带走**后注册者的 {@code requires} 谓词 ⇒ 两处必须写同样的权限等级，
-     * 否则改第二处是无效的。
+     * ⚠️ 合并**不带走**后注册者的 {@code requires} 谓词 ⇒ 每处都必须写同样的权限等级，
+     * 否则改后注册的那一处是无效的。
+     * <p>
+     * ⚠️ {@link EssenceCommand} 额外需要 {@code event.getBuildContext()} ——
+     * 只有它能提供数据包注册表（{@code dragonsurvival:dragon_ability}）的查找入口。
      */
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         NpcCommand.register(event.getDispatcher());
         CgCommand.register(event.getDispatcher());
         RouteCommand.register(event.getDispatcher());   // 按玩家定位的路线指派（ChatBox 选项调用）
+        EssenceCommand.register(event.getDispatcher(), event.getBuildContext());   // 技能注入主手魔源
     }
 
     /** 服务端启动时触发。 */

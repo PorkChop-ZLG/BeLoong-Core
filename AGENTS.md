@@ -150,8 +150,11 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   （实测：`AsteorBar` 的目录实际叫 **`AsteorBarMod`**）。本项目依赖的关键项：`DragonSurvival` ——
   **是 fork、不是上游**、`Cataclysm`、`Legendary-Monsters-1.21.1-NeoForge`、`MowziesMobs-Public`、
   `FDBosses-master`、`raidsenhanced`、`HealthBars-1.21.1`、`DragonSurvivalIAFIntegration`、`AsteorBarMod`。
-  ⚠️ **有的依赖没有源码树**（实测：`block_factorys_bosses` / Bosses'Rise 只以 jar 存在于
-  `local-repo\curse\maven\bossesrise-<projectId>\…`）⇒ 这类别在参考区里找，只能 `javap` 打那个 jar。
+  ⚠️ **有的依赖没有源码树**（实测：`block_factorys_bosses` / Bosses'Rise 没有源码树）⇒ 这类别在参考区里找，
+  只能 `javap` 打它的 jar；jar 在 **Gradle 缓存**里，路径为
+  `%USERPROFILE%\.gradle\caches\modules-2\files-2.1\curse.maven\<slug>-<projectId>\<fileId>\<hash>\<slug>-<projectId>-<fileId>.jar`
+  （坐标从 `build.gradle` 取）。⚠️ 本项目**不使用本地 jar 仓库**（`local-repo/` 已于 2026-10-15 连同声明一起删除），
+  所有 jar 一律从 Maven 下载。
   ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`（**真缺口**，它的 mixin 也还没补
   `@Pseudo` / `require = 0`）、`yuushya`（**用户明确要求不做依赖声明** ⇒ 别"顺手补"）——
   定位它们的 jar / 源码只能靠 `build.gradle` 的 curse 坐标。
@@ -385,11 +388,13 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   **会选错 loader**。
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
   代价是"门全绿"只在工作区可复现——所以交付时要连命令一起给。
-- **`local-repo/`（本机离线兜底仓库）**：它必须排在 `cursemaven` **之前**（`build.gradle` 的
-  `repositories` 顺序），否则大体积产物（如 28 MB 的 yuushya）会走网络；它同样被 ignore ⇒
-  **兄弟工作树会重新下载**。IDEA 显示"正在下载 xxx"通常是
-  `idea { module { downloadSources/downloadJavadoc = true } }` 在探测 `-sources.jar` / `-javadoc.jar`
-  （cursemaven 对它们返回 404），**不是真的在拉 jar**。
+- **本项目不使用本地 jar 仓库**：`local-repo/` 目录及其在 `build.gradle` 里的 `maven { url = uri("local-repo") }`
+  声明已于 **2026-10-15 一并删除**（用户裁定：本地 jar 仓库本身即冷构建变慢的嫌疑源）⇒
+  **所有 jar 一律从 Maven 下载**（curse maven 用 `fileId`），下载后缓存在 `~/.gradle/caches/modules-2`，
+  之后构建不再重新下载。⚠️ **不要再把本地仓库加回来**。代价：cursemaven 不可达时构建会失败 ——
+  此时按 §二 加 `--offline`（依赖已全量缓存时可用），而不是引入本地目录。
+- IDEA 显示"正在下载 xxx"通常是 `idea { module { downloadSources/downloadJavadoc = true } }`
+  在探测 `-sources.jar` / `-javadoc.jar`（cursemaven 对它们返回 404），**不是真的在拉 jar**。
 - **提交由用户做，智能体不 commit**；他的提交信息很短，**不要替他规范化**。
 
 ## 十二、明确不写进本文件的东西

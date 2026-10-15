@@ -67,10 +67,34 @@ public final class ModSounds {
      * 距离衰减仍然生效——{@code SoundEngine} 播放时只依据 {@code Attenuation} 决定
      * {@code linearAttenuation} / {@code disableAttenuation}，<b>不按声道数分支</b>
      * （见 1.21.1 {@code SoundEngine.java:483-495}）——但立体声的声像定位不如单声道精确。
-     * 本机无 ffmpeg / oggenc / sox 且无网络，无法就地转单声道。
+     * ~~本机无 ffmpeg / oggenc / sox 且无网络，无法就地转单声道。~~
+     * ⚠️ <b>2026-10-15 更正</b>：这台机器<b>有</b> ffmpeg —— 在 {@code D:\VideoTools\bin\ffmpeg\}
+     * （另一个工作区的工具目录，含 {@code libvorbis}）。当时那句话是因为 {@code ffmpeg} 不在 {@code PATH} 上
+     * 而误判成"本机没有"。⇒ 若要把 {@code execute.ogg} 转成单声道，直接用那个二进制即可
+     * （转码口径可照抄 {@link #ESSENCE_LEARN} 的 javadoc）。
      */
     public static final DeferredHolder<SoundEvent, SoundEvent> EXECUTE =
             register("ability.beloong.execute");
+
+    // ==================== 元素魔源：封存技能 ====================
+
+    /**
+     * 龙玩家从魔源习得技能时的音效，由
+     * {@link com.zonlong.beloong.item.effect.EssenceItem} 在<b>玩家所在位置</b>播放。
+     * <p>
+     * 音频文件 {@code assets/beloong/sounds/item/essence_learn.ogg}，来源是用户提供的
+     * {@code 10月15日.mp4}：本机用 {@code D:\VideoTools} 的 ffmpeg 抽出音轨并转码为
+     * <b>单声道 / 44.1 kHz / Ogg Vorbis（libvorbis -q:a 5）</b>，只裁掉开头 0.187 秒低于 -45 dB 的
+     * 真实静音，<b>未做任何增益或动态处理</b>（峰值 -1.4 dBFS，落在本模组既有 5 个音效的
+     * -2.4 ~ 0.0 dBFS 区间内）。转码命令与波形/电平证据见
+     * {@code docs/plans/2026-10-15-essence-skill-storage-design.md} §6.3。
+     * <p>
+     * ⚠️ 该音效是<b>设计好的渐强</b>（riser）：主体在 1.20–1.90 秒，前面 1.20 秒是从 -52 dB
+     * 单调爬到 -9 dB 的铺垫。⇒ 按下后约 1.3 秒才到爆发点，与 Title 动画（10/60/20 tick = 4.5 秒）
+     * 的时序配合成立。<b>不要</b>为了"更快出声"裁掉前段 —— 用户已就此裁定保留。
+     */
+    public static final DeferredHolder<SoundEvent, SoundEvent> ESSENCE_LEARN =
+            register("item.beloong.essence_learn");
 
     private ModSounds() {}
 

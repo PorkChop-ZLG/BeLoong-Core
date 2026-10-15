@@ -3,16 +3,12 @@ package com.zonlong.beloong.item;
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.item.effect.AmplificationCharmEffect;
 import com.zonlong.beloong.item.effect.DawnLightEffect;
+import com.zonlong.beloong.item.effect.EssenceItem;
 import com.zonlong.beloong.item.effect.EternalPorkchopEffect;
 import com.zonlong.beloong.registry.ModBlocks;
-import java.util.List;
-import java.util.function.Supplier;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
-import net.minecraft.world.item.TooltipFlag;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -59,65 +55,63 @@ public class ModItems {
             Items.register("dawn_light", DawnLightEffect::new);
 
     // ==================== 元素魔源十件套 ====================
-    // 只是十件普通物品，就地注册（沿用本类既有的"一个物品一行"写法），不额外建类。
-    // 每个元素一个文件、或一个枚举、或一个参数化基类，用来省下那几行都是多余的抽象。
-    // 十件的属性完全相同，差异只有 tooltip 键，因此统一走下面这个私有工厂。
-    // 声明顺序 = 创造模式页签的展示顺序：五行 + 风雷冰 + 光暗。
+    // 十件共用一个具名类 EssenceItem（item/effect/），各自只传"元素 + tooltip 键"。
+    // 这**不是**回到被否决过的 V1/V2：那两版是「十个子类」与「一个只放属性的基类」，
+    // 而这里是十件共用同一份字节码（与 V3 的匿名工厂在结构上同形，只是从匿名变具名）。
+    // 详见 docs/plans/2026-09-13-element-essence-design.md 的 §3 / §11 rev 2，
+    // 以及 docs/plans/2026-10-15-essence-skill-storage-design.md。
+    // 行为（封存/习得龙之生存技能）在 EssenceItem 里；元素决定 Title 颜色与粒子。
+    // 声明顺序 = 创造模式页签的展示顺序 = tools/verify_essence_lang.py 的顺序：五行 + 风雷冰 + 光暗。
 
     /** 元素魔源（金）。 */
     public static final DeferredItem<Item> METAL_ESSENCE =
-            Items.register("metal_essence", essenceSupplier("item.beloong.metal_essence.tooltip"));
+            Items.register("metal_essence", () -> new EssenceItem(
+                    EssenceItem.Element.METAL, "item.beloong.metal_essence.tooltip"));
 
     /** 元素魔源（木）。 */
     public static final DeferredItem<Item> WOOD_ESSENCE =
-            Items.register("wood_essence", essenceSupplier("item.beloong.wood_essence.tooltip"));
+            Items.register("wood_essence", () -> new EssenceItem(
+                    EssenceItem.Element.WOOD, "item.beloong.wood_essence.tooltip"));
 
     /** 元素魔源（水）。 */
     public static final DeferredItem<Item> WATER_ESSENCE =
-            Items.register("water_essence", essenceSupplier("item.beloong.water_essence.tooltip"));
+            Items.register("water_essence", () -> new EssenceItem(
+                    EssenceItem.Element.WATER, "item.beloong.water_essence.tooltip"));
 
     /** 元素魔源（火）。 */
     public static final DeferredItem<Item> FIRE_ESSENCE =
-            Items.register("fire_essence", essenceSupplier("item.beloong.fire_essence.tooltip"));
+            Items.register("fire_essence", () -> new EssenceItem(
+                    EssenceItem.Element.FIRE, "item.beloong.fire_essence.tooltip"));
 
     /** 元素魔源（土）。 */
     public static final DeferredItem<Item> EARTH_ESSENCE =
-            Items.register("earth_essence", essenceSupplier("item.beloong.earth_essence.tooltip"));
+            Items.register("earth_essence", () -> new EssenceItem(
+                    EssenceItem.Element.EARTH, "item.beloong.earth_essence.tooltip"));
 
     /** 元素魔源（风）。 */
     public static final DeferredItem<Item> WIND_ESSENCE =
-            Items.register("wind_essence", essenceSupplier("item.beloong.wind_essence.tooltip"));
+            Items.register("wind_essence", () -> new EssenceItem(
+                    EssenceItem.Element.WIND, "item.beloong.wind_essence.tooltip"));
 
     /** 元素魔源（雷）。 */
     public static final DeferredItem<Item> THUNDER_ESSENCE =
-            Items.register("thunder_essence", essenceSupplier("item.beloong.thunder_essence.tooltip"));
+            Items.register("thunder_essence", () -> new EssenceItem(
+                    EssenceItem.Element.THUNDER, "item.beloong.thunder_essence.tooltip"));
 
     /** 元素魔源（冰）。 */
     public static final DeferredItem<Item> ICE_ESSENCE =
-            Items.register("ice_essence", essenceSupplier("item.beloong.ice_essence.tooltip"));
+            Items.register("ice_essence", () -> new EssenceItem(
+                    EssenceItem.Element.ICE, "item.beloong.ice_essence.tooltip"));
 
     /** 元素魔源（光）。 */
     public static final DeferredItem<Item> LIGHT_ESSENCE =
-            Items.register("light_essence", essenceSupplier("item.beloong.light_essence.tooltip"));
+            Items.register("light_essence", () -> new EssenceItem(
+                    EssenceItem.Element.LIGHT, "item.beloong.light_essence.tooltip"));
 
     /** 元素魔源（暗）。 */
     public static final DeferredItem<Item> DARK_ESSENCE =
-            Items.register("dark_essence", essenceSupplier("item.beloong.dark_essence.tooltip"));
-
-    /**
-     * 构造一件元素魔源：唯一的行为变化是 tooltip，文案在语言文件里。
-     *
-     * @param tooltipKey 该物品的 tooltip 翻译键
-     */
-    private static Supplier<Item> essenceSupplier(String tooltipKey) {
-        return () -> new Item(new Item.Properties().rarity(Rarity.UNCOMMON)) {
-            @Override
-            public void appendHoverText(ItemStack stack, TooltipContext context,
-                                        List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
-                tooltipComponents.add(Component.translatable(tooltipKey));
-            }
-        };
-    }
+            Items.register("dark_essence", () -> new EssenceItem(
+                    EssenceItem.Element.DARK, "item.beloong.dark_essence.tooltip"));
 
     /**
      * 天灾传送门框架的 BlockItem。
