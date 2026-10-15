@@ -227,6 +227,10 @@ public abstract class CgAnimation {
                 return 0;
             }
             npc.setEmote(animation);
+            // ★ F3（2026-10-14）：把这只 NPC 的表情清除**押后**到过场结束 ——
+            //   否则服务端按自己的钟到期时，客户端那边的一次性动画可能还在播（日志里出现过"只剩 44 ticks"
+            //   就被清掉 ⇒ 动画播一半就停、而 CG 运镜还在）。客户端上报会提前解除，最迟 +200 兜底。
+            CgCompletionHandler.holdEmote(npc, data.getCutsceneTime() + 200);
         }
 
         // ⑤ 给观察者上隐身（可选，见 viewerInvisibilityTicks 的注释）。

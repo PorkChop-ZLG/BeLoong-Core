@@ -1,6 +1,7 @@
 package com.zonlong.beloong.emote;
 
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.cg.CgCompletionHandler;
 import com.zonlong.beloong.entity.NpcEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -126,6 +127,13 @@ public final class NpcEmoteExpiryHandler {
                 continue;
             }
             // 先丢计划再清：clearEmote() 自己会回调 cancel()，顺序上先移除可避免重入歧义。
+            // ★ F3（2026-10-14）：这只 NPC 的表情正被一段过场**押后** ⇒ 现在不许清它。
+            //   服务端按自己的钟到期时，客户端那边的一次性动画可能还在播（实机日志："只剩 44 ticks"就被清掉
+            //   ⇒ 动画播一半就停、而 CG 运镜还在）。过场结束（客户端上报 / +200 兜底到期）后本表自然失效，
+            //   下一次巡检就会照常清掉它 —— 所以这里**不需要**任何解锁配对，不存在"忘了解锁"的风险。
+            if (CgCompletionHandler.ownsEmote(npc)) {
+                continue;
+            }
             PENDING.remove(npc);
             if (npc.emote().equals(entry.name())) {
                 npc.clearEmote();

@@ -2,6 +2,7 @@ package com.zonlong.beloong.cg;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.dialogue.NpcDialogueStage;
+import com.zonlong.beloong.entity.NpcEntity;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,8 +11,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -61,6 +64,43 @@ public final class CgCompletionHandler {
             }
         }
         return false;
+    }
+
+    /**
+     * <b>被过场占用的表情</b>：NPC 的 UUID → 押后到哪个 gameTime 为止（F3，2026-10-14）。
+     * <p>
+     * 为什么需要：一次性表情的清除由<b>服务端</b>按"客户端申报的时长"到期执行，
+     * 而 CG 期间客户端可能还在播（实机日志里出现过"只剩 44 ticks"就被清掉 ⇒
+     * 动画播一半就停、而 CG 运镜还在）。所以过场一开始就把这只 NPC 的表情清除**押后**，
+     * 由 CG 结束（客户端上报会提前，最迟 {@code cutsceneTime + 200} 兜底到期）后自然解除。
+     * <p>
+     * ⚠️ 用"限时押后"而不是"注册/注销配对"：本表的生命周期不依赖任何结算路径是否走到，
+     * 到点即失效 ⇒ 不存在"忘了解锁"导致表情永不清除的风险。
+     */
+    private static final Map<UUID, Long> CG_EMOTE_HOLD = new HashMap<>();
+
+    /** 把某只 NPC 的表情清除押后到 {@code untilGameTime}（过场开始时调用）。 */
+    public static void holdEmote(net.minecraft.world.entity.Entity npc, int extraTicks) {
+        long now = npc.level() instanceof net.minecraft.server.level.ServerLevel level ? level.getGameTime() : 0L;
+        CG_EMOTE_HOLD.put(npc.getUUID(), now + Math.max(1, extraTicks));
+    }
+
+    /**
+     * 这只 NPC 的表情是否正被某段过场押后（表情到期处理器据此**跳过**清除）。
+     * <p>
+     * 顺带清掉已过期的条目 ⇒ 本表自然有界，不需要额外的生命周期钩子。
+     */
+    public static boolean ownsEmote(NpcEntity npc) {
+        long now = npc.level() instanceof net.minecraft.server.level.ServerLevel level ? level.getGameTime() : 0L;
+        Long until = CG_EMOTE_HOLD.get(npc.getUUID());
+        if (until == null) {
+            return false;
+        }
+        if (now >= until) {
+            CG_EMOTE_HOLD.remove(npc.getUUID());
+            return false;
+        }
+        return true;
     }
 
     /**
