@@ -51,7 +51,7 @@ public record NpcStory(ResourceLocation startAdvancement, ResourceLocation endAd
     /** 分身出现位置的唯一取值：公共锚点处（位置与朝向都复制）。 */
     public static final String SPAWN_ANCHOR = "anchor";
 
-    // ⚠️ 下面四个常量必须在 CODEC 之前声明：CODEC 的初始化会触发嵌套 record 的静态初始化，
+    // ⚠️ 下面两个常量必须在 CODEC 之前声明：CODEC 的初始化会触发嵌套 record 的静态初始化，
     // 而它们的 DEFAULT 要读这几个常量 —— 声明在后的话读到的是 0。
 
     /** 租约缺省：72000 tick = 1 小时。 */

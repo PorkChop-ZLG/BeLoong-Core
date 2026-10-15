@@ -12,14 +12,12 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import net.minecraft.server.MinecraftServer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -203,7 +201,9 @@ public class NpcStoryHandler {
             return;
         }
         // ⚠️ 自检放在**这里**（enabled 闸门之后、巡检间隔之前，每 tick 一次 O(1) 判 stamp）：
-        //   ① 它是数据诊断 ⇒ 总开关关着时也该把"引用了不存在的进度"报出来（否则作者永远看不到）；
+        //   ① 它是数据诊断。⚠️ 2026-10-14 修正措辞：它确实在 enabled 闸门**之后**，
+    //      所以**总开关关着时不会诊断** —— 这是刻意的取舍（跑在闸门之前会与"enabled=false
+    //      表示整套系统不工作"矛盾）。作者排查数据请先确认 `npc_story.enabled = true`。
         //   ② 重载后 **1 tick 内**就会重算 storiesWithMissingIds —— 否则在下一轮巡检（≤100 tick）之前，
         //      刚被修好的剧情仍被当成缺失 ⇒ 玩家拿到起点却不生成分身（过去还会被 D21 误撤，该机制已删）。
         checkStoryIdsOnce(event.getServer());
@@ -424,7 +424,10 @@ public class NpcStoryHandler {
 
     /** 到期前的提示（actionbar）。进入提醒窗口后每次巡检都发，充当倒计时。 */
     private void warnBeforeExpiry(ServerPlayer player, NpcStory story, NpcEntity npc, long now) {
-        if (story.isPermanent() || npc.expireAt() <= 0L) {
+        // ★ S7（2026-10-14 收尾审查）：判据只看**实体自己**记的 expireAt，不看数据里的 isPermanent()。
+        // 原因：数据由"限时"改成"永久"后，存量分身的 expireAt 仍是旧值 ⇒ 它照旧会被删+撤，
+        // 而用 isPermanent() 判会**掐掉提醒** ⇒ 静默清场。改读实体后，提醒与实际行为始终一致。
+        if (npc.expireAt() <= 0L) {
             return;
         }
         long remaining = npc.expireAt() - now;
@@ -526,7 +529,9 @@ public class NpcStoryHandler {
 
     /** 里程碑集合的惰性缓存（键 = 剧情 start id）；随 loader 的 reload stamp 失效。 */
     private static int milestonesStamp = Integer.MIN_VALUE;
-    private static final Map<ResourceLocation, Set<ResourceLocation>> MILESTONES = new HashMap<>();
+    // ★ S17（2026-10-14）：键是 start + "/" + end 的组合**字符串** —— 只用 start 时，
+    // 两条剧情同起点（都从 beloong:npc/root 开始）会互相串用里程碑集合。
+    private static final Map<String, Set<ResourceLocation>> MILESTONES = new HashMap<>();
 
     /**
      * 该进度若算"里程碑"⇒ 把**该剧情那只分身**的租约重置为完整一段。
@@ -611,12 +616,15 @@ public class NpcStoryHandler {
             MILESTONES.clear();
             milestonesStamp = stamp;
         }
-        Set<ResourceLocation> cached = MILESTONES.get(story.startAdvancement());
+        // ★ S17（2026-10-14 收尾审查）：键用 start + end 组合 —— 只用 start 时，
+        //   两条剧情**同起点**（例如都从 beloong:npc/root 开始）会互相串用里程碑集合。
+        String milestoneKey = story.startAdvancement() + "/" + story.endAdvancement();
+        Set<ResourceLocation> cached = MILESTONES.get(milestoneKey);
         if (cached != null) {
             return cached;
         }
         Set<ResourceLocation> computed = chainBetween(server, story);
-        MILESTONES.put(story.startAdvancement(), computed);
+        MILESTONES.put(milestoneKey, computed);
         return computed;
     }
 

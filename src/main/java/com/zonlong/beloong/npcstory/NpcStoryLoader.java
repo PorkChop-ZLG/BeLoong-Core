@@ -83,9 +83,9 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
             "lifetime_ticks", "lease.ticks",
             "clear_on_logout", "lease.clear_on_logout",
             "keep_after_finish", "lease.keep_after_finish",
-            "required_dimension", "dimension.host (and add dimension.enforce if you want the"
+            "required_dimension", "dimension.host (and add dimension.host if you want the"
                     + " \"left the dimension\" cleanup)",
-            "dimension_grace_ticks", "dimension.grace_ticks");
+            "dimension_grace_ticks", "dimension.host");
 
     /** 供"加载后一次性自检"判断是否发生过重载（每次 {@code apply} 自增）。 */
     private int reloadStamp;
@@ -177,6 +177,17 @@ public class NpcStoryLoader extends SimpleJsonResourceReloadListener {
                     return;
                 }
                 // ── 取值校验：一律"整文件拒绝 + ERROR"，绝不静默取缺省 ──
+                // ★ S6（2026-10-14 收尾审查）：租约不得短于登场 CG 的时长 —— 否则会出现
+                // "租约到期(删+撤) → 序章重开场 → 重播 CG" 的**死循环**（每轮约 6 秒一次）。
+                // 下限取 240 tick：登场 CG 的 cutsceneTime 是 120，留 2 倍余量。
+                if (story.lease().ticks() >= 0L && story.lease().ticks() < 240L) {
+                    BeLoongCore.LOGGER.error(
+                            "npc story file '{}': lease.ticks {} is shorter than the entrance CG (120 ticks)"
+                                    + " — the lease would expire mid-cutscene and cause an endless"
+                                    + " 'reset then replay CG' loop; file rejected (use >= 240)",
+                            file.getKey(), story.lease().ticks());
+                    return;
+                }
                 if (story.lease().ticks() < -1L) {
                     BeLoongCore.LOGGER.error(
                             "npc story file '{}': lease.ticks {} — only -1 (permanent) or >= 0 is allowed,"

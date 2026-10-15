@@ -122,13 +122,5 @@ public final class LoadedNpcIndex {
         return out;
     }
 
-    /** 仅供诊断：当前索引条数（未过滤）。 */
-    public static int rawSize() {
-        return LOADED.size();
-    }
 
-    /** 该实体是否已被索引（诊断用）。 */
-    public static boolean contains(Entity entity) {
-        return entity instanceof NpcEntity npc && LOADED.containsKey(npc.getUUID());
-    }
 }
