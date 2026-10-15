@@ -2,8 +2,11 @@
 
 **Date:** 2026-09-13
 **Status:** Approved（用户已确认命名、稀有度、中文名、贴图方案；美术方向待实机观感复核）
-**Approach:** 参数化物品类 + 元素枚举 + 程序化生成的 12 帧动态贴图
+**Approach:** ~~参数化物品类 + 元素枚举 + 程序化生成的 12 帧动态贴图~~ —— **已被取代**：最终形态是「十件就地写在 `ModItems`、静态单帧贴图」（§3 的 V3、§4）
 **Applies to:** Minecraft 1.21.1 / NeoForge 21.1.236
+
+> **现行状态指针（2026-10-15）**：以 **§10** 为准。§1 的"动态贴图"要求、§4 的动画规格、§5.5 的 V1/V2 美术方案均已作废；
+> §6.1 与 §6.3 里"光暗贴图暂缺"的说法已被 §6.6 取代。**十件物品与十张贴图现已全部就位。**
 
 ---
 
@@ -215,8 +218,8 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 | 8 个物品 + 枚举 + 注册 + 创造页签 | ✅ 完成 |
 | 中英文语言文件（含 tooltip，各 200 条） | ✅ 完成，逐字校验通过（10 条 tooltip） |
 | 物品模型 JSON | ✅ 10 个（8 个有贴图 + 光暗 2 个空壳） |
-| **贴图（静态 16×16）** | ✅ 8 张已装入资源目录；**光暗 2 张待补** |
-| **`.mcmeta`** | ✅ 已全部移除（静态图不得保留动画元数据） |
+| **贴图（静态 16×16）** | ~~8 张已装入资源目录；**光暗 2 张待补**~~ —— **已被取代**：实际 **10 张全部就位**（§6.6 / §10） |
+| **`.mcmeta`** | ✅ 已全部移除 —— **口径**：指 `src/main/resources/assets/beloong/textures/item/` 下 **10 张 `<元素>_essence.png`** 均无 `.mcmeta`。该目录里唯一的 `.mcmeta` 属于 `dawn_light.png`（另一件物品的动画，与本系列无关）。本地 scratch 区 `docs/pictures/preview/` 下另有 3 个历史残留（`earth`/`ice`/`metal_essence.png.mcmeta`），**不进 jar**，见 §10.2 |
 | `gradlew build` + jar 内容核对 | ✅ 通过（8 张 16×16 RGBA、无残留 mcmeta、10 个模型、10 个枚举常量） |
 
 ### 6.2 Java
@@ -235,7 +238,8 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 
 ### 6.3 资源
 
-**贴图（8/10）**：`src/main/resources/assets/beloong/textures/item/<元素>_essence.png`，已完成的 8 张为 16×16 RGBA 静态图；`light_essence.png` / `dark_essence.png` 暂缺。
+**贴图（10/10）**：`src/main/resources/assets/beloong/textures/item/<元素>_essence.png`，10 张**均为 16×16 RGBA 静态图**。
+（原文为"贴图（8/10）…`light_essence.png` / `dark_essence.png` 暂缺"，**已被取代**，见 §6.6 / §10。）
 
 **模型（10）**：`src/main/resources/assets/beloong/models/item/<元素>_essence.json`，`parent: minecraft:item/generated` + 单层 `layer0`。光暗的模型已就位并指向未来的贴图文件名，**补图时只需放入 PNG，无需改代码**。
 
@@ -344,3 +348,46 @@ private static Supplier<Item> essenceSupplier(String tooltipKey) {
 - **不要断言某像素精确等于某个调色板色**：内部色是混合出来的，整数舍入使它常常差 1 而落不到精确值。真正要保证的是"有明暗区分度"，应改为断言色调数与亮度跨度。
 - **阈值必须在调色板物理可达范围内**：内部色只存在于"压暗后的暗色"与"亮色"之间，故低对比调色板的**全部可达跨度**可能远小于直觉（实测冰只有不足 50）。阈值定得比可达范围还高，等于要求图形做不到的事。
 - **细长形状不该被要求有内部明暗**：1px 线条状的形体本来就没有内部。断言改为条件式：有内部就必须有跨度，没有内部则交由看图判断。
+
+---
+
+## 10. 修订 rev 1（2026-10-15）：校正头部与 §6 的"现行状态"，写实 `.mcmeta` 口径
+
+**背景**：接手「自定义物品」板块时逐项核对现场，发现本文件的头部与 §6 有 5 处**文档与现场不一致**（其中 §6.1 与 §6.6 是**同文档内自相矛盾**）。
+本节**只更正文档，不改动任何代码、资源或数据**；按 §九"不删改历史"的约定，旧文一律**保留并标为被取代**，不直接删。
+
+### 10.1 被更正的五处
+
+| # | 位置 | 原文 | 现场事实 | 处理 |
+|---|---|---|---|---|
+| 1 | 头部 `**Approach:**` | 参数化物品类 + 元素枚举 + 程序化生成的 12 帧动态贴图 | 最终形态是**十件就地写在 `ModItems`**（§3 的 V3、D28）+ **静态单帧贴图**（§4、D14） | 头部加删除线 + 指针 |
+| 2 | §6.1「贴图（静态 16×16）」行 | ✅ 8 张已装入资源目录；**光暗 2 张待补** | `textures/item/` 下 **10 张 `<元素>_essence.png` 全在** | 标为被取代（§6.6 早已写"已补齐"） |
+| 3 | §6.3「贴图（8/10）」段 | …`light_essence.png` / `dark_essence.png` **暂缺** | 同上 | 改为 10/10 |
+| 4 | §6.1「`.mcmeta`」行 | ✅ 已全部移除 | 对**资源目录里的 10 张魔源贴图**成立；`docs/pictures/preview/` 下另有 3 个历史残留 | 补写"口径"与残留位置（见 §10.2） |
+| 5 | 文档标题 与 §6.5 节标题 | 「**八件套**」/「**八张**成品的量化核对」 | 本系列**已是 10 件**（§1 的后续增补、§2 的表） | **刻意保留不改**：标题是文档身份、§6.5 是历史小节名；权威件数以 **§2 的表**为准（10 件） |
+
+### 10.2 为什么"已全部移除"与 `docs/pictures/preview/` 的残留**并不冲突**
+
+两者是**不同目录、不同可见性**，此前的问题只是 §6.1 没写清作用范围，读起来像"全仓已无 `.mcmeta`"：
+
+- `src/main/resources/assets/beloong/textures/item/` —— **进 jar**。该目录当前 **16 个 `.png` + 1 个 `.mcmeta`**（共 17 个文件）；
+  那 1 个是 `dawn_light.png.mcmeta`（**黎明曙光**的 9 帧动画，另一件物品，与本系列无关）。
+  ⇒ **10 张魔源贴图确实都没有 `.mcmeta`，§6.1 的判断是对的。**
+- `docs/pictures/preview/` —— **不进 jar**（`.gitignore:52` 的 `preview/` 覆盖任意层级，该目录为未跟踪的 scratch 区）。
+  下面留着 `earth_essence.png.mcmeta` / `ice_essence.png.mcmeta` / `metal_essence.png.mcmeta`，是**已作废的 12 帧动画方案**的产物。
+  §4 里"8 个 `.mcmeta` 已从资源目录移除"删的是**资源目录**那一份，scratch 区这份当时未清。
+  它们是历史垃圾、**不构成缺陷**，**刻意保留原位**以便回溯当时的失败方案。
+
+### 10.3 现场核对结果（本次新取的证据）
+
+- `textures/item/` 下 10 张魔源贴图**全部为 16×16、bit depth 8**，无一存在 `.mcmeta`。
+- 语言门：`python tools\check_lang_parity.py` → **键集合一致（331 键）、占位符与颜色码全部一致、exit 0**
+  （⚠️ 该脚本直接裸跑会因控制台 GBK 编码打不出 `✅` 而抛 `UnicodeEncodeError`、**exit 1**；需 `$env:PYTHONIOENCODING="utf-8"`。
+  这是脚本 stdout 的问题，不是键不一致）。
+- `python tools\verify_essence_lang.py` → **ALL CHECKS PASSED、exit 0**（10 件的中英物品名与 tooltip 逐字核对通过）。
+
+### 10.4 未能验证 / 未处理
+
+- **未复核 §6.5 的量化表**（bbox / 不透明像素 / 颜色数）与现场 PNG 是否仍逐项一致——本次只核**存在性、尺寸与目录口径**。
+- **未删除** `docs/pictures/preview/` 下的 3 个残留 `.mcmeta`（无必要，且删除会破坏"能看见被否方案"的留痕）。
+- 本系列**仍未实机观感验收** ⇒ 头部 `Status` 的"美术方向待实机观感复核"**依旧成立**。

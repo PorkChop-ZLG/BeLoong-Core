@@ -170,9 +170,16 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# Curios —— 放大护符的护符槽（2026-10-15 由 optional 改为 required）。
+# 理由：item/effect/AmplificationCharmEffect 直接 implements ICurioItem，而它被 item/ModItems 的
+# **静态初始化器**以 `AmplificationCharmEffect::new` 引用 ⇒ ModItems 一加载就要解析该接口。
+# 最小 JVM 实验已证实：接口缺席时在 <clinit> 抛 NoClassDefFoundError（Caused by ClassNotFoundException），
+# 且**完全不需要实例化该物品**。⇒ optional 声明与事实不符，这里把现状写进声明（同 FDLib 的处理方式）。
+# 版本号取自实际下载的 jar：curios-neoforge-9.2.2+1.21.1（CF 文件 6529130）。
 [[dependencies.${mod_id}]]
     modId="curios"
-    type="optional"
+    type="required"
+    versionRange="[9.2.2,)"
     ordering="AFTER"
     side="BOTH"
 

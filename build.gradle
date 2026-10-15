@@ -189,8 +189,11 @@ dependencies {
     compileOnly "curse.maven:lendercataclysm-551586:8095590"
     localRuntime "curse.maven:lendercataclysm-551586:8095590"
 
-    // Curios — 可选依赖
-    compileOnly "curse.maven:curios-309927:6529130"
+    // Curios — 必选前置（2026-10-15 由 compileOnly 升为 implementation，理由与上面 FDLib 同）：
+    // item/effect/AmplificationCharmEffect 直接 implements ICurioItem，且它被 item/ModItems 的
+    // 静态初始化器以 `AmplificationCharmEffect::new` 引用 ⇒ 该接口在**编译期与运行期都必需**，
+    // 而 mods.toml 已相应由 optional 改为 required。这是把现状写进声明，不引入新依赖。
+    implementation "curse.maven:curios-309927:6529130"
     localRuntime "curse.maven:curios-309927:6529130"
 
     // Qliphoth Awakening — 必选前置

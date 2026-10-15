@@ -72,4 +72,8 @@
 - 不提供自定义渲染器，护符不在玩家模型上显示
 - 不参与任何 loot table，仅通过创造模式获取（后续可按需添加）
 - 与 Artifacts 模组的缩小护符独立运行，互不影响
-- Curios 为可选依赖，运行时通过 `neoforge.mods.toml` 已有声明
+- ~~Curios 为可选依赖，运行时通过 `neoforge.mods.toml` 已有声明~~
+  ⚠️ **2026-10-15 更正**：Curios 现为**必选前置**（`mods.toml` `type="required"`、`build.gradle` `implementation`）。
+  原文"可选依赖"与代码事实冲突 —— 本类直接 `implements ICurioItem`，而它在 `ModItems` 的**静态初始化器**里
+  以构造器方法引用被取用 ⇒ Curios 缺席时在 `<clinit>` 抛 `NoClassDefFoundError`（已用最小 JVM 实验证实机制）。
+  详见 [`docs/自定义物品总设计.md`](../../自定义物品总设计.md) 的 §9.1 与 §11 rev 2。
