@@ -9,6 +9,7 @@ import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.cg.CgCompletionHandler;
 import com.zonlong.beloong.cg.CgFinishedPayload;
+import com.zonlong.beloong.cg.CgStartedPayload;
 import com.zonlong.beloong.entity.NpcDebugView;
 import com.zonlong.beloong.npcstory.LoadedNpcIndex;
 import com.zonlong.beloong.npcstory.NpcClientReadyPayload;
@@ -202,6 +203,11 @@ public class BeLoongCore {
                 NpcClientReadyPayload::handleServer);
         // 客户端"这段过场播完了"（F2，2026-10-14）：服务端据此立刻结算（自己的钟降级为兜底）——
         // 否则服务端按自己的 tick 宣布播完，会把客户端还在播的一次性动画中途清掉。
+        // 服务端 → 客户端："这段过场开始了、长 N tick"（F2 的客户端起表点）。
+        registrar.playToClient(
+                CgStartedPayload.TYPE,
+                CgStartedPayload.STREAM_CODEC,
+                CgStartedPayload::handleClient);
         registrar.playToServer(
                 CgFinishedPayload.TYPE,
                 CgFinishedPayload.STREAM_CODEC,

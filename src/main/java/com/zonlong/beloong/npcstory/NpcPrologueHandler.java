@@ -21,8 +21,10 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -109,6 +111,17 @@ public class NpcPrologueHandler {
         }
     }
 
+    /**
+     * 收不到就绪信号时的兜底宽限（tick）= 60 秒。
+     * <p>
+     * ⚠️ 必须有：老客户端 / 模组冲突 / 被改的客户端都可能永远不报 ⇒ 没有兜底玩家就**永远没有剧情**。
+     * 到点照旧开场，并留一条 WARN。
+     */
+    private static final int READY_FALLBACK_GRACE_TICKS = 1200;
+
+    /** 已经为"没收到就绪信号"报过 WARN 的玩家（每人一条，避免刷屏）。 */
+    private static final Set<UUID> WARNED_READY_FALLBACK = new HashSet<>();
+
     /** 该玩家是否已上报就绪（未上报时 {@code null}）。 */
     static Long clientReadyAt(ServerPlayer player) {
         return CLIENT_READY_AT.get(player.getUUID());
@@ -118,6 +131,7 @@ public class NpcPrologueHandler {
     @SubscribeEvent
     public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         CLIENT_READY_AT.remove(event.getEntity().getUUID());
+        WARNED_READY_FALLBACK.remove(event.getEntity().getUUID());
     }
 
     @SubscribeEvent
@@ -173,8 +187,23 @@ public class NpcPrologueHandler {
                 return;
             }
 
-            // ⑤ 新人先等（让客户端把世界加载完）；判据是玩家自身的 tickCount
-            if (player.tickCount < delayTicks) {
+            // ⑤ 等客户端**真正进入游戏**（F1，2026-10-14）。
+            //    判据不再用 tickCount（它从"服务端收下玩家"起算，远程玩家那几秒全耗在加载地形上），
+            //    而是用客户端上报的就绪时刻（见 NpcClientReadyPayload）。
+            Long readyAt = clientReadyAt(player);
+            if (readyAt == null) {
+                // ⚠️ 兜底：一直收不到就绪信号也要开场，否则玩家永远没有剧情。
+                if (player.tickCount < delayTicks + READY_FALLBACK_GRACE_TICKS) {
+                    return;
+                }
+                if (WARNED_READY_FALLBACK.add(player.getUUID())) {
+                    BeLoongCore.LOGGER.warn(
+                            "[BeLoong] npc prologue: player '{}' never reported the client-ready signal"
+                                    + " after {} ticks — starting the prologue anyway (fallback;"
+                                    + " an old/modified client or a mod conflict can cause this)",
+                            player.getGameProfile().getName(), player.tickCount);
+                }
+            } else if (player.serverLevel().getGameTime() - readyAt < delayTicks) {
                 return;
             }
 

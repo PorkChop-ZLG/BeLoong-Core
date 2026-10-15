@@ -268,6 +268,10 @@ public abstract class CgAnimation {
         // ⑥ 下发。**纳入 try** —— 它是最后一个副作用，若抛异常而我们不接，
         //    命令层会收到一个异常、而世界状态已经半变（见 play 的 javadoc）。
         try {
+            // ★ F2（2026-10-14）：先告诉客户端"这段过场开始、长 N tick" ——
+            //   客户端**收到它的那一刻**才是它真正开始播的时刻，它据此本地计时、到点回报。
+            //   ⚠️ 必须在 startCutsceneForPlayer **之前**发：两个包同批到达，客户端起表与起播同步。
+            viewer.connection.send(new CgStartedPayload(this.name(), data.getCutsceneTime()));
             FDLibCalls.startCutsceneForPlayer(viewer, data);
         } catch (Throwable t) {
             BeLoongCore.LOGGER.warn(
@@ -285,7 +289,10 @@ public abstract class CgAnimation {
                 this.name(), viewer.getGameProfile().getName(), target.getType(), animation,
                 ctx.anchor(), ctx.anchorToViewer(), data.getCameraPositions().getFirst().getPos(),
                 data.getCameraPositions().size(), data.getCutsceneTime());
-        this.settleCompletion(viewer, data.getCutsceneTime(), "played");
+        // ★ F2：正常路径**不再**由服务端计时结算 —— 等客户端上报（CgFinishedPayload）。
+        //   这里只登记一条**兜底**（比真实时长晚 200 tick），保证"客户端崩了/没上报"也能收敛，
+        //   于是用户定的"只要 CG 开始过就一定拿到进度"这条语义不会破。
+        this.settleCompletion(viewer, data.getCutsceneTime() + 200, "played (server-side fallback)");
         return 1;
     }
 }

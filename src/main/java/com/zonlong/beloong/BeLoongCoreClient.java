@@ -8,6 +8,7 @@ import com.zonlong.beloong.client.DisasterPortalTransitionScreen;
 import com.zonlong.beloong.client.HellGateRenderer;
 import com.zonlong.beloong.client.LoongPalaceSkyTickHandler;
 import com.zonlong.beloong.client.MoRenderer;
+import com.zonlong.beloong.client.NpcClientSyncHandler;
 import com.zonlong.beloong.client.TornadoRenderer;
 import com.zonlong.beloong.client.model.TornadoModel;
 import com.zonlong.beloong.client.particle.LoongPalacePortalParticle;
@@ -58,6 +59,8 @@ public class BeLoongCoreClient {
     public BeLoongCoreClient(IEventBus modEventBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         NeoForge.EVENT_BUS.register(new LoongPalaceSkyTickHandler());
+        // NPC 剧情的两条客户端申报（F1 就绪信号 / F2 过场结束）—— 见该类的类注释。
+        NeoForge.EVENT_BUS.register(new NpcClientSyncHandler());
     }
 
     /** 注册龙宫传送门的粒子渲染工厂（贴图沿用原版 generic_*，只换配色）。 */
