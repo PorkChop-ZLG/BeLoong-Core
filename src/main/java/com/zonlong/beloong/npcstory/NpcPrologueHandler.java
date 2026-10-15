@@ -162,6 +162,19 @@ public class NpcPrologueHandler {
         if (player.isDeadOrDying() || player.isSpectator() || player.isPassenger()) {
             return;
         }
+        // ★ 方案"乙"的消费点（用户 2026-10-14 裁定）：主人离线期间到期、分身已被删掉的那些，
+        //   在这里补做"撤回进度"。**必须在任何"开场"动作之前**（否则会先授予 root 再撤，白折腾一轮）。
+        //   消费口径：再判一次"该剧情已开始 ∧ 未通关"才撤 —— 通关玩家的进度永不被误撤。
+        if (PendingStoryRevoke.consume(player.server, player.getUUID())) {
+            for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {
+                NpcStory story = entry.getValue();
+                if (isEarned(player, story.startAdvancement()) && !isEarned(player, story.endAdvancement())) {
+                    NpcStoryHandler.revokeStoryFor(player, story,
+                            "the double expired while the player was offline (server-side pending revoke)");
+                }
+            }
+        }
+
         int delayTicks = Math.max(0, Config.NpcStory.prologueDelaySeconds.get()) * 20;
 
         for (Map.Entry<EntityType<?>, NpcStory> entry : NpcStoryLoader.INSTANCE.all().entrySet()) {

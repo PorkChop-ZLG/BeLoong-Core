@@ -326,14 +326,23 @@ public class NpcStoryHandler {
             ServerPlayer online = server.getPlayerList().getPlayer(owner);
             if (online != null) {
                 reconcilePlayer(online, story, byOwner.get(owner));
+            } else {
+                // ★ 方案"乙"（用户 2026-10-14 裁定）：主人**离线**时租约到期 ⇒
+                //   **当场把过期分身删掉**（世界保持干净），并把"回来时要撤进度"记进服务器级待撤回表。
+                //   为什么不能在这里直接撤：撤进度需要在线玩家（PlayerAdvancements 只在 ServerPlayer 上）。
+                //   ⚠️ 于是"删"与"撤"在离线这条路径上不是同一刻 —— 玩家离线 ⇒ 不可观测；
+                //   极端窗口（删除后、登录前崩溃且待撤回表未落盘）会让该玩家停在"有 root、无分身"，
+                //   需管理员手工撤一次进度（见设计 §三 的 2026-10-14 补注）。
+                for (NpcEntity npc : byOwner.get(owner)) {
+                    long now = npc.level() instanceof ServerLevel level ? level.getGameTime() : 0L;
+                    if (npc.hasExpired(now)) {
+                        PendingStoryRevoke.mark(server, owner);
+                        npc.discard();
+                    }
+                }
             }
-            // ⚠️ 主人**离线** ⇒ 什么都不做（设计 D6"纯乙"，2026-10-14）。
-            // 理由：撤回进度需要在线玩家（PlayerAdvancements 只存在于 ServerPlayer 上），而删分身不需要 ——
-            // 若趁离线把分身删掉，就会**只有删除、没有撤回** ⇒ 玩家下次登录停在"已开始、无分身、
-            // 锚点又不显示"的卡死态，正是被删掉的 D21 要救的那种状态。
-            // 所以离线一律不动：等他下次上线、且分身被加载时，由"租约到期"这条路径一次性完成"删 + 撤"（成对）。
-            // 已知取舍：玩家永不再上线时，那只过期分身会一直留着 —— 但它**只对主人可见**，
-            // 不影响其他玩家；管理员可用 /kill 收尾。见设计 §三与 §九。
+            // （主人离线这条分支已移到上面的 else 里：方案"乙"会当场删分身 + 记待撤回，
+            //   不再是 2026-10-14 早先那版"纯乙：什么都不做"。）
         }
         // ⚠️ 审查 I1：这里原来还有一段"在线玩家**没有**分身时也要巡检"——
         // 它对应的是已删除的 D21 分支，而 {@code mine.isEmpty()} 现在什么都不做，
@@ -651,6 +660,22 @@ public class NpcStoryHandler {
     }
 
     /**
+     * 供<b>序章</b>调用：替某玩家撤回一条剧情链（方案"乙"的登录消费点）。
+     * <p>
+     * ⚠️ 这是 {@link #revokeStory} 在 {@code removeDouble} **之外**的唯一入口，必须成对理解：
+     * 走这条路的场景是"分身**已经**在离线期间被删掉了"，所以这里只撤、不删（没有实体可删）。
+     * 因此它**不得**被用于任何"手里还有分身"的场合 —— 那种场合一律走 {@link #removeDouble}。
+     *
+     * @param why 记进日志的原因（用于日后排查"为什么这个人被撤了"）
+     */
+    static void revokeStoryFor(ServerPlayer player, NpcStory story, String why) {
+        BeLoongCore.LOGGER.info(
+                "[BeLoong] npc story '{}': revoking for player '{}' — {}",
+                story.startAdvancement(), player.getGameProfile().getName(), why);
+        revokeStory(player, story);
+    }
+
+    /**
      * 撤回整条剧情链：从 {@code end_advancement} 沿 {@code parent()} 一路走到 {@code start_advancement}。
      * <p>
      * 撤回一个进度的正确做法照原版 {@code /advancement revoke}（{@code AdvancementCommands.java:448-458}）：
@@ -658,7 +683,14 @@ public class NpcStoryHandler {
      * <p>
      * ⚠️ 走不到 {@code start_advancement} 就说明链被改坏了（父关系被改），留一条 WARN 而不是静默少撤。
      */
-    private boolean revokeStory(ServerPlayer player, NpcStory story) {
+    /**
+     * 撤回整条剧情链。
+     * <p>
+     * ⚠️ 2026-10-14 起是 {@code static}：方案"乙"的登录消费点（{@link #revokeStoryFor}）由**序章**调用，
+     * 而序章手里没有本类的实例。它本来就只用静态成员（{@code MAX_CHAIN_STEPS} / {@code revokeWholeAdvancement}），
+     * 改静态不引入任何隐藏依赖。
+     */
+    private static boolean revokeStory(ServerPlayer player, NpcStory story) {
         AdvancementHolder holder = player.server.getAdvancements().get(story.endAdvancement());
         if (holder == null) {
             BeLoongCore.LOGGER.error(
