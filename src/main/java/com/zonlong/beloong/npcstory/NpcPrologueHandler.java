@@ -17,9 +17,13 @@ import net.minecraft.world.level.portal.DimensionTransition;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * <b>序章</b>（2026-10-14）：把"开场"从环境副作用改造为受控流程。
@@ -82,6 +86,39 @@ public class NpcPrologueHandler {
     private static final double ALREADY_AT_START_RADIUS = 4.0D;
 
     private int tickCounter;
+
+    /**
+     * 客户端"已就绪"的时刻（gameTime）；**缺失 = 还没收到信号**。
+     * <p>
+     * ⚠️ 只在内存：它是"本次会话客户端什么时候能看见世界"的瞬时事实，不落盘、登出即清
+     * （见 {@link #onPlayerLoggedOut}）。用途见 {@code NpcClientReadyPayload} 的类注释。
+     */
+    private static final Map<UUID, Long> CLIENT_READY_AT = new HashMap<>();
+
+    /**
+     * 客户端上报"我已真正进入游戏"（载荷入口，见 {@link NpcClientReadyPayload}）。
+     * <p>
+     * 重复上报忽略（{@code putIfAbsent} 保留**第一次**）：重新追踪、换维度都不该把就绪时刻往后推。
+     */
+    public static void markClientReady(ServerPlayer player) {
+        Long previous = CLIENT_READY_AT.putIfAbsent(player.getUUID(), player.serverLevel().getGameTime());
+        if (previous == null) {
+            BeLoongCore.LOGGER.info(
+                    "[BeLoong] npc prologue: client ready for player '{}' at gameTime {}",
+                    player.getGameProfile().getName(), CLIENT_READY_AT.get(player.getUUID()));
+        }
+    }
+
+    /** 该玩家是否已上报就绪（未上报时 {@code null}）。 */
+    static Long clientReadyAt(ServerPlayer player) {
+        return CLIENT_READY_AT.get(player.getUUID());
+    }
+
+    /** 登出即清：就绪是"本次会话"的事实，重登必须重新上报。 */
+    @SubscribeEvent
+    public void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        CLIENT_READY_AT.remove(event.getEntity().getUUID());
+    }
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {

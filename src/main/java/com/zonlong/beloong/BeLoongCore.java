@@ -8,8 +8,10 @@ import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.cg.CgCompletionHandler;
+import com.zonlong.beloong.cg.CgFinishedPayload;
 import com.zonlong.beloong.entity.NpcDebugView;
 import com.zonlong.beloong.npcstory.LoadedNpcIndex;
+import com.zonlong.beloong.npcstory.NpcClientReadyPayload;
 import com.zonlong.beloong.npcstory.NpcPrologueHandler;
 import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.NpcCommand;
@@ -192,6 +194,18 @@ public class BeLoongCore {
                 NpcEmoteDurationPayload.TYPE,
                 NpcEmoteDurationPayload.STREAM_CODEC,
                 NpcEmoteDurationPayload::handleServer);
+        // 客户端"我已真正进入游戏"（F1，2026-10-14）：序章的延迟改从收到它起算 ——
+        // 否则远程玩家的那几秒全耗在"加载地形"界面上，CG 会在他看见画面前就开播。
+        registrar.playToServer(
+                NpcClientReadyPayload.TYPE,
+                NpcClientReadyPayload.STREAM_CODEC,
+                NpcClientReadyPayload::handleServer);
+        // 客户端"这段过场播完了"（F2，2026-10-14）：服务端据此立刻结算（自己的钟降级为兜底）——
+        // 否则服务端按自己的 tick 宣布播完，会把客户端还在播的一次性动画中途清掉。
+        registrar.playToServer(
+                CgFinishedPayload.TYPE,
+                CgFinishedPayload.STREAM_CODEC,
+                CgFinishedPayload::handleServer);
     }
 
     /** FML 通用设置（双端都执行）。 */

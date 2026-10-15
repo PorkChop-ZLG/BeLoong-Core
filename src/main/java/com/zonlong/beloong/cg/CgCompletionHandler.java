@@ -63,6 +63,26 @@ public final class CgCompletionHandler {
         return false;
     }
 
+    /**
+     * <b>客户端上报"过场播完了"</b>（{@link CgFinishedPayload} 的落点）。
+     * <p>
+     * 只对"该玩家此刻确有待结算项、且 CG 名对得上"的条目生效 ⇒ 立刻授予并移出待结算表；
+     * 其余一律静默忽略（**幂等**：重复上报、过期上报都不会有副作用）。
+     * <p>
+     * ⚠️ 授予的进度**取自待结算项自己**（客户端只提供"播完了"这个时机，不提供任何进度内容）。
+     */
+    public static void settleFromClient(ServerPlayer player, String cgName) {
+        for (Iterator<Pending> it = PENDING.iterator(); it.hasNext(); ) {
+            Pending p = it.next();
+            if (!p.player().equals(player.getUUID()) || !p.cg().equals(cgName)) {
+                continue;
+            }
+            it.remove();
+            grantNow(player, p.advancement(), p.cg(), "client reported the cutscene finished");
+            return;
+        }
+    }
+
     /** 当场授予（没播成、或掉线补授）。永不抛异常 —— 调用方在 {@code play} 的关键路径上。 */
     public static void grantNow(ServerPlayer player, ResourceLocation advancement, String cg, String why) {
         award(player, advancement);
