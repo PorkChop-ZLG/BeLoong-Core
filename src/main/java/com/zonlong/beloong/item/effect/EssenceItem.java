@@ -8,10 +8,12 @@ import by.dragonsurvivalteam.dragonsurvival.registry.dragon.ability.DragonAbilit
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.registry.ModDataComponents;
 import com.zonlong.beloong.registry.ModSounds;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
@@ -297,9 +299,10 @@ public class EssenceItem extends Item {
      * @param abilityId 刚习得的技能 ID（用来取技能名填进主标题）
      */
     private void celebrate(ServerPlayer player, ResourceLocation abilityId) {
-        // 主标题：文案来自翻译键，技能名作为 %s 参数（技能名本身也是翻译键，复用 DS 的键推导）
-        Component title = Component.translatable("item.beloong.essence.learned.title",
-                        Component.translatable(Translation.Type.ABILITY.wrap(abilityId)))
+        // 主标题：文案来自翻译键，技能名作为 %s 参数。
+        // ⚠️ 技能名的 §d 由 abilityName(...) 自己的组件给出 —— 写在键里的 § 码管不到 %s 参数
+        //    （见 abilityName 的说明）；元素色加在**父**组件上，给"你已习得「"这一段用。
+        Component title = Component.translatable("item.beloong.essence.learned.title", abilityName(abilityId))
                 .withStyle(style -> style.withColor(TextColor.fromRgb(this.element.titleColor())));
         Component subtitle = Component.translatable("item.beloong.essence.learned.subtitle");
 
@@ -308,8 +311,10 @@ public class EssenceItem extends Item {
         player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle));
         player.connection.send(new ClientboundSetTitleTextPacket(title));
 
-        // 音效先起（它决定整条时间轴的长度）：粒子仪式的节奏就是照这段音效实测编排的
-        player.serverLevel().playSound(null, player.getX(), player.getY(), player.getZ(),
+        // 音效先起（它决定整条时间轴的长度）：粒子仪式的节奏就是照这段音效实测编排的。
+        // ⚠️ 用 getEyeY() 而不是 getY()：音效定位在**头部**（作者裁定），脚底听起来会偏低。
+        // 仍然是**坐标式**播放（不是 entity 式重载）⇒ 播出去后固定在原地，不跟随玩家。
+        player.serverLevel().playSound(null, player.getX(), player.getEyeY(), player.getZ(),
                 ModSounds.ESSENCE_LEARN.get(), SoundSource.PLAYERS, 1.0F, 1.0F);
 
         // 粒子仪式：脚下法阵（元素色）→ 高潮时的球壳爆发（该元素的粒子）
@@ -358,32 +363,147 @@ public class EssenceItem extends Item {
 
     // ==================== 展示 ====================
 
+    /**
+     * 物品名用<b>该元素的硬编码色</b>。
+     * <p>
+     * ⚠️ 必须在这里上色，不能指望 tooltip 那边：原版把<b>稀有度色加在外层组件</b>上 ——
+     * {@code ItemStack#getTooltipLines} 是
+     * {@code Component.empty().append(this.getHoverName()).withStyle(this.getRarity().getStyleModifier())}，
+     * 而 {@code Rarity#getStyleModifier()} 只是 {@code style -> style.withColor(color)}
+     * ⇒ <b>名字组件自己带颜色就盖过稀有度色</b>。不覆写它，十件魔源的名字全是稀有度色（金色）。
+     */
+    @Override
+    public Component getName(ItemStack stack) {
+        return super.getName(stack).copy()
+                .withStyle(style -> style.withColor(TextColor.fromRgb(this.element.titleColor())));
+    }
+
     /** 封存了技能时带附魔光效，一眼可与空魔源区分。 */
     @Override
     public boolean isFoil(ItemStack stack) {
         return stack.has(ModDataComponents.ESSENCE_SKILL.get());
     }
 
+    /**
+     * 两种 tooltip（作者裁定）：
+     * <ul>
+     *   <li><b>空魔源</b> —— <b>只有一行</b>元素描述（{@link #tooltipKey}），
+     *       颜色由<b>代码</b>给该元素的硬编码色。</li>
+     *   <li><b>已封存</b> —— <b>三行</b>：封存技能 → 技能描述 → 学习技能；
+     *       那一行元素描述<b>不再显示</b>，三行的颜色写在<b>翻译键</b>里（十条文案统一）。</li>
+     * </ul>
+     */
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context,
                                 List<Component> tooltipComponents, TooltipFlag tooltipFlag) {
-        // 整个 tooltip 都用该元素的硬编码色（与 Title、粒子法阵同一个值）——
-        // 十件魔源的 tooltip 因此各有自己的颜色，一眼能认出是哪种元素
-        TextColor elementColor = TextColor.fromRgb(this.element.titleColor());
-
-        tooltipComponents.add(Component.translatable(this.tooltipKey)
-                .withStyle(style -> style.withColor(elementColor)));
-
         ResourceLocation abilityId = stack.get(ModDataComponents.ESSENCE_SKILL.get());
+
         if (abilityId == null) {
+            tooltipComponents.add(Component.translatable(this.tooltipKey)
+                    .withStyle(style -> style.withColor(TextColor.fromRgb(this.element.titleColor()))));
             return;
         }
 
-        // 技能名复用龙之生存自己的键推导（dragon_ability.<命名空间>.<路径>），不要在这里自己拼字符串
-        tooltipComponents.add(Component.translatable("item.beloong.essence.stored",
-                        Component.translatable(Translation.Type.ABILITY.wrap(abilityId)))
-                .withStyle(style -> style.withColor(elementColor)));
-        tooltipComponents.add(Component.translatable("item.beloong.essence.hint")
-                .withStyle(style -> style.withColor(elementColor)));
+        tooltipComponents.add(Component.translatable("item.beloong.essence.stored", abilityName(abilityId)));
+        addAbilityDescription(tooltipComponents, abilityId);
+        tooltipComponents.add(Component.translatable("item.beloong.essence.hint"));
+    }
+
+    /**
+     * 技能名的<b>紫色（§d）在这里硬编码</b>。
+     * <p>
+     * ⚠️ <b>为什么不能把 {@code §d} 写进翻译键</b>：{@code TranslatableContents#visit} 用
+     * <b>同一个组件样式</b>去访问译文的每一部分（包括作为参数插入的 Component），而 {@code §} 码
+     * 只影响<b>它所在的那一条字面文本</b> ⇒ 写在 {@code %s} 前面的 {@code §d} 管不到技能名。
+     * 所以技能名的颜色只能加在它自己的组件上（子组件自带样式优先于父组件）。
+     * <p>
+     * 技能名本身复用龙之生存的键推导（{@code dragon_ability.<命名空间>.<路径>}），
+     * 不要在这里自己拼字符串。
+     */
+    private static Component abilityName(ResourceLocation abilityId) {
+        return Component.translatable(Translation.Type.ABILITY.wrap(abilityId))
+                .withStyle(ChatFormatting.LIGHT_PURPLE);
+    }
+
+    /**
+     * 插入龙之生存的技能描述（{@code dragon_ability.<命名空间>.<路径>.desc}）。
+     * <p>
+     * 口径（作者裁定）：
+     * <ul>
+     *   <li>只要 {@code .desc} 这份<b>散文</b>，不要 {@code .dynamic_desc}：后者的 {@code %s}
+     *       要由 DS 在运行时按成长 / 属性 / 武器伤害算出来，本模组<b>填不了</b>，
+     *       硬填只会又长又错。</li>
+     *   <li>描述里的空行压掉（{@code \n\n} 及以上并成一个），否则 tooltip 会被撑得过高；
+     *       描述<b>前后各留一个空行</b>，与"封存技能""学习技能"两行隔开。</li>
+     *   <li><b>没有描述键就跳过</b>（第三方 DS 技能模组可能不提供），
+     *       而不是把 {@code dragon_ability.xxx.desc} 这种原文键名显示给玩家。</li>
+     * </ul>
+     * <p>
+     * ⚠️⚠️ <b>绝不能把整段（含 {@code \n}）塞进一个组件</b> —— 这里踩过一次，症状是
+     * "短描述渲染成一串缺字方块、长描述却正常"。机制：NeoForge 组装 tooltip 时有两条分支，
+     * {@code ClientHooks.gatherTooltipComponentsFromElements} 在<b>需要折行</b>时走
+     * {@code font.split(text, maxWidth)}（→ {@code StringSplitter.splitLines}，{@code \n} 才当换行），
+     * 在<b>不需要折行</b>时直接 {@code create(text.getVisualOrderText())} ⇒ {@code \n} 留在字符序列里，
+     * 渲染成缺字方块。而是否需要折行取决于"未折行时的总宽度"（同文件 {@code :831-848}）
+     * ⇒ <b>描述越短越容易踩</b>（实测：龙宫传送 23 字中招，其余 46/55/73/90 字都因触发折行而正常）。
+     * <p>
+     * ⇒ 因此这里<b>自己按 {@code \n} 切开、每行一个组件</b>，任何分支下都是真换行；
+     * 空行用<b>空组件</b>（{@code ClientTextTooltip#getHeight()} 硬编码返回 10，与内容无关，
+     * 且 NeoForge 在折行分支专门为空组件开了特例）。
+     * <p>
+     * ⚠️ 这里先用 {@link Language} 取<b>原文</b>（而不是直接 {@code Component.translatable}），
+     * 因为要按行拆、并按 {@code \n} 判断空行。译文里的 {@code §} 颜色码在字面文本里照常生效。
+     * {@link Language} 不是客户端专属（{@code net.minecraft.locale.Language}，无 {@code @OnlyIn}），
+     * 调用安全。
+     */
+    private static void addAbilityDescription(List<Component> tooltipComponents, ResourceLocation abilityId) {
+        String key = Translation.Type.ABILITY_DESCRIPTION.wrap(abilityId);
+        Language language = Language.getInstance();
+        if (!language.has(key)) {
+            return;
+        }
+
+        tooltipComponents.add(Component.empty());   // 与上一行隔开的空行
+
+        String carried = "";
+        for (String line : language.getOrDefault(key).split("\n")) {
+            if (line.isEmpty()) {
+                continue;   // 压空行
+            }
+
+            tooltipComponents.add(Component.literal(carried + line));
+            carried = carriedColor(carried, line);
+        }
+
+        tooltipComponents.add(Component.empty());   // 与下一行隔开的空行
+    }
+
+    /**
+     * 一行结束后<b>仍然生效的颜色码</b>，作为下一行的前缀。
+     * <p>
+     * ⚠️ <b>为什么必须携带</b>：原版折行是在<b>一段文本内部</b>拆行的，样式天然延续；而"每行一个组件"
+     * 之后，<b>组件之间不继承样式</b>。实测"换行后那一行不以 {@code §} 开头"的：
+     * 我们 5 条描述里 <b>4 条</b>、DS 43 条里 <b>14 条</b> ⇒ 不携带这些行会掉色变白。
+     * <p>
+     * 实测这些描述<b>只用颜色码</b>（{@code 2 7 a b c e f r} / {@code 2 7 8 c f r}），没有粗体/斜体等
+     * 格式码 ⇒ 只需记住"最后一个颜色码"，遇到 {@code §r} 清空即可。**不做格式码的携带**
+     * （当前无描述需要；若将来需要，这里要改成记一组码）。
+     */
+    private static String carriedColor(String carried, String line) {
+        String active = carried;
+        for (int i = 0; i + 1 < line.length(); i++) {
+            if (line.charAt(i) != '§') {
+                continue;
+            }
+
+            char code = Character.toLowerCase(line.charAt(i + 1));
+            if (code == 'r') {
+                active = "";
+            } else if ("0123456789abcdef".indexOf(code) >= 0) {
+                active = "§" + code;
+            }
+            i++;   // 跳过这个颜色码本身
+        }
+        return active;
     }
 }

@@ -29,6 +29,22 @@ import java.util.List;
  *   <li><b>高潮爆发</b>：以玩家为球心向外膨胀的球壳，用的是<b>该元素对应的粒子类型</b>。</li>
  * </ol>
  *
+ * <h2>法阵是"被画出来的"，而且<b>不旋转</b></h2>
+ *
+ * 圆和五角星<b>同时</b>从 0 开始绘制、都在 <b>1.20 s 收笔</b>（正好接上爆发的第一 tick）。
+ * 两者的<b>起笔点是同一个</b>：正前方（俯视的"上"）—— 圆的起笔方向 = 星的起笔顶点。
+ * <ul>
+ *   <li><b>外圈</b>：从"上"起笔，沿俯视<b>顺时针</b>画满一圈。</li>
+ *   <li><b>五角星</b>：<b>一笔勾勒</b> —— 5 段连续笔迹，每段跨 144°，
+ *       依次 <b>上 → 右下 → 左上 → 右上 → 左下 → 上</b>（作者口述的常见画法）。</li>
+ * </ul>
+ *
+ * 法阵整体<b>静止</b>（作者裁定）。⚠️ 这一条有硬理由：dust 粒子的寿命是
+ * {@code 8/[0.2,1.0] × scale} ⇒ 默认 scale 1.0 时最长 <b>40 tick（2 秒）</b>；
+ * 只要法阵每 tick 转一点，一颗粒子从生到灭就会扫过「每 tick 角度 × 40」那么大的一片扇面，
+ * 把细线糊成一条 <b>又粗又乱</b>的带子 —— 实机截图里五角星糊成一团、而外圈却干净，
+ * 正是因为<b>圆的旋转对称性掩盖了拖影，星不是</b>。
+ *
  * <h2>时间轴（tick = 1/20 秒；音效总长 3.0199 秒）</h2>
  *
  * 音效的实测形状（逐 100 ms RMS，见 {@code tools/audio_rms_profile.py}）：0.00→1.20 s 从 -52 dB
@@ -38,8 +54,8 @@ import java.util.List;
  * <table border="1">
  *   <caption>时间轴</caption>
  *   <tr><th>tick</th><th>秒</th><th>音频</th><th>粒子</th></tr>
- *   <tr><td>0–23</td><td>0.00–1.20</td><td>渐强（爬到 -9 dB）</td><td>法阵被"画"出来 —— <b>1.20 s 刚好画完</b>，与高潮同拍</td></tr>
- *   <tr><td>24–37</td><td>1.20–1.90</td><td><b>高潮（主体）</b></td><td>法阵完整并旋转 + <b>球壳爆发</b>（半径线性外扩）</td></tr>
+ *   <tr><td>0–23</td><td>0.00–1.20</td><td>渐强（爬到 -9 dB）</td><td>圆与星<b>同时</b>被"画"出来 —— <b>1.20 s 刚好收笔</b>，与高潮同拍</td></tr>
+ *   <tr><td>24–37</td><td>1.20–1.90</td><td><b>高潮（主体）</b></td><td>法阵已完整、静止 + <b>球壳爆发</b>（半径线性外扩）</td></tr>
  *   <tr><td>38–55</td><td>1.90–2.80</td><td>衰减到尾音</td><td>爆发密度降到 0（冲击波余韵）；法阵继续</td></tr>
  *   <tr><td>56–71</td><td>2.80–3.60</td><td>已结束</td><td>只剩法阵，密度线性降到 0</td></tr>
  *   <tr><td>72–79</td><td>3.60–4.00</td><td>—</td><td><b>不再产生新粒子</b>，已有粒子在存活期内散尽（约 4.1 s）</td></tr>
@@ -50,9 +66,12 @@ import java.util.List;
  *
  * <h2>法阵是"脱手效果"，爆发跟人走</h2>
  *
- * 法阵的位置在<b>使用魔源那一刻定死</b>（锚点 = 当时的坐标 + 维度，存在每个仪式实例自己的
+ * 法阵的位置在<b>使用魔源那一刻定死</b>（锚点 = 当时的坐标 + 维度 + <b>朝向</b>，存在每个仪式实例自己的
  * {@code final} 字段里）⇒ 玩家在仪式期间走动、跳跃、被打飞，法阵都留在原地不乱。
  * <b>爆发仍然绑在玩家身上</b>（每 tick 取实时坐标），所以它是"从自己身上炸开"。
+ * <p>
+ * 朝向也一起锚定：法阵不旋转，但"星的'上'朝哪边"需要基准 —— 取使用时的 yaw，
+ * 这样<b>施法者看到的永远是正立的五角星</b>（作者裁定）；别的玩家从别的方向看依然是斜的（无解）。
  * <p>
  * 附带一条：玩家若在仪式期间<b>换维度</b>，锚点已不在当前世界 ⇒ 仪式直接结束（不在新维度里拿旧坐标乱画）。
  *
@@ -88,10 +107,9 @@ import java.util.List;
  *
  * <h2>性能口径</h2>
  *
- * 默认体型下峰值约 <b>163 颗/tick 画法阵</b>（外圈 63 + 五角星 5 条弦 × 20），
+ * 默认体型下峰值约 <b>189 颗/tick 画法阵</b>（外圈 74 + 五角星 5 段 × 23），
  * <b>+ 112 颗/tick 的球壳</b>。点数按<b>线长</b>反算，所以直径/体型变化时粒子量按比例涨落
- * （直径 9 格时是 206 颗/tick）—— <b>这是"密到成实线"的必然代价</b>：线是这个长度，
- * 间距就是这个数，点数 = 长度 ÷ 间距。
+ * —— <b>这是"密到成实线"的必然代价</b>：线是这个长度，间距就是这个数，点数 = 长度 ÷ 间距。
  * 全部是逐颗定点发（{@code count = 1}）—— 本项目记过 {@code sendParticles} 的
  * {@code count > 1} 是**长方体随机**，那样画不出圆和球。
  */
@@ -134,9 +152,8 @@ public final class EssenceLearnRitual {
     /**
      * 法阵所有线条的采样间距（格）。
      * <p>
-     * <b>这是"线密不密"的唯一旋钮</b>。取 <b>0.35</b> 是照第一版的实测量级
-     * （第一版外圈 r=1.75、32 点 ⇒ 0.34 格/颗）—— 那个密度下粒子会**堆叠成一条实线**，
-     * 也是作者认可的观感。
+     * <b>这是"线密不密"的唯一旋钮</b>。取 <b>0.30</b>：配合 {@link #DUST_SCALE} = 1.0
+     * （点直径 0.15–0.30 格）⇒ 相邻点刚好相接，读作一条细而连续的线。
      * <p>
      * ⚠️ <b>这里走过一次弯路</b>：曾经为了"省粒子"把外圈压到 16 点（1.77 格/颗），
      * 结果线条变成点串，观感明显不如密集堆叠的线（作者裁定）。⇒ 结论：
@@ -146,7 +163,7 @@ public final class EssenceLearnRitual {
      * 点数<b>按线长反算</b>（{@code ceil(长度 / 间距)}），因此体型放大时密度**自动恒定**，
      * 不需要另外乘倍数。
      */
-    private static final double LINE_SPACING = 0.35D;
+    private static final double LINE_SPACING = 0.30D;
 
     /**
      * 五角星外接圆半径 = 外圈半径 × 此比例。
@@ -155,22 +172,34 @@ public final class EssenceLearnRitual {
      */
     private static final double STAR_RADIUS_RATIO = 1.0D;
 
+    /**
+     * 一笔画五角星：每一段跨过的圆心角（度）。
+     * <p>
+     * <b>144° = 2 × 72°</b>（"隔一个顶点连"）⇒ 5 段正好闭合，这就是"一笔勾勒"的数学形式：
+     * 从 {@code 0°}（正前方 = 俯视的"上"）起笔，依次
+     * <b>上 → 右下 → 左上 → 右上 → 左下 → 上</b>（作者口述的常见画法）。
+     * <p>
+     * 角度约定：{@code 0°} = 玩家使用魔源时的<b>正前方</b>，角度<b>沿俯视顺时针</b>增大
+     * （72° = 右上、144° = 右下、216° = 左下、288° = 左上）。
+     */
+    private static final double STAR_STROKE_STEP_DEGREES = 144.0D;
+
+    /** 一笔画的段数（五角星 = 5 段）。 */
+    private static final int STAR_STROKE_SEGMENTS = 5;
+
     /** 法阵距玩家脚底的高度（格）—— 贴地画，读作"脚下的法阵"。 */
     private static final double CIRCLE_Y_OFFSET = 0.12D;
 
     /**
      * 法阵粒子的尺寸（dust 的 scale，合法区间 0.01–4.0）。
      * <p>
-     * 取 <b>1.2</b>（≈ 第一版的值）：<b>小点 + 密排 = 细而实的一根线</b>。
+     * 取 <b>1.0</b>（作者实机裁定）：<b>小点 + 密排 = 细而实的一根线</b>。
      * 点数已经很密，再放大点只会把线糊粗（曾经取 2.5 + 稀疏点，观感反而更差）。
+     * <p>
+     * 附带：{@code scale} <b>同时决定粒子寿命</b>（{@code DustParticleBase}：
+     * {@code lifetime = 8/[0.2,1.0] × scale}）⇒ 1.0 时寿命 8–40 tick。
      */
-    private static final float DUST_SCALE = 1.2F;
-
-    /** 外圈每 tick 旋转角度（度）。 */
-    private static final double OUTER_SPIN_DEGREES = 2.5D;
-
-    /** 五角星每 tick 旋转角度（度）。 */
-    private static final double STAR_SPIN_DEGREES = 1.2D;
+    private static final float DUST_SCALE = 1.0F;
 
     // ==================== 爆发几何 ====================
 
@@ -244,12 +273,22 @@ public final class EssenceLearnRitual {
         /** 法阵 / 爆发的尺寸倍数（1× ~ 4×）。整场仪式固定，启动时算一次。 */
         private final double sizeFactor;
 
-        // ---- 法阵的锚点：使用魔源那一刻的位置与维度，整场不变（脱手效果）----
+        // ---- 法阵的锚点：使用魔源那一刻的位置、维度与朝向，整场不变（脱手效果）----
         /** 锚点所在维度 —— 玩家换维度后旧锚点已不在这个世界里，仪式直接结束。 */
         private final ServerLevel anchorLevel;
         private final double anchorX;
         private final double anchorY;
         private final double anchorZ;
+        /**
+         * 锚点朝向 = 玩家使用魔源那一刻的 yaw。
+         * <p>
+         * 法阵<b>不旋转</b>，但"五角星的'上'朝哪边"需要一个基准（作者裁定：按使用时的朝向，
+         * 这样施法者看到的永远是正立的五角星）。
+         * <p>
+         * ⚠️ 用 {@code getYRot()} 而不是 {@code getLookAngle()} 的水平投影：玩家垂直仰视/俯视时
+         * 后者会退化成零向量，而 yaw **任何时候都有定义**。
+         */
+        private final float anchorYaw;
 
         private int tick;
 
@@ -265,6 +304,28 @@ public final class EssenceLearnRitual {
             this.anchorX = player.getX();
             this.anchorY = player.getY();
             this.anchorZ = player.getZ();
+            this.anchorYaw = player.getYRot();
+        }
+
+        /**
+         * 把"俯视角 φ"（{@code 0° = 正前方}，沿俯视顺时针增大）换算成世界坐标的单位方向，
+         * 写进 {@code out}（{@code out[0] = x, out[1] = z}）。
+         * <p>
+         * 推导：原版 yaw 的朝向向量是 {@code F = (-sin(yaw), cos(yaw))}（yaw 0 = +Z = 南）。
+         * 俯视看下去，屏幕右方 = {@code F × up = (-F.z, F.x)}（验证：面朝南时右手边是西 ✓）。
+         * 于是 {@code φ} 方向 = {@code cos(φ)·F + sin(φ)·R}。
+         */
+        private void direction(double phi, double[] out) {
+            double yaw = Math.toRadians(this.anchorYaw);
+            double forwardX = -Math.sin(yaw);
+            double forwardZ = Math.cos(yaw);
+            double rightX = -forwardZ;
+            double rightZ = forwardX;
+
+            double cos = Math.cos(phi);
+            double sin = Math.sin(phi);
+            out[0] = cos * forwardX + sin * rightX;
+            out[1] = cos * forwardZ + sin * rightZ;
         }
 
         /**
@@ -381,39 +442,44 @@ public final class EssenceLearnRitual {
             // 半径随体型放大（点数由线长反算 ⇒ 密度自动保持）
             double outerRadius = BASE_OUTER_RADIUS * this.sizeFactor;
             double starRadius = outerRadius * STAR_RADIUS_RATIO;
-            int outerPoints = Math.max(8, (int) Math.ceil(2.0D * Math.PI * outerRadius / LINE_SPACING));
 
-            // 五角星的弦长 = 2R·sin72° ≈ 1.902R —— 比外圈的一段弧长得多，所以点数要单独反算
-            double chordLength = 2.0D * starRadius * Math.sin(Math.toRadians(72.0D));
-            int starPointsPerChord = Math.max(4, (int) Math.ceil(chordLength / LINE_SPACING));
-
-            // 外圈（顺时针方向旋转）
-            double outerBase = Math.toRadians(this.tick * OUTER_SPIN_DEGREES);
-            int outerCount = (int) Math.ceil(outerPoints * progress * density);
-            for (int i = 0; i < outerCount; i++) {
-                double angle = outerBase + 2.0D * Math.PI * i / outerPoints;
-                this.dust(level, centerX + Math.cos(angle) * outerRadius, y,
-                        centerZ + Math.sin(angle) * outerRadius);
+            // ---- 外圈：从"正前方"（俯视的"上"）起笔、沿俯视顺时针画一圈 ----
+            int ringPoints = Math.max(8, (int) Math.ceil(2.0D * Math.PI * outerRadius / LINE_SPACING));
+            int ringDrawn = (int) Math.ceil(ringPoints * progress * density);
+            double[] dir = new double[2];
+            for (int i = 0; i < ringDrawn; i++) {
+                this.direction(2.0D * Math.PI * i / ringPoints, dir);
+                this.dust(level, centerX + dir[0] * outerRadius, y, centerZ + dir[1] * outerRadius);
             }
 
-            // 五角星：正五边形的顶点按"隔一个连"的顺序相接，得到 5 条弦；
-            // 顶点半径 = 外圈半径 ⇒ 星的 5 个尖正好落在外圈上
-            double starBase = Math.toRadians(this.tick * STAR_SPIN_DEGREES) - Math.PI / 2.0D;
-            int pointsPerChord = (int) Math.ceil(starPointsPerChord * progress * density);
-            for (int edge = 0; edge < 5; edge++) {
-                double from = starBase + edge * (2.0D * Math.PI / 5.0D);
-                double to = starBase + ((edge + 2) % 5) * (2.0D * Math.PI / 5.0D);
-                double fromX = Math.cos(from) * starRadius;
-                double fromZ = Math.sin(from) * starRadius;
-                double toX = Math.cos(to) * starRadius;
-                double toZ = Math.sin(to) * starRadius;
+            // ---- 五角星：一笔勾勒 ----
+            // 弦长 = 2R·sin72° ≈ 1.902R（比外圈的一段弧长得多，所以点数单独反算）
+            double chordLength = 2.0D * starRadius * Math.sin(Math.toRadians(72.0D));
+            int pointsPerSegment = Math.max(4, (int) Math.ceil(chordLength / LINE_SPACING));
 
-                for (int i = 0; i < pointsPerChord; i++) {
-                    // 除以 (n-1) 而不是 n：两端都要采到 ⇒ 星的**尖**才会被画出来（尖是五角星的身份）
-                    double t = i / (double) (starPointsPerChord - 1);
-                    this.dust(level, centerX + fromX + (toX - fromX) * t, y,
-                            centerZ + fromZ + (toZ - fromZ) * t);
-                }
+            // 把 5 段拼成**一条**连续笔迹：索引 → (第几段, 段内第几点)
+            int strokePoints = pointsPerSegment * STAR_STROKE_SEGMENTS;
+            int strokeDrawn = (int) Math.ceil(strokePoints * progress * density);
+            double step = Math.toRadians(STAR_STROKE_STEP_DEGREES);
+            for (int index = 0; index < strokeDrawn; index++) {
+                int segment = index / pointsPerSegment;
+                int i = index % pointsPerSegment;
+                // 除以 (n-1) 而不是 n：两端都要采到 ⇒ 星的**尖**才会被画出来（尖是五角星的身份）
+                double t = i / (double) (pointsPerSegment - 1);
+
+                // 第 segment 段：从 (segment × 144°) 连到 ((segment+1) × 144°)。
+                // 起笔点 = 0° = 正前方 = 外圈的起笔点 ⇒ 圆与星"从同一个端点开始画"（作者裁定）
+                double fromPhi = segment * step;
+                double toPhi = fromPhi + step;
+                this.direction(fromPhi, dir);
+                double fromX = dir[0] * starRadius;
+                double fromZ = dir[1] * starRadius;
+                this.direction(toPhi, dir);
+                double toX = dir[0] * starRadius;
+                double toZ = dir[1] * starRadius;
+
+                this.dust(level, centerX + fromX + (toX - fromX) * t, y,
+                        centerZ + fromZ + (toZ - fromZ) * t);
             }
         }
 
