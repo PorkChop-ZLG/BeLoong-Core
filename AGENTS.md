@@ -389,10 +389,15 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - `tools/` 与 `memory/` **刻意不进版本管理**：**不要 `git add -f`，也不要为它反加白名单**。
   代价是"门全绿"只在工作区可复现——所以交付时要连命令一起给。
 - **本项目不使用本地 jar 仓库**：`local-repo/` 目录及其在 `build.gradle` 里的 `maven { url = uri("local-repo") }`
-  声明已于 **2026-10-15 一并删除**（用户裁定：本地 jar 仓库本身即冷构建变慢的嫌疑源）⇒
+  声明已于 **2026-10-15 一并删除**。**用户实测确认这就是冷构建慢的根源**：删掉后首次构建约 **3 分钟**
+  （且那 3 分钟里还包含一次 44.7 MB 的 Maven 下载），而此前高达 **10 分钟** ⇒
   **所有 jar 一律从 Maven 下载**（curse maven 用 `fileId`），下载后缓存在 `~/.gradle/caches/modules-2`，
-  之后构建不再重新下载。⚠️ **不要再把本地仓库加回来**。代价：cursemaven 不可达时构建会失败 ——
-  此时按 §二 加 `--offline`（依赖已全量缓存时可用），而不是引入本地目录。
+  之后构建不再重新下载。⚠️ **不要再把本地仓库加回来**（哪怕只是为了"省一次下载"）。
+  代价：cursemaven 不可达时构建会失败 —— 此时按 §二 加 `--offline`（依赖已全量缓存时可用），而不是引入本地目录。
+  ⚠️ **本机 cursemaven 吞吐约 0.2 MB/s**（实测 28 MB 用了 217 秒）⇒ 首次解析大件（`yuushya` 28 MB /
+  `legendary-monsters` 45 MB / `bossesrise` 24 MB）要几分钟，属**一次性成本**，下完即进缓存。
+  完整取证链（含"为什么不是 yuushya 下载、不是 `--rerun-tasks`、不是内存"等排除项）见
+  `docs/reviews/2026-10-15-build-slowness-local-repo.md`。
 - IDEA 显示"正在下载 xxx"通常是 `idea { module { downloadSources/downloadJavadoc = true } }`
   在探测 `-sources.jar` / `-javadoc.jar`（cursemaven 对它们返回 404），**不是真的在拉 jar**。
 - **提交由用户做，智能体不 commit**；他的提交信息很短，**不要替他规范化**。
