@@ -90,7 +90,12 @@ T9 (文档回填) ── 全部完成后
 **Steps:**
 1. 定义元素数据表：`enum EssenceElement { METAL("metal_essence", 0xF4F380, ...), ... }` —— 十项，
    每项带 **物品 id、tooltip 键、Title 硬编码色、粒子类型**。值照设计文档 §6.1 与 §6.2 **逐字抄**，不要重新推导。
+   > ⚠️ **2026-10-16 审查后就地更正（实际实现与此处不同）**：枚举是**嵌套**的 `EssenceItem.Element`（不是顶层
+   > `EssenceElement`），而且**只带颜色**（`titleColor()`）—— 物品 id 在 `ModItems` 的注册名里、
+   > tooltip 键由 `ModItems` 逐件传给构造函数、粒子类型由 `Element#particle()` 从颜色表推导。
+   > 详见审查报告「可选 10」与设计文档 §20。
 2. 构造函数收 `(EssenceElement element, String tooltipKey)`；`ModItems` 侧用 `() -> new EssenceItem(...)` 传（`DeferredItem` 要 `Supplier`）。
+   > 同上更正：第一个参数的实际类型是 `EssenceItem.Element`。
 3. 实现 `use` / `useOn`，**两者委托同一个私有方法**；`use` 走 `InteractionResultHolder`、`useOn` 走 `InteractionResult`（签名不同，各自包一层）。
 4. 实现九步流程的 **1–7 步 + 9 步**（第 8 步的反馈留到 Task 7），含五条拒绝路径与它们的 actionbar 提示。
 5. `isFoil` → 有组件即 `true`；`appendHoverText` → 原有 tooltip 键 + 有组件时追加 `item.beloong.essence.stored`（传技能名）与 `item.beloong.essence.hint`。
@@ -108,6 +113,7 @@ T9 (文档回填) ── 全部完成后
 
 **Steps:**
 1. 删掉私有工厂 `essenceSupplier(String)`，10 处注册改成 `Items.register("<id>", () -> new EssenceItem(EssenceElement.X, "item.beloong.<id>.tooltip"))`。
+   > 同上更正：实际写的是 `new EssenceItem(Element.X, "item.beloong.<id>.tooltip")`（`Element` 是嵌套枚举）。
 2. 保留字段声明顺序（= 页签顺序 = 校验脚本顺序，设计文档 D20）。
 3. `ModCreativeModeTabs` **不动**（19 次 `accept` 保持不变）。
 
@@ -255,8 +261,12 @@ python tools\verify_essence_lang.py; $LASTEXITCODE
 
 ## 执行状态
 
+**✅ 全部完成：T1–T11 通过；第二至第七轮改动（rev 1–7）也已由作者实机验收通过**
+（2026-10-16 作者原话："功能已经完成，实机测试已经通过，观感符合要求"）。
+日志复核见设计文档头部的 Status 段；代码审查见 `docs/reviews/2026-10-16-essence-skill-storage-code-review.md`。
+
 **T1–T10 已执行完毕（2026-10-15），全部通过；T11 已由作者完成首轮实机（"效果基本符合预期"，日志 0 错误）。**
-随后按作者 4 条反馈做了**第二轮改动（rev 1，见设计文档 §13）**，该轮**待实机复核**。
+随后按作者 4 条反馈做了**第二轮改动（rev 1，见设计文档 §13）**，该轮**已随总体验收通过**。
 
 ### 第二轮（2026-10-15，实机验收后反馈）
 
@@ -379,7 +389,7 @@ jar 内语言文件解析核对通过；`DESCRIPTION_PADDING` / `replaceAll` 残
 | T8 语言键 | ✅ | 语言门 exit 0；两语言各 **344** 键（= 331 + 13，与预测一致）；13 键逐个解析成功且 `%s` 数一致 |
 | T9 文档回填 | ✅ | 元素魔源 §3 / §6.2 就地标记 + 新增 §11.3.1（V3→V4 硬指标）；设计文档 §10.2 口径写精确；`title.beloong.*` 命名理由入库 |
 | T10 全量验证 | ✅ | 见下「T10 证据」 |
-| T11 实机验收 | ⏸ **待作者** | 按设计文档 §10.3 的 12 条清单 |
+| T11 实机验收 | ✅ **已通过** | 作者 2026-10-16 确认"功能已经完成，实机测试已经通过，观感符合要求"（含 rev 1–7 全部改动） |
 
 **两个检查点**（T1–T3、T4–T6）均为全绿：`build` exit 0 + 警告 **3 = 基线**、语言门通过、件数不变量 19/19/19。
 
@@ -409,6 +419,14 @@ jar 内语言文件解析核对通过；`DESCRIPTION_PADDING` / `replaceAll` 残
 7. **语言键数在计划期就被我数错过一次**（先写 12，实际 13）⇒ 落盘前已修正；实施后实测
    **331 + 13 = 344** 与修正值一致。
 8. **无阻塞、无失败任务。** 未使用 `resilient-execution`（没有需要重试的验证失败）。
+9. **元素枚举的形态与计划不符**（2026-10-16 代码审查发现并补记）：计划写的是顶层
+   `enum EssenceElement`、每项带"物品 id / tooltip 键 / Title 色 / 粒子类型"；实际实现是**嵌套**的
+   `EssenceItem.Element`，**只带颜色**（`titleColor()`），粒子类型由 `particle()` 从该表推导、
+   tooltip 键由 `ModItems` 逐件传入。设计文档 **D25** 当时已说明"做成嵌套枚举、不新增类"，
+   但**计划文档没有随之更新** ⇒ 本次就地标注（见 Task 3/4 的更正块）并记于此。
+10. **代码审查后修复了一轮缺陷**（rev 8，见设计文档 §20 与
+    `docs/reviews/2026-10-16-essence-skill-storage-code-review.md`）：爆发球壳只覆盖 74% 球面、
+    3×/4× 时超出原版 32 格投递门、密度衰减读作"蚀退"、对着实体右键无效、`ACTIVE` 不清理等。
 
 ### T10 证据（全量验证）
 
@@ -421,7 +439,10 @@ jar 内语言文件解析核对通过；`DESCRIPTION_PADDING` / `replaceAll` 残
 | 件数不变量 | §8.2 三条计数 | **19 / 19 / 19** |
 | 产物解析 | `ZipFile` 列条目（**解析**，非字符串匹配） | 见下表 |
 
-**产物解析明细** —— 目标 `build/libs/beloong-0.10.6.jar`（2026-10-15 22:15:43，5,290,603 字节，**631 条目**）：
+**产物解析明细** —— 目标 `build/libs/beloong-0.10.6.jar`（2026-10-15 22:15:43，5,290,603 字节，**631 条目**）
+> ⚠️ **口径**：这是 **T10 当轮的快照**。同名 jar 在后续轮次（rev 1–8）被重新打包过 ——
+> 2026-10-16 审查时实测为 5,296,955 字节 / **633** 条目（多出 2 条 = `EssenceLearnRitual.class`
+> 与 `EssenceLearnRitual$Ritual.class`）⇒ 下表的"条目数/字节数"不要与当前 jar 直接比对：
 
 | 检查 | 期望 | 实测 |
 |---|---|---|

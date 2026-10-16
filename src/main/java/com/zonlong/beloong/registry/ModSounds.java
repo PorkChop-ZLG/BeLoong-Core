@@ -15,9 +15,10 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * {@link SoundEvent#createVariableRangeEvent(ResourceLocation)} 之类的工厂创建
  * （构造器不可见）；注册路径同时就是 {@code sounds.json} 里的<b>键名</b>。
  * <p>
- * 键名规则：{@code <类型>.<命名空间>.<方块 ID>.<用途>} ⇒ 例如
- * {@code block.beloong.loong_palace_portal.ambient}
- * （与天境的 {@code block.aether_portal.ambient} 同构——天境的 modid 即 {@code aether}）。
+ * 键名规则：{@code <类型>.<命名空间>.<ID>[.<用途>]} —— <b>用途段是可选的</b>，例如
+ * {@code block.beloong.loong_palace_portal.ambient}（四段，与天境的
+ * {@code block.aether_portal.ambient} 同构——天境的 modid 即 {@code aether}），
+ * 而本模组的 {@code ability.beloong.execute} 与 {@code item.beloong.essence_learn} 都只有三段。
  * <p>
  * 音频文件在 {@code assets/beloong/sounds/portal/}，由 {@code sounds.json} 引用。
  * 三条门音效取自<b>天境</b>（已获授权）。

@@ -26,6 +26,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -55,13 +56,15 @@ import java.util.List;
  * 结构上仍是 V3，只是从匿名变具名。详见
  * {@code docs/plans/2026-09-13-element-essence-design.md} 的 §3 与 §11 rev 2。
  *
- * <h2>两个入口都要覆写（重要）</h2>
+ * <h2>三个入口都要覆写（重要）</h2>
  *
  * 潜行右键<b>对着方块</b>时，原版走的是 {@code useOn} 而<b>不会</b>调 {@code use}
  * （{@code ServerPlayerGameMode.useItemOn}：潜行时方块交互整段被跳过，随后调 {@code stack.useOn}，
  * 其返回值直接 return，**不回落**到 {@code use()}）。
- * ⇒ 只写 {@code use} 的症状是"对着空气能用、对着方块用不出来"。
- * 两个入口因此都委托给同一个私有方法 {@link #tryLearn}。
+ * ⚠️ 潜行右键<b>对着生物</b>时又换了一条路：{@code Player#interactOn} 调物品的
+ * {@code interactLivingEntity}（{@code Player.java:1109-1114}），同样**不回落**到 {@code use()}。
+ * ⇒ 三个入口全部委托给同一个私有方法 {@link #tryLearn}；漏掉任何一个都会出现
+ * "某个瞄准目标下用不出来"的症状（对着生物那条是 2026-10-16 代码审查发现并补上的）。
  *
  * <h2>客户端只预测、不动手</h2>
  *
@@ -199,6 +202,23 @@ public class EssenceItem extends Item {
             return InteractionResult.PASS;
         }
         return tryLearn(context.getLevel(), player, context.getItemInHand());
+    }
+
+    /**
+     * 右键<b>实体</b>的入口（第三个入口，2026-10-16 审查后补）。
+     * <p>
+     * ⚠️ 潜行对着生物右键时，原版走的是这里而<b>不是</b> {@code use}/{@code useOn}：
+     * {@code Player#interactOn} 在命中 {@code LivingEntity} 时调物品的
+     * {@code interactLivingEntity}（{@code Player.java:1109-1114}），
+     * 而它默认返回 {@code PASS} 之后**不会回落到 {@code use}** ⇒
+     * 不覆写这个入口的症状是"对着生物潜行右键什么都不发生"。
+     *
+     * @return 与 {@link #tryLearn} 同义
+     */
+    @Override
+    public InteractionResult interactLivingEntity(ItemStack stack, Player player,
+                                                  LivingEntity target, InteractionHand hand) {
+        return tryLearn(player.level(), player, stack);
     }
 
     /**

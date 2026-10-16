@@ -10,6 +10,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.joml.Vector3f;
 
@@ -58,11 +59,29 @@ import java.util.List;
  *   <tr><td>24–37</td><td>1.20–1.90</td><td><b>高潮（主体）</b></td><td>法阵已完整、静止 + <b>球壳爆发</b>（半径线性外扩）</td></tr>
  *   <tr><td>38–55</td><td>1.90–2.80</td><td>衰减到尾音</td><td>爆发密度降到 0（冲击波余韵）；法阵继续</td></tr>
  *   <tr><td>56–71</td><td>2.80–3.60</td><td>已结束</td><td>只剩法阵，密度线性降到 0</td></tr>
- *   <tr><td>72–79</td><td>3.60–4.00</td><td>—</td><td><b>不再产生新粒子</b>，已有粒子在存活期内散尽（约 4.1 s）</td></tr>
+ *   <tr><td>72–79</td><td>3.60–4.00</td><td>—</td><td><b>不再产生新粒子</b>；最后一批粒子最迟在 tick 111（<b>≈5.6 s</b>）散尽</td></tr>
  * </table>
  *
  * ⇒ <b>法阵比音效多留约 1 秒</b>（用户裁定：不必与音效长度完全贴合）；<b>爆发不延长</b>，
  * 在 2.80 s 停止生成，与音频的衰减段一起收尾。
+ * <p>
+ * ⚠️ 粒子场的**真正清空时刻是 tick 111 ≈ 5.6 s**，不是 4.0 s：dust 的寿命是
+ * {@code max(8 / (0.2..1.0) × scale, 1)} = <b>[8, 40] tick</b>（{@code DustParticleBase.java:32-33}），
+ * 而最后一批粒子发射于 tick 71 ⇒ 71 + 40 = 111。
+ *
+ * <h2>密度衰减用"均匀抽稀"，不用"截断点数"</h2>
+ *
+ * 两条密度曲线都是通过 {@code densityStep()} 换算成**间隔步长**（{@code density 0.5 ⇒ 每隔一个画一个}），
+ * 让整条线一起变稀。⚠️ 曾经是按前缀**截断点数**：那样收尾时法阵会**从收笔处向起笔处蚀退**
+ * （圆只剩起笔那一段弧、星的最后一笔先消失），读起来像"被擦掉"而不是"整体变稀"。
+ * 注意：**绘制进度 {@code progress} 仍然按前缀截断**（那是"笔走到哪"的语义，必须截断）。
+ *
+ * <h2>⚠️ 爆发的半径有硬上限（原版投递门 32 格）</h2>
+ *
+ * 公开的 {@code ServerLevel#sendParticles(type, x, y, z, count, …)} 恒以 {@code longDistance = false}
+ * 投递，门槛是 **32 格**（{@code ServerLevel.java:1268,1295-1302}）。球壳以**玩家自己为球心**
+ * ⇒ 壳上每点到玩家的距离都等于半径 ⇒ 半径一旦 &gt; 32，**施法者本人一格都收不到**。
+ * 因此半径被钳在 {@link #BURST_MAX_RADIUS}（30 格）。详见该常量的说明。
  *
  * <h2>法阵是"脱手效果"，爆发跟人走</h2>
  *
@@ -221,6 +240,25 @@ public final class EssenceLearnRitual {
     /** 相邻两层壳的半径差（格）。 */
     private static final double BURST_SHELL_GAP = 0.45D;
 
+    /**
+     * 爆发半径的**上限（格）** —— 由原版的投递门倒推出来的硬约束，不能随便加大。
+     * <p>
+     * ⚠️ {@code ServerLevel#sendParticles(type, x, y, z, count, …)} 这个公开重载
+     * <b>恒以 {@code longDistance = false} 调内部投递</b>（{@code ServerLevel.java:1268}），
+     * 而投递门是
+     * {@code player.blockPosition().closerToCenterThan(point, longDistance ? 512.0 : 32.0)}
+     * （{@code ServerLevel.java:1295-1302}）⇒ <b>32 格</b>。
+     * <p>
+     * 球壳是以<b>玩家自己为球心</b>的：壳上每一点到玩家的距离都等于该壳半径 ⇒
+     * 一旦半径 &gt; 32，<b>施法者本人收到的包数为 0</b>（外层壳会整层静默消失）。
+     * 实测：半径公式 {@code (0.35 + age × 0.45) × 体型倍数} 在 2× 时最大 28.6 格（安全），
+     * 但 3× 时 tick 48–55、4× 时 tick 42–55 会越过 32 格。
+     * <p>
+     * ⇒ 取 <b>30</b>（留 2 格余量给"玩家在方块内的偏移"，因为门是按 {@code blockPosition} 中心算的）。
+     * 代价：3×/4× 体型的爆发只能长到 30 格（约等于 2.1× 的观感），不再线性放大。
+     */
+    private static final double BURST_MAX_RADIUS = 30.0D;
+
     /** 黄金角 —— 球面均匀布点用（Fibonacci 球）。 */
     private static final double GOLDEN_ANGLE = Math.PI * (3.0D - Math.sqrt(5.0D));
 
@@ -255,6 +293,19 @@ public final class EssenceLearnRitual {
                 iterator.remove();
             }
         }
+    }
+
+    /**
+     * 服务器停止时把活动列表清空。
+     * <p>
+     * 正常路径下不需要它：玩家退出 / 死亡重生 / 换维度都会让 {@code ServerPlayer} 被移除，
+     * 于是下一次 tick 的 {@code advance()} 里 {@code player.isRemoved()} 为真、实例被回收。
+     * 但**服务器停在世界里**（关单机存档、停专服）时不会再 tick ⇒ 那些实例会带着
+     * {@code ServerPlayer} 引用**挂在静态列表里**（有界、不崩，但没必要留着）。
+     */
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        ACTIVE.clear();
     }
 
     /**
@@ -445,9 +496,14 @@ public final class EssenceLearnRitual {
 
             // ---- 外圈：从"正前方"（俯视的"上"）起笔、沿俯视顺时针画一圈 ----
             int ringPoints = Math.max(8, (int) Math.ceil(2.0D * Math.PI * outerRadius / LINE_SPACING));
-            int ringDrawn = (int) Math.ceil(ringPoints * progress * density);
+            int ringDrawn = (int) Math.ceil(ringPoints * progress);
+            int thinStep = densityStep(density);
             double[] dir = new double[2];
             for (int i = 0; i < ringDrawn; i++) {
+                if (i % thinStep != 0) {
+                    continue;
+                }
+
                 this.direction(2.0D * Math.PI * i / ringPoints, dir);
                 this.dust(level, centerX + dir[0] * outerRadius, y, centerZ + dir[1] * outerRadius);
             }
@@ -459,9 +515,13 @@ public final class EssenceLearnRitual {
 
             // 把 5 段拼成**一条**连续笔迹：索引 → (第几段, 段内第几点)
             int strokePoints = pointsPerSegment * STAR_STROKE_SEGMENTS;
-            int strokeDrawn = (int) Math.ceil(strokePoints * progress * density);
+            int strokeDrawn = (int) Math.ceil(strokePoints * progress);
             double step = Math.toRadians(STAR_STROKE_STEP_DEGREES);
             for (int index = 0; index < strokeDrawn; index++) {
+                if (index % thinStep != 0) {
+                    continue;
+                }
+
                 int segment = index / pointsPerSegment;
                 int i = index % pointsPerSegment;
                 // 除以 (n-1) 而不是 n：两端都要采到 ⇒ 星的**尖**才会被画出来（尖是五角星的身份）
@@ -487,16 +547,18 @@ public final class EssenceLearnRitual {
          * 以玩家为球心的向外爆发 —— 用<b>逐 tick 外扩的球壳</b>表达（见类注释：原版无法给单颗粒子
          * 指定定向速度）。球面上的点用 Fibonacci 球均匀分布，两层壳错开半径与相位。
          * <p>
-         * 半径同样乘体型倍数 —— 否则大体型玩家的爆发会显得比他的法阵小得多。
+         * 半径同样乘体型倍数 —— 否则大体型玩家的爆发会显得比他的法阵小得多；
+         * 但**必须钳在 {@link #BURST_MAX_RADIUS} 以内**（原版投递门 32 格，见该常量）。
          */
         private void drawBurst(ServerLevel level, double centerX, double centerY, double centerZ,
                                double density) {
             double age = this.tick - CLIMAX_START_TICK;
-            double outerRadius = (BURST_START_RADIUS + age * BURST_RADIUS_PER_TICK) * this.sizeFactor;
+            double outerRadius = Math.min(
+                    (BURST_START_RADIUS + age * BURST_RADIUS_PER_TICK) * this.sizeFactor,
+                    BURST_MAX_RADIUS);
             double shellGap = BURST_SHELL_GAP * this.sizeFactor;
             double centerYWithOffset = centerY + BURST_Y_OFFSET;
-            int points = (int) Math.ceil(BURST_SHELL_POINTS * density);
-            int totalPoints = BURST_SHELL_POINTS * BURST_SHELLS;
+            int thinStep = densityStep(density);
 
             for (int shell = 0; shell < BURST_SHELLS; shell++) {
                 double radius = outerRadius - shell * shellGap;
@@ -504,12 +566,19 @@ public final class EssenceLearnRitual {
                     continue;
                 }
 
-                for (int i = 0; i < points; i++) {
-                    // 两层壳用不同的相位起点，避免重叠时看起来只有一层
-                    double index = i + shell * BURST_SHELL_POINTS * 0.5D;
-                    double y = 1.0D - 2.0D * index / totalPoints;
+                for (int i = 0; i < BURST_SHELL_POINTS; i++) {
+                    if (i % thinStep != 0) {
+                        continue;
+                    }
+
+                    // ⚠️ y 用**本层自己的** BURST_SHELL_POINTS 归一 ⇒ 每层各自覆盖完整球面 y ∈ (-1, 1)。
+                    // 曾经用 (BURST_SHELL_POINTS × BURST_SHELLS) 作分母、并给索引加"半层"偏移，
+                    // 那让两层的索引区间重叠、只用掉 84/112 个索引 ⇒ **外层壳整个落在上半球**、
+                    // 下极帽 25.9% 的球面永不采样（渲染证据 docs/pictures/preview/burst_shells.png）。
+                    double y = 1.0D - 2.0D * (i + 0.5D) / BURST_SHELL_POINTS;
                     double ringRadius = Math.sqrt(Math.max(0.0D, 1.0D - y * y));
-                    double theta = GOLDEN_ANGLE * index;
+                    // 两层壳的"相位错开"只作用在 theta 上（错开半层，避免重叠时看起来只有一层）
+                    double theta = GOLDEN_ANGLE * (i + shell * BURST_SHELL_POINTS * 0.5D);
 
                     level.sendParticles(this.burstParticle,
                             centerX + Math.cos(theta) * ringRadius * radius,
@@ -518,6 +587,23 @@ public final class EssenceLearnRitual {
                             1, 0.0D, 0.0D, 0.0D, 0.0D);
                 }
             }
+        }
+
+        /**
+         * 把"密度"换算成**均匀抽稀**的步长：{@code density = 1 ⇒ 1}（全画）、{@code 0.5 ⇒ 2}（隔一个画一个）……
+         * <p>
+         * ⚠️ 这里刻意**不用"截断点数"**来表达衰减（曾经如此）：截断是从索引起点砍到上界
+         * ⇒ 收尾时法阵会**从收笔处向起笔处蚀退**（圆只剩起笔那一段弧、星的最后一笔先消失），
+         * 读起来像"被擦掉"而不是"整体变稀"。均匀抽稀让整条线一起变稀（审查后按作者裁定改掉）。
+         * <p>
+         * 只在 {@code density ∈ (0, 1]} 被调用（两条密度曲线在 0 处已由 {@code advance()} 短路）。
+         */
+        private static int densityStep(double density) {
+            if (density <= 0.0D) {
+                return Integer.MAX_VALUE;
+            }
+
+            return Math.max(1, (int) Math.round(1.0D / density));
         }
 
         /** 法阵的一颗粒子（{@code count = 1}：必须逐颗定点发，否则是长方体随机）。 */
