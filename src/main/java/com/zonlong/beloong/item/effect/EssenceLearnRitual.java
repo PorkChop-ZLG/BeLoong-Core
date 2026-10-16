@@ -48,12 +48,20 @@ import java.util.List;
  * ⇒ <b>法阵比音效多留约 1 秒</b>（用户裁定：不必与音效长度完全贴合）；<b>爆发不延长</b>，
  * 在 2.80 s 停止生成，与音频的衰减段一起收尾。
  *
+ * <h2>法阵是"脱手效果"，爆发跟人走</h2>
+ *
+ * 法阵的位置在<b>使用魔源那一刻定死</b>（锚点 = 当时的坐标 + 维度，存在每个仪式实例自己的
+ * {@code final} 字段里）⇒ 玩家在仪式期间走动、跳跃、被打飞，法阵都留在原地不乱。
+ * <b>爆发仍然绑在玩家身上</b>（每 tick 取实时坐标），所以它是"从自己身上炸开"。
+ * <p>
+ * 附带一条：玩家若在仪式期间<b>换维度</b>，锚点已不在当前世界 ⇒ 仪式直接结束（不在新维度里拿旧坐标乱画）。
+ *
  * <h2>尺寸随体型缩放</h2>
  *
  * 法阵与爆发的半径都乘以一个"体型倍数"：直接取原版自己的定义
  * {@link LivingEntity#getScale()}（即 {@code minecraft:generic.scale} 属性的值，默认 1.0 ⇒ 1.0 = 正常体型），
  * 再钳到 <b>1× ~ 4×</b>（用户裁定：<b>只放大不缩小，最多 4 倍</b>）。
- * 默认体型 ⇒ 外圈<b>直径 9 格</b>（用户指定）。
+ * 默认体型 ⇒ 外圈<b>直径 7 格</b>（作者指定）。
  * <p>
  * 用 {@code getScale()} 而不是别的东西，是因为它<b>就是</b>原版"体型"的定义 —— 渲染器
  * （{@code LivingEntityRenderer} 的 {@code poseStack.scale(f, f, f)}）与碰撞箱
@@ -80,9 +88,9 @@ import java.util.List;
  *
  * <h2>性能口径</h2>
  *
- * 默认体型下峰值约 <b>206 颗/tick 画法阵</b>（外圈 81 + 五角星 5 条弦 × 25），
- * <b>+ 112 颗/tick 的球壳</b>。点数按<b>线长</b>反算，所以体型放大时粒子量按比例涨
- * （2× 时法阵约 407 颗/tick）—— <b>这是"密到成实线"的必然代价</b>：线是这个长度，
+ * 默认体型下峰值约 <b>163 颗/tick 画法阵</b>（外圈 63 + 五角星 5 条弦 × 20），
+ * <b>+ 112 颗/tick 的球壳</b>。点数按<b>线长</b>反算，所以直径/体型变化时粒子量按比例涨落
+ * （直径 9 格时是 206 颗/tick）—— <b>这是"密到成实线"的必然代价</b>：线是这个长度，
  * 间距就是这个数，点数 = 长度 ÷ 间距。
  * 全部是逐颗定点发（{@code count = 1}）—— 本项目记过 {@code sendParticles} 的
  * {@code count > 1} 是**长方体随机**，那样画不出圆和球。
@@ -118,10 +126,10 @@ public final class EssenceLearnRitual {
     /** 缩放上限（用户裁定）：最多 4 倍。 */
     private static final double MAX_SIZE_FACTOR = 4.0D;
 
-    // ==================== 法阵几何（贴地；下列数值 = 默认体型，外圈直径 9 格） ====================
+    // ==================== 法阵几何（贴地；下列数值 = 默认体型，外圈直径 7 格） ====================
 
-    /** 外圈半径（格）—— 直径 9 格（用户指定）。 */
-    private static final double BASE_OUTER_RADIUS = 4.5D;
+    /** 外圈半径（格）—— 直径 <b>7</b> 格（作者先定 9 格、实机后改为 7 格）。 */
+    private static final double BASE_OUTER_RADIUS = 3.5D;
 
     /**
      * 法阵所有线条的采样间距（格）。
@@ -220,7 +228,14 @@ public final class EssenceLearnRitual {
         }
     }
 
-    /** 一次仪式的状态。 */
+    /**
+     * 一次仪式的状态。
+     * <p>
+     * ⚠️ <b>锚点坐标必须是本实例的 {@code final} 字段</b> —— 法阵是"脱手效果"：位置在使用魔源的
+     * <b>那一刻</b>定死，之后再不动。绝不能把它放进任何 {@code static} 字段（例如"当前法阵中心"），
+     * 否则<b>多个玩家同时使用魔源时会互相覆盖坐标</b>，画出错位的法阵。
+     * 活动列表 {@link #ACTIVE} 里每个元素都是独立实例，各自持有自己的锚点。
+     */
     private static final class Ritual {
 
         private final ServerPlayer player;
@@ -228,6 +243,14 @@ public final class EssenceLearnRitual {
         private final DustParticleOptions circleParticle;
         /** 法阵 / 爆发的尺寸倍数（1× ~ 4×）。整场仪式固定，启动时算一次。 */
         private final double sizeFactor;
+
+        // ---- 法阵的锚点：使用魔源那一刻的位置与维度，整场不变（脱手效果）----
+        /** 锚点所在维度 —— 玩家换维度后旧锚点已不在这个世界里，仪式直接结束。 */
+        private final ServerLevel anchorLevel;
+        private final double anchorX;
+        private final double anchorY;
+        private final double anchorZ;
+
         private int tick;
 
         Ritual(ServerPlayer player, EssenceItem.Element element) {
@@ -237,6 +260,11 @@ public final class EssenceLearnRitual {
             // 法阵用同一个硬编码元素色 —— 与 Title、物品 tooltip 同源
             Vector3f color = Vec3.fromRGB24(element.titleColor()).toVector3f();
             this.circleParticle = new DustParticleOptions(color, DUST_SCALE);
+            // 锚点在这里定一次（构造发生在 use/useOn 的服务端分支里，即玩家真正使用魔源的那一刻）
+            this.anchorLevel = player.serverLevel();
+            this.anchorX = player.getX();
+            this.anchorY = player.getY();
+            this.anchorZ = player.getZ();
         }
 
         /**
@@ -269,25 +297,29 @@ public final class EssenceLearnRitual {
          * @return {@code false} 表示仪式结束，可以从活动列表里摘掉
          */
         boolean advance() {
-            // 玩家已消失（退出 / 换维度 / 死亡重生）⇒ 立即收手，不要在别人的世界里继续撒粒子
+            // 玩家已消失（退出 / 死亡重生）⇒ 立即收手，不要在别人的世界里继续撒粒子
             if (this.player.isRemoved() || this.tick >= TOTAL_TICKS) {
                 return false;
             }
 
             ServerLevel level = this.player.serverLevel();
-            double centerX = this.player.getX();
-            double centerY = this.player.getY();
-            double centerZ = this.player.getZ();
+            // 换维度后锚点已经不在这个世界里 —— 不要拿着旧坐标在新维度里画法阵
+            if (level != this.anchorLevel) {
+                return false;
+            }
 
             double circleDensity = this.circleDensity();
             if (circleDensity > 0.0D) {
-                this.drawMagicCircle(level, centerX, centerY, centerZ, circleDensity);
+                // 法阵：用**锚点**坐标（脱手，不跟人走）
+                this.drawMagicCircle(level, circleDensity);
             }
 
             if (this.tick >= CLIMAX_START_TICK) {
                 double burstDensity = this.burstDensity();
                 if (burstDensity > 0.0D) {
-                    this.drawBurst(level, centerX, centerY, centerZ, burstDensity);
+                    // 爆发：仍然绑在玩家身上，取**实时**坐标（用户裁定）
+                    this.drawBurst(level, this.player.getX(), this.player.getY(), this.player.getZ(),
+                            burstDensity);
                 }
             }
 
@@ -330,14 +362,19 @@ public final class EssenceLearnRitual {
          * 贴地法阵：<b>外圈 + 五角星</b>（原实现还有一个反向旋转的内圈，作者裁定**不要** ——
          * 只要"中间一个五角星 + 最外围一圈"）。
          * <p>
+         * 画在<b>锚点</b>（{@link #anchorX} / {@link #anchorY} / {@link #anchorZ}）上，<b>不跟人走</b> ——
+         * 玩家在仪式期间移动不会把法阵拖乱。
+         * <p>
          * 点数一律<b>按线长反算</b>（{@code ceil(长度 / LINE_SPACING)}）⇒ 体型放大时线密度自动恒定，
          * 不需要另外乘倍数；也是"密集堆叠成实线"而不是点串的保证。
          * <p>
          * 前 {@link #DRAW_TICKS} tick 按进度只画一部分 ⇒ 读作"法阵被画出来"；
          * 之后全量重画（粒子有存活时间，必须每 tick 补，否则法阵会自己消失）。
          */
-        private void drawMagicCircle(ServerLevel level, double centerX, double centerY, double centerZ,
-                                     double density) {
+        private void drawMagicCircle(ServerLevel level, double density) {
+            double centerX = this.anchorX;
+            double centerY = this.anchorY;
+            double centerZ = this.anchorZ;
             double y = centerY + CIRCLE_Y_OFFSET;
             double progress = Math.min(1.0D, (this.tick + 1) / (double) DRAW_TICKS);
 

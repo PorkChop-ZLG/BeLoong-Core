@@ -308,6 +308,20 @@ python tools\verify_essence_lang.py; $LASTEXITCODE
 正是当时误判"点够用"的原因。另：我为了省粒子把线条做虚，被作者实机否掉 ⇒
 **画线类粒子效果，密度优先于节省**（已写进 `memory/learned-patterns.md`）。
 
+### 第五轮（2026-10-16，第四轮实机反馈）
+
+| 反馈 | 落地 |
+|---|---|
+| 法阵是"以玩家为中心实时放置"的 ⇒ 仪式期间玩家一动法阵就乱；要改成**脱手效果**（使用魔源时定位置），**爆发仍跟人走**；⚠️ 坐标别串，防多玩家异常 | 锚点在构造时取一次，存进每仪式实例的 **`private final`** 字段（位置 + **维度**）；`drawMagicCircle` 只用锚点，`drawBurst` 每 tick 取实时坐标。已复核：本类除 `ACTIVE` 外**全是编译期常量**、**无任何 static 坐标** ⇒ 多玩家不会互相覆盖。附带：换维度 ⇒ 仪式提前结束（D38） |
+| 默认直径太大，改成 **7 格** | `BASE_OUTER_RADIUS 4.5 → 3.5`；因点数按线长反算，直径变小自动省粒子（206 → **163 颗/tick**） |
+
+**证据**：`build --rerun-tasks --no-build-cache --offline --no-configuration-cache` → **exit 0、警告 3 = 基线**；
+`check_lang_parity.py` → **✅ 通过**；件数不变量 **19/19/19**；jar `beloong-0.10.6.jar`（含锚点改动）。
+渲染图复核（`tools/plot_essence_circle.py 1.0`）→ 直径 7 格、外圈 63 点 + 星 100 点，形状正确。
+
+**⚠️ 本轮有一条无法自证**：**多玩家同时使用**在本机 dev 单人局**测不了** ——
+"没有共享可变状态"是静态复核结论，不等于实机成立（见设计文档 §17.5 U25）。
+
 | 任务 | 状态 | 验证结果 |
 |---|---|---|
 | T1 数据组件注册中心 | ✅ | `compileJava` exit 0，`ModDataComponents.class` 进包 |

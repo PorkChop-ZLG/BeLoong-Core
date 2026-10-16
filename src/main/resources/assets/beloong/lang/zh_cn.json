@@ -253,7 +253,7 @@
   "death.attack.mowziesmobs.supernova": "%1$s被%2$s的超新星燃烧焚尽",
   "death.attack.mowziesmobs.supernova.item": "%1$s被%2$s的超新星燃烧焚尽",
   "death.attack.mowziesmobs.supernova.player": "%1$s被%2$s的超新星燃烧焚尽",
-  "dimension.beloong.disaster": "天灾",
+  "dimension.beloong.disaster": "天灾 §6封存技能§7「§d龙攻长空§7」§r §8[Shift+右键]§7学习技能§r",
   "dimension.beloong.loong_palace": "龙宫",
   "dragon_ability.beloong.air_strike": "龙击长空",
   "dragon_ability.beloong.air_strike.desc": "§7■当处于§2滑翔§r§7状态时，可以对撞击到的目标造成§2巨额伤害§r§7。\n\n■伤害随§2飞行速度§r§7增加。\n\n§c碰撞后暂时无法飞行！§r",
