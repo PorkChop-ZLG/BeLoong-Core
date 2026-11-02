@@ -3,6 +3,8 @@
   "package": "com.zonlong.beloong.mixin",
   "refmap": "beloong.refmap.json",
   "client": [
+    "dragonsurvival.AbilityButtonMixin",
+    "dragonsurvival.AbilityAndPenaltyTooltipRendererMixin",
     "dragonsurvival.ClientFlightHandlerMixin",
     "dragonsurvival.DragonEmoteScreenMixin",
     "fdbosses.BossClientEventsMixin",

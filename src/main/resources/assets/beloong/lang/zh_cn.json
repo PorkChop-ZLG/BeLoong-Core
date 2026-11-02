@@ -342,5 +342,7 @@
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.beloong.treasure_limit": "数量限制：%s",
-  "tooltip.beloong.treasure_value": "财宝价值：%s"
+  "tooltip.beloong.treasure_value": "财宝价值：%s",
+  "beloong.gui.ability.ctrl_enable": "按住Ctrl并左键可启用技能",
+  "beloong.gui.ability.ctrl_disable": "按住Ctrl并左键可禁用技能"
 }
