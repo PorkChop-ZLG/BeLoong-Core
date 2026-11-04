@@ -218,6 +218,8 @@
   "beloong.dialogue.mo.reply1": "§e这里是什么地方？",
   "beloong.dialogue.mo.reply2": "§e这块石碑是做什么的？",
   "beloong.dialogue.option.leave": "离开",
+  "beloong.gui.ability.ctrl_disable": "按住 Ctrl+左键 禁用技能",
+  "beloong.gui.ability.ctrl_enable": "按住 Ctrl+左键 启用技能",
   "beloong.npc.state.flying": "飞行",
   "beloong.npc.state.idle": "待机",
   "biome.beloong.caves": "天灾洞穴",
@@ -342,7 +344,5 @@
   "title.beloong.growth_multiplier": "成长速度: %s",
   "title.beloong.treasure_value": "财宝价值: %s",
   "tooltip.beloong.treasure_limit": "数量限制：%s",
-  "tooltip.beloong.treasure_value": "财宝价值：%s",
-  "beloong.gui.ability.ctrl_enable": "按住Ctrl并左键可启用技能",
-  "beloong.gui.ability.ctrl_disable": "按住Ctrl并左键可禁用技能"
+  "tooltip.beloong.treasure_value": "财宝价值：%s"
 }

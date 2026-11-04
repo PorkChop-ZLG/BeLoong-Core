@@ -218,6 +218,8 @@
   "beloong.dialogue.mo.reply1": "§eWhat is this place?",
   "beloong.dialogue.mo.reply2": "§eWhat is this waystone for?",
   "beloong.dialogue.option.leave": "Leave",
+  "beloong.gui.ability.ctrl_disable": "Hold Ctrl + Left-click to disable",
+  "beloong.gui.ability.ctrl_enable": "Hold Ctrl + Left-click to enable",
   "beloong.npc.state.flying": "Flying",
   "beloong.npc.state.idle": "Idle",
   "biome.beloong.caves": "Disaster Caves",
@@ -342,7 +344,5 @@
   "title.beloong.growth_multiplier": "Growth Speed: %s",
   "title.beloong.treasure_value": "Treasure Value: %s",
   "tooltip.beloong.treasure_limit": "Treasure Limit: %s",
-  "tooltip.beloong.treasure_value": "Treasure Value: %s",
-  "beloong.gui.ability.ctrl_enable": "Hold Ctrl + Left-click to enable the ability",
-  "beloong.gui.ability.ctrl_disable": "Hold Ctrl + Left-click to disable the ability"
+  "tooltip.beloong.treasure_value": "Treasure Value: %s"
 }

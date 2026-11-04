@@ -251,14 +251,15 @@ dependencies {
     // Mowzie's Mobs — 必选依赖（钢铁守护者重锤伤害）
     implementation "curse.maven:mowzies-mobs-250498:7760267"
 
-    // Legendary Monsters — 可选兼容（湮灭猎影伤害上限修复 + 特效实体上限）
+    // Legendary Monsters — 可选兼容（特效实体上限 + 投射物命中守卫）
     // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。
-    // 8902342 是 2026-10-06 起使用的版本；它同时是本模组两个特效实体 Mixin
+    // 9301784 = 2.2.4：它同时是本模组两个特效实体 Mixin
     // （mixin/legendarymonsters/CameraShakeCapMixin、DynamicCameraZoomCapMixin）
     // 的注入点位核对基准：cameraShake(Level,Vec3,FFII) 与 dynamicCameraZoom 的两个重载。
+    // 2.2.4 相对 2.2.3 的唯一缺陷修复是 SmallAnnihilationBombEntity 的 LivingEntity 强转守卫。
     // 注：本坐标只影响编译/开发运行时；对整合包声明的依赖版本不做改动。
-    compileOnly "curse.maven:legendary-monsters-944035:8902342"
-    localRuntime "curse.maven:legendary-monsters-944035:8902342"
+    compileOnly "curse.maven:legendary-monsters-944035:9301784"
+    localRuntime "curse.maven:legendary-monsters-944035:9301784"
 
     // Bosses'Rise（首领崛起）— 可选依赖（内部 mod id = block_factorys_bosses，displayName = Bosses'Rise）
     // compileOnly 与 localRuntime 锁同一文件号，避免「按 A 编译、按 B 运行」的偏差。

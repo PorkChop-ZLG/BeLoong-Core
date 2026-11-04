@@ -24,10 +24,12 @@ public final class AbilityTooltipHint {
         Component hint = null;
         if (showCtrlHint && ability.value().canBeManuallyDisabled()) {
             boolean disabled = ability.isDisabled(true);
+            // Same styling as the vanilla-DS "Hold 'Shift' for info" footer,
+            // which the tooltip renders through the very same code path.
             hint = Component.translatable(disabled
                     ? "beloong.gui.ability.ctrl_enable"
                     : "beloong.gui.ability.ctrl_disable")
-                    .withStyle(disabled ? ChatFormatting.GREEN : ChatFormatting.RED);
+                    .withStyle(ChatFormatting.DARK_GRAY);
         }
 
         if (hint == null) {
