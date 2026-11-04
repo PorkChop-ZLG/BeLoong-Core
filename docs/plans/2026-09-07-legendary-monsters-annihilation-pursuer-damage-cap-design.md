@@ -1,6 +1,7 @@
 # 设计文档：让湮灭猎影（Annihilation Pursuer）遵循传奇怪物通用 MiniBoss 伤害上限
 
-> 状态：已完成，用户确认功能正常
+> 状态：**已废止（2026-11-05）** —— 上游传奇怪物 2.2.3 起 `damageCap()` 已自行读 `MiniBossDamageCap`，
+>       本仓库的 Mixin 已删除，本设计仅作历史记录。见 §9。
 > 日期：2026-09-07
 > 范围：仅修改化龙核心（BeLoong Core），不修改传奇怪物（Legendary Monsters）源码
 

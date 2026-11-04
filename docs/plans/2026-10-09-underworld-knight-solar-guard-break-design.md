@@ -1,7 +1,7 @@
 # 冥界骑士「太阳破防」设计文档
 
 **日期：** 2026-10-09
-**状态：** ✅ 已批准（brainstorming 流程：Phase 1 上下文加载 → Phase 2 两个意图问题 → Phase 3 三方案对比 → Phase 4 四节设计逐节确认）
+**状态：** ✅ 已实施并实机验收（2026-10-09 定案 → 当日实施验收；2026-11-05 Mixin 正确归类后**复测通过**，见文末 rev 1）
 **选定方案：** 方案 1（Mowzie 侧三处转换 + 骑士侧单点注入 + 数据层标签作唯一判定入口）
 **相关资料：** [首领崛起-冥界骑士-调研.md](../首领崛起-冥界骑士-调研.md)（机制与 BUG 清单）、`memory/decisions-log.md`
 
@@ -305,3 +305,17 @@ M2 实机确认三招全部生效（伤害落地 + 破防击穿护盾），随�
 **验证**：`build` 通过；`runClient` 后 `debug.log` 出现
 `Mixing block_factorys_bosses.UnderworldKnightGuardBreakMixin … into net.unusual.block_factorys_bosses.entity.boss.knight.UnderworldKnightEntity`，
 且不再有 `legendarymonsters.UnderworldKnightGuardBreakMixin`；无新增崩溃报告。
+
+## 2026-11-05 搬迁后的实机复测（rev 1 的验收）
+
+委托方在 dev 客户端实机打骑士（`run\logs\latest.log`，2026-11-05 00:54–00:55），锚点共 9 行：
+
+| 观测 | 值 |
+|---|---|
+| 注入是否挂上 | `debug.log`：`Mixing block_factorys_bosses.UnderworldKnightGuardBreakMixin … into net.unusual.block_factorys_bosses.entity.boss.knight.UnderworldKnightEntity`（旧名 0 次） |
+| 真扣层 | `1->0` ×3、`2->1` ×1、`1->0` ×1（`consumed=true`），共 5 次 |
+| 全场统计 | `hits=103 dealt=13 bySource={solar_beam=101, solar_flare=2}` |
+| 末态 | `hp=0.1`（模组自身的 `shouldCancelDeath` 假死线，符合预期） |
+| 噪声说明 | 其余命中记 `consumed=false`（层数为 0 或未跨过闸门）/ `dealt=false`（被无敌帧或过场挡下）—— 与模组自身 `hurt` 语义一致 |
+
+⇒ **搬迁未破坏注入与反馈链路**，本条可视为闭环。

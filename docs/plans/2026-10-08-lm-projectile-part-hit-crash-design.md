@@ -1,7 +1,8 @@
 # 传奇怪物投射物"命中部件实体强转崩溃"修复设计
 
 **日期：** 2026-10-08
-**状态：** ✅ 已实施（静态与注入点已校验；实机验证清单见 §六）
+**状态：** ✅ 已实施并实机验收（2026-10-08 两类投射物守卫）→ **2026-11-05 收窄**：炸弹这条上游 2.2.4 已自修，
+本仓库对应 Mixin 已删除（§九），只保留紫颂弹守卫；2.2.4 实机复测通过（§十一）
 **范围：** 传奇怪物（Legendary Monsters）2.2.x 投射物 `onHitEntity` 里"命中实体 → `LivingEntity`"的无保护强转
 **产物：** `build/libs/beloong-0.10.2.jar`，`sha256 0E94DD52E3AB57C68D1789DAB8DB2317C21C0608D3E19EBF274BBBC9EFEC0675`
 
@@ -223,3 +224,20 @@ cerbons `EntityPart`），而 `ShieldPart` 的父实体 `AbstractShieldEntity ex
 4. **紫颂弹那条**（我们仍保留守卫的）：打 `chorus_energy_bullet` 命中部件实体，
    期望日志出现 `[BeLoong] lm-projectile-hit-guard: projectile=chorus_energy_bullet ...`
    且不崩 —— 这一条是**守卫仍在工作**的正向证据。
+
+---
+
+## 十一、2026-11-05 实机验收（在 2.2.4 上验证"删掉守卫"这件事）
+
+委托方在 2.2.4 环境实机测试（`D:\Minecraft\BeLoong-Core\run\logs`，2026-11-05 00:49–00:59）：
+
+| 检查项 | 结果 |
+|---|---|
+| 加载的确实是 2.2.4 | `debug.log`：`Loading mod file …\legendary-monsters-944035\9301784\`**`85778d7f4b7c…`**`\legendary-monsters-944035-9301784.jar`；该目录 hash 就是 2.2.4 的 SHA1（`85778D7F4B7C1546279BE9374BE3B71B47E2C47D`）。⚠️ 该模组自报版本恒为 `1.21.1`，**不能用版本号判定** |
+| 两条已删 Mixin 不再加载 | `Mixing` 只剩 `CameraShakeCap` / `DynamicCameraZoomCap` / `ChorusEnergyBulletEntityOnHitGuard` / `block_factorys_bosses.UnderworldKnightGuardBreak` 四条 |
+| 炸弹崩溃未复现 | 0 条 `ClassCastException`、0 条 `Ticking entity`、`run/crash-reports` 无新增（最新仍是 00:07 的 versionRange 事故） |
+| 伤害上限 | 同上；该条本就不崩（§九：幂等重复），删除后无行为变化 |
+| 紫颂弹守卫 | **未测** —— `lm-projectile-hit-guard` 锚点 0 条，与"没打部件实体"一致 |
+
+**结论**：删除成立。**紫颂弹守卫的实机正向验证仍空缺**（判据见 §十 第 4 条：命中部件后出现
+`[BeLoong] lm-projectile-hit-guard: projectile=chorus_energy_bullet …` 且不崩）。
