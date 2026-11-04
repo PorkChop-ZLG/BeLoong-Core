@@ -216,6 +216,11 @@ config = "beloong.mixins.json"
 [[dependencies.${mod_id}]]
     modId="legendary_monsters"
     type="optional"
+    # ⚠️ 这里**不能**写 versionRange="[2.2.4,)"：传奇怪物自己的 mods.toml 里 version 是字面量
+    # "1.21.1"（不是 2.2.4），任何以 2.2.4 为下界的区间都永远不满足；而 NeoForge 对"模组在场但
+    # 版本区间不满足"是**硬失败**（实测 2026-11-05：Failure message: Mod beloong only supports
+    # legendary_monsters 2.2.4 or above / Currently, legendary_monsters is 1.21.1 ⇒ 客户端起不来）。
+    # ⇒ "需要 ≥2.2.4" 只能写进文档与 javadoc，用版本号表达不了。
     ordering="AFTER"
     side="BOTH"
 

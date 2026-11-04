@@ -181,3 +181,45 @@ cerbons `EntityPart`），而 `ShieldPart` 的父实体 `AbstractShieldEntity ex
 1. `ChorusEnergyBulletEntity` 的守卫**只做过静态验证**，实机尚未触发过该路径（`chorus_energy_bullet` 由"扭曲者"使用，测试里没遇到）。日后顺手打一次即可确认。
 2. LM 仍为可选依赖且 `require = 0`：上游若改名/改签名，两处 `@Inject` 会静默失效（回到崩溃状态）。观测点是日志锚点 `lm-projectile-hit-guard` 是否还出现。
 3. **部署同步**：`D:\BeLoong\.minecraft\versions\BeLoong\mods` 与 `D:\Minecraft\BeLoong-Server\mods` 目前仍是 `beloong-0.10.1.jar`（10/01），需要把 0.10.2 这份同步过去，修复才会进入正式整合包/服务端。
+
+---
+
+## 九、2026-11-05 修订（rev 1）：炸弹这一条**已被上游 2.2.4 修好**，对应 Mixin 已删除
+
+> **本节取代** §三、§四、§五、§七 中"两处守卫都由本仓库维护"的现状描述；§一/§二/§六 的
+> 现象与根因属于历史取证，仍然成立，不改。
+
+**上游状态**：传奇怪物 `2.2.4`（CF 文件号 `9301784`）把 `SmallAnnihilationBombEntity.onHitEntity`
+的守卫从 `!(target instanceof TheObliteratorPart)` 改成 **`target instanceof LivingEntity`**
+⇒ 与本仓库那层 `@Inject(HEAD, cancellable)` 判据同义（都按"命中实体是不是生物"分流，
+且 `Projectile.onHitEntity` 是空实现，取消整条方法与上游"跳过伤害"行为等价）。
+
+**已删除**：`mixin/legendarymonsters/SmallAnnihilationBombEntityOnHitGuardMixin.java`
++ `beloong.mixins.json` 对应条目。**保留**：`ChorusEnergyBulletEntityOnHitGuardMixin`
+（该类的字节在 2.2.4 里**一个字节都没变**，`(LivingEntity) pResult.getEntity()`
+仍无 `instanceof` 保护）与共享守卫 `compat/legendarymonsters/ProjectileHitGuard`。
+
+**连带改动**：
+- ~~`neoforge.mods.toml` 补 `versionRange="[2.2.4,)"`~~ —— **试过，不可行，已回退**：传奇怪物自己的
+  `mods.toml` 里 `version` 是字面量 `"1.21.1"`（不是 `2.2.4`），任何以 2.2.4 为下界的区间都永不满足，
+  而 NeoForge 对"模组在场但版本区间不满足"是**硬失败**（实测 2026-11-05 首次 `runClient`：
+  `Failure message: Mod beloong only supports legendary_monsters 2.2.4 or above / Currently, legendary_monsters is 1.21.1`
+  ⇒ 客户端起不来）。⇒ "需要 ≥2.2.4"只能写在文档与 javadoc 里，用版本号表达不了。
+- `ProjectileHitGuard` 与 `ChorusEnergyBulletEntityOnHitGuardMixin` 的类注释已改写为"只服务紫颂弹"。
+
+**未验证**：删除后尚未跑 `runClient` / 实机；验证方案见 §十。
+
+## 十、删除后的回归测试方案（2026-11-05）
+
+**前置**：整合包/实例的 `mods` 里必须是 `legendary_monsters-2.2.4`（`2.2.3` 下这条崩溃必然复发）。
+
+1. **崩溃路径（唯一会崩的那条）**：让 `small_dimensional_bomb` 命中**非生物部件实体**。
+   最省事的复现是冰火传说的龙（`DragonPartEntity`）或铁魔法的护盾（`ShieldPart`），
+   由湮灭构造体/湮灭猎影发射小湮灭炸弹。
+2. **判据**：`run/crash-reports` 无新增 `*-server.txt`；日志无 `ClassCastException`、
+   无 `Ticking entity`；炸弹命中部件后照常消失（粒子 + 音效）。
+3. **反证（必须做一次）**：把 `2.2.3` 放回 `mods` 重跑同一步 ⇒ **必然崩**。
+   反证成立才说明"测试手法真的能撞到那条分支"，否则"没崩"只是没测到。
+4. **紫颂弹那条**（我们仍保留守卫的）：打 `chorus_energy_bullet` 命中部件实体，
+   期望日志出现 `[BeLoong] lm-projectile-hit-guard: projectile=chorus_energy_bullet ...`
+   且不崩 —— 这一条是**守卫仍在工作**的正向证据。

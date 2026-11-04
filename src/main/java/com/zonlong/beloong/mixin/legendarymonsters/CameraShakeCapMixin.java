@@ -25,8 +25,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code ChunkMap.move} 全量遍历。详见 {@link EffectEntityCap} 与
  * docs/plans/2026-10-06-lm-camera-shake-entity-flood-handover.md。</p>
  *
- * <p>传奇怪物为可选依赖：{@code @Pseudo} + {@code require = 0}（与同包的
- * {@link AnnihilationPursuerDamageCapMixin} 同约定），未安装时本 Mixin 整体跳过。</p>
+ * <p>传奇怪物为可选依赖：{@code @Pseudo} + {@code require = 0}（与同包其余 LM Mixin 同约定），
+ * 未安装时本 Mixin 整体跳过。</p>
  *
  * <p>注意 ①：本 Mixin 只是<b>超限预筛</b>（超限时提前取消，省掉实体构造），<b>不记账</b>——
  * 放行与拒绝的记账统一由 {@code perf/EffectEntityJoinGate} 挂在

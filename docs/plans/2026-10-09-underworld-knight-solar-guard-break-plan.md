@@ -240,3 +240,14 @@ Get-ChildItem src\main\resources\data\mowziesmobs\damage_type\*.json | ForEach-O
 4. **T8/T9 的实机证据延后**：`EntitySolarBeam`/`EntitySunstrike` 同样只在游戏内使用时才加载，静态探针覆盖不到 ⇒ 交由 M2 的实机日志（S4/S5 两行 `Mixing` + 锚点）确认。
 5. **T4 的验证方式被修正**：计划原文写"用太阳伤害把骑士打死，检查死亡信息"，但**原版只对玩家广播死亡信息**（生物死亡无聊天/日志行）⇒ 该办法不可能观察到文案。验收清单已改为 `/damage @s 100 mowziesmobs:<type> by <实体>`（必须带 `by`，否则 `%2$s` 不会被替换）。
 6. **第四招（超新星）是实测后才补的**：原计划只覆盖三招，第三轮实机发现太阳祝福其实有**四招**，遂新增 T15（伤害类型 `mowziesmobs:supernova` + `EntitySuperNovaSolarDamageMixin` + 死亡信息）。
+
+---
+
+## 2026-11-05 更正（文件路径，不含逻辑改动）
+
+本计划里出现的 `mixin/legendarymonsters/UnderworldKnightGuardBreakMixin.java` 与
+`Mixing legendarymonsters.UnderworldKnightGuardBreakMixin …` 均已过期 ——
+该 Mixin 的目标是《首领崛起》的 `UnderworldKnightEntity`，已移至
+`mixin/block_factorys_bosses/`，条目改为 `block_factorys_bosses.UnderworldKnightGuardBreakMixin`。
+详见 `2026-10-09-underworld-knight-solar-guard-break-design.md` 的 2026-11-05 rev 1 节。
+（上面的执行记录保留原样，作为当时的事实。）

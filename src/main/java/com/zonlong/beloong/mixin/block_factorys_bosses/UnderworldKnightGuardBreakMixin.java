@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin.legendarymonsters;
+package com.zonlong.beloong.mixin.block_factorys_bosses;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.Config;

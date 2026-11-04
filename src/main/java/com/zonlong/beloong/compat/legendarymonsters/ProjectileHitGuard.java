@@ -8,7 +8,12 @@ import net.minecraft.world.entity.LivingEntity;
 /**
  * 传奇怪物 2.2.x 投射物"命中实体强转 {@link LivingEntity}"崩溃的共享守卫。
  *
- * <p><b>崩溃现象</b>（两份实机日志：2026-10-06 22:00:47、2026-10-08 12:19:07）：
+ * <p><b>现状（2026-11-05，2.2.4 起）</b>：本守卫<b>现在只服务"紫颂能量弹"</b>
+ * （{@link com.zonlong.beloong.mixin.legendarymonsters.ChorusEnergyBulletEntityOnHitGuardMixin}）。
+ * "小型湮灭炸弹"那条上游已在 2.2.4 自行修好（{@code && target instanceof LivingEntity}），
+ * 对应的 Mixin 已从本仓库删除。紫颂弹的类在 2.2.4 里<b>一个字节都没变</b>，强转仍无保护。</p>
+ *
+ * <p><b>崩溃现象（历史，两份实机日志：2026-10-06 22:00:47、2026-10-08 12:19:07）</b>：
  * {@code SmallAnnihilationBombEntity}（{@code legendary_monsters:small_dimensional_bomb}）的
  * {@code onHitEntity} 里为了给 {@code MathUtils.entityBasedHpDamage} 传参写了
  * {@code (LivingEntity) target}。一旦命中"部件实体"——冰火传说 {@code DragonPartEntity}、

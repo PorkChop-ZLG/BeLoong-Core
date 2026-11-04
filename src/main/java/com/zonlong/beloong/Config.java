@@ -213,7 +213,7 @@ public class Config {
     /**
      * 太阳破防（《首领崛起》冥界骑士）相关开关。
      *
-     * <p>消费方：{@code mixin/legendarymonsters/UnderworldKnightGuardBreakMixin}。
+     * <p>消费方：{@code mixin/block_factorys_bosses/UnderworldKnightGuardBreakMixin}。
      * 判定入口是伤害类型标签 {@code beloong:underworld_knight_guard_break}
      * （见 {@code registry/ModDamageTypeTags}），目前由 Mowzie 的太阳四招供给伤害类型
  * （太阳耀斑 / 太阳射线 / 太阳打击 / 超新星燃烧）。

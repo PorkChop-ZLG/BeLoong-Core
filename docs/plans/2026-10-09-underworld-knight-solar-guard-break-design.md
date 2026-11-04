@@ -281,3 +281,27 @@ M2 实机确认三招全部生效（伤害落地 + 破防击穿护盾），随�
   收紧到 `[1.8.2,1.9)`，让"上游新增同名伤害类型 id"这类遮蔽风险也在启动期暴露。
 - **开关口径落实**：`[solar_guard_break] enabled` 现在**同时**短路转换层（`SolarDamageTypes.convert`）
   与骑士侧判定 ⇒ 关闭后连伤害类型都不换，行为完全回到 Mowzie 原版。
+
+---
+
+## 2026-11-05 修订（rev 1）：Mixin 放错了「目标模组」包，已移入 `mixin/block_factorys_bosses/`
+
+> **本节更正** §3.2（代码层）文件清单里的路径。实现逻辑、判据、验收结论一概不变。
+
+`UnderworldKnightGuardBreakMixin` 原先放在 `mixin/legendarymonsters/`（按"传奇怪物"分组），
+但它的目标是 **`block_factorys_bosses`（《首领崛起》/ Bosses'Rise）的 `UnderworldKnightEntity`**，
+与传奇怪物毫无关系 ⇒ 违反 AGENTS.md §四"分包按**目标**命名空间"。
+
+- **新路径**：`src/main/java/com/zonlong/beloong/mixin/block_factorys_bosses/UnderworldKnightGuardBreakMixin.java`
+  （包 `com.zonlong.beloong.mixin.block_factorys_bosses`）
+- **`beloong.mixins.json`**：`legendarymonsters.UnderworldKnightGuardBreakMixin`
+  → **`block_factorys_bosses.UnderworldKnightGuardBreakMixin`**
+- 同步更正两处 javadoc 里的路径：`registry/ModDamageTypeTags`、`Config`（太阳破防开关）
+
+**包名为什么保留下划线**：约定原文是 `mixin/<modid>/`，而该模组 modid 就是 `block_factorys_bosses`，
+其自身包名（`net.unusual.block_factorys_bosses.*`）也带下划线；`legendarymonsters` 那种去下划线属历史写法，
+不作为新代码的依据。
+
+**验证**：`build` 通过；`runClient` 后 `debug.log` 出现
+`Mixing block_factorys_bosses.UnderworldKnightGuardBreakMixin … into net.unusual.block_factorys_bosses.entity.boss.knight.UnderworldKnightEntity`，
+且不再有 `legendarymonsters.UnderworldKnightGuardBreakMixin`；无新增崩溃报告。

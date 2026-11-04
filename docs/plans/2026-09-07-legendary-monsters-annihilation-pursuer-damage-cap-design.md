@@ -223,3 +223,26 @@ public abstract class AnnihilationPursuerDamageCapMixin {
 - 不新增湮灭猎影的独立伤害上限配置。
 - 不改变其它精英怪/ Boss 的伤害上限逻辑。
 - 不处理传奇怪物“造成伤害”相关的 `Annihilation Pursuer Damage Multiplier`，本次只修复“受到伤害上限”。
+
+---
+
+## 9. 2026-11-05 修订（rev 1）：上游 2.2.3 已自行改读配置，本 Mixin 已删除
+
+> **本节取代** §5.4（新增 Mixin 类）与 §5.5（mixins.json 条目）的现状描述；
+> §1–§4 的问题分析、§6–§8 的测试/非目标依旧成立，作为历史保留。
+
+**上游状态**：`AnnihilationPursuerEntity.damageCap()` 在传奇怪物 **2.2.2** 时是硬编码
+`return 21.0;`，**2.2.3 起**已改为 `return (double) ModConfig.MOB_CONFIG.MiniBossDamageCap.get();`
+（实测反编译：`2.2.2` 第 1311 行 = `21.0`；`2.2.3` 第 1596 行 = 读配置；`2.2.4` 与 `2.2.3` **该类字节完全相同**）。
+
+**结论**：本仓库的 `AnnihilationPursuerDamageCapMixin` 自 2.2.3 起就是**幂等重复实现**
+（在 HEAD `setReturnValue` 的正是目标方法自己返回的那个值）⇒ **已删除**，行为零变化。
+
+**连带改动**：`beloong.mixins.json` 删条目；`CameraShakeCapMixin` 类注释里对它的 `{@link}` 已改写。
+原拟给 `neoforge.mods.toml` 的 `legendary_monsters` 补 `versionRange="[2.2.4,)"`，**实测是启动硬失败、
+已回退**（传奇怪物自报版本是 `1.21.1`，区间永不满足）——详见
+`2026-10-08-lm-projectile-part-hit-crash-design.md` §九。
+
+**回归测试**：把 `Mob Settings > General Settings > MiniBoss DamageCap` 改成非默认值（如 `40`），
+再让湮灭猎影挨满额伤害（如创造模式 `/damage` 或摔落/岩浆）⇒ 单次承伤不超过该值，
+与其它 IAnimatedMiniBoss 一致。

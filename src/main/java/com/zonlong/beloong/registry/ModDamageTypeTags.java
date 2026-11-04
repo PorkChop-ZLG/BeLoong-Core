@@ -42,7 +42,7 @@ public final class ModDamageTypeTags {
     /**
      * 可以击穿冥界骑士护盾的伤害类型。
      *
-     * <p>由 {@code mixin/legendarymonsters/UnderworldKnightGuardBreakMixin} 消费：
+     * <p>由 {@code mixin/block_factorys_bosses/UnderworldKnightGuardBreakMixin} 消费：
      * 命中该 tag 的伤害会被当作「打中冥界印记」处理 —— 走
      * {@code processHurt(source, amount, true)}（无视护盾全额结算），
      * 并在"真的打掉一层"时扣 1 层免疫层数 + 播破防反馈（只扣 1 层，不强制倒地）。

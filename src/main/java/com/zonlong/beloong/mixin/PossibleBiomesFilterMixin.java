@@ -74,7 +74,7 @@ import java.util.function.Supplier;
 @Mixin(BiomeSource.class)
 public abstract class PossibleBiomesFilterMixin {
 
-    @Shadow
+        @Shadow
     public Supplier<Set<Holder<Biome>>> possibleBiomes;
 
     @Inject(method = "appendDeferredBiomesList", at = @At("HEAD"), remap = false, cancellable = true)

@@ -220,12 +220,17 @@ dependencies {
     compileOnly "curse.maven:beyonddimensions-1222890:7866935"
     localRuntime "curse.maven:beyonddimensions-1222890:7866935"
 
-    // BWG + TerraBlender — 可选依赖
+    // BWG + 三个前置（TerraBlender / CorgiLib / Oh The Trees You'll Grow）— 可选依赖
     // 注意：BWG 不设 compileOnly。群系启用状态通过反射读取 BWGWorldGenConfig，
     // 以避免方法校验期解析该类导致 BWG 缺席时 NoClassDefFoundError（见 DisasterBiomeSubstitution）
+    // CorgiLib 与 OTYG 是 BWG 2.6.3 在它自己的 neoforge.mods.toml 里 required 的前置；
+    // 本模组不直接引用它们，仅作 dev 运行时依赖（缺了 runClient 会报 BWG 缺前置）。
+    // BWG 2.6.3 要求 terrablender >= 4.1.0.0，现有 6054947 已满足，故不 bump。
     compileOnly "curse.maven:terrablender-neoforge-940057:6054947"
     localRuntime "curse.maven:terrablender-neoforge-940057:6054947"
-    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:8245253"
+    localRuntime "curse.maven:oh-the-biomes-weve-gone-1070751:9114631"
+    localRuntime "curse.maven:corgilib-693313:9113612"
+    localRuntime "curse.maven:oh-the-trees-youll-grow-962544:9113653"
 
     // Waystones — 必选依赖（龙宫预设传送石碑）
     implementation "curse.maven:waystones-245755:8568526"
@@ -283,9 +288,13 @@ dependencies {
     localRuntime "dev.architectury:architectury-neoforge:13.0.8"
 
     // Vanilla Backport（原版移植）— 本地运行时依赖，供集成调试；参考源在 开源模组参考文件\VanillaBackport
-    localRuntime "curse.maven:vanillabackport-417430:8229724"
+    // 1.2.2 = "Age of Mayhem" 大版本，新增多个 minecraft: 命名空间群系（见 DisasterBiomeMapping）。
+    // 它的群系经两条路径注入：① Platform 的 OverworldBiomeBuilder TAIL（改原版 preset 本身），
+    // ② 自己的 TerraBlender region。本模组的三层改写（filter / RegionBiomeRewriter / PossibleBiomesFilter）
+    // 覆盖这两条，但**新群系必须在 DisasterBiomeMapping 里有映射项**，否则按决策 19 降级为「保留原版 + ERROR」。
+    localRuntime "curse.maven:vanillabackport-417430:9318571"
     // Platform — Vanilla Backport 的前置库；参考源在 开源模组参考文件\Platform
-    localRuntime "curse.maven:platform-997634:8075942"
+    localRuntime "curse.maven:platform-997634:9318519"
 
     // Iron's Spells 'n Spellbooks（铁魔法）— 必选依赖
     // 用全量 jar（而非 :api 分类器）以便必要时 mixin 其内部类；
