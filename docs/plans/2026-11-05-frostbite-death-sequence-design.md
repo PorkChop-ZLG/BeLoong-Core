@@ -1,7 +1,7 @@
 # 霜噬击杀导致第三方 Boss「假死」—— 根因与修复设计
 
 **日期：** 2026-11-05
-**状态：** 实施中（代码已落地，待实机验收）
+**状态：** ✅ 已实施并实机验收（2026-11-05；2026-11-06 起由 COMMON 开关 `fixFrostbiteDeath` 控制，默认开）
 **范围：** 只改模组侧（`BeLoong-Core`）；不改铁魔法、不改祸乱鬼魅、不改整合包
 **起因：** 委托方实测：① 自身带「霜噬」`frostbitten_strikes` → ② 对虚空之花使用「雪球术」→ ③ 在寒冰领域期间击杀 ⇒ 虚空之花永久假死。三个条件缺一不可。
 
@@ -124,3 +124,27 @@ if (entity.deathTime == deathMaxAge) {    // :32  deathMaxAge = 70f（:17）
    `Mixing ironsspellbooks.FrostbiteDeathSequenceMixin … into io.redspace.ironsspellbooks.effect.FrostbiteEffect`；
    `crash-reports` 无新增。
 4. 实机验收（委托方）：见配套 `-plan.md` 的 T1–T4。
+
+
+---
+
+## 收尾（2026-11-06）：验收结论 + 后来加的 COMMON 开关
+
+> **本节取代** §一 的"状态"描述与 §五「边界」里"不加配置开关"的表述。
+
+**验收**：委托方实机通过 —— 霜噬 + 雪球术 + 领域内击杀不再产生假死尸体。
+
+**配置开关（2026-11-06 新增，委托方要求便于对照测试）**：
+`Config.COMMON` 的平铺键 **`fixFrostbiteDeath`**（默认 `true`），翻译键
+`beloong.configuration.fixFrostbiteDeath[.tooltip]`（中英各一）。
+关闭后完全恢复上游行为（`deathTime = 1000` 原样写入），用于复现假死并验证
+`/beloong cleandead` —— 见 `2026-11-05-clean-dead-command-design.md`。
+
+实现形态由另一会话按项目既有 flat 风格定稿：顶层
+`public static final ModConfigSpec.BooleanValue FIX_FROSTBITE_DEATH`，与
+`FIX_CATACLYSM_STRUCTURE_HEIGHT` / `FIX_FSWEEP_CONTAINER_CRASH` 同款；消费方
+`FrostbiteDeathSequenceMixin` 每次死亡读一次。
+
+⚠️ NeoForge 会把旧配置文件判为 "not correct. Correcting…" 并**自动重写**：新增键补齐、
+已删除的节消失（实测 `run/config/beloong-common.toml` 里上一版的 `[frostbite_death_fix]` 段
+在 2026-11-06 那次启动后被丢弃）⇒ 升级不需要手工迁移配置。

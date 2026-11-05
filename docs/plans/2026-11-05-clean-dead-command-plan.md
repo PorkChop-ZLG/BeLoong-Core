@@ -90,3 +90,25 @@
    键 `beloong.configuration.frostbiteDeathFixEnabled`（中英同步）。
    关闭后完全恢复上游行为 —— 用于**复现假死**、以及验证本命令的清理效果。
    消费方：`mixin/ironsspellbooks/FrostbiteDeathSequenceMixin`（每次死亡读一次开关）。
+
+
+---
+
+## 收尾（2026-11-06 回填）
+
+| 项 | 结果 |
+|---|---|
+| Task 1–4（工具/命令/语言/构建） | ✅ |
+| Task 5 端到端自测（本机） | ✅ 真实存档副本上 `listed/applied` 各 3 条、`armed=3 removed=0`；随后该世界 `void_blossom` 由 3 具变 0 具 |
+| Task 6 实机验收 | ✅ 委托方：「清理指令生效」 |
+| 命令动作 | ✅ 已按裁定改为**只移除**（不重放奖励），rev 1 早已回填 |
+| `confirm` 前置 | ✅ 委托方裁定**保持现状**（不强制先列清单），理由见设计文档 rev 2 |
+| 测试设施 | ✅ KubeJS 脚本、两个世界副本、`build.gradle` 的 `-PquickPlay` 钩子均已删除/还原 |
+
+**计划之外真实发生的事**：
+1. 首次 `runServer` 端到端失败（`NoClassDefFoundError: org/lwjgl/Version`，本项目 dev 专用服务端起不来）
+   ⇒ 改走 `runClient --quickPlaySingleplayer` + KubeJS 传送玩家。
+2. 第一版数据包 harness 无效：`minecraft:load` 太早（区块未加载）、函数源 `withSuppressedOutput()` 看不到输出。
+3. 差一点对着"给专用服务端准备的世界副本"去核对结果（`quickPlaySingleplayer <id>` 找的是 `saves/<id>`）。
+4. 铁魔法修复开关后来由另一会话改成 flat 键 `fixFrostbiteDeath`，与本文档 rev 1 写的键名不一致
+   （见设计文档 rev 2）。

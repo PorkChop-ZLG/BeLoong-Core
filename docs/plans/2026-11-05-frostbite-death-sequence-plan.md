@@ -62,3 +62,25 @@
 - 存档里既有的三具假死尸体**不会被修复追溯**，仍需
   `/data modify entity @e[type=bosses_of_mass_destruction:void_blossom,limit=1,sort=nearest] DeathTime set value 69s`
   逐只清理（`/kill` 无效：`isDeadOrDying()` 下 `hurt()` 直接返回 false）。
+
+
+---
+
+## 执行状态（2026-11-06 收尾回填）
+
+| Task | 状态 | 证据 |
+|---|---|---|
+| 1 判定工具 | ✅ | `util/CustomDeathSequence`（`ClassValue` 缓存 + 反射沿继承链找 `tickDeath`） |
+| 2 Mixin | ✅ | `mixin/ironsspellbooks/FrostbiteDeathSequenceMixin`，`debug.log` 有 `Mixing … into …FrostbiteEffect` |
+| 3 注册 | ✅ | `beloong.mixins.json` 条目在；jar 解析 `mixins=47` |
+| 4 构建 | ✅ | `build --rerun-tasks --no-build-cache` exit 0、javac 警告 0 |
+| 5 实机验收 | ✅ | 委托方：霜噬 + 雪球术 + 领域内击杀不再假死 |
+| 6 收尾 | ✅ | 本文档 + 设计文档收尾节 + memory 回填 |
+
+**计划之外真实发生的事**：
+1. **委托方后来要求把这条修复做成 COMMON 开关**（便于对照测试），默认开。
+   由另一会话按项目既有的 flat 风格落地为 `fixFrostbiteDeath`（不是设计初稿里的分节写法）；
+   Mixin 每次死亡读一次开关。
+2. 判定工具从 `compat/ironspellbooks` **上提到 `util`**（`/beloong cleandead` 原本也要用它；
+   后来命令改为"只移除"不再需要它，但它仍是通用判据，位置不动）。
+3. 配套的清理命令 `/beloong cleandead` 落地（见 `2026-11-05-clean-dead-command-*`）。

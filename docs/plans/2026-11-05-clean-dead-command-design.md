@@ -1,7 +1,7 @@
 # `/beloong cleandead` —— 清理存档里的假死实体（设计）
 
 **日期：** 2026-11-05
-**状态：** 实施中（代码与端到端自测已过，待委托方实机验收）
+**状态：** ✅ 已实施并实机验收（2026-11-05，委托方实机确认「清理指令生效」）
 **范围：** 只改模组侧（`BeLoong-Core`）；不改第三方、不加配置项、默认不改变任何常规行为
 
 ---
@@ -114,3 +114,26 @@ NaN 型假死（血量 `NaN`）不在此列——由 `NaNny` 负责，不重复�
    键 `beloong.configuration.frostbiteDeathFixEnabled`（中英同步）。
    关闭后完全恢复上游行为 —— 用于**复现假死**、以及验证本命令的清理效果。
    消费方：`mixin/ironsspellbooks/FrostbiteDeathSequenceMixin`（每次死亡读一次开关）。
+
+
+---
+
+## 2026-11-06 修订（rev 2）：配置键名更正；`confirm` 不加强制前置
+
+> **本节取代** rev 1 里写的 `frostbite_death_fix.enabled` /
+> `beloong.configuration.frostbiteDeathFixEnabled` 这一对键名。
+
+1. **配置键名已变**：铁魔法修复开关由另一会话按项目既有 flat 风格简化，
+   现在是 `Config.COMMON` 的平铺键 **`fixFrostbiteDeath`**（默认 `true`），
+   翻译键 `beloong.configuration.fixFrostbiteDeath[.tooltip]`。
+   `run/config/beloong-common.toml` 里的旧 `[frostbite_death_fix]` 段已被 NeoForge
+   自动纠正删除，**升级无需手工迁移**。
+
+2. **`confirm` 刻意不强制"必须先跑一次 `cleandead`"**（委托方 2026-11-06 裁定：保持现状）。
+   依据：命令是 op 级、判定极窄（`health<=0 && deathTime>=400`，不可能误伤活物/玩家）、
+   不再重放奖励（误删无奖励差异）、且 `confirm` **每次 rescan**（不存在"按旧清单执行"）
+   ⇒ 盲敲 `confirm` 的**结果**与"先列后确认"完全一致，差别只在知情。
+   强制则需要会话状态（执行者身份 / TTL / 重启 / 多 op / 自动化），与本命令的无状态设计冲突。
+   若将来需要硬保证，优先考虑**数量令牌**（`confirm <n>`）而不是会话状态。
+
+3. **实机验收**：委托方确认清理指令生效（2026-11-05）。
