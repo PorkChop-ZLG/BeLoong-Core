@@ -1,7 +1,7 @@
 # VB 1.2.2「斑驳森林」映射 + 天灾 mixin 规范化 设计文档
 
 **Date:** 2026-11-05
-**Status:** **已实施**（代码、门、文档均已落地；`compileJava` 零警告通过；实机账目待用户验收）
+**Status:** **已实施并实机验收**（2026-11-05，存档 `天灾维度新版VB测试`：参数表 `7608 = 7608 + 0 + 0`；五棵 region 树 `minecraft: biomes 0 []`；天灾 `60 biomes {beloong=5, bwg=55}`；4049 个区块零 `minecraft:` 泄漏）
 **范围:** VB 群系映射（方案 A）+ 静态门（方案 C）+ 天灾 mixin 规范化 + 可选目标三件套补齐
 **用户裁定:** 采用 A + C；**不做** B（"未映射改兜底群系"）、**不做** D（映射表数据驱动）；
 删 `CloneParameterListMixin` 的 `@Pseudo`；保留 `mixin/bomd/` 空目录；顺带补齐 `FSweepButtonControlMixin`。
