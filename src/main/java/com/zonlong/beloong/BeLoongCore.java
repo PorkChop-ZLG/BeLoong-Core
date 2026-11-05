@@ -10,6 +10,7 @@ import com.zonlong.beloong.command.CgCommand;
 import com.zonlong.beloong.command.EssenceCommand;
 import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
+import com.zonlong.beloong.compat.bomd.LichLootFloatHandler;
 import com.zonlong.beloong.compat.dragonsurvival.ClawSwordAdvancementHandler;
 import com.zonlong.beloong.compat.ftbchunks.LoongPalaceProtectionHandler;
 import com.zonlong.beloong.cg.MoEntranceTrigger;
@@ -133,6 +134,7 @@ public class BeLoongCore {
         NeoForge.EVENT_BUS.register(new ClawSwordAdvancementHandler());   // 爪牙槽教学进度
         NeoForge.EVENT_BUS.register(new LifeHealInterruptHandler());      // 灵愈：施法期间挨打则打断
         NeoForge.EVENT_BUS.register(new DeadKingAdvancementHandler());    // 死者之王击杀进度
+        NeoForge.EVENT_BUS.register(new LichLootFloatHandler());          // 暗夜巫妖：掉落悬停在死亡点 + 原版描边
         NeoForge.EVENT_BUS.register(new LoongPalaceSpellBanHandler());    // 龙宫：禁铁魔法常规施法（放行 /cast 龙技能）
         NeoForge.EVENT_BUS.register(new MoEntranceTrigger());            // 获得 root 进度 ⇒ 播放末的登场 CG
         NeoForge.EVENT_BUS.register(new LastDialogueNpc());             // 玩家退出时清掉"最近对话过的 NPC"映射
