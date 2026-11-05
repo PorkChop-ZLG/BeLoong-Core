@@ -1,4 +1,4 @@
-package com.zonlong.beloong.compat.ironsspellbooks;
+package com.zonlong.beloong.util;
 
 import com.zonlong.beloong.BeLoongCore;
 import net.minecraft.core.registries.BuiltInRegistries;

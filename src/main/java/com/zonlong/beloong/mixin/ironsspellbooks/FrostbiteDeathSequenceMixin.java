@@ -1,6 +1,7 @@
 package com.zonlong.beloong.mixin.ironsspellbooks;
 
-import com.zonlong.beloong.compat.ironsspellbooks.CustomDeathSequence;
+import com.zonlong.beloong.Config;
+import com.zonlong.beloong.util.CustomDeathSequence;
 import io.redspace.ironsspellbooks.effect.FrostbiteEffect;
 import net.minecraft.world.entity.LivingEntity;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -71,6 +72,10 @@ public abstract class FrostbiteDeathSequenceMixin {
             require = 0
     )
     private static void beloong$restoreCustomDeathSequence(LivingDeathEvent event, CallbackInfo ci) {
+        // 开关是 Config 顶层的 fixFrostbiteDeath；关闭后完全恢复上游行为（可复现假死）
+        if (!Config.FIX_FROSTBITE_DEATH.get()) {
+            return;
+        }
         LivingEntity entity = event.getEntity();
         int deathTime = entity.deathTime;
         if (deathTime <= 0) {

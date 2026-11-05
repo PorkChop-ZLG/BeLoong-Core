@@ -135,6 +135,22 @@ public class Config {
             .comment("修复Fsweep打开部分容器崩溃")
             .define("fixFsweepContainerCrash", true);
 
+    /**
+     * 修复霜噬导致假死（默认启用）。
+     *
+     * <p>消费方：{@code mixin/ironsspellbooks/FrostbiteDeathSequenceMixin}。判定逻辑在
+     * {@code util/CustomDeathSequence}（沿继承链看该生物是否自己声明了 {@code tickDeath()}）。
+     *
+     * <p>关闭后恢复"第三方 Boss 被霜噬击杀会永久假死"的原样 —— 用于复现 bug、
+     * 以及验证 {@code /beloong cleandead} 的清理效果。
+     *
+     * <p>关联设计：{@code docs/plans/2026-11-05-frostbite-death-sequence-design.md}、
+     * {@code docs/plans/2026-11-05-clean-dead-command-design.md}。
+     */
+    public static final ModConfigSpec.BooleanValue FIX_FROSTBITE_DEATH = COMMON_BUILDER
+            .comment("修复霜噬导致假死：把死亡计时器还给自行接管 tickDeath() 的生物")
+            .define("fixFrostbiteDeath", true);
+
     /** Mowzie's Mobs 钢铁守护者：允许原版重锤伤害（默认启用） */
     public static final ModConfigSpec.BooleanValue ENABLE_MOWZIE_MACE_DAMAGE = COMMON_BUILDER
             .comment("Enable Ferrous Wroughtnaut damage by vanilla mace",
@@ -226,6 +242,7 @@ public class Config {
         /** 总开关：关闭后太阳伤害恢复"被护盾挡下"的原版行为 */
         public static ModConfigSpec.BooleanValue enabled;
     }
+
     static {
         COMMON_BUILDER.push("effect_entity_cap");
 

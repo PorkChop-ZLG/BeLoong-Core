@@ -7,6 +7,7 @@ import com.zonlong.beloong.command.RouteCommand;
 import com.zonlong.beloong.block.HellGateKeyWatcher;
 import com.zonlong.beloong.block.LoongPalacePortalActivation;
 import com.zonlong.beloong.command.CgCommand;
+import com.zonlong.beloong.command.CleanDeadCommand;
 import com.zonlong.beloong.command.EssenceCommand;
 import com.zonlong.beloong.command.NpcCommand;
 import com.zonlong.beloong.compat.betterendisland.DragonSummonHandler;
@@ -261,6 +262,7 @@ public class BeLoongCore {
         CgCommand.register(event.getDispatcher());
         RouteCommand.register(event.getDispatcher());   // 按玩家定位的路线指派（ChatBox 选项调用）
         EssenceCommand.register(event.getDispatcher(), event.getBuildContext());   // 技能注入主手魔源
+        CleanDeadCommand.register(event.getDispatcher());                          // 清理假死尸体（全维度、仅执行时扫描）
     }
 
     /** 服务端启动时触发。 */
