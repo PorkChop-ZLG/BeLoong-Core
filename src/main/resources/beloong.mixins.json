@@ -44,6 +44,7 @@
     "betterendisland.DragonSummonMixin",
     "betterendisland.ExitPortalUtilsMixin",
     "block_factorys_bosses.UnderworldKnightGuardBreakMixin",
+    "ironsspellbooks.FrostbiteDeathSequenceMixin",
     "legendarymonsters.CameraShakeCapMixin",
     "legendarymonsters.ChorusEnergyBulletEntityOnHitGuardMixin",
     "legendarymonsters.DynamicCameraZoomCapMixin",
