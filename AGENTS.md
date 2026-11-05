@@ -59,7 +59,8 @@
   统计 `ERROR/FATAL` 要用 `[线程/LEVEL]` 口径，用 `\[(ERROR|FATAL)\]` 会误得 0 条）。
 - 静态门（**只活在本机工作区**；**各管一个子系统，别全跑也别全跳**）：`python tools\validate_execute.py`、
   `validate_execute_line.py`（execute / 斩杀类）、`validate_tornado.py`（龙卷风）、
-  `check_lang_parity.py`（语言）。缺了就按抬头那条办。
+  `check_lang_parity.py`（语言）、`validate_biome_mapping.py`（天灾群系映射：第三方以 `minecraft:`
+  注入的群系是否都在 `DisasterBiomeMapping` 里有映射项；VB 源码缺席时自报 SKIP 退出 0）。缺了就按抬头那条办。
   ⚠️ **【本机】`D:\Minecraft\tools\YSMParser\` 整个目录一律不要跑。** 它是历史自动化工具链（约 250 个 `.py`，
   其中**约 165 个含文件写入调用**：`patch_*` / `fix_*` / `backfill_*` / `add_*_lang.py` …），
   根路径**硬编码**到 `D:\Minecraft\BeLoong-Core-NPC`。
@@ -85,8 +86,10 @@
     命中的全是 `TemplateUpdate` / `TemplateVersionStore` / `LockdownTemplateMigration`），
     并注意注释 / javadoc 里**叙述已删除方案**的散文会稳定误报；
   - **构建失败时 jar 是旧的、且不会报错** ⇒ 一看到 `FAILED`，随后所有针对产物的结论都作废，先修构建。
-  - 警告数要与**基线**比较：基线是 `ParameterListAccessor` / `PossibleBiomesFilterMixin` 造成的
-    Annotation-Processor 警告（remap 缺失），**只有新增的才算问题**（数字本身会随文件增删而漂移）。
+  - 警告数要与**基线**比较：**当前基线是 0**（2026-11-05 起：`@Shadow` / `@Accessor` 全部补了
+    `remap = false`，原先由 `ParameterListAccessor` / `PossibleBiomesFilterMixin` 造成的 3 条
+    `Unable to locate obfuscation mapping` 已消除）⇒ **任何一条警告都算新增**，必须查清。
+    新写 `@Shadow` / `@Accessor` / `@Invoker` 时**一律显式写 `remap = false`**，否则这条基线会复活。
 - 写"可直接执行"的命令前，记住三条**实测踩过的坑**：
   - **`.NET` 静态文件 API 不受 PowerShell `cd` 影响**：`[System.IO.File]::ReadAllBytes('run/logs/latest.log')`
     会去读**工作区根**、报 `Could not find a part of the path` ⇒ 用 `Resolve-Path` 或绝对路径
@@ -155,8 +158,9 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   `%USERPROFILE%\.gradle\caches\modules-2\files-2.1\curse.maven\<slug>-<projectId>\<fileId>\<hash>\<slug>-<projectId>-<fileId>.jar`
   （坐标从 `build.gradle` 取）。⚠️ 本项目**不使用本地 jar 仓库**（`local-repo/` 已于 2026-10-15 连同声明一起删除），
   所有 jar 一律从 Maven 下载。
-  ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`（**真缺口**，它的 mixin 也还没补
-  `@Pseudo` / `require = 0`）、`yuushya`（**用户明确要求不做依赖声明** ⇒ 别"顺手补"）——
+  ⚠️ **有两个目标模组不在 `mods.toml` 里、却真的有 mixin**：`f-sweep`（2026-11-05 已补
+  `@Pseudo` / `require = 0` 与 `type="optional"` + `side="CLIENT"` 声明；**Gradle 侧仍只有
+  `compileOnly` + `localRuntime`**）、`yuushya`（**用户明确要求不做依赖声明** ⇒ 别"顺手补"）——
   定位它们的 jar / 源码只能靠 `build.gradle` 的 curse 坐标。
 - 闭源反编译：`D:\Minecraft\闭源模组解压文件\`。
 - 读法：先定位再精读（用智能体的 grep 工具，或 pwsh 里的 `Select-String`——本机没有 `rg`，见 §二）；
@@ -211,8 +215,10 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
 - **Mixin 文件移动 / 改名时，`beloong.mixins.json` 的条目（含目录前缀）必须同步移动**
   （先例：`AsteorBarHealthFixMixin` 从根级搬到 `mixin/asteorbar/`，条目也改成 `asteorbar.…` 并进了 `client` 数组）。
   `mixin/bomd/` 目前是**空目录**（不是漏放文件）。
-- ⚠️ **现状有残留**（2026-10-11 实测）：`FSweepButtonControlMixin`（目标模组**不在** `mods.toml` 里，
-  风险最高）、`NetMagnetItemMixin`、`mixin/betterendisland/` 下两个，尚未补 `@Pseudo` / `require = 0`。
+- ⚠️ **现状有残留**（2026-11-05 实测）：只剩 `mixin/betterendisland/` 下两个（`DragonSummonMixin` /
+  `ExitPortalUtilsMixin`）尚未补 `@Pseudo` / `require = 0`（`betterendisland` 在 `mods.toml` 里是
+  `optional`）。`FSweepButtonControlMixin` 与 `NetMagnetItemMixin` 已于同日补齐三件套
+  （注解 + toml 声明 + 移包），`mixin/` 根级**已无 Java 文件**。
   **改到这些文件时顺手修正**。这条是**会漂移的现状**（那批文件会变）。复查是**两步**，⚠️ **期望值不是
   "只剩上面这几个"** —— 当前树有 **34 个** `@Mixin` 文件不带 `@Pseudo`，其中绝大多数目标是 `required`
   （本就不需要 `@Pseudo`）⇒ **必须与 `mods.toml` 求交**才有意义：

@@ -29,7 +29,7 @@ import java.util.TreeSet;
 /**
  * 天灾维度的群系替换求解器。
  * <p>
- * 由 {@link com.zonlong.beloong.mixin.CloneParameterListMixin} 在 TerraBlender 初始化参数列表
+ * 由 {@link com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin} 在 TerraBlender 初始化参数列表
  * <strong>之前</strong>调用，把 {@link Climate.ParameterList} 里的原版群系替换成 BWG 群系，
  * 从而实现两个层面的目标：
  * <ol>
@@ -38,8 +38,8 @@ import java.util.TreeSet;
  *       {@code /locate biome} 搜不到、自然罗盘只把它们显示在主世界</li>
  * </ol>
  * 两层是<strong>两条独立路径</strong>，需分别处理——生成层见
- * {@link com.zonlong.beloong.mixin.CloneParameterListMixin}，
- * 查询层见 {@link com.zonlong.beloong.mixin.PossibleBiomesFilterMixin}。
+ * {@link com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin}，
+ * 查询层见 {@link com.zonlong.beloong.mixin.minecraft.PossibleBiomesFilterMixin}。
  *
  * <h3>无配置项</h3>
  * 本功能<strong>不提供任何配置开关</strong>，也<strong>没有兜底群系配置</strong>。
@@ -50,11 +50,11 @@ import java.util.TreeSet;
  * <h3>三条注入路径（第二阶段起）</h3>
  * 改写发生在三个位置，<strong>共用同一套判据与映射</strong>（{@link #rewriteKey}）：
  * <ol>
- *   <li><b>index 0 兜底树</b> —— {@link com.zonlong.beloong.mixin.CloneParameterListMixin}
+ *   <li><b>index 0 兜底树</b> —— {@link com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin}
  *       （生成层）</li>
- *   <li><b>查询层</b> —— {@link com.zonlong.beloong.mixin.PossibleBiomesFilterMixin}</li>
+ *   <li><b>查询层</b> —— {@link com.zonlong.beloong.mixin.minecraft.PossibleBiomesFilterMixin}</li>
  *   <li><b>region 树（全部 region）</b> —— {@link RegionBiomeRewriter}（由
- *       {@code com.zonlong.beloong.mixin.RegionsGetMixin} 注入 TerraBlender 的
+ *       {@code com.zonlong.beloong.mixin.terrablender.RegionsGetMixin} 注入 TerraBlender 的
  *       {@code Regions.get} 出口来包装）。
  *       TerraBlender 为每个 region 各建一棵 RTree，且
  *       {@code findValuePositional} <b>先查 region 树</b>，只有拿到
@@ -76,9 +76,9 @@ import java.util.TreeSet;
  * 逐项去向与依据见 {@code docs/plans/2026-09-11-disaster-phase2-biome-table.md}。
  *
  * @see DisasterBiomeMapping
- * @see com.zonlong.beloong.mixin.CloneParameterListMixin
- * @see com.zonlong.beloong.mixin.PossibleBiomesFilterMixin
- * @see com.zonlong.beloong.mixin.RegionsGetMixin
+ * @see com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin
+ * @see com.zonlong.beloong.mixin.minecraft.PossibleBiomesFilterMixin
+ * @see com.zonlong.beloong.mixin.terrablender.RegionsGetMixin
  */
 public final class DisasterBiomeSubstitution {
 
@@ -124,7 +124,7 @@ public final class DisasterBiomeSubstitution {
     /**
      * 「本模组在本进程内是否真的对天灾维度做过替换」。
      * <p>
-     * 由 {@link #filter} 设置，供 {@link com.zonlong.beloong.mixin.PossibleBiomesFilterMixin}
+     * 由 {@link #filter} 设置，供 {@link com.zonlong.beloong.mixin.minecraft.PossibleBiomesFilterMixin}
      * 判断是否应该过滤查询层的 {@code possibleBiomes()}。
      * <p>
      * <b>为什么需要这个标志：</b>查询层与生成层是两条独立路径。若替换实际未发生

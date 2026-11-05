@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.terrablender;
 
 import com.zonlong.beloong.BeLoongCore;
 import com.zonlong.beloong.worldgen.RegionBiomeRewriter;

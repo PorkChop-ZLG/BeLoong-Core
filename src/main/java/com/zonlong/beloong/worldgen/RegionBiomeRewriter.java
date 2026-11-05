@@ -44,7 +44,7 @@ import java.util.function.Consumer;
  * 残留项由 {@link DisasterBiomeSubstitution#logRegionTreeBiomes} 聚合上报。
  *
  * @see DisasterBiomeSubstitution#rewriteKey
- * @see com.zonlong.beloong.mixin.RegionsGetMixin
+ * @see com.zonlong.beloong.mixin.terrablender.RegionsGetMixin
  */
 public final class RegionBiomeRewriter extends Region {
 

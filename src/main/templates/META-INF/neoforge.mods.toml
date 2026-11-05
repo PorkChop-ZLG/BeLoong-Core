@@ -292,6 +292,18 @@ config = "beloong.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# F-Sweep — 可选依赖：修复它 resolveMenuId 里 menu.getType() 对马/载具容器抛
+# UnsupportedOperationException 导致的断连崩溃（见 mixin/fsweep/FSweepButtonControlMixin）。
+# 版本取自实际 jar 的 META-INF/neoforge.mods.toml：modId=fsweep、version=1.5.0。
+# 它是纯客户端模组（按钮/容器逻辑），故 side=CLIENT；上游改名会静默失效（@Pseudo + require = 0），
+# 写 versionRange 只为让「版本不匹配」在启动日志里可见。
+[[dependencies.${mod_id}]]
+    modId="fsweep"
+    type="optional"
+    versionRange="[1.5.0,)"
+    ordering="AFTER"
+    side="CLIENT"
+
 # Dark Doppelganger（黑暗二重身）— 可选集成目标：**暂无 mixin**，先备依赖与声明。
 # 已知崩溃面：它的 hurt() 里同步重建 goalSelector，若这次 hurt 发生在它自己的 goal 迭代内
 # （荆棘反伤 / 自伤 TNT / 闪电）⇒ 下一 tick 原版 GoalSelector.tickRunningGoals 读到 null 槽而 NPE。

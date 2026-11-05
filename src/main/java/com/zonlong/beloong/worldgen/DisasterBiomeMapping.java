@@ -65,7 +65,7 @@ import net.minecraft.core.registries.Registries;
  * 这比中心距离看似更近但格不重合的候选更可靠。
  *
  * @see DisasterBiomeSubstitution
- * @see com.zonlong.beloong.mixin.CloneParameterListMixin
+ * @see com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin
  */
 public final class DisasterBiomeMapping {
 
@@ -104,6 +104,11 @@ public final class DisasterBiomeMapping {
             // VanillaBackport 新增（1.21.4 的 pale garden，本质是深色森林变体）：气候格与 dark_forest 相同，
             // 故沿用同一目标。不补这一项会走「保留原版 + ERROR」，让 minecraft: 群系在天灾维度生成（违反决策 24）
             case "pale_garden" -> "biomeswevegone:weeping_witch_forest";
+            // VanillaBackport 1.2.2 新增（26.3 的斑驳森林）：COOL + ARID + 近/远内陆 + 侵蚀 2~4。
+            // BWG 的 MIDDLE_BIOMES_BWG[1][0] 就是 pumpkin_valley（寒带最干那一格）⇒ 同气候格；
+            // 它默认启用（BWG 只硬禁用 eroded_borealis）且有自己的地表规则（BWGOverworldSurfaceRules）。
+            // 不补这一项会走「保留原版 + ERROR」，让 minecraft:dappled_forest 在天灾维度生成（违反决策 24）。
+            case "dappled_forest" -> "biomeswevegone:pumpkin_valley";
 
             // ---------- 寒带 / 冰带内陆 ----------
             case "snowy_plains" -> "biomeswevegone:crimson_tundra";

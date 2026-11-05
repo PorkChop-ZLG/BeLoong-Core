@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.minecraft;
 
 import com.google.common.collect.ImmutableSet;
 import com.zonlong.beloong.BeLoongCore;
@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  *
  * <h3>如何识别天灾维度</h3>
  * 用 <b>作用域</b>标志 {@link DisasterBiomeSubstitution#isFilteringTargetBiomeList()}——
- * 由 {@link CloneParameterListMixin} 在 {@code LevelUtils.initializeBiomes} 调用
+ * 由 {@link com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin} 在 {@code LevelUtils.initializeBiomes} 调用
  * {@code appendDeferredBiomesList} 的<strong>前后</strong>用 {@code levelKey} 精确包夹；
  * 另需 {@link DisasterBiomeSubstitution#isSubstitutionApplied()} 为真（生成层确实替换过）
  * 才过滤，保持两层一致。
@@ -69,12 +69,12 @@ import java.util.function.Supplier;
  * （原版被 {@code Suppliers.memoize} 包裹就是这个意图，TerraBlender 与本类早先的实现都把它丢了）。
  *
  * @see DisasterBiomeSubstitution
- * @see CloneParameterListMixin 生成路径的对应修复
+ * @see com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin 生成路径的对应修复
  */
 @Mixin(BiomeSource.class)
 public abstract class PossibleBiomesFilterMixin {
 
-        @Shadow
+    @Shadow(remap = false)
     public Supplier<Set<Holder<Biome>>> possibleBiomes;
 
     @Inject(method = "appendDeferredBiomesList", at = @At("HEAD"), remap = false, cancellable = true)

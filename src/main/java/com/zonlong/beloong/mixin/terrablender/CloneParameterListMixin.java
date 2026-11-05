@@ -1,8 +1,9 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.terrablender;
 
 import com.mojang.datafixers.util.Either;
 import com.mojang.datafixers.util.Pair;
 import com.zonlong.beloong.BeLoongCore;
+import com.zonlong.beloong.mixin.minecraft.ParameterListAccessor;
 import com.zonlong.beloong.worldgen.DisasterBiomeSubstitution;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
@@ -14,7 +15,6 @@ import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.dimension.LevelStem;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -26,7 +26,6 @@ import terrablender.worldgen.IExtendedParameterList;
 
 import java.util.List;
 
-@Pseudo
 @Mixin(value = LevelUtils.class, remap = false)
 public class CloneParameterListMixin {
 
@@ -136,7 +135,7 @@ public class CloneParameterListMixin {
      *
      * @param levelKey 本次初始化的 level stem 键——判定的唯一依据
      */
-    @Inject(method = "initializeBiomes", at = @At("HEAD"))
+    @Inject(method = "initializeBiomes", at = @At("HEAD"), remap = false)
     private static void beloong$beginTargetDimension(
         RegistryAccess registryAccess,
         Holder<DimensionType> dimensionType,
@@ -151,7 +150,7 @@ public class CloneParameterListMixin {
     }
 
     /** 与 {@link #beloong$beginTargetDimension} 配对，清除作用域标志。 */
-    @Inject(method = "initializeBiomes", at = @At("RETURN"))
+    @Inject(method = "initializeBiomes", at = @At("RETURN"), remap = false)
     private static void beloong$endTargetDimension(
         RegistryAccess registryAccess,
         Holder<DimensionType> dimensionType,

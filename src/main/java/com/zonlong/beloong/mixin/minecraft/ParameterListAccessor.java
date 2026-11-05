@@ -1,4 +1,4 @@
-package com.zonlong.beloong.mixin;
+package com.zonlong.beloong.mixin.minecraft;
 
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.core.Holder;
@@ -30,7 +30,7 @@ import java.util.List;
  * {@link com.zonlong.beloong.worldgen.DisasterBiomeSubstitution}——Mixin 禁止在
  * {@code beloong.mixins.json} 声明的 mixin 包内直接引用非 mixin 类。
  *
- * @see CloneParameterListMixin 消费方
+ * @see com.zonlong.beloong.mixin.terrablender.CloneParameterListMixin 消费方
  */
 @Mixin(Climate.ParameterList.class)
 public interface ParameterListAccessor {
@@ -40,7 +40,7 @@ public interface ParameterListAccessor {
      *
      * @return 当前 {@code values} 列表
      */
-    @Accessor("values")
+    @Accessor(value = "values", remap = false)
     List<Pair<Climate.ParameterPoint, Holder<Biome>>> beloong$getValues();
 
     /**
@@ -51,6 +51,6 @@ public interface ParameterListAccessor {
      * @param values 新的参数点序列
      */
     @Mutable
-    @Accessor("values")
+    @Accessor(value = "values", remap = false)
     void beloong$setValues(List<Pair<Climate.ParameterPoint, Holder<Biome>>> values);
 }
