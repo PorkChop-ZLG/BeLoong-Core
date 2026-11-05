@@ -10,6 +10,7 @@ import net.minecraft.world.level.dimension.end.EndDragonFight;
 import net.minecraft.world.level.levelgen.feature.FeaturePlaceContext;
 import net.minecraft.world.level.levelgen.feature.configurations.NoneFeatureConfiguration;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -19,8 +20,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * 禁用 BEI 中央塔自动生成 4 颗召唤水晶，并把仪式位置下方的基岩替换为强化深板岩。
  *
  * <p>仅修改 BEI 的 {@link BetterEndPodiumFeature}，不修改原版 Minecraft 类。</p>
+ *
+ * <p>目标模组 {@code betterendisland} 是<strong>可选依赖</strong>（见 mods.toml 的
+ * {@code type="optional"}），因此本类用 {@code @Pseudo} 兜住"模组缺席"，两个注入器用
+ * {@code require = 0} 兜住"上游方法改名/注入点消失"——两者都退化为静默不生效，而不是启动期硬崩。</p>
  */
-@Mixin(BetterEndPodiumFeature.class)
+@Pseudo
+@Mixin(value = BetterEndPodiumFeature.class, remap = false)
 public abstract class DragonSummonMixin {
 
     /**
@@ -30,9 +36,11 @@ public abstract class DragonSummonMixin {
             method = "place",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/level/ServerLevelAccessor;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"
+                    target = "Lnet/minecraft/world/level/ServerLevelAccessor;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z",
+                    remap = false
             ),
-            remap = false
+            remap = false,
+            require = 0
     )
     private static boolean beloong$skipInitialSummonCrystals(ServerLevelAccessor level, Entity entity) {
         if (DragonSummonHelper.isAvailable() && entity instanceof EndCrystal) {
@@ -44,7 +52,7 @@ public abstract class DragonSummonMixin {
     /**
      * 中央塔生成后，把 4 个仪式位置下方的基岩替换为强化深板岩。
      */
-    @Inject(method = "place", at = @At("RETURN"), remap = false)
+    @Inject(method = "place", at = @At("RETURN"), remap = false, require = 0)
     private void beloong$replaceCrystalSupport(FeaturePlaceContext<NoneFeatureConfiguration> ctx,
                                                CallbackInfoReturnable<Boolean> cir) {
         if (!DragonSummonHelper.isAvailable()) {

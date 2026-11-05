@@ -211,17 +211,18 @@ NeoForge 自己的类、没有 `net/minecraft`**，拿它去找 `LivingEntity` /
   `ordering` / `side`）—— 否则"装了但版本不对"这条信息在启动日志里看不见；Gradle 侧常规搭配是
   `compileOnly` + `localRuntime`（需要它在 dev 里真实加载时用 `implementation`）。
   **三段（Gradle 依赖 / toml 声明 / mixin 注解）缺一，兼容都不完整。**
+  ⚠️ `versionRange` **不是硬项**：只做纯兼容、不靠版本门控的条目可以不写 —— 先例 `betterendisland`
+  （用户 2026-11-05 裁定**不补**，它只需要 `@Pseudo` + `require = 0`）⇒ **别"顺手补"**。
 - 命名：`*Mixin`；访问器 `*Accessor`。
 - **Mixin 文件移动 / 改名时，`beloong.mixins.json` 的条目（含目录前缀）必须同步移动**
   （先例：`AsteorBarHealthFixMixin` 从根级搬到 `mixin/asteorbar/`，条目也改成 `asteorbar.…` 并进了 `client` 数组）。
   `mixin/bomd/` 目前是**空目录**（不是漏放文件）。
-- ⚠️ **现状有残留**（2026-11-05 实测）：只剩 `mixin/betterendisland/` 下两个（`DragonSummonMixin` /
-  `ExitPortalUtilsMixin`）尚未补 `@Pseudo` / `require = 0`（`betterendisland` 在 `mods.toml` 里是
-  `optional`）。`FSweepButtonControlMixin` 与 `NetMagnetItemMixin` 已于同日补齐三件套
-  （注解 + toml 声明 + 移包），`mixin/` 根级**已无 Java 文件**。
-  **改到这些文件时顺手修正**。这条是**会漂移的现状**（那批文件会变）。复查是**两步**，⚠️ **期望值不是
-  "只剩上面这几个"** —— 当前树有 **34 个** `@Mixin` 文件不带 `@Pseudo`，其中绝大多数目标是 `required`
-  （本就不需要 `@Pseudo`）⇒ **必须与 `mods.toml` 求交**才有意义：
+- ✅ **现状无残留**（2026-11-05 实测）：最后一批 `mixin/betterendisland/` 的 `DragonSummonMixin` /
+  `ExitPortalUtilsMixin` 也已补上 `@Pseudo` + `require = 0`（`betterendisland` 在 `mods.toml` 里是
+  `optional`）。至此**所有"目标为可选模组"的 mixin 都三件套齐全**，`mixin/` 根级也已无 Java 文件。
+  ⚠️ 这条是**会漂移的现状**（新增可选目标就会重新出现），复查是**两步**，⚠️ **期望值不是"零个不带
+  `@Pseudo`"** —— 当前树绝大多数 `@Mixin` 文件不带 `@Pseudo`，它们的目标是 `required`（本就不需要）
+  ⇒ **必须与 `mods.toml` 求交**才有意义：
 
   ```powershell
   # ① 列出没有 @Pseudo 的 mixin 文件（本机没有 rg，见 §二）

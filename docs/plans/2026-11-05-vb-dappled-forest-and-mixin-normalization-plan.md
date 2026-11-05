@@ -63,6 +63,8 @@
 
 ## 四、留给下一轮的
 
-* `mixin/betterendisland/` 两个 mixin 的 `@Pseudo` / `require = 0`（§四 残留清单现在只剩它们）。
-* 映射表数据驱动（设计文档 D2 记为 backlog）。
-* 可选：把存档级扫描器固化成 `tools/scan_disaster_biomes.py`，作为改映射后的第二道验收（第一道是启动账目）。
+* ✅ **已完成（2026-11-05 追加）**：`mixin/betterendisland/` 两个（`DragonSummonMixin` / `ExitPortalUtilsMixin`）
+  补 `@Pseudo` + `require = 0`（`DragonSummonMixin` 顺带补类级 `remap = false`），`AGENTS.md` §四 的残留清单
+  随之改为"无残留"。用户裁定：**不补** `versionRange`（该条目只需兜"模组缺席 / 注入点漂移"，不需要版本可见性）。
+* ❌ **明确不做**（用户 2026-11-05 裁定）：映射表数据驱动（设计文档 D2 的 backlog 项，作废）。
+* ❌ **明确不做**（用户 2026-11-05 裁定）：把存档级扫描器固化成 `tools/scan_disaster_biomes.py`。

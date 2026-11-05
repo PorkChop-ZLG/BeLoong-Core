@@ -7,6 +7,7 @@ import com.zonlong.beloong.compat.betterendisland.CustomEndPortalAppearance;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.dimension.end.EndDragonFight;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -20,14 +21,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *   <li>当前放置的是底部传送门（{@code isBottomOnly == true}）</li>
  *   <li>龙已经被击杀/复活过（{@code hasDragonEverSpawned() == true}），首次生成不干预</li>
  * </ul>
+ *
+ * <p>目标模组 {@code betterendisland} 是<strong>可选依赖</strong>（见 mods.toml 的
+ * {@code type="optional"}）：{@code @Pseudo} 兜"模组缺席"，{@code require = 0} 兜
+ * "上游 {@code spawnPortal} 签名变化"——两者都退化为静默不生效。</p>
  */
+@Pseudo
 @Mixin(value = ExitPortalUtils.class, remap = false)
 public abstract class ExitPortalUtilsMixin {
 
     @Inject(
             method = "spawnPortal(Lcom/yungnickyoung/minecraft/betterendisland/world/IBetterDragonFight;Lnet/minecraft/server/level/ServerLevel;ZZZ)V",
             at = @At("RETURN"),
-            remap = false
+            remap = false,
+            require = 0
     )
     private static void beloong$applyCustomEndPortal(
             IBetterDragonFight dragonFight,
